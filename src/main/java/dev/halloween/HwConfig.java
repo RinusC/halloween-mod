@@ -119,7 +119,6 @@ public class HwConfig {
 	public int windowFinisherStalkLevel = 3;
 
 	// --- Shape Jump (Поступь Призрака) ---
-	public int shapeJumpDurationTicks = 100;
 	public int[] shapeJumpCooldownByTier = {600, 480, 360};
 	public double[] shapeJumpSpeedByTier = {0.6, 0.9, 1.2};
 	public int lightThreshold = 7;

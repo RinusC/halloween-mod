@@ -327,11 +327,9 @@ public final class MatchManager {
 			}
 		}
 
+		// Shape Jump lasts until the Shape leaves it himself.
 		if (state.shadowTicks > 0) {
-			state.shadowTicks--;
-			if (state.shadowTicks == 0 || serverTick % 5 == 0 && exposed(player)) {
-				exitShadow(player, state);
-			}
+			state.shadowTicks++;
 		}
 
 		if (state.senseActive()) {
@@ -374,7 +372,9 @@ public final class MatchManager {
 		boolean sense = state.senseActive();
 		double range = sense ? cfg.senseRange : cfg.passiveStalkRange;
 		Vec3 eye = player.getEyePosition();
-		Vec3 look = player.getViewVector(1f);
+		// Aim angles come from the camera ray (what the reticle shows); sight is still checked from the eyes.
+		Vec3 aimFrom = aimOrigin(player, state);
+		Vec3 look = aimDirection(player, state);
 		for (LivingEntity target : level.getEntitiesOfClass(LivingEntity.class, player.getBoundingBox().inflate(range), MatchManager::isVictim)) {
 			VictimState vs = victim(target);
 			float cap = sense ? 3f : cfg.passiveStalkCap;
@@ -386,14 +386,14 @@ public final class MatchManager {
 			if (dist > range) {
 				continue;
 			}
-			double bodyAngle = Sight.angleTo(eye, look, body);
+			double bodyAngle = Sight.angleTo(aimFrom, look, body);
 			float aim;
 			Vec3 seen = body;
 			if (sense) {
 				double best = Double.MAX_VALUE;
 				for (int i = 0; i < FocusPoints.COUNT; i++) {
 					Vec3 p = FocusPoints.get(target, i, 1f);
-					double a = Sight.angleTo(eye, look, p);
+					double a = Sight.angleTo(aimFrom, look, p);
 					if (a < best) {
 						best = a;
 						seen = p;
@@ -485,6 +485,30 @@ public final class MatchManager {
 
 	// ---------------------------------------------------------------- Shape Jump
 
+	/** Camera ray from the client if it is fresh and plausible, otherwise the eyes. */
+	static Vec3 aimOrigin(ServerPlayer player, ShapeState state) {
+		return freshAim(player, state) ? state.aimOrigin : player.getEyePosition();
+	}
+
+	static Vec3 aimDirection(ServerPlayer player, ShapeState state) {
+		return freshAim(player, state) ? state.aimDirection : player.getViewVector(1f);
+	}
+
+	private static boolean freshAim(ServerPlayer player, ShapeState state) {
+		return state.aimOrigin != null && player.level().getServer().getTickCount() - state.aimTick <= 10
+			&& state.aimOrigin.distanceTo(player.getEyePosition()) <= 6;
+	}
+
+	public static void onAim(ServerPlayer player, Vec3 origin, Vec3 direction) {
+		ShapeState state = SHAPES.get(player.getUUID());
+		if (state == null || direction.lengthSqr() < 1.0E-6) {
+			return;
+		}
+		state.aimOrigin = origin;
+		state.aimDirection = direction.normalize();
+		state.aimTick = player.level().getServer().getTickCount();
+	}
+
 	static boolean inLight(ServerPlayer player) {
 		int threshold = HwConfig.get().lightThreshold;
 		ServerLevel level = player.level();
@@ -512,22 +536,31 @@ public final class MatchManager {
 	}
 
 	/**
-	 * Shape Jump works when nobody sees the Shape OR he stands in shadow (per the in-game tutorial);
-	 * only being watched while lit blocks it.
+	 * Entering and leaving Shape Jump both need darkness and nobody looking at that spot:
+	 * 0 allowed, 1 in light, 2 a civilian is looking.
 	 */
-	static boolean exposed(ServerPlayer player) {
-		return inLight(player) && seenByCivilian(player);
+	static int exposure(ServerPlayer player) {
+		if (inLight(player)) {
+			return 1;
+		}
+		return seenByCivilian(player) ? 2 : 0;
 	}
 
-	/** 0 ready, 2 watched while lit, 3 cooldown, 4 busy. */
+	/**
+	 * Out of Shape Jump: 0 ready, 1 light, 2 watched, 3 cooldown, 4 busy.
+	 * In Shape Jump: whether leaving is allowed right now (0, 1 or 2).
+	 */
 	static int jumpBlockReason(ServerPlayer player, ShapeState state) {
-		if (state.busy() || state.shadowTicks > 0) {
+		if (state.shadowTicks > 0) {
+			return exposure(player);
+		}
+		if (state.busy()) {
 			return 4;
 		}
 		if (state.jumpCooldown > 0) {
 			return 3;
 		}
-		return exposed(player) ? 2 : 0;
+		return exposure(player);
 	}
 
 	public static void onShapeJump(ServerPlayer player) {
@@ -535,19 +568,23 @@ public final class MatchManager {
 		if (role(player) != Role.SHAPE || state == null) {
 			return;
 		}
-		// Pressing again cancels the jump early.
+		int reason = jumpBlockReason(player, state);
+		// Pressing again leaves the jump, but never in light or in a civilian's view.
 		if (state.shadowTicks > 0) {
-			exitShadow(player, state);
+			if (reason != 0) {
+				player.sendOverlayMessage(Component.translatable("halloween.msg.exit_blocked." + reason).withStyle(ChatFormatting.GRAY));
+			} else {
+				exitShadow(player, state);
+			}
 			return;
 		}
-		int reason = jumpBlockReason(player, state);
 		if (reason != 0) {
 			if (reason != 4) {
 				player.sendOverlayMessage(Component.translatable("halloween.msg.jump_blocked." + reason).withStyle(ChatFormatting.GRAY));
 			}
 			return;
 		}
-		state.shadowTicks = HwConfig.get().shapeJumpDurationTicks;
+		state.shadowTicks = 1;
 		state.dashTicks = 0;
 		player.setInvisible(true);
 		player.setSilent(true);
@@ -588,17 +625,18 @@ public final class MatchManager {
 		}
 		HwConfig cfg = HwConfig.get();
 		if (state.shadowTicks > 0) {
-			exitShadow(player, state);
+			return;
 		}
 		player.swing(InteractionHand.OFF_HAND, true);
 		Vec3 eye = player.getEyePosition();
-		Vec3 look = player.getViewVector(1f);
+		Vec3 aimFrom = aimOrigin(player, state);
+		Vec3 look = aimDirection(player, state);
 		LivingEntity best = null;
 		double bestDist = Double.MAX_VALUE;
 		for (LivingEntity target : player.level().getEntitiesOfClass(LivingEntity.class, player.getBoundingBox().inflate(cfg.pushRange), MatchManager::isVictim)) {
 			Vec3 body = FocusPoints.bodyCenter(target);
 			double d = eye.distanceTo(body);
-			if (d <= cfg.pushRange + 0.5 && Sight.angleTo(eye, look, body) <= 50 && d < bestDist) {
+			if (d <= cfg.pushRange + 0.5 && Sight.angleTo(aimFrom, look, body) <= 50 && d < bestDist) {
 				best = target;
 				bestDist = d;
 			}
@@ -663,8 +701,9 @@ public final class MatchManager {
 		}
 		HwConfig cfg = HwConfig.get();
 		ServerLevel level = player.level();
+		// No attacking from inside Shape Jump: the Shape has to come out first.
 		if (state.shadowTicks > 0) {
-			exitShadow(player, state);
+			return;
 		}
 		state.dashTicks = 0;
 		player.swing(InteractionHand.MAIN_HAND, true);
@@ -701,32 +740,31 @@ public final class MatchManager {
 		}
 	}
 
+	/** Vanilla right-click on entities: the Shape grabs through {@link #onGrab} along his camera ray instead. */
 	public static InteractionResult onUseEntity(Player user, InteractionHand hand, Entity target) {
-		if (!(user instanceof ServerPlayer player) || role(player) != Role.SHAPE) {
-			return InteractionResult.PASS;
-		}
-		if (hand != InteractionHand.MAIN_HAND) {
-			return InteractionResult.FAIL;
-		}
+		return user instanceof ServerPlayer player && role(player) == Role.SHAPE ? InteractionResult.FAIL : InteractionResult.PASS;
+	}
+
+	public static void onGrab(ServerPlayer player, int targetId) {
 		ShapeState state = SHAPES.get(player.getUUID());
 		HwConfig cfg = HwConfig.get();
-		if (state == null || state.busy() || state.grabCooldown > 0 || !isVictim(target)
-			|| player.distanceTo(target) > cfg.grabRange) {
-			return InteractionResult.FAIL;
+		if (role(player) != Role.SHAPE || state == null || state.busy() || state.shadowTicks > 0 || state.grabCooldown > 0) {
+			return;
+		}
+		Entity target = player.level().getEntity(targetId);
+		if (!isVictim(target) || player.distanceTo(target) > cfg.grabRange
+			|| !Sight.canSee(player.level(), player.getEyePosition(), FocusPoints.bodyCenter((LivingEntity) target), player)) {
+			return;
 		}
 		LivingEntity victim = (LivingEntity) target;
 		VictimState vs = victim(victim);
 		if (vs.grabbed) {
-			return InteractionResult.FAIL;
-		}
-		if (state.shadowTicks > 0) {
-			exitShadow(player, state);
+			return;
 		}
 		state.dashTicks = 0;
 		gainBloodthirst(player, state, cfg.bloodthirstPerGrab);
 		score(player, state, cfg.scoreGrab, Component.translatable("halloween.score.grab", victim.getDisplayName(), vs.level()));
 		state.grab = new GrabSession(player, state, victim, vs);
-		return InteractionResult.SUCCESS;
 	}
 
 	public static void onQtePress(ServerPlayer player) {

@@ -23,7 +23,7 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.phys.EntityHitResult;
+import net.minecraft.world.entity.LivingEntity;
 import org.lwjgl.glfw.GLFW;
 
 public class HalloweenClient implements ClientModInitializer {
@@ -104,8 +104,23 @@ public class HalloweenClient implements ClientModInitializer {
 		}
 	}
 
-	public static boolean useBlockedBySense() {
-		return ClientState.myRole() == Role.SHAPE && KEY_SENSE.isDown();
+	/**
+	 * Right-click for the Shape: focus while Killer Sense is held, otherwise grab the victim under the
+	 * reticle. Returns true when vanilla use must not run (levers still work when nothing is grabbed).
+	 */
+	public static boolean handleShapeUse() {
+		if (ClientState.myRole() != Role.SHAPE) {
+			return false;
+		}
+		if (KEY_SENSE.isDown()) {
+			return true;
+		}
+		LivingEntity picked = CameraAim.pickLiving(HwConfig.get().grabRange);
+		if (picked != null) {
+			ClientPlayNetworking.send(new HwNet.Grab(picked.getId()));
+			return true;
+		}
+		return false;
 	}
 
 	private static void tick(Minecraft mc) {
@@ -149,6 +164,8 @@ public class HalloweenClient implements ClientModInitializer {
 	private static void tickShape(Minecraft mc) {
 		HwConfig cfg = HwConfig.get();
 		boolean screenOpen = mc.gui.screen() != null;
+		ClientPlayNetworking.send(new HwNet.Aim(CameraAim.origin(), CameraAim.direction()));
+		ClientState.updateVisibility(mc);
 
 		// Plain sprinting is replaced by the dash.
 		while (mc.options.keySprint.consumeClick()) {
@@ -185,10 +202,9 @@ public class HalloweenClient implements ClientModInitializer {
 			chargeTicks++;
 		} else if (attackWasDown && chargeTicks > 0) {
 			boolean heavy = chargeTicks >= cfg.heavyChargeTicks;
-			int target = -1;
-			if (mc.hitResult instanceof EntityHitResult hit) {
-				target = hit.getEntity().getId();
-			}
+			// Hit whatever is under the reticle (centre of the screen), not what the eyes point at.
+			LivingEntity picked = CameraAim.pickLiving(cfg.attackReach);
+			int target = picked == null ? -1 : picked.getId();
 			mc.player.swing(InteractionHand.MAIN_HAND);
 			ClientPlayNetworking.send(new HwNet.ShapeAttack(target, heavy));
 			chargeTicks = 0;

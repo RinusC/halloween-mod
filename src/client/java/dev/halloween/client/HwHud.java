@@ -119,7 +119,7 @@ public final class HwHud {
 	private static void victimMarkers(GuiGraphicsExtractor g, Minecraft mc, int w, int h, float partial) {
 		for (HwNet.VictimInfo info : ClientState.VICTIMS.values()) {
 			Entity entity = mc.level.getEntity(info.entityId());
-			if (!(entity instanceof LivingEntity living)) {
+			if (!(entity instanceof LivingEntity living) || !ClientState.VISIBLE.contains(info.entityId())) {
 				continue;
 			}
 			if (info.stalk() < 3f) {
@@ -173,24 +173,19 @@ public final class HwHud {
 
 	/** Centre reticle: a small dot normally, a ring in Killer Sense that turns green on a focus point. */
 	private static void reticle(GuiGraphicsExtractor g, Minecraft mc, HwNet.ShapeHud hud, int w, int h, float partial) {
-		// The camera sits over the shoulder, so the reticle goes where the Shape's eyes actually point.
-		Vec3 eyePos = mc.player.getEyePosition(partial);
-		Vec3 lookDir = mc.player.getViewVector(partial);
-		double aimDist = mc.hitResult != null && mc.hitResult.getType() != net.minecraft.world.phys.HitResult.Type.MISS
-			? mc.hitResult.getLocation().distanceTo(eyePos) : 24;
-		Projection.Point aim = Projection.toScreen(eyePos.add(lookDir.scale(Math.max(1.5, aimDist))), w, h);
-		int cx = aim == null ? w / 2 : (int) aim.x();
-		int cy = aim == null ? h / 2 : (int) aim.y();
+		// Everything the Shape does follows the ray through the screen centre, so the reticle lives there.
+		int cx = w / 2;
+		int cy = h / 2;
 		if (!hud.sense()) {
 			g.fill(cx - 1, cy - 1, cx + 1, cy + 1, 0xB0FFFFFF);
 			return;
 		}
 		boolean onPoint = false;
-		Vec3 eye = mc.player.getEyePosition(partial);
-		Vec3 look = mc.player.getViewVector(partial);
+		Vec3 eye = CameraAim.origin();
+		Vec3 look = CameraAim.direction();
 		float limit = HwConfig.get().reticleFocusAngleDeg;
 		for (HwNet.VictimInfo info : ClientState.VICTIMS.values()) {
-			if (mc.level.getEntity(info.entityId()) instanceof LivingEntity living && info.stalk() < 3f) {
+			if (mc.level.getEntity(info.entityId()) instanceof LivingEntity living && info.stalk() < 3f && ClientState.VISIBLE.contains(info.entityId())) {
 				for (int i = 0; i < FocusPoints.COUNT && !onPoint; i++) {
 					Vec3 dir = FocusPoints.get(living, i, partial).subtract(eye).normalize();
 					onPoint = Math.toDegrees(Math.acos(Mth.clamp(look.dot(dir), -1, 1))) <= limit;
@@ -344,11 +339,16 @@ public final class HwHud {
 		int jumpX = w - 62;
 		boolean jumpReady = hud.jumpBlock() == 0;
 		boolean inShadow = hud.shadowTicks() > 0;
-		float jumpProgress = hud.jumpBlock() == 3 ? 1f - (float) hud.jumpCooldown() / Math.max(1, hud.jumpCooldownMax()) : 1f;
+		float jumpProgress = !inShadow && hud.jumpBlock() == 3 ? 1f - (float) hud.jumpCooldown() / Math.max(1, hud.jumpCooldownMax()) : 1f;
 		abilityDiamond(g, font, jumpX, baseY, "»", HalloweenClient.KEY_SHAPE_JUMP,
-			inShadow ? 0xE07A5CC8 : jumpReady ? DARK_FILL : RED_FILL, jumpProgress, 0xFF606060, TEXT);
-		if (hud.jumpBlock() == 3) {
+			inShadow ? (jumpReady ? 0xE07A5CC8 : 0xE0602A6A) : jumpReady ? DARK_FILL : RED_FILL, jumpProgress, 0xFF606060, TEXT);
+		if (inShadow && hud.jumpBlock() != 0) {
+			// Leaving the shadow is refused here: say why.
+			g.centeredText(font, Component.translatable(hud.jumpBlock() == 1 ? "halloween.hud.jump.light" : "halloween.hud.jump.seen"), jumpX, baseY - 26, 0xFFE07070);
+		} else if (!inShadow && hud.jumpBlock() == 3) {
 			g.centeredText(font, seconds(hud.jumpCooldown()), jumpX, baseY - 26, DIM);
+		} else if (!inShadow && (hud.jumpBlock() == 1 || hud.jumpBlock() == 2)) {
+			g.centeredText(font, Component.translatable(hud.jumpBlock() == 1 ? "halloween.hud.jump.light" : "halloween.hud.jump.seen"), jumpX, baseY - 26, DIM);
 		}
 
 		// Detection Impulse diamond, above the other two.

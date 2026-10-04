@@ -24,6 +24,7 @@ public final class ShapeState {
 	public int jumpCooldownMax = 1;
 	public int impulseCooldown;
 	public int impulseCooldownMax = 1;
+	/** 0 = not in Shape Jump, otherwise how many ticks it has lasted (it has no time limit). */
 	public int shadowTicks;
 	/** Frozen after a victim breaks free. */
 	public int recoverTicks;
@@ -33,6 +34,11 @@ public final class ShapeState {
 	public double lastZ;
 	public boolean still;
 	public double fallDistance;
+
+	/** Camera ray reported by the client (over-the-shoulder aim) and the server tick it arrived. */
+	public net.minecraft.world.phys.Vec3 aimOrigin;
+	public net.minecraft.world.phys.Vec3 aimDirection;
+	public int aimTick = -1000;
 
 	public boolean busy() {
 		return this.grab != null || this.recoverTicks > 0;

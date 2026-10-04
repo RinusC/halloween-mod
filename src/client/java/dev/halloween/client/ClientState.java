@@ -13,7 +13,10 @@ import java.util.Set;
 import java.util.UUID;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
+import dev.halloween.game.FocusPoints;
+import dev.halloween.game.Sight;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
 
 /** What the client knows about the match, filled from server packets. */
@@ -24,6 +27,8 @@ public final class ClientState {
 	public static HwNet.ShapeHud hud;
 	public static final Map<Integer, HwNet.VictimInfo> VICTIMS = new HashMap<>();
 	public static HwNet.Qte qte = HwNet.Qte.INACTIVE;
+	/** Victims the Shape can actually see from his camera right now (no outlines through walls). */
+	public static final Set<Integer> VISIBLE = new HashSet<>();
 
 	/** Detection Impulse: outdoor victims outlined, indoor ones only reveal a fuzzy spot. */
 	public static final Set<Integer> IMPULSE_IDS = new HashSet<>();
@@ -82,16 +87,35 @@ public final class ClientState {
 			return -1;
 		}
 		HwNet.VictimInfo info = VICTIMS.get(entity.getId());
-		if (info != null && info.marked()) {
-			return 0xE0261F;
-		}
+		// The impulse is the one thing that reveals victims through walls.
 		if (impulseActive() && IMPULSE_IDS.contains(entity.getId())) {
 			return 0xFF9A2E;
 		}
-		if (info != null && hud.sense()) {
+		if (info == null || !VISIBLE.contains(entity.getId())) {
+			return -1;
+		}
+		if (info.marked()) {
+			return 0xE0261F;
+		}
+		if (hud.sense()) {
 			return 0xF2F2F2;
 		}
 		return -1;
+	}
+
+	public static void updateVisibility(Minecraft mc) {
+		VISIBLE.clear();
+		if (mc.level == null || mc.player == null) {
+			return;
+		}
+		Vec3 from = CameraAim.origin();
+		for (HwNet.VictimInfo info : VICTIMS.values()) {
+			if (mc.level.getEntity(info.entityId()) instanceof LivingEntity living
+				&& (Sight.canSee(mc.level, from, FocusPoints.bodyCenter(living), mc.player)
+				|| Sight.canSee(mc.level, from, living.getEyePosition(), mc.player))) {
+				VISIBLE.add(info.entityId());
+			}
+		}
 	}
 
 	public static float shoulderOffset() {

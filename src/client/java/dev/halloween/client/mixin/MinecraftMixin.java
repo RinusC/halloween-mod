@@ -23,7 +23,7 @@ public class MinecraftMixin {
 	/** While Killer Sense is held the use button means "focus", so it must not grab or interact. */
 	@Inject(method = "startUseItem", at = @At("HEAD"), cancellable = true)
 	private void halloween$focusInsteadOfUse(CallbackInfo ci) {
-		if (HalloweenClient.useBlockedBySense()) {
+		if (HalloweenClient.handleShapeUse()) {
 			ci.cancel();
 		}
 	}

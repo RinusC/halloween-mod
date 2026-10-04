@@ -35,6 +35,8 @@ public class Halloween implements ModInitializer {
 				state.focusHeld = payload.focus();
 			}
 		});
+		ServerPlayNetworking.registerGlobalReceiver(HwNet.Aim.TYPE, (payload, ctx) -> MatchManager.onAim(ctx.player(), payload.origin(), payload.direction()));
+		ServerPlayNetworking.registerGlobalReceiver(HwNet.Grab.TYPE, (payload, ctx) -> MatchManager.onGrab(ctx.player(), payload.targetId()));
 		ServerPlayNetworking.registerGlobalReceiver(HwNet.ShapeAttack.TYPE, (payload, ctx) -> MatchManager.onShapeAttack(ctx.player(), payload.targetId(), payload.heavy()));
 		ServerPlayNetworking.registerGlobalReceiver(HwNet.ActionPress.TYPE, (payload, ctx) -> {
 			switch (payload.action()) {

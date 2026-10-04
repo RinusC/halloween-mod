@@ -2,6 +2,7 @@ package dev.halloween.test;
 
 import dev.halloween.HwConfig;
 import dev.halloween.Role;
+import dev.halloween.client.CameraAim;
 import dev.halloween.client.ClientState;
 import dev.halloween.client.HalloweenClient;
 import dev.halloween.game.FocusPoints;
@@ -129,16 +130,12 @@ public class SliceOneClientTest implements FabricClientGameTest {
 	}
 
 	private void shapeJumpTest(ClientGameTestContext ctx, TestServerContext server) {
-		// Under a street lamp but unseen: allowed (the original needs "unseen OR in shadow").
+		// Under a street lamp: refused, Shape Jump needs darkness.
 		this.tp(server, 6.5, 0, -3.5);
 		ctx.waitTicks(10);
 		ctx.getInput().pressKey(HalloweenClient.KEY_SHAPE_JUMP);
 		ctx.waitTicks(5);
-		check(server.computeOnServer(s -> shape(s).shadowTicks > 0), "Shape Jump works in light when nobody is watching");
-		ctx.getInput().pressKey(HalloweenClient.KEY_SHAPE_JUMP);
-		ctx.waitTicks(5);
-		check(server.computeOnServer(s -> shape(s).shadowTicks == 0 && shape(s).jumpCooldown > 0), "second press cancels Shape Jump");
-		server.runOnServer(s -> shape(s).jumpCooldown = 0);
+		check(server.computeOnServer(s -> shape(s).shadowTicks == 0), "Shape Jump is refused in light");
 
 		// Bloodthirst level 2 shows beams over the victims.
 		server.runCommand("execute as @p run hw bloodthirst 150");
@@ -147,13 +144,31 @@ public class SliceOneClientTest implements FabricClientGameTest {
 		ctx.waitTicks(10);
 		ctx.getInput().pressKey(HalloweenClient.KEY_SHAPE_JUMP);
 		ctx.waitTicks(6);
-		check(server.computeOnServer(s -> shape(s).shadowTicks > 0 && player(s).isInvisible()), "Shape Jump enters the shadow");
+		check(server.computeOnServer(s -> shape(s).shadowTicks > 0 && player(s).isInvisible()), "Shape Jump enters the shadow in the dark");
 		check(Identifier.fromNamespaceAndPath("halloween", "shape_jump").equals(ctx.computeOnClient(mc -> mc.gameRenderer.currentPostEffect())),
 			"Shape Jump switches on its shader");
 		check(ctx.computeOnClient(mc -> ClientState.hud != null && !ClientState.hud.beams().isEmpty()), "beams point at the victims");
 		ctx.takeScreenshot("05_shape_jump_beams");
-		ctx.waitTicks(HwConfig.get().shapeJumpDurationTicks);
-		check(server.computeOnServer(s -> shape(s).shadowTicks == 0 && shape(s).jumpCooldown > 0), "shadow ends and the cooldown starts");
+
+		// No time limit.
+		ctx.waitTicks(160);
+		check(server.computeOnServer(s -> shape(s).shadowTicks > 150), "Shape Jump lasts as long as the Shape wants");
+
+		// Leaving under the lamp is refused.
+		this.tp(server, 6.5, 0, -3.5);
+		ctx.waitTicks(5);
+		ctx.getInput().pressKey(HalloweenClient.KEY_SHAPE_JUMP);
+		ctx.waitTicks(5);
+		check(server.computeOnServer(s -> shape(s).shadowTicks > 0), "Shape Jump can't be left in light");
+		ctx.takeScreenshot("05b_cant_leave_in_light");
+
+		// Back in the dark it can be left, and the cooldown starts.
+		this.tp(server, -10.5, 0, 26.5);
+		ctx.waitTicks(5);
+		ctx.getInput().pressKey(HalloweenClient.KEY_SHAPE_JUMP);
+		ctx.waitTicks(5);
+		check(server.computeOnServer(s -> shape(s).shadowTicks == 0 && shape(s).jumpCooldown > 0), "Shape Jump is left in the dark and the cooldown starts");
+		server.runOnServer(s -> shape(s).jumpCooldown = 0);
 	}
 
 	private void breakerTest(ClientGameTestContext ctx, TestServerContext server) {
@@ -310,7 +325,8 @@ public class SliceOneClientTest implements FabricClientGameTest {
 						best = p;
 					}
 				}
-				float[] rot = rotationTo(eye, best);
+				// Aim the camera ray (screen centre), which is what the server uses for stalking.
+				float[] rot = rotationTo(CameraAim.origin(), best);
 				mc.player.setYRot(rot[0]);
 				mc.player.setXRot(rot[1]);
 			}
@@ -350,10 +366,22 @@ public class SliceOneClientTest implements FabricClientGameTest {
 			this.origin.getX() + dx, this.origin.getY() + dy, this.origin.getZ() + dz));
 	}
 
+	/** Turns so the reticle (camera ray through the screen centre) points at the target. */
 	private void lookAt(ClientGameTestContext ctx, Vec3 target) {
+		// The shoulder camera moves as we turn, so repeat until the centre ray really points at the target.
+		for (int i = 0; i < 12; i++) {
+			ctx.waitTicks(2);
+			double error = ctx.computeOnClient(mc -> {
+				Vec3 want = target.subtract(CameraAim.origin()).normalize();
+				return Math.toDegrees(Math.acos(Mth.clamp(want.dot(CameraAim.direction()), -1, 1)));
+			});
+			if (error < 0.5) {
+				break;
+			}
+			float[] rot = ctx.computeOnClient(mc -> rotationTo(CameraAim.origin(), target));
+			ctx.getInput().lookAt(rot[0], rot[1]);
+		}
 		ctx.waitTicks(2);
-		float[] rot = ctx.computeOnClient(mc -> rotationTo(mc.player.getEyePosition(), target));
-		ctx.getInput().lookAt(rot[0], rot[1]);
 	}
 
 	private static float[] rotationTo(Vec3 eye, Vec3 target) {

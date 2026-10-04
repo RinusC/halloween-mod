@@ -65,7 +65,8 @@ public final class HwNet {
 
 	/**
 	 * Sent only to the Shape several times per second.
-	 * jumpBlock: 0 ready, 2 watched while lit, 3 cooling down, 4 busy.
+	 * jumpBlock: 0 ready, 1 in light, 2 watched, 3 cooling down, 4 busy. While in Shape Jump it tells whether
+	 * leaving is allowed right now; shadowTicks then counts how long the jump has lasted.
 	 */
 	public record ShapeHud(
 		float bloodthirst, int score, float fatigue, boolean sense, boolean focus,
@@ -284,6 +285,35 @@ public final class HwNet {
 		}
 	}
 
+	/** Where the Shape aims: the ray through the centre of his over-the-shoulder camera. */
+	public record Aim(Vec3 origin, Vec3 direction) implements CustomPacketPayload {
+		public static final Type<Aim> TYPE = payloadType("aim");
+		public static final StreamCodec<RegistryFriendlyByteBuf, Aim> CODEC = StreamCodec.of(
+			(buf, v) -> {
+				writeVec(buf, v.origin);
+				writeVec(buf, v.direction);
+			}, buf -> new Aim(readVec(buf), readVec(buf))
+		);
+
+		@Override
+		public Type<Aim> type() {
+			return TYPE;
+		}
+	}
+
+	/** The Shape grabs the victim under his reticle. */
+	public record Grab(int targetId) implements CustomPacketPayload {
+		public static final Type<Grab> TYPE = payloadType("grab");
+		public static final StreamCodec<RegistryFriendlyByteBuf, Grab> CODEC = StreamCodec.of(
+			(buf, v) -> buf.writeVarInt(v.targetId), buf -> new Grab(buf.readVarInt())
+		);
+
+		@Override
+		public Type<Grab> type() {
+			return TYPE;
+		}
+	}
+
 	/** Single-press abilities of the Shape. */
 	public enum Action {
 		SHAPE_JUMP, DASH, PUSH, IMPULSE, QTE_PRESS;
@@ -315,6 +345,8 @@ public final class HwNet {
 		PayloadTypeRegistry.serverboundPlay().register(SenseInput.TYPE, SenseInput.CODEC);
 		PayloadTypeRegistry.serverboundPlay().register(ShapeAttack.TYPE, ShapeAttack.CODEC);
 		PayloadTypeRegistry.serverboundPlay().register(ActionPress.TYPE, ActionPress.CODEC);
+		PayloadTypeRegistry.serverboundPlay().register(Aim.TYPE, Aim.CODEC);
+		PayloadTypeRegistry.serverboundPlay().register(Grab.TYPE, Grab.CODEC);
 	}
 
 	/** Position of the victim's QTE cursor in [0, 1]: a triangle wave bouncing across the bar. */
