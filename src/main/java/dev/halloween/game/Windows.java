@@ -93,7 +93,7 @@ public final class Windows {
 	public static void request(ServerPlayer player, BlockPos clicked, boolean fast) {
 		ServerLevel level = player.level();
 		HwConfig cfg = HwConfig.get();
-		if (MatchManager.role(player) != Role.CIVILIAN || player.isSpectator() || isVaulting(player)
+		if (!MatchManager.role(player).survivor() || player.isSpectator() || isVaulting(player)
 			|| MatchManager.isGrabbed(player) || !isWindow(level.getBlockState(clicked))) {
 			return;
 		}
@@ -159,10 +159,10 @@ public final class Windows {
 			Map.Entry<UUID, Vault> entry = it.next();
 			Vault v = entry.getValue();
 			ServerPlayer player = server.getPlayerList().getPlayer(entry.getKey());
-			if (player == null || player.isSpectator() || MatchManager.role(player) != Role.CIVILIAN || MatchManager.isGrabbed(player)) {
+			if (player == null || player.isSpectator() || !MatchManager.role(player).survivor() || MatchManager.isGrabbed(player)) {
 				it.remove();
 				if (player != null) {
-					ServerPlayNetworking.send(player, new HwNet.Progress(HwNet.Progress.NONE, 0));
+					ServerPlayNetworking.send(player, HwNet.Progress.NONE);
 				}
 				continue;
 			}
@@ -178,9 +178,9 @@ public final class Windows {
 			}
 			if (t >= 1f) {
 				it.remove();
-				ServerPlayNetworking.send(player, new HwNet.Progress(HwNet.Progress.NONE, 0));
+				ServerPlayNetworking.send(player, HwNet.Progress.NONE);
 			} else if (v.ticks % 2 == 0) {
-				ServerPlayNetworking.send(player, new HwNet.Progress(v.fast ? HwNet.Progress.VAULT_FAST : HwNet.Progress.VAULT_SLOW, t));
+				ServerPlayNetworking.send(player, new HwNet.Progress(v.fast ? "halloween.hud.progress.vault_fast" : "halloween.hud.progress.vault_slow", t, v.fast || v.cuts));
 			}
 		}
 	}

@@ -86,9 +86,11 @@ public class HalloweenClient implements ClientModInitializer {
 			ClientState.BROKEN_LOCKS.clear();
 			ClientState.BROKEN_LOCKS.addAll(payload.broken());
 		});
-		ClientPlayNetworking.registerGlobalReceiver(HwNet.Progress.TYPE, (payload, ctx) -> {
-			ClientState.progressKind = payload.kind();
-			ClientState.progress = payload.progress();
+		ClientPlayNetworking.registerGlobalReceiver(HwNet.Progress.TYPE, (payload, ctx) -> ClientState.progress = payload);
+		ClientPlayNetworking.registerGlobalReceiver(HwNet.MatchSync.TYPE, (payload, ctx) -> ClientState.match = payload);
+		ClientPlayNetworking.registerGlobalReceiver(HwNet.MatchEnd.TYPE, (payload, ctx) -> {
+			ClientState.matchEnd = payload;
+			ClientState.matchEndAt = System.currentTimeMillis();
 		});
 		UseBlockCallback.EVENT.register(ClientInteractions::onUseBlock);
 		// The local Shape walks through doors during Shape Jump (the server agrees, see DoorPass).
@@ -166,7 +168,7 @@ public class HalloweenClient implements ClientModInitializer {
 		}
 		updatePostEffect(mc);
 
-		if (role == Role.CIVILIAN && themeVolume(mc) > 0 && (theme == null || !mc.getSoundManager().isActive(theme))) {
+		if (role.survivor() && themeVolume(mc) > 0 && (theme == null || !mc.getSoundManager().isActive(theme))) {
 			theme = new LoopSound(HwSounds.THEME, SoundSource.HOSTILE, 1f, () -> themeVolume(mc));
 			mc.getSoundManager().play(theme);
 		}
@@ -273,7 +275,7 @@ public class HalloweenClient implements ClientModInitializer {
 
 	/** Proximity theme for civilians: rises as the Shape gets closer, silent while he is in Shape Jump. */
 	private static double themeVolume(Minecraft mc) {
-		if (mc.player == null || mc.level == null || ClientState.myRole() != Role.CIVILIAN || mc.player.isSpectator() || ClientState.shapeShadow) {
+		if (mc.player == null || mc.level == null || !ClientState.myRole().survivor() || mc.player.isSpectator() || ClientState.shapeShadow) {
 			return 0;
 		}
 		Entity shape = mc.level.getEntity(ClientState.shapeEntityId);

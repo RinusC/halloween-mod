@@ -57,22 +57,169 @@ public final class HwHud {
 			if (ClientState.qte.active() && ClientState.qte.forShape()) {
 				shapeGrab(g, mc, w, h, partial);
 			}
-			objectives(g, mc.font, hud);
+			int y = objectives(g, mc.font, hud);
+			exitLines(g, mc.font, 10, y + 4);
 			feed(g, mc.font, h);
 			bloodthirstRing(g, mc.font, hud, h);
 			abilities(g, mc, hud, w, h);
 			shapeDoorPrompt(g, mc, w, h);
-		} else if (role == Role.CIVILIAN) {
-			if (mc.player.isSpectator()) {
-				g.centeredText(mc.font, Component.translatable("halloween.hud.dead"), w / 2, h - 40, BLOOD);
-				return;
-			}
-			healthBar(g, mc, w, h);
 			prompts(g, mc, w, h);
 			progressBar(g, mc, w, h);
-			if (ClientState.qte.active() && !ClientState.qte.forShape()) {
-				victimQte(g, mc, w, h, partial);
+			stunAndBlind(g, mc, hud, w, h);
+		} else if (role.survivor()) {
+			if (mc.player.isSpectator()) {
+				int respawn = ClientState.match.respawnTicks();
+				Component line = respawn > 0 ? Component.translatable("halloween.hud.respawn", clock(respawn))
+					: Component.translatable("halloween.hud.dead");
+				g.centeredText(mc.font, line, w / 2, h - 40, respawn > 0 ? 0xFF7FA7FF : BLOOD);
+			} else {
+				healthBar(g, mc, w, h);
+				inventoryBar(g, mc, w, h);
+				prompts(g, mc, w, h);
+				progressBar(g, mc, w, h);
+				if (ClientState.qte.active() && !ClientState.qte.forShape()) {
+					victimQte(g, mc, w, h, partial);
+				}
 			}
+			exitLines(g, mc.font, 10, 26);
+			feed(g, mc.font, h);
+		}
+		matchTimer(g, mc, w);
+		endScreen(g, mc, w, h);
+	}
+
+	// ---------------------------------------------------------------- match
+
+	private static String clock(int ticks) {
+		int s = Math.max(0, (ticks + 19) / 20);
+		return String.format("%d:%02d", s / 60, s % 60);
+	}
+
+	private static void matchTimer(GuiGraphicsExtractor g, Minecraft mc, int w) {
+		HwNet.MatchSync m = ClientState.match;
+		if (m.state() == 1) {
+			g.centeredText(mc.font, Component.translatable("halloween.hud.countdown", clock(m.countdown())), w / 2, 8, TEXT);
+		} else if (m.state() == 2) {
+			g.pose().pushMatrix();
+			g.pose().translate(w / 2f, 6);
+			g.pose().scale(1.5f, 1.5f);
+			int color = m.ticksLeft() < 60 * 20 ? BLOOD : TEXT;
+			g.centeredText(mc.font, clock(m.ticksLeft()), 0, 0, color);
+			g.pose().popMatrix();
+			if (ClientState.myRole().survivor()) {
+				Component score = Component.translatable("halloween.hud.my_score", m.myScore());
+				g.text(mc.font, score, w - 10 - mc.font.width(score), 10, TEXT, true);
+			}
+		}
+	}
+
+	/** Status of every exit of this match, one line each. */
+	private static void exitLines(GuiGraphicsExtractor g, Font font, int x, int y) {
+		HwNet.MatchSync m = ClientState.match;
+		if (m.state() != 2) {
+			return;
+		}
+		int gateSeconds = dev.halloween.HwConfig.get().gateOpenLastSeconds * 20;
+		for (HwNet.ExitInfo e : m.exits()) {
+			Component line;
+			int color = 0xFFB8C2DA;
+			switch (e.type()) {
+				case 0 -> {
+					line = Component.translatable("halloween.hud.exit.cellar." + e.state());
+					color = e.state() == 1 ? 0xFF7FE07F : color;
+				}
+				case 1 -> {
+					if ((e.state() & 4) != 0) {
+						line = Component.translatable("halloween.hud.exit.car.gone");
+					} else {
+						line = Component.translatable("halloween.hud.exit.car", (e.state() & 1) != 0 ? "✔" : "✘", (e.state() & 2) != 0 ? "✔" : "✘");
+						color = (e.state() & 2) != 0 ? 0xFF7FE07F : color;
+					}
+				}
+				case 2 -> {
+					line = e.state() == 1 || e.state() == 2
+						? Component.translatable("halloween.hud.exit.police." + e.state(), clock(e.extra()))
+						: Component.translatable("halloween.hud.exit.police." + e.state());
+					color = e.state() == 2 ? 0xFF7FE07F : color;
+				}
+				default -> {
+					if (e.state() == 0) {
+						int wait = m.ticksLeft() - gateSeconds;
+						line = wait > 0 ? Component.translatable("halloween.hud.exit.gate.0", clock(wait)) : Component.translatable("halloween.hud.exit.gate.ready");
+					} else {
+						line = Component.translatable("halloween.hud.exit.gate." + e.state());
+						color = e.state() == 1 ? 0xFF7FE07F : color;
+					}
+				}
+			}
+			diamond(g, x + 4, y + 3, 2, color);
+			g.text(font, line, x + 12, y, color, true);
+			y += 11;
+		}
+		if (!m.cutPhones().isEmpty()) {
+			g.text(font, Component.translatable("halloween.hud.phones_cut", m.cutPhones().size()), x + 12, y, 0xFFE07070, true);
+		}
+	}
+
+	/** A hand and three pockets, bottom centre. */
+	private static void inventoryBar(GuiGraphicsExtractor g, Minecraft mc, int w, int h) {
+		var inv = mc.player.getInventory();
+		int slots = dev.halloween.game.Inventory.SLOTS;
+		int size = 22;
+		int x0 = w / 2 - slots * size / 2;
+		int y = h - size - 6;
+		for (int i = 0; i < slots; i++) {
+			int x = x0 + i * size;
+			boolean selected = inv.getSelectedSlot() == i;
+			g.fill(x, y, x + size - 2, y + size - 2, selected ? 0xC0E8E2D6 : 0x90000000);
+			g.fill(x + 1, y + 1, x + size - 3, y + size - 3, 0xC0181818);
+			var stack = inv.getItem(i);
+			if (!stack.isEmpty()) {
+				g.item(stack, x + 2, y + 2);
+			}
+		}
+		var held = inv.getItem(inv.getSelectedSlot());
+		if (!held.isEmpty()) {
+			Component name = held.getHoverName();
+			g.centeredText(mc.font, name, w / 2, y - 11, TEXT);
+		}
+	}
+
+	/** The Shape's stun meter, knock-down and the flashlight glare. */
+	private static void stunAndBlind(GuiGraphicsExtractor g, Minecraft mc, HwNet.ShapeHud hud, int w, int h) {
+		if (hud.blind()) {
+			g.fill(0, 0, w, h, 0xF0F4F2EA);
+			g.fillGradient(0, 0, w, h, 0x00FFFFFF, 0x60E0D8C0);
+		}
+		if (hud.stunnedTicks() > 0) {
+			g.fill(0, 0, w, h, 0x50000000);
+			g.pose().pushMatrix();
+			g.pose().translate(w / 2f, h / 2f - 30);
+			g.pose().scale(2f, 2f);
+			g.centeredText(mc.font, Component.translatable("halloween.hud.stunned"), 0, 0, BLOOD);
+			g.pose().popMatrix();
+		} else if (hud.stun() > 0.01f) {
+			int x = 10;
+			int y = h - 70;
+			g.text(mc.font, Component.translatable("halloween.hud.stun"), x, y - 10, DIM, true);
+			bar(g, x, y, 48, 3, hud.stun(), 0xFFE0C060);
+		}
+	}
+
+	private static void endScreen(GuiGraphicsExtractor g, Minecraft mc, int w, int h) {
+		HwNet.MatchEnd end = ClientState.matchEnd;
+		if (end == null || System.currentTimeMillis() - ClientState.matchEndAt > 15000) {
+			return;
+		}
+		int lines = end.lines().size();
+		int boxH = 30 + lines * 12;
+		int y0 = h / 2 - boxH / 2;
+		g.fill(w / 2 - 150, y0, w / 2 + 150, y0 + boxH, 0xD0000000);
+		g.centeredText(mc.font, Component.translatable("halloween.hud.end_title"), w / 2, y0 + 8, DIM);
+		int y = y0 + 22;
+		for (Component line : end.lines()) {
+			g.centeredText(mc.font, line, w / 2, y, TEXT);
+			y += 12;
 		}
 	}
 
@@ -264,8 +411,8 @@ public final class HwHud {
 
 	// ---------------------------------------------------------------- panels
 
-	private static void objectives(GuiGraphicsExtractor g, Font font, HwNet.ShapeHud hud) {
-		int y = 10;
+	private static int objectives(GuiGraphicsExtractor g, Font font, HwNet.ShapeHud hud) {
+		int y = ClientState.match.state() == 2 ? 26 : 10;
 		boolean first = true;
 		for (Component line : hud.objectives()) {
 			diamond(g, 14, y + 3, 3, first ? 0xFFD8D2C4 : 0xFF8FA0C8);
@@ -273,6 +420,7 @@ public final class HwHud {
 			y += 12;
 			first = false;
 		}
+		return y;
 	}
 
 	/** XP feed on the left: "+075 XP" and the reasons, fading out after a few seconds. */
@@ -412,7 +560,7 @@ public final class HwHud {
 
 	/** Hints for the door or window under the crosshair. */
 	private static void prompts(GuiGraphicsExtractor g, Minecraft mc, int w, int h) {
-		if (ClientState.progressKind != HwNet.Progress.NONE || !(mc.hitResult instanceof net.minecraft.world.phys.BlockHitResult hit)
+		if (!ClientState.progress.label().isEmpty() || !(mc.hitResult instanceof net.minecraft.world.phys.BlockHitResult hit)
 			|| hit.getType() == net.minecraft.world.phys.HitResult.Type.MISS) {
 			return;
 		}
@@ -420,7 +568,17 @@ public final class HwHud {
 		var state = mc.level.getBlockState(pos);
 		Component line = null;
 		Component second = null;
-		if (state.getBlock() instanceof net.minecraft.world.level.block.DoorBlock) {
+		int object = ClientInteractions.matchObject(mc.level, pos);
+		boolean shape = ClientState.myRole() == Role.SHAPE;
+		if (object == 1 && !shape) {
+			line = Component.translatable(ClientState.match.searched().contains(pos) ? "halloween.hud.prompt.searched" : "halloween.hud.prompt.search");
+		} else if (object == 2) {
+			line = Component.translatable(ClientState.match.cutPhones().contains(pos) && !shape ? "halloween.hud.prompt.phone_cut" : "halloween.hud.prompt.phone");
+		} else if (object == 3) {
+			line = Component.translatable("halloween.hud.prompt.exit");
+		} else if (shape) {
+			return;
+		} else 		if (state.getBlock() instanceof net.minecraft.world.level.block.DoorBlock) {
 			var base = ClientInteractions.doorBase(mc.level, pos);
 			line = Component.translatable(ClientState.BROKEN_LOCKS.contains(base) ? "halloween.hud.prompt.door_broken"
 				: ClientState.LOCKED_DOORS.contains(base) ? "halloween.hud.prompt.door_locked" : "halloween.hud.prompt.door");
@@ -444,15 +602,16 @@ public final class HwHud {
 
 	/** Locking, unlocking or climbing in progress. */
 	private static void progressBar(GuiGraphicsExtractor g, Minecraft mc, int w, int h) {
-		if (ClientState.progressKind == HwNet.Progress.NONE) {
+		HwNet.Progress p = ClientState.progress;
+		if (p.label().isEmpty()) {
 			return;
 		}
 		int barW = 120;
 		int x = w / 2 - barW / 2;
 		int y = h / 2 + 26;
-		Component label = Component.translatable("halloween.hud.progress." + ClientState.progressKind);
+		Component label = Component.translatable(p.label());
 		g.centeredText(mc.font, label, w / 2, y - 11, TEXT);
-		bar(g, x, y, barW, 4, ClientState.progress, ClientState.progressKind == HwNet.Progress.VAULT_FAST ? BLOOD : 0xFFD8D2C4);
+		bar(g, x, y, barW, 4, p.progress(), p.danger() ? BLOOD : 0xFFD8D2C4);
 	}
 
 	/** The Shape looking at a locked door. */

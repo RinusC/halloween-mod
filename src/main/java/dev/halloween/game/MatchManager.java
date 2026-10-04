@@ -100,9 +100,14 @@ public final class MatchManager {
 			return false;
 		}
 		if (living instanceof ServerPlayer player) {
-			return role(player) == Role.CIVILIAN && !player.isSpectator();
+			return role(player).survivor() && !player.isSpectator();
 		}
 		return !(living instanceof Player) && living.entityTags().contains(VICTIM_TAG);
+	}
+
+	public static boolean isStunned(ServerPlayer player) {
+		ShapeState state = SHAPES.get(player.getUUID());
+		return state != null && state.stunnedTicks > 0;
 	}
 
 	public static boolean isGrabbed(ServerPlayer player) {
@@ -164,7 +169,7 @@ public final class MatchManager {
 				player.setHealth(player.getMaxHealth());
 				scoreboard.addPlayerToTeam(player.getScoreboardName(), team);
 			}
-			case CIVILIAN -> {
+			case CIVILIAN, DEPUTY -> {
 				ROLES.put(player.getUUID(), role);
 				player.setGameMode(GameType.ADVENTURE);
 				player.getInventory().clearContent();
@@ -214,7 +219,7 @@ public final class MatchManager {
 		CommandSourceStack console = server.createCommandSourceStack().withSuppressedOutput();
 		server.getCommands().performPrefixedCommand(console, "kill @e[tag=" + CORPSE_TAG + "]");
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-			if (role(player) == Role.CIVILIAN) {
+			if (role(player).survivor()) {
 				player.setGameMode(GameType.ADVENTURE);
 				player.setHealth(player.getMaxHealth());
 				ServerPlayNetworking.send(player, HwNet.Qte.INACTIVE);
@@ -238,6 +243,9 @@ public final class MatchManager {
 
 	public static void tick(MinecraftServer server) {
 		HwConfig cfg = HwConfig.get();
+		Match.tick(server);
+		Holds.tick(server);
+		Fight.tick(server);
 		DoorLocks.tick(server);
 		Windows.tick(server);
 
@@ -270,7 +278,7 @@ public final class MatchManager {
 			} else {
 				VictimState vs = VICTIMS.get(player.getUUID());
 				double speed = 0;
-				if (Windows.isVaulting(player)) {
+				if (Windows.isVaulting(player) || Match.frozen()) {
 					speed = -1;
 				} else if (vs != null) {
 					if (vs.grabbed) {
@@ -359,7 +367,7 @@ public final class MatchManager {
 		}
 
 		double speed = cfg.shapeSpeedModifier;
-		if (state.busy()) {
+		if (state.busy() || Match.frozen()) {
 			speed = -1;
 		} else if (state.shadowTicks > 0) {
 			speed += HwConfig.at(cfg.shapeJumpSpeedByTier, state.tier());
@@ -523,6 +531,11 @@ public final class MatchManager {
 	static boolean inLight(ServerPlayer player) {
 		int threshold = HwConfig.get().lightThreshold;
 		ServerLevel level = player.level();
+		ShapeState state = SHAPES.get(player.getUUID());
+		if (state != null && state.litTicks > 0) {
+			// Caught in a flashlight beam.
+			return true;
+		}
 		return level.getBrightness(LightLayer.BLOCK, player.blockPosition()) > threshold
 			|| level.getBrightness(LightLayer.BLOCK, BlockPos.containing(player.getEyePosition())) > threshold;
 	}
@@ -532,7 +545,7 @@ public final class MatchManager {
 		ServerLevel level = shape.level();
 		Vec3 target = FocusPoints.bodyCenter(shape);
 		for (ServerPlayer civilian : level.players()) {
-			if (role(civilian) != Role.CIVILIAN || civilian.isSpectator()) {
+			if (!role(civilian).survivor() || civilian.isSpectator()) {
 				continue;
 			}
 			Vec3 eye = civilian.getEyePosition();
@@ -705,7 +718,10 @@ public final class MatchManager {
 
 	// ---------------------------------------------------------------- combat
 
-	/** Vanilla attacks: the Shape attacks through {@link #onShapeAttack}, civilians can't hurt anyone yet. */
+	/**
+	 * Vanilla attacks: the Shape attacks through {@link #onShapeAttack}; survivors can only hit the Shape
+	 * (with a weapon, filling his stun meter) and never each other.
+	 */
 	public static InteractionResult onVanillaAttack(Player attacker, Entity target) {
 		if (!(attacker instanceof ServerPlayer player)) {
 			return InteractionResult.PASS;
@@ -714,7 +730,10 @@ public final class MatchManager {
 		if (role == Role.SHAPE) {
 			return InteractionResult.FAIL;
 		}
-		if (role == Role.CIVILIAN) {
+		if (role.survivor()) {
+			if (target instanceof ServerPlayer other && role(other) == Role.SHAPE) {
+				return Fight.onSurvivorAttack(player, target);
+			}
 			return isVictim(target) || target instanceof Player ? InteractionResult.FAIL : InteractionResult.PASS;
 		}
 		return InteractionResult.PASS;
@@ -882,6 +901,7 @@ public final class MatchManager {
 		VICTIMS.remove(victim.getUUID());
 		if (victim instanceof ServerPlayer player) {
 			player.setHealth(player.getMaxHealth());
+			Match.onSurvivorDown(player);
 			player.setGameMode(GameType.SPECTATOR);
 			player.connection.send(new ClientboundSetTitleTextPacket(Component.translatable("halloween.msg.you_died").withStyle(ChatFormatting.DARK_RED)));
 			ServerPlayNetworking.send(player, HwNet.Qte.INACTIVE);
@@ -898,13 +918,14 @@ public final class MatchManager {
 	public static boolean allowDamage(LivingEntity entity, DamageSource source) {
 		if (entity instanceof ServerPlayer player && role(player) == Role.SHAPE) {
 			ShapeState state = SHAPES.get(player.getUUID());
+			Fight.onShapeHurt(player, source);
 			if (state != null) {
 				HwConfig cfg = HwConfig.get();
 				state.addBloodthirst(-(source.is(DamageTypeTags.IS_FALL) ? cfg.bloodthirstFallLoss : cfg.bloodthirstDamageLoss));
 			}
 			return false;
 		}
-		return !(source.getEntity() instanceof ServerPlayer attacker && role(attacker) == Role.CIVILIAN && isVictim(entity));
+		return !(source.getEntity() instanceof ServerPlayer attacker && role(attacker).survivor() && isVictim(entity));
 	}
 
 	/** Civilians who would die from anything else (falls etc.) are eliminated instead. */
@@ -915,7 +936,7 @@ public final class MatchManager {
 				player.setHealth(player.getMaxHealth());
 				return false;
 			}
-			if (role == Role.CIVILIAN) {
+			if (role.survivor()) {
 				eliminate(player);
 				return false;
 			}
@@ -958,7 +979,8 @@ public final class MatchManager {
 			state.dashCooldown, state.dashCooldownMax, state.dashTicks,
 			state.impulseCooldown, state.impulseCooldownMax,
 			state.pushCooldown, state.grabCooldown, state.attackCooldown,
-			new ArrayList<>(infos.values()), beams, objectives
+			new ArrayList<>(infos.values()), beams, objectives,
+			state.stun, state.stunnedTicks, state.blindTicks > 0
 		));
 	}
 

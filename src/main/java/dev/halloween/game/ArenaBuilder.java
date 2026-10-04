@@ -67,8 +67,89 @@ public final class ArenaBuilder {
 		builder.house(14, -16, true);
 		builder.lamps();
 		builder.greenery();
+		builder.matchProps();
 		builder.fixShapes();
 		builder.setupWorld(source);
+	}
+
+	/** Exits, phones, containers and every map point a match needs. */
+	private void matchProps() {
+		MapPoints points = MapPoints.get(this.level);
+		points.clearAll();
+		points.add(MapPoints.Type.CENTER, this.at(0, 0, 0));
+		for (int[] s : new int[][]{{-22, 5}, {2, 5}, {18, -5}, {-8, -5}}) {
+			points.add(MapPoints.Type.SPAWN_CIVILIAN, this.at(s[0], 0, s[1]));
+		}
+		points.add(MapPoints.Type.SPAWN_SHAPE, this.at(30, 0, -30));
+		points.add(MapPoints.Type.SPAWN_DEPUTY, this.at(-33, 0, 0));
+
+		// Storm cellars: two trapdoors in the ground over a pit, framed in stone.
+		for (int[] c : new int[][]{{-29, 12}, {25, -12}}) {
+			int x = c[0];
+			int z = c[1];
+			this.fill(x - 1, -1, z - 1, x + 2, -1, z + 2, b("stone_bricks"));
+			this.fill(x, -3, z, x + 1, -2, z + 1, b("air"));
+			BlockState door = b("spruce_trapdoor").setValue(BlockStateProperties.HALF, net.minecraft.world.level.block.state.properties.Half.TOP);
+			this.set(x, -1, z, door.setValue(BlockStateProperties.HORIZONTAL_FACING, Direction.NORTH));
+			this.set(x + 1, -1, z, door.setValue(BlockStateProperties.HORIZONTAL_FACING, Direction.NORTH));
+			this.set(x, -1, z + 1, door.setValue(BlockStateProperties.HORIZONTAL_FACING, Direction.SOUTH));
+			this.set(x + 1, -1, z + 1, door.setValue(BlockStateProperties.HORIZONTAL_FACING, Direction.SOUTH));
+			points.add(MapPoints.Type.CELLAR, this.at(x, -1, z));
+		}
+
+		// Two old cars parked on the road.
+		for (int[] c : new int[][]{{-14, -1}, {12, 1}}) {
+			this.car(c[0], c[1]);
+			points.add(MapPoints.Type.CAR, this.at(c[0], 0, c[1]));
+		}
+
+		// Where the police van can pull up.
+		points.add(MapPoints.Type.POLICE, this.at(31, 0, 0));
+		points.add(MapPoints.Type.POLICE, this.at(-6, 0, -20));
+
+		// Back gates in the boundary fence (barriers above stay; leaving is by interaction).
+		for (int[] g : new int[][]{{0, -HALF}, {-10, HALF}}) {
+			BlockState gate = b("spruce_fence_gate").setValue(BlockStateProperties.HORIZONTAL_FACING, g[1] < 0 ? Direction.NORTH : Direction.SOUTH);
+			this.set(g[0], 0, g[1], gate);
+			this.set(g[0] + 1, 0, g[1], gate);
+			points.add(MapPoints.Type.GATE, this.at(g[0], 0, g[1]));
+		}
+
+		// A phone on a small table in every house.
+		for (int[] p : new int[][]{{-20, 14}, {3, 14}, {20, -14}}) {
+			this.set(p[0], 0, p[1], b("spruce_planks"));
+			this.set(p[0], 1, p[1], dev.halloween.HwBlocks.PHONE.defaultBlockState());
+			points.add(MapPoints.Type.PHONE, this.at(p[0], 1, p[1]));
+		}
+
+		// Containers: chests and barrels indoors and around the yards.
+		for (int[] c : new int[][]{{-22, 15}, {1, 15}, {18, -15}, {-14, 20}, {24, 12}, {-26, -20}, {6, -24}}) {
+			this.set(c[0], 0, c[1], b("chest"));
+		}
+		for (int[] c : new int[][]{{-25, 10}, {-1, 15}, {15, -10}, {-28, 23}, {26, -24}, {12, 25}, {-18, -28}, {30, 20}}) {
+			this.set(c[0], 0, c[1], b("barrel"));
+		}
+	}
+
+	/** A boxy car five blocks long along X, centred on (x, z). */
+	private void car(int x, int z) {
+		BlockState body = b("red_concrete");
+		BlockState wheel = b("black_concrete");
+		// Not real glass: car windows must not count as windows to climb through.
+		BlockState glass = b("black_terracotta");
+		for (int dx = -2; dx <= 2; dx++) {
+			for (int dz = 0; dz <= 1; dz++) {
+				this.set(x + dx, 0, z + dz, Math.abs(dx) == 2 ? wheel : body);
+				this.set(x + dx, 1, z + dz, Math.abs(dx) == 2 ? body : glass);
+				if (Math.abs(dx) <= 1) {
+					this.set(x + dx, 2, z + dz, body);
+				}
+			}
+		}
+	}
+
+	private BlockPos at(int x, int y, int z) {
+		return new BlockPos(this.ox + x, this.oy + y, this.oz + z);
 	}
 
 	private void terrain() {

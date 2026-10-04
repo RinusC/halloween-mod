@@ -27,12 +27,17 @@ public final class ClientState {
 	public static HwNet.ShapeHud hud;
 	public static final Map<Integer, HwNet.VictimInfo> VICTIMS = new HashMap<>();
 	public static HwNet.Qte qte = HwNet.Qte.INACTIVE;
+	/** Current match, as last synced. */
+	public static HwNet.MatchSync match = HwNet.MatchSync.IDLE;
+	/** Final scoreboard and when it arrived (ms). */
+	public static HwNet.MatchEnd matchEnd;
+	public static long matchEndAt;
+
 	/** Locked doors and doors with a broken lock (lower halves). */
 	public static final Set<net.minecraft.core.BlockPos> LOCKED_DOORS = new HashSet<>();
 	public static final Set<net.minecraft.core.BlockPos> BROKEN_LOCKS = new HashSet<>();
-	/** This player's timed action (lock, unlock, climb), see HwNet.Progress. */
-	public static int progressKind;
-	public static float progress;
+	/** This player's timed action (lock, search, climb...), see HwNet.Progress. */
+	public static HwNet.Progress progress = HwNet.Progress.NONE;
 
 	/** Victims the Shape can actually see from his camera right now (no outlines through walls). */
 	public static final Set<Integer> VISIBLE = new HashSet<>();
@@ -152,7 +157,9 @@ public final class ClientState {
 		impulseUntil = 0;
 		FEED.clear();
 		LOCKED_DOORS.clear();
+		match = HwNet.MatchSync.IDLE;
+		matchEnd = null;
 		BROKEN_LOCKS.clear();
-		progressKind = 0;
+		progress = HwNet.Progress.NONE;
 	}
 }

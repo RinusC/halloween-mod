@@ -43,6 +43,7 @@ public class Halloween implements ModInitializer {
 				case HwNet.UseAction.DOOR_LOCK -> DoorLocks.ping(ctx.player(), payload.pos());
 				case HwNet.UseAction.VAULT_SLOW -> Windows.request(ctx.player(), payload.pos(), false);
 				case HwNet.UseAction.VAULT_FAST -> Windows.request(ctx.player(), payload.pos(), true);
+				case HwNet.UseAction.INTERACT -> dev.halloween.game.Holds.ping(ctx.player(), payload.pos());
 				default -> {
 				}
 			}
@@ -64,10 +65,14 @@ public class Halloween implements ModInitializer {
 		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
 			MatchManager.markDirty();
 			DoorLocks.syncTo(handler.player);
+			dev.halloween.game.Match.markDirty();
 		});
+		ServerLifecycleEvents.SERVER_STOPPING.register(dev.halloween.game.Match::stop);
 		ServerLifecycleEvents.SERVER_STOPPED.register(server -> MatchManager.clearAll());
 
 		AttackEntityCallback.EVENT.register((player, level, hand, entity, hit) -> MatchManager.onVanillaAttack(player, entity));
+		net.fabricmc.fabric.api.event.player.UseItemCallback.EVENT.register((player, level, hand) -> level.isClientSide()
+			? net.minecraft.world.InteractionResult.PASS : dev.halloween.game.Fight.onUseItem(player, player.getItemInHand(hand)));
 		UseEntityCallback.EVENT.register((player, level, hand, entity, hit) -> MatchManager.onUseEntity(player, hand, entity));
 		UseBlockCallback.EVENT.register(LightSystem::onUseBlock);
 		UseBlockCallback.EVENT.register((player, level, hand, hit) -> {
@@ -75,8 +80,13 @@ public class Halloween implements ModInitializer {
 				return net.minecraft.world.InteractionResult.PASS;
 			}
 			// Civilians' window climbing arrives as its own packet; the vanilla click does nothing.
-			if (player instanceof net.minecraft.server.level.ServerPlayer sp && MatchManager.role(sp) == Role.CIVILIAN
+			if (player instanceof net.minecraft.server.level.ServerPlayer sp && MatchManager.role(sp).survivor()
 				&& Windows.isWindow(level.getBlockState(hit.getBlockPos()))) {
+				return net.minecraft.world.InteractionResult.FAIL;
+			}
+			// Match containers are searched by holding use, never opened.
+			if (player instanceof net.minecraft.server.level.ServerPlayer sp2 && MatchManager.role(sp2) != Role.NONE
+				&& (dev.halloween.game.Loot.isContainer(hit.getBlockPos()) || level.getBlockState(hit.getBlockPos()).is(HwBlocks.PHONE))) {
 				return net.minecraft.world.InteractionResult.FAIL;
 			}
 			return DoorLocks.onUseBlock(player, level, hit.getBlockPos());

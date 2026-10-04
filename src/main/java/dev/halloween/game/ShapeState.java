@@ -30,6 +30,13 @@ public final class ShapeState {
 	public int recoverTicks;
 	public GrabSession grab;
 
+	/** Stun meter 0..1 filled by survivors' weapons; stunnedTicks counts down while he is knocked down. */
+	public float stun;
+	public int stunnedTicks;
+	/** In a flashlight beam (counts as light), and blinded by it. */
+	public int litTicks;
+	public int blindTicks;
+
 	public double lastX;
 	public double lastZ;
 	public boolean still;
@@ -41,11 +48,11 @@ public final class ShapeState {
 	public int aimTick = -1000;
 
 	public boolean busy() {
-		return this.grab != null || this.recoverTicks > 0;
+		return this.grab != null || this.recoverTicks > 0 || this.stunnedTicks > 0;
 	}
 
 	public boolean senseActive() {
-		return this.senseHeld && this.grab == null && this.shadowTicks == 0;
+		return this.senseHeld && this.grab == null && this.shadowTicks == 0 && this.blindTicks == 0 && this.stunnedTicks == 0;
 	}
 
 	public boolean focusActive() {

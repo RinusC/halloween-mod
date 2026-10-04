@@ -12,8 +12,15 @@ import net.minecraft.world.level.block.state.BlockBehaviour;
 public final class HwBlocks {
 	/** A window pane after someone went through it: shards left in the frame, still blocks walking. */
 	public static final Block BROKEN_GLASS_PANE = register("broken_glass_pane");
+	/** Desk phone used to call the police. */
+	public static final Block PHONE = Registry.register(BuiltInRegistries.BLOCK, key("phone"),
+		new dev.halloween.game.PhoneBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.STONE).strength(-1f, 3600000f).noOcclusion().setId(key("phone"))));
 
 	private HwBlocks() {
+	}
+
+	private static ResourceKey<Block> key(String path) {
+		return ResourceKey.create(Registries.BLOCK, Halloween.id(path));
 	}
 
 	private static Block register(String path) {

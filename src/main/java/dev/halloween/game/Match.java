@@ -1,0 +1,382 @@
+package dev.halloween.game;
+
+import dev.halloween.HwConfig;
+import dev.halloween.Role;
+import dev.halloween.net.HwNet;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import net.minecraft.ChatFormatting;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.game.ClientboundSetSubtitleTextPacket;
+import net.minecraft.network.protocol.game.ClientboundSetTitleTextPacket;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.GameType;
+
+/**
+ * One match: countdown, 20-minute timer, civilian score, escapes, deputies and the final tally.
+ * Civilians who escape or die come back as sheriff's deputies after a delay, at most two per match;
+ * the rest watch. The match ends when time runs out or nobody is left on the civilians' side.
+ * The winner is decided by score: the Shape's against the civilians' total.
+ */
+public final class Match {
+	public enum State {
+		IDLE, COUNTDOWN, RUNNING, ENDED
+	}
+
+	private static final class Participant {
+		final String name;
+		int score;
+		boolean escaped;
+		boolean died;
+		boolean finalOut;
+		int respawnAt = -1;
+
+		Participant(String name) {
+			this.name = name;
+		}
+	}
+
+	private static State state = State.IDLE;
+	private static int ticksLeft;
+	private static int countdown;
+	private static int deputiesUsed;
+	private static UUID shapeId;
+	private static final Map<UUID, Participant> PEOPLE = new LinkedHashMap<>();
+	private static boolean dirty;
+	private static int tickCounter;
+
+	private Match() {
+	}
+
+	public static boolean running() {
+		return state == State.RUNNING;
+	}
+
+	/** Everyone stands still while the countdown runs. */
+	public static boolean frozen() {
+		return state == State.COUNTDOWN;
+	}
+
+	public static int ticksLeft() {
+		return ticksLeft;
+	}
+
+	public static void markDirty() {
+		dirty = true;
+	}
+
+	// ---------------------------------------------------------------- start / stop
+
+	/** Starts a match. {@code shape} may be null for a random Shape; a lone player plays a civilian. */
+	public static Component start(MinecraftServer server, ServerPlayer shape) {
+		ServerLevel level = server.overworld();
+		HwConfig cfg = HwConfig.get();
+		MapPoints points = MapPoints.get(level);
+		BlockPos center = points.first(MapPoints.Type.CENTER);
+		if (center == null || points.list(MapPoints.Type.SPAWN_CIVILIAN).isEmpty()) {
+			return Component.translatable("halloween.cmd.no_points");
+		}
+		List<ServerPlayer> players = new ArrayList<>(server.getPlayerList().getPlayers());
+		if (players.isEmpty()) {
+			return Component.translatable("halloween.cmd.no_players");
+		}
+		if (shape == null && players.size() > 1) {
+			shape = players.get(level.getRandom().nextInt(players.size()));
+		}
+
+		stopQuietly(server);
+		MatchManager.reset(server);
+		DoorLocks.clear(server);
+		Windows.clear(server);
+		Holds.clear();
+		Fight.clear(server);
+		Exits.setup(level, level.getRandom());
+		Loot.setup(level, center, level.getRandom());
+
+		CommandSourceStack console = server.createCommandSourceStack().withLevel(level).withSuppressedOutput();
+		for (String command : new String[]{"time set midnight", "weather clear", "gamerule advance_time false",
+			"gamerule advance_weather false", "gamerule spawn_mobs false", "gamerule natural_health_regeneration false",
+			"gamerule show_death_messages false", "kill @e[type=item]", "kill @e[type=arrow]"}) {
+			server.getCommands().performPrefixedCommand(console, command);
+		}
+
+		PEOPLE.clear();
+		deputiesUsed = 0;
+		shapeId = shape == null ? null : shape.getUUID();
+		List<BlockPos> spawns = new ArrayList<>(points.list(MapPoints.Type.SPAWN_CIVILIAN));
+		Collections.shuffle(spawns, new java.util.Random(level.getRandom().nextLong()));
+		int i = 0;
+		for (ServerPlayer player : players) {
+			Inventory.dropAll(player);
+			player.getInventory().clearContent();
+			if (player == shape) {
+				MatchManager.applyRole(player, Role.SHAPE);
+				BlockPos spawn = points.first(MapPoints.Type.SPAWN_SHAPE);
+				teleport(player, spawn != null ? spawn : center);
+			} else {
+				MatchManager.applyRole(player, Role.CIVILIAN);
+				PEOPLE.put(player.getUUID(), new Participant(player.getScoreboardName()));
+				teleport(player, spawns.get(i++ % spawns.size()));
+			}
+		}
+		state = State.COUNTDOWN;
+		countdown = cfg.countdownSeconds * 20;
+		ticksLeft = cfg.matchSeconds * 20;
+		dirty = true;
+		return Component.translatable("halloween.cmd.started", players.size());
+	}
+
+	private static void teleport(ServerPlayer player, BlockPos pos) {
+		player.teleportTo(player.level(), pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, java.util.Set.of(), player.getYRot(), 0f, false);
+	}
+
+	public static void stop(MinecraftServer server) {
+		stopQuietly(server);
+		syncAll(server);
+	}
+
+	private static void stopQuietly(MinecraftServer server) {
+		if (state == State.IDLE) {
+			return;
+		}
+		state = State.IDLE;
+		Exits.clear(server.overworld());
+		Loot.clear();
+		Holds.clear();
+		Fight.clear(server);
+		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+			if (MatchManager.role(player) != Role.NONE) {
+				player.getInventory().clearContent();
+				MatchManager.applyRole(player, Role.NONE);
+			}
+		}
+		PEOPLE.clear();
+	}
+
+	// ---------------------------------------------------------------- tick
+
+	public static void tick(MinecraftServer server) {
+		if (state == State.IDLE) {
+			return;
+		}
+		ServerLevel level = server.overworld();
+		tickCounter++;
+		if (state == State.COUNTDOWN) {
+			if (countdown % 20 == 0) {
+				int s = countdown / 20;
+				for (ServerPlayer p : server.getPlayerList().getPlayers()) {
+					p.connection.send(new ClientboundSetTitleTextPacket(Component.literal(s > 0 ? String.valueOf(s) : "").withStyle(ChatFormatting.DARK_RED)));
+				}
+			}
+			if (--countdown <= 0) {
+				state = State.RUNNING;
+				announce(server, Component.translatable("halloween.match.begin").withStyle(ChatFormatting.DARK_RED));
+			}
+		} else if (state == State.RUNNING) {
+			ticksLeft--;
+			Exits.tick(level);
+			if (ticksLeft == HwConfig.get().gateOpenLastSeconds * 20) {
+				announce(server, Component.translatable("halloween.match.gates").withStyle(ChatFormatting.GOLD));
+			}
+			for (Map.Entry<UUID, Participant> e : PEOPLE.entrySet()) {
+				Participant p = e.getValue();
+				if (p.respawnAt >= 0 && tickCounter >= p.respawnAt) {
+					p.respawnAt = -1;
+					ServerPlayer player = server.getPlayerList().getPlayer(e.getKey());
+					if (player != null) {
+						comeBackAsDeputy(player);
+					}
+				}
+			}
+			if (ticksLeft <= 0 || nobodyLeft(server)) {
+				end(server);
+			}
+		}
+		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+			if (MatchManager.role(player).survivor() && !player.isSpectator()) {
+				Inventory.enforce(player);
+			}
+		}
+		if (dirty || tickCounter % 10 == 0) {
+			dirty = false;
+			syncAll(server);
+		}
+	}
+
+	private static boolean nobodyLeft(MinecraftServer server) {
+		for (Map.Entry<UUID, Participant> e : PEOPLE.entrySet()) {
+			Participant p = e.getValue();
+			if (p.respawnAt >= 0) {
+				return false;
+			}
+			ServerPlayer player = server.getPlayerList().getPlayer(e.getKey());
+			if (player != null && MatchManager.role(player).survivor() && !player.isSpectator()) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	// ---------------------------------------------------------------- events
+
+	public static void score(ServerPlayer player, int points, Component reason) {
+		Participant p = PEOPLE.get(player.getUUID());
+		if (p == null || state != State.RUNNING) {
+			return;
+		}
+		p.score += points;
+		ServerPlayNetworking.send(player, new HwNet.ScoreEvent(points, List.of(reason)));
+		dirty = true;
+	}
+
+	/** A civilian got out through an exit. */
+	public static void escape(ServerPlayer player, Component exit) {
+		Participant p = PEOPLE.get(player.getUUID());
+		if (p == null) {
+			return;
+		}
+		score(player, HwConfig.get().scoreEscape, Component.translatable("halloween.score.escape", exit));
+		p.escaped = true;
+		Inventory.dropAll(player);
+		player.setGameMode(GameType.SPECTATOR);
+		player.connection.send(new ClientboundSetTitleTextPacket(Component.translatable("halloween.match.you_escaped").withStyle(ChatFormatting.GREEN)));
+		announce(player.level().getServer(), Component.translatable("halloween.match.escaped", player.getDisplayName(), exit).withStyle(ChatFormatting.GREEN));
+		scheduleDeputy(player, p);
+	}
+
+	/** A survivor went down (killed by the Shape or otherwise). */
+	public static void onSurvivorDown(ServerPlayer player) {
+		Participant p = PEOPLE.get(player.getUUID());
+		if (p == null || state == State.IDLE) {
+			return;
+		}
+		Inventory.dropAll(player);
+		if (MatchManager.role(player) == Role.DEPUTY || p.died) {
+			p.finalOut = true;
+			p.died = true;
+			dirty = true;
+			return;
+		}
+		p.died = true;
+		scheduleDeputy(player, p);
+	}
+
+	private static void scheduleDeputy(ServerPlayer player, Participant p) {
+		HwConfig cfg = HwConfig.get();
+		if (deputiesUsed >= cfg.maxDeputies || state != State.RUNNING) {
+			p.finalOut = true;
+			player.connection.send(new ClientboundSetSubtitleTextPacket(Component.translatable("halloween.match.no_deputy").withStyle(ChatFormatting.GRAY)));
+			dirty = true;
+			return;
+		}
+		deputiesUsed++;
+		p.respawnAt = tickCounter + cfg.deputyRespawnSeconds * 20;
+		player.connection.send(new ClientboundSetSubtitleTextPacket(Component.translatable("halloween.match.deputy_soon", cfg.deputyRespawnSeconds)));
+		dirty = true;
+	}
+
+	private static void comeBackAsDeputy(ServerPlayer player) {
+		MapPoints points = MapPoints.get(player.level());
+		BlockPos spawn = points.first(MapPoints.Type.SPAWN_DEPUTY);
+		if (spawn == null) {
+			spawn = points.first(MapPoints.Type.SPAWN_CIVILIAN);
+		}
+		MatchManager.applyRole(player, Role.DEPUTY);
+		Inventory.give(player, HwItems.create(HwItems.Kind.BATON));
+		Inventory.give(player, HwItems.create(HwItems.Kind.FLASHLIGHT));
+		teleport(player, spawn);
+		player.connection.send(new ClientboundSetTitleTextPacket(Component.translatable("halloween.match.you_deputy").withStyle(ChatFormatting.BLUE)));
+		announce(player.level().getServer(), Component.translatable("halloween.match.deputy_arrives", player.getDisplayName()).withStyle(ChatFormatting.BLUE));
+		dirty = true;
+	}
+
+	public static void announce(MinecraftServer server, Component message) {
+		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+			player.sendSystemMessage(message);
+		}
+	}
+
+	// ---------------------------------------------------------------- end
+
+	private static void end(MinecraftServer server) {
+		state = State.ENDED;
+		int civilians = 0;
+		int escapes = 0;
+		List<Component> lines = new ArrayList<>();
+		for (Participant p : PEOPLE.values()) {
+			civilians += p.score;
+			if (p.escaped) {
+				escapes++;
+			}
+		}
+		ServerPlayer shape = shapeId == null ? null : server.getPlayerList().getPlayer(shapeId);
+		ShapeState shapeState = shape == null ? null : MatchManager.shapeState(shape);
+		int shapeScore = shapeState == null ? 0 : shapeState.score;
+		boolean shapeWon = shapeId != null && shapeScore > civilians;
+		lines.add(Component.translatable(shapeWon ? "halloween.match.shape_wins" : "halloween.match.civilians_win")
+			.withStyle(shapeWon ? ChatFormatting.DARK_RED : ChatFormatting.GREEN));
+		if (shapeId != null) {
+			lines.add(Component.translatable("halloween.match.line_shape", shape == null ? "?" : shape.getScoreboardName(), shapeScore));
+		}
+		lines.add(Component.translatable("halloween.match.line_civilians", civilians, escapes));
+		for (Participant p : PEOPLE.values()) {
+			String status = p.escaped ? "halloween.match.status_escaped" : p.died ? "halloween.match.status_dead" : "halloween.match.status_alive";
+			lines.add(Component.translatable("halloween.match.line_civilian", p.name, p.score, Component.translatable(status)));
+		}
+		HwNet.MatchEnd payload = new HwNet.MatchEnd(shapeWon, lines);
+		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+			ServerPlayNetworking.send(player, payload);
+			lines.forEach(player::sendSystemMessage);
+		}
+		syncAll(server);
+		stopQuietly(server);
+		state = State.IDLE;
+		syncAll(server);
+	}
+
+	public static void forceTimeLeft(int seconds) {
+		ticksLeft = seconds * 20;
+		dirty = true;
+	}
+
+	// ---------------------------------------------------------------- sync
+
+	private static void syncAll(MinecraftServer server) {
+		List<HwNet.ExitInfo> exits = Exits.infos();
+		List<BlockPos> containers = Loot.containers();
+		List<BlockPos> searched = Loot.searched();
+		List<BlockPos> phones = MapPoints.get(server.overworld()).list(MapPoints.Type.PHONE);
+		List<BlockPos> cut = Exits.cutPhones();
+		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+			Participant p = PEOPLE.get(player.getUUID());
+			int respawn = p != null && p.respawnAt >= 0 ? Math.max(0, p.respawnAt - tickCounter) : 0;
+			ServerPlayNetworking.send(player, new HwNet.MatchSync(state.ordinal(), ticksLeft, countdown, exits, containers, searched,
+				phones, cut, respawn, p == null ? 0 : p.score));
+		}
+	}
+
+	public static void syncTo(ServerPlayer player) {
+		dirty = true;
+	}
+
+	/** Score per participant name (tests, debugging). */
+	public static Map<String, Integer> scores() {
+		Map<String, Integer> map = new HashMap<>();
+		PEOPLE.values().forEach(p -> map.put(p.name, p.score));
+		return map;
+	}
+
+	public static State state() {
+		return state;
+	}
+}

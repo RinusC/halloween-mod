@@ -85,7 +85,7 @@ public final class DoorLocks {
 		for (UUID id : WORK.keySet()) {
 			ServerPlayer player = server.getPlayerList().getPlayer(id);
 			if (player != null) {
-				ServerPlayNetworking.send(player, new HwNet.Progress(HwNet.Progress.NONE, 0));
+				ServerPlayNetworking.send(player, HwNet.Progress.NONE);
 			}
 		}
 		WORK.clear();
@@ -101,7 +101,7 @@ public final class DoorLocks {
 			return InteractionResult.PASS;
 		}
 		Role role = MatchManager.role(sp);
-		if (role == Role.CIVILIAN && sp.isShiftKeyDown()) {
+		if (role.survivor() && sp.isShiftKeyDown()) {
 			return InteractionResult.FAIL;
 		}
 		if (isLocked(level, pos)) {
@@ -120,7 +120,7 @@ public final class DoorLocks {
 	/** A civilian holding use on a door; arrives about every 4 ticks while held. */
 	public static void ping(ServerPlayer player, BlockPos clicked) {
 		ServerLevel level = player.level();
-		if (MatchManager.role(player) != Role.CIVILIAN || player.isSpectator() || !isDoor(level.getBlockState(clicked))) {
+		if (!MatchManager.role(player).survivor() || player.isSpectator() || !isDoor(level.getBlockState(clicked))) {
 			return;
 		}
 		BlockPos door = base(level, clicked);
@@ -160,7 +160,7 @@ public final class DoorLocks {
 			boolean keep = player != null
 				&& now - work.lastPing <= 8
 				&& player.isShiftKeyDown()
-				&& MatchManager.role(player) == Role.CIVILIAN
+				&& MatchManager.role(player).survivor()
 				&& !MatchManager.isGrabbed(player)
 				&& isDoor(player.level().getBlockState(work.door))
 				&& close(player, work.door)
@@ -169,12 +169,12 @@ public final class DoorLocks {
 			if (!keep) {
 				it.remove();
 				if (player != null) {
-					ServerPlayNetworking.send(player, new HwNet.Progress(HwNet.Progress.NONE, 0));
+					ServerPlayNetworking.send(player, HwNet.Progress.NONE);
 				}
 				continue;
 			}
 			work.ticks++;
-			int kind = work.unlocking ? HwNet.Progress.UNLOCK : HwNet.Progress.LOCK;
+			String label = work.unlocking ? "halloween.hud.progress.unlock" : "halloween.hud.progress.lock";
 			if (work.ticks >= work.needed) {
 				it.remove();
 				ServerLevel level = player.level();
@@ -186,11 +186,11 @@ public final class DoorLocks {
 					DAMAGE.remove(work.door);
 				}
 				level.playSound(null, work.door, work.unlocking ? HwSounds.UNLOCK : HwSounds.LOCK, SoundSource.BLOCKS, 1f, 1f);
-				ServerPlayNetworking.send(player, new HwNet.Progress(HwNet.Progress.NONE, 0));
+				ServerPlayNetworking.send(player, HwNet.Progress.NONE);
 				player.sendOverlayMessage(Component.translatable(work.unlocking ? "halloween.msg.unlocked" : "halloween.msg.locked"));
 				sync(server);
 			} else if (work.ticks % 2 == 0) {
-				ServerPlayNetworking.send(player, new HwNet.Progress(kind, work.ticks / (float) work.needed));
+				ServerPlayNetworking.send(player, new HwNet.Progress(label, work.ticks / (float) work.needed, false));
 			}
 		}
 	}

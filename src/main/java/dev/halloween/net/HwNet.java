@@ -75,7 +75,8 @@ public final class HwNet {
 		int dashCooldown, int dashCooldownMax, int dashTicks,
 		int impulseCooldown, int impulseCooldownMax,
 		int pushCooldown, int grabCooldown, int attackCooldown,
-		List<VictimInfo> victims, List<Vec3> beams, List<Component> objectives
+		List<VictimInfo> victims, List<Vec3> beams, List<Component> objectives,
+		float stun, int stunnedTicks, boolean blind
 	) implements CustomPacketPayload {
 		public static final Type<ShapeHud> TYPE = payloadType("shape_hud");
 		public static final StreamCodec<RegistryFriendlyByteBuf, ShapeHud> CODEC = StreamCodec.of((buf, v) -> {
@@ -111,6 +112,9 @@ public final class HwNet {
 			for (Component c : v.objectives) {
 				ComponentSerialization.TRUSTED_STREAM_CODEC.encode(buf, c);
 			}
+			buf.writeFloat(v.stun);
+			buf.writeVarInt(v.stunnedTicks);
+			buf.writeBoolean(v.blind);
 		}, buf -> {
 			float bloodthirst = buf.readFloat();
 			int score = buf.readVarInt();
@@ -144,9 +148,12 @@ public final class HwNet {
 			for (int i = 0; i < no; i++) {
 				objectives.add(ComponentSerialization.TRUSTED_STREAM_CODEC.decode(buf));
 			}
+			float stun = buf.readFloat();
+			int stunnedTicks = buf.readVarInt();
+			boolean blind = buf.readBoolean();
 			return new ShapeHud(bloodthirst, score, fatigue, sense, focus, jumpCooldown, jumpCooldownMax, shadowTicks, jumpBlock,
 				dashCooldown, dashCooldownMax, dashTicks, impulseCooldown, impulseCooldownMax, pushCooldown, grabCooldown, attackCooldown,
-				victims, beams, objectives);
+				victims, beams, objectives, stun, stunnedTicks, blind);
 		});
 
 		@Override
@@ -280,23 +287,110 @@ public final class HwNet {
 		}
 	}
 
-	/** A timed action of this player (locking, unlocking, climbing through a window); kind 0 = none. */
-	public record Progress(int kind, float progress) implements CustomPacketPayload {
-		public static final int NONE = 0;
-		public static final int LOCK = 1;
-		public static final int UNLOCK = 2;
-		public static final int VAULT_SLOW = 3;
-		public static final int VAULT_FAST = 4;
+	/**
+	 * A timed action of this player (locking, searching, repairing, climbing...). label is a translation
+	 * key, empty when nothing is in progress; danger draws the bar red.
+	 */
+	public record Progress(String label, float progress, boolean danger) implements CustomPacketPayload {
+		public static final Progress NONE = new Progress("", 0, false);
 		public static final Type<Progress> TYPE = payloadType("progress");
 		public static final StreamCodec<RegistryFriendlyByteBuf, Progress> CODEC = StreamCodec.of(
 			(buf, v) -> {
-				buf.writeVarInt(v.kind);
+				buf.writeUtf(v.label);
 				buf.writeFloat(v.progress);
-			}, buf -> new Progress(buf.readVarInt(), buf.readFloat())
+				buf.writeBoolean(v.danger);
+			}, buf -> new Progress(buf.readUtf(), buf.readFloat(), buf.readBoolean())
 		);
 
 		@Override
 		public Type<Progress> type() {
+			return TYPE;
+		}
+	}
+
+	/** One exit of the current match. type: 0 cellar, 1 car, 2 police, 3 gate; state and extra are per type (see Exits). */
+	public record ExitInfo(int type, BlockPos pos, int state, int extra) {
+	}
+
+	/**
+	 * Match state for one player. state: 0 idle, 1 countdown, 2 running, 3 ended. respawnTicks counts down to
+	 * coming back as a deputy (0 = not waiting).
+	 */
+	public record MatchSync(int state, int ticksLeft, int countdown, List<ExitInfo> exits, List<BlockPos> containers,
+		List<BlockPos> searched, List<BlockPos> phones, List<BlockPos> cutPhones, int respawnTicks, int myScore) implements CustomPacketPayload {
+		public static final Type<MatchSync> TYPE = payloadType("match_sync");
+		public static final MatchSync IDLE = new MatchSync(0, 0, 0, List.of(), List.of(), List.of(), List.of(), List.of(), 0, 0);
+		private static void writePositions(RegistryFriendlyByteBuf buf, List<BlockPos> list) {
+			buf.writeVarInt(list.size());
+			list.forEach(buf::writeBlockPos);
+		}
+
+		private static List<BlockPos> readPositions(RegistryFriendlyByteBuf buf) {
+			int n = buf.readVarInt();
+			List<BlockPos> list = new ArrayList<>(n);
+			for (int i = 0; i < n; i++) {
+				list.add(buf.readBlockPos());
+			}
+			return list;
+		}
+
+		public static final StreamCodec<RegistryFriendlyByteBuf, MatchSync> CODEC = StreamCodec.of((buf, v) -> {
+			buf.writeVarInt(v.state);
+			buf.writeVarInt(v.ticksLeft);
+			buf.writeVarInt(v.countdown);
+			buf.writeVarInt(v.exits.size());
+			for (ExitInfo e : v.exits) {
+				buf.writeVarInt(e.type());
+				buf.writeBlockPos(e.pos());
+				buf.writeVarInt(e.state());
+				buf.writeVarInt(e.extra());
+			}
+			writePositions(buf, v.containers);
+			writePositions(buf, v.searched);
+			writePositions(buf, v.phones);
+			writePositions(buf, v.cutPhones);
+			buf.writeVarInt(v.respawnTicks);
+			buf.writeVarInt(v.myScore);
+		}, buf -> {
+			int state = buf.readVarInt();
+			int ticksLeft = buf.readVarInt();
+			int countdown = buf.readVarInt();
+			int n = buf.readVarInt();
+			List<ExitInfo> exits = new ArrayList<>(n);
+			for (int i = 0; i < n; i++) {
+				exits.add(new ExitInfo(buf.readVarInt(), buf.readBlockPos(), buf.readVarInt(), buf.readVarInt()));
+			}
+			return new MatchSync(state, ticksLeft, countdown, exits, readPositions(buf), readPositions(buf), readPositions(buf), readPositions(buf),
+				buf.readVarInt(), buf.readVarInt());
+		});
+
+		@Override
+		public Type<MatchSync> type() {
+			return TYPE;
+		}
+	}
+
+	/** Final scoreboard shown to everyone when the match ends. */
+	public record MatchEnd(boolean shapeWon, List<Component> lines) implements CustomPacketPayload {
+		public static final Type<MatchEnd> TYPE = payloadType("match_end");
+		public static final StreamCodec<RegistryFriendlyByteBuf, MatchEnd> CODEC = StreamCodec.of((buf, v) -> {
+			buf.writeBoolean(v.shapeWon);
+			buf.writeVarInt(v.lines.size());
+			for (Component c : v.lines) {
+				ComponentSerialization.TRUSTED_STREAM_CODEC.encode(buf, c);
+			}
+		}, buf -> {
+			boolean shapeWon = buf.readBoolean();
+			int n = buf.readVarInt();
+			List<Component> lines = new ArrayList<>(n);
+			for (int i = 0; i < n; i++) {
+				lines.add(ComponentSerialization.TRUSTED_STREAM_CODEC.decode(buf));
+			}
+			return new MatchEnd(shapeWon, lines);
+		});
+
+		@Override
+		public Type<MatchEnd> type() {
 			return TYPE;
 		}
 	}
@@ -307,6 +401,8 @@ public final class HwNet {
 		public static final int DOOR_LOCK = 0;
 		public static final int VAULT_SLOW = 1;
 		public static final int VAULT_FAST = 2;
+		/** Hold use on a match object: container, exit, phone. The server works out what it means. */
+		public static final int INTERACT = 3;
 		public static final Type<UseAction> TYPE = payloadType("use_action");
 		public static final StreamCodec<RegistryFriendlyByteBuf, UseAction> CODEC = StreamCodec.of(
 			(buf, v) -> {
@@ -412,6 +508,8 @@ public final class HwNet {
 		PayloadTypeRegistry.clientboundPlay().register(ScoreEvent.TYPE, ScoreEvent.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(Impulse.TYPE, Impulse.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(DoorSync.TYPE, DoorSync.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(MatchSync.TYPE, MatchSync.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(MatchEnd.TYPE, MatchEnd.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(Progress.TYPE, Progress.CODEC);
 		PayloadTypeRegistry.serverboundPlay().register(UseAction.TYPE, UseAction.CODEC);
 		PayloadTypeRegistry.serverboundPlay().register(SenseInput.TYPE, SenseInput.CODEC);

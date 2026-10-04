@@ -155,6 +155,53 @@ public class HwConfig {
 	/** Damage from glass when jumping through fast, or from shards of a broken window, as a share of max health. */
 	public float vaultDamageFraction = 0.2f;
 
+	// --- Match ---
+	public int matchSeconds = 1200;
+	public int countdownSeconds = 10;
+	/** Back gates can be opened only during the last this many seconds. */
+	public int gateOpenLastSeconds = 300;
+	public int policeArriveSeconds = 120;
+	public int policeStaySeconds = 90;
+	public int deputyRespawnSeconds = 30;
+	public int maxDeputies = 2;
+	/** Containers are looked for this far around the map centre. */
+	public int lootRadius = 96;
+
+	// --- Hold-to-interact durations (ticks) ---
+	public int searchTicks = 30;
+	public int boltCuttersTicks = 60;
+	public int padlockKeyTicks = 30;
+	public int closeCellarTicks = 40;
+	public int installPartTicks = 60;
+	public int repairCarTicks = 100;
+	public int startCarTicks = 30;
+	public int removePartTicks = 40;
+	public int callPoliceTicks = 80;
+	public int cutPhoneTicks = 40;
+	public int repairPhoneTicks = 80;
+	public int openGateTicks = 160;
+	public int escapeTicks = 10;
+
+	// --- Fighting back ---
+	/** Stun meter drains this much per second; a full meter knocks the Shape down. */
+	public float stunDecayPerSecond = 0.05f;
+	public int stunnedTicks = 80;
+	public int survivorHitCooldownTicks = 15;
+	public float dartSpeed = 1.8f;
+	public double flashlightRange = 20;
+	public float flashlightConeDeg = 12f;
+	/** The beam blinds the Shape only if he faces it within this angle. */
+	public float flashlightFaceDeg = 70f;
+	public int flashlightLightLevel = 12;
+
+	// --- Civilian score ---
+	public int scoreEscape = 500;
+	public int scoreItemFound = 25;
+	public int scoreExitProgress = 100;
+	public int scoreCallPolice = 150;
+	public int scoreHitShape = 20;
+	public int scoreStunShape = 150;
+
 	// --- Lights ---
 	public int breakerRadius = 14;
 
