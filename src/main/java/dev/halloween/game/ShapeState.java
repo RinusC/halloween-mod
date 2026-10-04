@@ -1,21 +1,38 @@
 package dev.halloween.game;
 
-import dev.halloween.HwConfig;
-
 /** Per-player state of whoever plays the Shape. */
 public final class ShapeState {
+	public static final float BLOODTHIRST_MAX = 300f;
+
+	/** 0..300: three levels of 100 points. */
 	public float bloodthirst;
-	public int tier;
+	public int score;
+
 	public boolean senseHeld;
+	public boolean focusHeld;
 	public float fatigue;
+
 	public int attackCooldown;
+	public int comboCount;
+	public int comboTimer;
 	public int grabCooldown;
+	public int pushCooldown;
+	public int dashTicks;
+	public int dashCooldown;
+	public int dashCooldownMax = 1;
 	public int jumpCooldown;
 	public int jumpCooldownMax = 1;
+	public int impulseCooldown;
+	public int impulseCooldownMax = 1;
 	public int shadowTicks;
 	/** Frozen after a victim breaks free. */
 	public int recoverTicks;
 	public GrabSession grab;
+
+	public double lastX;
+	public double lastZ;
+	public boolean still;
+	public double fallDistance;
 
 	public boolean busy() {
 		return this.grab != null || this.recoverTicks > 0;
@@ -25,21 +42,24 @@ public final class ShapeState {
 		return this.senseHeld && this.grab == null && this.shadowTicks == 0;
 	}
 
-	public void addBloodthirst(float amount) {
-		this.bloodthirst = Math.min(100f, this.bloodthirst + amount);
+	public boolean focusActive() {
+		return this.senseActive() && this.focusHeld;
 	}
 
-	/** Recomputes the tier from the meter; returns true when it went up. */
-	public boolean updateTier() {
-		float[] thresholds = HwConfig.get().bloodthirstTierThresholds;
-		int newTier = 0;
-		for (int i = 0; i < thresholds.length; i++) {
-			if (this.bloodthirst >= thresholds[i]) {
-				newTier = i;
-			}
-		}
-		boolean up = newTier > this.tier;
-		this.tier = newTier;
-		return up;
+	/** Bloodthirst tier index 0..2 (levels 1..3). */
+	public int tier() {
+		return Math.min(2, (int) (this.bloodthirst / 100f));
+	}
+
+	/** Bloodthirst level 1..3 as shown on the ring. */
+	public int level() {
+		return this.tier() + 1;
+	}
+
+	/** Changes the meter; returns true when the level went up. */
+	public boolean addBloodthirst(float amount) {
+		int before = this.tier();
+		this.bloodthirst = Math.max(0f, Math.min(BLOODTHIRST_MAX, this.bloodthirst + amount));
+		return this.tier() > before;
 	}
 }

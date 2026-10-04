@@ -12,7 +12,8 @@ import net.fabricmc.loader.api.FabricLoader;
 /**
  * Every gameplay number lives here so it can be tuned against footage of the original
  * without recompiling. Stored as config/halloween.json. Tick values are 20 per second.
- * Arrays indexed by tier hold values for Bloodthirst tiers I, II, III.
+ * Arrays named "...ByTier" hold values for Bloodthirst levels 1, 2, 3; arrays named "...ByStalk"
+ * hold values for stalk levels 0, 1, 2, 3. See docs/ORIGINAL_NOTES.md for where they come from.
  */
 public class HwConfig {
 	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
@@ -21,57 +22,125 @@ public class HwConfig {
 	// --- Civilians ---
 	public float civilianMaxHealth = 20f;
 
-	// --- The Shape: movement and melee ---
+	// --- The Shape: movement and camera ---
 	public double shapeSpeedModifier = -0.15;
-	public float shapeBaseDamage = 5f;
-	public int shapeAttackCooldownTicks = 24;
-	public float[] tierDamageMultiplier = {1.0f, 1.25f, 1.5f};
+	public double shapeCameraDistance = 2.6;
+	public float shapeShoulderOffset = 0.75f;
 
-	// --- Killer Sense / Stalk ---
+	// --- Melee: light/heavy attacks with combos ---
+	public float lightDamage = 4f;
+	public float heavyDamage = 8f;
+	public int lightCooldownTicks = 12;
+	public int heavyCooldownTicks = 30;
+	public int heavyChargeTicks = 8;
+	public double attackReach = 3.2;
+	public int comboWindowTicks = 30;
+	public float[] comboMultiplier = {1.0f, 1.15f, 1.3f};
+	public float[] damageMultiplierByTier = {1.0f, 1.25f, 1.5f};
+
+	// --- Push (shove): interrupts and unbalances ---
+	public double pushRange = 2.6;
+	public double pushStrength = 0.55;
+	public int pushCooldownTicks = 60;
+	public int pushStaggerTicks = 30;
+	public double staggerSpeedModifier = -0.6;
+
+	// --- Dash (acceleration): fast burst, loud steps ---
+	public int dashTicks = 30;
+	public double dashSpeedModifier = 0.9;
+	public int[] dashCooldownByTier = {140, 120, 100};
+	public float dashStepVolume = 2.2f;
+
+	// --- Stalk ---
+	/** Passive stalking (just watching) can raise a victim to this level at most. */
+	public float passiveStalkCap = 1f;
+	public double passiveStalkRange = 20;
+	public float passiveStalkAngleDeg = 25f;
+	public float passiveStalkPerSecond = 0.08f;
 	public double senseRange = 32;
 	public double senseSpeedModifier = -0.45;
-	public float senseFocusAngleDeg = 6f;
-	public float senseBodyAngleDeg = 25f;
-	public float stalkPerSecondFocus = 14f;
-	public float stalkPerSecondBody = 2.5f;
-	public int focusPointSwitchTicks = 60;
+	public float senseStalkPerSecond = 0.22f;
+	/** Reticle on a focus point counts fully; anywhere else on the body only partly. */
+	public float reticleFocusAngleDeg = 5f;
+	public float reticleBodyAngleDeg = 18f;
+	public float bodyAimMultiplier = 0.3f;
+	public float stillnessMultiplier = 1.5f;
+	public float movingMultiplier = 0.8f;
+	public double proximityNear = 4;
+	public float proximityNearMultiplier = 1.6f;
+	public float proximityFarMultiplier = 0.6f;
+	public float focusMultiplier = 2.0f;
+	public double focusSpeedModifier = -0.85;
 	public float senseFatigueSeconds = 20f;
 	public float senseRecoverySeconds = 10f;
-	public float senseFatiguePenalty = 0.75f;
-	public float stalkWeakenedThreshold = 33f;
-	public float stalkMarkedThreshold = 66f;
-	public float weakenedDamageMultiplier = 1.25f;
-	public double weakenedSpeedModifier = -0.1;
+	public float senseFatiguePenalty = 0.6f;
+	/** How long a victim stays marked after the last stalk gain, by stalk level. */
+	public int[] markTicksByStalk = {0, 160, 300, 600};
+	public float[] damageTakenByStalk = {1.0f, 1.1f, 1.25f, 1.5f};
+	public double[] speedByStalk = {0, -0.05, -0.1, -0.15};
 
-	// --- Bloodthirst ---
-	public float[] bloodthirstTierThresholds = {0f, 35f, 70f};
-	public float bloodthirstPerStalk = 0.25f;
-	public float bloodthirstPerKill = 20f;
+	// --- Bloodthirst: 3 levels of 100 points each ---
+	public float bloodthirstPerStalkLevel = 30f;
+	public float bloodthirstPerGrab = 10f;
+	public float bloodthirstPerKill = 40f;
 	public float bloodthirstPerWindowKill = 30f;
+	public float bloodthirstPerCorpseSecond = 4f;
+	public int corpseAdmireTicks = 200;
+	public double corpseAdmireRange = 8;
+	public float bloodthirstLightLossPerSecond = 3f;
+	public float bloodthirstDamageLoss = 15f;
+	public float bloodthirstFallLoss = 20f;
+	public double bloodthirstFallDistance = 3.5;
+	/** Bloodthirst level (1-3) that unlocks bloody weapon executions. */
+	public int bloodyExecutionLevel = 3;
+	/** Bloodthirst level (1-3) from which Shape Jump shows light beams over victims. */
+	public int beamsMinLevel = 2;
 
-	// --- Grab and QTE ---
+	// --- Grab: race of reaction checks ---
 	public double grabRange = 2.8;
-	public int[] grabCooldownTicks = {160, 120, 80};
-	public int qteSuccessesToEscape = 3;
-	public int qteMaxMisses = 3;
-	public int qteRoundTicks = 50;
-	public int qteCursorPeriodTicks = 30;
-	public float qteZoneWidth = 0.24f;
-	public float[] qteZoneShrinkPerTier = {0f, 0.04f, 0.08f};
+	public int[] grabCooldownByTier = {160, 120, 80};
+	public int victimPointsToEscape = 3;
+	public int shapePointsToKill = 2;
+	/** If true, a victim's miss also gives the Shape a point. */
+	public boolean victimMissGivesShapePoint = false;
+	public int victimRoundTicks = 50;
+	public int victimCursorPeriodTicks = 30;
+	public float victimZoneWidth = 0.24f;
+	public float[] victimZoneShrinkByTier = {0f, 0.03f, 0.06f};
+	public float[] victimZoneShrinkByStalk = {0f, 0.02f, 0.04f, 0.07f};
+	public int shapeRoundTicks = 60;
+	public int shapeNeedlePeriodTicks = 40;
+	public float shapeZoneWidth = 0.16f;
+	public float[] shapeZoneGrowByStalk = {0f, 0.02f, 0.04f, 0.06f};
 	public float mannequinQteSuccessChance = 0.35f;
 	public int escapeShapeRecoverTicks = 30;
 	public int finisherTicks = 40;
 	public int windowSearchRadius = 3;
-	public float windowFinisherStalkRequired = 100f;
+	public int windowFinisherStalkLevel = 3;
 
-	// --- Shape Jump ---
+	// --- Shape Jump (Поступь Призрака) ---
 	public int shapeJumpDurationTicks = 100;
-	public int[] shapeJumpCooldownTicks = {600, 480, 360};
-	public double[] shapeJumpSpeedModifier = {0.6, 0.9, 1.2};
+	public int[] shapeJumpCooldownByTier = {600, 480, 360};
+	public double[] shapeJumpSpeedByTier = {0.6, 0.9, 1.2};
 	public int lightThreshold = 7;
 	public double civilianSightRange = 40;
 	public float civilianSightFovDeg = 55f;
 	public float stingerVolume = 2.5f;
+
+	// --- Detection Impulse ---
+	public double impulseRange = 60;
+	public int impulseDurationTicks = 80;
+	public int[] impulseCooldownByTier = {900, 750, 600};
+
+	// --- Score (XP feed) ---
+	public int scorePassiveStalk = 10;
+	public int scoreStalkLevel = 25;
+	public int scoreGrab = 50;
+	public int scoreKill = 100;
+	public int scoreKillPerStalkLevel = 50;
+	public int scoreWindow = 75;
+	public int scoreBloody = 75;
+	public int scoreCorpse = 25;
 
 	// --- Lights ---
 	public int breakerRadius = 14;
@@ -107,15 +176,15 @@ public class HwConfig {
 		}
 	}
 
-	public static float tierValue(float[] values, int tier) {
-		return values[Math.min(Math.max(tier, 0), values.length - 1)];
+	public static float at(float[] values, int index) {
+		return values[Math.min(Math.max(index, 0), values.length - 1)];
 	}
 
-	public static int tierValue(int[] values, int tier) {
-		return values[Math.min(Math.max(tier, 0), values.length - 1)];
+	public static int at(int[] values, int index) {
+		return values[Math.min(Math.max(index, 0), values.length - 1)];
 	}
 
-	public static double tierValue(double[] values, int tier) {
-		return values[Math.min(Math.max(tier, 0), values.length - 1)];
+	public static double at(double[] values, int index) {
+		return values[Math.min(Math.max(index, 0), values.length - 1)];
 	}
 }

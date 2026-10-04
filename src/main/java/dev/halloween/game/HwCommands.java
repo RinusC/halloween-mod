@@ -29,7 +29,7 @@ public final class HwCommands {
 			.then(Commands.literal("arena").executes(HwCommands::arena))
 			.then(Commands.literal("mannequin").executes(HwCommands::mannequin))
 			.then(Commands.literal("bloodthirst")
-				.then(Commands.argument("value", FloatArgumentType.floatArg(0, 100)).executes(HwCommands::bloodthirst)))
+				.then(Commands.argument("value", FloatArgumentType.floatArg(0, ShapeState.BLOODTHIRST_MAX)).executes(HwCommands::bloodthirst)))
 			.then(Commands.literal("reset").executes(ctx -> {
 				MatchManager.reset(ctx.getSource().getServer());
 				ctx.getSource().sendSuccess(() -> Component.translatable("halloween.cmd.reset"), true);
@@ -74,8 +74,6 @@ public final class HwCommands {
 			return 0;
 		}
 		state.bloodthirst = FloatArgumentType.getFloat(ctx, "value");
-		state.tier = 0;
-		state.updateTier();
 		return 1;
 	}
 }

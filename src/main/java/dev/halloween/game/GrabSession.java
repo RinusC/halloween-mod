@@ -6,8 +6,6 @@ import dev.halloween.net.HwNet;
 import java.util.Set;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.particles.BlockParticleOption;
-import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -15,13 +13,14 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * The Shape holding a victim. The victim fights back with a timing-bar QTE; enough hits and they
- * break free, too many misses and the Shape performs a finisher (through a window if the victim
- * is fully stalked and there's glass nearby).
+ * The Shape holding a victim. Both sides play reaction checks at once:
+ * the victim scores with its own hits and with the Shape's misses and escapes at
+ * {@link HwConfig#victimPointsToEscape}; the Shape scores only with his own hits and executes at
+ * {@link HwConfig#shapePointsToKill}. Executions go through a window when the victim is fully stalked
+ * and glass is in front, and turn bloody at a high Bloodthirst level.
  */
 public final class GrabSession {
 	private final ServerPlayer shape;
@@ -30,19 +29,26 @@ public final class GrabSession {
 	private final VictimState victimState;
 	private final RandomSource random;
 
-	private int successes;
-	private int misses;
-	private long roundStart;
-	private float zoneStart;
-	private float zoneWidth;
-	private boolean roundOpen;
-	private int mannequinPressTick;
-	private boolean mannequinSucceeds;
+	private int victimPoints;
+	private int shapePoints;
+	private final Track victimTrack = new Track();
+	private final Track shapeTrack = new Track();
 
 	private boolean finishing;
 	private int finisherTick;
 	private BlockPos windowPos;
+	private boolean bloody;
 	private boolean done;
+
+	/** One side's current reaction check. */
+	private static final class Track {
+		long roundStart;
+		float zoneStart;
+		float zoneWidth;
+		boolean open;
+		int simPressTick;
+		boolean simSuccess;
+	}
 
 	GrabSession(ServerPlayer shape, ShapeState state, LivingEntity victim, VictimState victimState) {
 		this.shape = shape;
@@ -52,7 +58,9 @@ public final class GrabSession {
 		this.random = shape.getRandom();
 		victimState.grabbed = true;
 		this.level().playSound(null, victim.getX(), victim.getY(), victim.getZ(), HwSounds.GRAB, SoundSource.HOSTILE, 1.2f, 1f);
-		this.startRound();
+		this.startVictimRound();
+		this.startShapeRound();
+		this.sendState();
 	}
 
 	private ServerLevel level() {
@@ -67,65 +75,121 @@ public final class GrabSession {
 		return this.done;
 	}
 
-	// ---------------------------------------------------------------- QTE
+	// ---------------------------------------------------------------- reaction checks
 
-	private void startRound() {
+	private void startVictimRound() {
 		HwConfig cfg = this.cfg();
-		this.roundStart = this.level().getGameTime();
-		this.zoneWidth = Math.max(0.08f, cfg.qteZoneWidth - HwConfig.tierValue(cfg.qteZoneShrinkPerTier, this.state.tier));
-		this.zoneStart = 0.1f + this.random.nextFloat() * (0.8f - this.zoneWidth);
-		this.roundOpen = true;
-		this.mannequinSucceeds = this.random.nextFloat() < cfg.mannequinQteSuccessChance;
-		this.mannequinPressTick = 8 + this.random.nextInt(Math.max(1, cfg.qteRoundTicks - 12));
-		this.sendQte();
+		Track t = this.victimTrack;
+		t.roundStart = this.level().getGameTime();
+		t.zoneWidth = Math.max(0.08f, cfg.victimZoneWidth
+			- HwConfig.at(cfg.victimZoneShrinkByTier, this.state.tier())
+			- HwConfig.at(cfg.victimZoneShrinkByStalk, this.victimState.level()));
+		t.zoneStart = 0.1f + this.random.nextFloat() * (0.8f - t.zoneWidth);
+		t.open = true;
+		t.simSuccess = this.random.nextFloat() < cfg.mannequinQteSuccessChance;
+		t.simPressTick = 8 + this.random.nextInt(Math.max(1, cfg.victimRoundTicks - 12));
 	}
 
-	private void sendQte() {
+	private void startShapeRound() {
+		HwConfig cfg = this.cfg();
+		Track t = this.shapeTrack;
+		t.roundStart = this.level().getGameTime();
+		t.zoneWidth = Math.min(0.5f, cfg.shapeZoneWidth + HwConfig.at(cfg.shapeZoneGrowByStalk, this.victimState.level()));
+		t.zoneStart = 0.2f + this.random.nextFloat() * (0.7f - t.zoneWidth);
+		t.open = true;
+	}
+
+	private void sendState() {
+		HwConfig cfg = this.cfg();
+		boolean windowReady = this.windowAvailable();
+		this.bloody = this.state.level() >= cfg.bloodyExecutionLevel;
 		if (this.victim instanceof ServerPlayer player) {
-			HwConfig cfg = this.cfg();
-			ServerPlayNetworking.send(player, new HwNet.Qte(
-				true, this.zoneStart, this.zoneWidth, cfg.qteCursorPeriodTicks, this.roundStart, cfg.qteRoundTicks,
-				this.successes, cfg.qteSuccessesToEscape, this.misses, cfg.qteMaxMisses
-			));
+			Track t = this.victimTrack;
+			ServerPlayNetworking.send(player, new HwNet.Qte(true, false, t.zoneStart, t.zoneWidth, cfg.victimCursorPeriodTicks,
+				t.roundStart, cfg.victimRoundTicks, this.victimPoints, cfg.victimPointsToEscape, this.shapePoints, cfg.shapePointsToKill,
+				false, false));
 		}
+		Track s = this.shapeTrack;
+		ServerPlayNetworking.send(this.shape, new HwNet.Qte(true, true, s.zoneStart, s.zoneWidth, cfg.shapeNeedlePeriodTicks,
+			s.roundStart, cfg.shapeRoundTicks, this.shapePoints, cfg.shapePointsToKill, this.victimPoints, cfg.victimPointsToEscape,
+			windowReady, this.bloody));
 	}
 
-	/** Victim pressed the QTE key. */
-	void press() {
-		if (this.finishing || !this.roundOpen) {
+	/** Someone in the grab pressed their check key. */
+	void press(ServerPlayer presser) {
+		if (this.finishing) {
 			return;
 		}
-		long elapsed = this.level().getGameTime() - this.roundStart;
-		if (elapsed < 3) {
-			return;
-		}
-		float cursor = HwNet.qteCursor(elapsed, this.cfg().qteCursorPeriodTicks);
-		this.resolveRound(cursor >= this.zoneStart && cursor <= this.zoneStart + this.zoneWidth);
-	}
-
-	private void resolveRound(boolean hit) {
-		this.roundOpen = false;
+		long now = this.level().getGameTime();
 		HwConfig cfg = this.cfg();
+		if (presser == this.shape && this.shapeTrack.open) {
+			long elapsed = now - this.shapeTrack.roundStart;
+			if (elapsed < 3) {
+				return;
+			}
+			float needle = HwNet.needle(elapsed, cfg.shapeNeedlePeriodTicks);
+			this.resolveShape(needle >= this.shapeTrack.zoneStart && needle <= this.shapeTrack.zoneStart + this.shapeTrack.zoneWidth);
+		} else if (presser == this.victim && this.victimTrack.open) {
+			long elapsed = now - this.victimTrack.roundStart;
+			if (elapsed < 3) {
+				return;
+			}
+			float cursor = HwNet.qteCursor(elapsed, cfg.victimCursorPeriodTicks);
+			this.resolveVictim(cursor >= this.victimTrack.zoneStart && cursor <= this.victimTrack.zoneStart + this.victimTrack.zoneWidth);
+		}
+	}
+
+	private void resolveVictim(boolean hit) {
+		this.victimTrack.open = false;
 		if (hit) {
-			this.successes++;
-		} else {
-			this.misses++;
+			this.victimPoints++;
+		} else if (this.cfg().victimMissGivesShapePoint) {
+			this.shapePoints++;
 		}
-		this.level().playSound(null, this.victim.getX(), this.victim.getY(), this.victim.getZ(),
+		this.feedback(this.victim, hit);
+		if (!this.checkEnd()) {
+			this.startVictimRound();
+			this.sendState();
+		}
+	}
+
+	private void resolveShape(boolean hit) {
+		this.shapeTrack.open = false;
+		if (hit) {
+			this.shapePoints++;
+		} else {
+			this.victimPoints++;
+		}
+		this.feedback(this.shape, hit);
+		if (!this.checkEnd()) {
+			this.startShapeRound();
+			this.sendState();
+		}
+	}
+
+	private void feedback(LivingEntity who, boolean hit) {
+		this.level().playSound(null, who.getX(), who.getY(), who.getZ(),
 			hit ? HwSounds.QTE_HIT : HwSounds.QTE_MISS, SoundSource.PLAYERS, 1f, hit ? 1.2f : 0.7f);
-		if (this.successes >= cfg.qteSuccessesToEscape) {
+	}
+
+	/** Returns true once the grab is decided. */
+	private boolean checkEnd() {
+		HwConfig cfg = this.cfg();
+		if (this.victimPoints >= cfg.victimPointsToEscape) {
 			this.escape();
-		} else if (this.misses >= cfg.qteMaxMisses) {
-			this.startFinisher();
-		} else {
-			this.startRound();
+			return true;
 		}
+		if (this.shapePoints >= cfg.shapePointsToKill) {
+			this.startFinisher();
+			return true;
+		}
+		return false;
 	}
 
 	private void escape() {
 		HwConfig cfg = this.cfg();
 		this.state.recoverTicks = cfg.escapeShapeRecoverTicks;
-		this.state.grabCooldown = HwConfig.tierValue(cfg.grabCooldownTicks, this.state.tier);
+		this.state.grabCooldown = HwConfig.at(cfg.grabCooldownByTier, this.state.tier());
 		Vec3 away = this.victim.position().subtract(this.shape.position()).multiply(1, 0, 1);
 		away = away.lengthSqr() < 1.0E-4 ? this.shape.getLookAngle().multiply(1, 0, 1) : away;
 		away = away.normalize();
@@ -141,15 +205,22 @@ public final class GrabSession {
 
 	// ---------------------------------------------------------------- finisher
 
+	private boolean windowAvailable() {
+		return this.victimState.level() >= this.cfg().windowFinisherStalkLevel && this.findWindow() != null;
+	}
+
 	private void startFinisher() {
 		this.finishing = true;
 		this.finisherTick = 0;
-		if (this.victimState.stalk >= this.cfg().windowFinisherStalkRequired) {
+		this.bloody = this.state.level() >= this.cfg().bloodyExecutionLevel;
+		if (this.victimState.level() >= this.cfg().windowFinisherStalkLevel) {
 			this.windowPos = this.findWindow();
 		}
+		HwNet.Qte off = HwNet.Qte.INACTIVE;
 		if (this.victim instanceof ServerPlayer player) {
-			ServerPlayNetworking.send(player, HwNet.Qte.INACTIVE);
+			ServerPlayNetworking.send(player, off);
 		}
+		ServerPlayNetworking.send(this.shape, off);
 	}
 
 	private BlockPos findWindow() {
@@ -184,24 +255,26 @@ public final class GrabSession {
 				this.smashWindow();
 			} else if (this.finisherTick >= 26) {
 				this.done = true;
-				MatchManager.kill(this.shape, this.state, this.victim, true);
+				MatchManager.kill(this.shape, this.state, this.victim, MatchManager.KillKind.WINDOW, this.bloody);
 			}
 			return;
 		}
-		if (this.finisherTick == 10 || this.finisherTick == 20 || this.finisherTick == 30) {
-			this.stabEffects();
+		int[] stabs = this.bloody ? new int[]{6, 12, 18, 24, 30, 36} : new int[]{10, 20, 30};
+		for (int t : stabs) {
+			if (this.finisherTick == t) {
+				this.stabEffects();
+			}
 		}
 		if (this.finisherTick >= this.cfg().finisherTicks) {
 			this.done = true;
-			MatchManager.kill(this.shape, this.state, this.victim, false);
+			MatchManager.kill(this.shape, this.state, this.victim, MatchManager.KillKind.EXECUTION, this.bloody);
 		}
 	}
 
 	private void stabEffects() {
 		ServerLevel level = this.level();
 		level.playSound(null, this.victim.getX(), this.victim.getY(), this.victim.getZ(), HwSounds.STAB, SoundSource.HOSTILE, 1.1f, 0.9f + this.random.nextFloat() * 0.2f);
-		level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, Blocks.REDSTONE_BLOCK.defaultBlockState()),
-			this.victim.getX(), this.victim.getY() + this.victim.getBbHeight() * 0.6, this.victim.getZ(), 18, 0.2, 0.25, 0.2, 0.1);
+		MatchManager.bleed(level, this.victim, this.bloody ? 30 : 18);
 	}
 
 	private void smashWindow() {
@@ -240,11 +313,18 @@ public final class GrabSession {
 			this.tickFinisher();
 			return;
 		}
-		long elapsed = this.level().getGameTime() - this.roundStart;
-		if (!(this.victim instanceof ServerPlayer) && this.roundOpen && elapsed >= this.mannequinPressTick) {
-			this.resolveRound(this.mannequinSucceeds);
-		} else if (this.roundOpen && elapsed >= this.cfg().qteRoundTicks) {
-			this.resolveRound(false);
+		HwConfig cfg = this.cfg();
+		long now = this.level().getGameTime();
+		long victimElapsed = now - this.victimTrack.roundStart;
+		if (this.victimTrack.open) {
+			if (!(this.victim instanceof ServerPlayer) && victimElapsed >= this.victimTrack.simPressTick) {
+				this.resolveVictim(this.victimTrack.simSuccess);
+			} else if (victimElapsed >= cfg.victimRoundTicks) {
+				this.resolveVictim(false);
+			}
+		}
+		if (!this.finishing && !this.done && this.shapeTrack.open && now - this.shapeTrack.roundStart >= cfg.shapeRoundTicks) {
+			this.resolveShape(false);
 		}
 	}
 
@@ -281,5 +361,6 @@ public final class GrabSession {
 		if (this.victim instanceof ServerPlayer player) {
 			ServerPlayNetworking.send(player, HwNet.Qte.INACTIVE);
 		}
+		ServerPlayNetworking.send(this.shape, HwNet.Qte.INACTIVE);
 	}
 }

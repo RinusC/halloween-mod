@@ -28,23 +28,32 @@ public class Halloween implements ModInitializer {
 		HwSounds.init();
 		HwNet.registerPayloads();
 
-		ServerPlayNetworking.registerGlobalReceiver(HwNet.SenseToggle.TYPE, (payload, ctx) -> {
+		ServerPlayNetworking.registerGlobalReceiver(HwNet.SenseInput.TYPE, (payload, ctx) -> {
 			var state = MatchManager.shapeState(ctx.player());
 			if (state != null) {
-				state.senseHeld = payload.active();
+				state.senseHeld = payload.sense();
+				state.focusHeld = payload.focus();
 			}
 		});
-		ServerPlayNetworking.registerGlobalReceiver(HwNet.ShapeJump.TYPE, (payload, ctx) -> MatchManager.onShapeJump(ctx.player()));
-		ServerPlayNetworking.registerGlobalReceiver(HwNet.QtePress.TYPE, (payload, ctx) -> MatchManager.onQtePress(ctx.player()));
+		ServerPlayNetworking.registerGlobalReceiver(HwNet.ShapeAttack.TYPE, (payload, ctx) -> MatchManager.onShapeAttack(ctx.player(), payload.targetId(), payload.heavy()));
+		ServerPlayNetworking.registerGlobalReceiver(HwNet.ActionPress.TYPE, (payload, ctx) -> {
+			switch (payload.action()) {
+				case SHAPE_JUMP -> MatchManager.onShapeJump(ctx.player());
+				case DASH -> MatchManager.onDash(ctx.player());
+				case PUSH -> MatchManager.onPush(ctx.player());
+				case IMPULSE -> MatchManager.onImpulse(ctx.player());
+				case QTE_PRESS -> MatchManager.onQtePress(ctx.player());
+			}
+		});
 
 		ServerTickEvents.END_SERVER_TICK.register(MatchManager::tick);
 		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> MatchManager.markDirty());
 		ServerLifecycleEvents.SERVER_STOPPED.register(server -> MatchManager.clearAll());
 
-		AttackEntityCallback.EVENT.register((player, level, hand, entity, hit) -> MatchManager.onAttack(player, entity));
+		AttackEntityCallback.EVENT.register((player, level, hand, entity, hit) -> MatchManager.onVanillaAttack(player, entity));
 		UseEntityCallback.EVENT.register((player, level, hand, entity, hit) -> MatchManager.onUseEntity(player, hand, entity));
 		UseBlockCallback.EVENT.register(LightSystem::onUseBlock);
-		ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) -> MatchManager.allowDamage(entity, source.getEntity()));
+		ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) -> MatchManager.allowDamage(entity, source));
 		ServerLivingEntityEvents.ALLOW_DEATH.register((entity, source, amount) -> MatchManager.allowDeath(entity));
 
 		CommandRegistrationCallback.EVENT.register((dispatcher, context, selection) -> HwCommands.register(dispatcher));

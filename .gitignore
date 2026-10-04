@@ -41,3 +41,6 @@ replay_*.log
 
 # local jdk
 .jdk/
+
+# ready-to-copy mod jars
+dist/

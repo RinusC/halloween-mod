@@ -7,8 +7,11 @@ import java.util.List;
 import java.util.UUID;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.ComponentSerialization;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.world.phys.Vec3;
 
 /** All custom packets. S2C = server to client, C2S = client to server. */
 public final class HwNet {
@@ -17,6 +20,16 @@ public final class HwNet {
 
 	private static <T extends CustomPacketPayload> CustomPacketPayload.Type<T> payloadType(String path) {
 		return new CustomPacketPayload.Type<>(Halloween.id(path));
+	}
+
+	private static void writeVec(RegistryFriendlyByteBuf buf, Vec3 v) {
+		buf.writeDouble(v.x);
+		buf.writeDouble(v.y);
+		buf.writeDouble(v.z);
+	}
+
+	private static Vec3 readVec(RegistryFriendlyByteBuf buf) {
+		return new Vec3(buf.readDouble(), buf.readDouble(), buf.readDouble());
 	}
 
 	// ---------------------------------------------------------------- S2C
@@ -51,47 +64,87 @@ public final class HwNet {
 	}
 
 	/**
-	 * Sent only to the Shape a few times per second.
-	 * jumpBlock: 0 ready, 1 too much light, 2 seen by a civilian, 3 cooling down, 4 busy.
+	 * Sent only to the Shape several times per second.
+	 * jumpBlock: 0 ready, 2 watched while lit, 3 cooling down, 4 busy.
 	 */
 	public record ShapeHud(
-		float bloodthirst, int tier, float fatigue, boolean sense, int jumpCooldown, int jumpCooldownMax,
-		int shadowTicks, int grabCooldown, int jumpBlock, List<VictimInfo> victims
+		float bloodthirst, int score, float fatigue, boolean sense, boolean focus,
+		int jumpCooldown, int jumpCooldownMax, int shadowTicks, int jumpBlock,
+		int dashCooldown, int dashCooldownMax, int dashTicks,
+		int impulseCooldown, int impulseCooldownMax,
+		int pushCooldown, int grabCooldown, int attackCooldown,
+		List<VictimInfo> victims, List<Vec3> beams, List<Component> objectives
 	) implements CustomPacketPayload {
 		public static final Type<ShapeHud> TYPE = payloadType("shape_hud");
 		public static final StreamCodec<RegistryFriendlyByteBuf, ShapeHud> CODEC = StreamCodec.of((buf, v) -> {
 			buf.writeFloat(v.bloodthirst);
-			buf.writeVarInt(v.tier);
+			buf.writeVarInt(v.score);
 			buf.writeFloat(v.fatigue);
 			buf.writeBoolean(v.sense);
+			buf.writeBoolean(v.focus);
 			buf.writeVarInt(v.jumpCooldown);
 			buf.writeVarInt(v.jumpCooldownMax);
 			buf.writeVarInt(v.shadowTicks);
-			buf.writeVarInt(v.grabCooldown);
 			buf.writeVarInt(v.jumpBlock);
+			buf.writeVarInt(v.dashCooldown);
+			buf.writeVarInt(v.dashCooldownMax);
+			buf.writeVarInt(v.dashTicks);
+			buf.writeVarInt(v.impulseCooldown);
+			buf.writeVarInt(v.impulseCooldownMax);
+			buf.writeVarInt(v.pushCooldown);
+			buf.writeVarInt(v.grabCooldown);
+			buf.writeVarInt(v.attackCooldown);
 			buf.writeVarInt(v.victims.size());
 			for (VictimInfo e : v.victims) {
 				buf.writeVarInt(e.entityId());
 				buf.writeFloat(e.stalk());
-				buf.writeVarInt(e.focus());
-				buf.writeBoolean(e.glow());
+				buf.writeBoolean(e.marked());
+				ComponentSerialization.TRUSTED_STREAM_CODEC.encode(buf, e.name());
+			}
+			buf.writeVarInt(v.beams.size());
+			for (Vec3 b : v.beams) {
+				writeVec(buf, b);
+			}
+			buf.writeVarInt(v.objectives.size());
+			for (Component c : v.objectives) {
+				ComponentSerialization.TRUSTED_STREAM_CODEC.encode(buf, c);
 			}
 		}, buf -> {
 			float bloodthirst = buf.readFloat();
-			int tier = buf.readVarInt();
+			int score = buf.readVarInt();
 			float fatigue = buf.readFloat();
 			boolean sense = buf.readBoolean();
+			boolean focus = buf.readBoolean();
 			int jumpCooldown = buf.readVarInt();
 			int jumpCooldownMax = buf.readVarInt();
 			int shadowTicks = buf.readVarInt();
-			int grabCooldown = buf.readVarInt();
 			int jumpBlock = buf.readVarInt();
+			int dashCooldown = buf.readVarInt();
+			int dashCooldownMax = buf.readVarInt();
+			int dashTicks = buf.readVarInt();
+			int impulseCooldown = buf.readVarInt();
+			int impulseCooldownMax = buf.readVarInt();
+			int pushCooldown = buf.readVarInt();
+			int grabCooldown = buf.readVarInt();
+			int attackCooldown = buf.readVarInt();
 			int n = buf.readVarInt();
 			List<VictimInfo> victims = new ArrayList<>(n);
 			for (int i = 0; i < n; i++) {
-				victims.add(new VictimInfo(buf.readVarInt(), buf.readFloat(), buf.readVarInt(), buf.readBoolean()));
+				victims.add(new VictimInfo(buf.readVarInt(), buf.readFloat(), buf.readBoolean(), ComponentSerialization.TRUSTED_STREAM_CODEC.decode(buf)));
 			}
-			return new ShapeHud(bloodthirst, tier, fatigue, sense, jumpCooldown, jumpCooldownMax, shadowTicks, grabCooldown, jumpBlock, victims);
+			int nb = buf.readVarInt();
+			List<Vec3> beams = new ArrayList<>(nb);
+			for (int i = 0; i < nb; i++) {
+				beams.add(readVec(buf));
+			}
+			int no = buf.readVarInt();
+			List<Component> objectives = new ArrayList<>(no);
+			for (int i = 0; i < no; i++) {
+				objectives.add(ComponentSerialization.TRUSTED_STREAM_CODEC.decode(buf));
+			}
+			return new ShapeHud(bloodthirst, score, fatigue, sense, focus, jumpCooldown, jumpCooldownMax, shadowTicks, jumpBlock,
+				dashCooldown, dashCooldownMax, dashTicks, impulseCooldown, impulseCooldownMax, pushCooldown, grabCooldown, attackCooldown,
+				victims, beams, objectives);
 		});
 
 		@Override
@@ -100,31 +153,37 @@ public final class HwNet {
 		}
 	}
 
-	/** glow = marked and currently out of the Shape's sight, so the client outlines it. */
-	public record VictimInfo(int entityId, float stalk, int focus, boolean glow) {
+	/** stalk is 0..3 (level = integer part); marked victims get a red outline. */
+	public record VictimInfo(int entityId, float stalk, boolean marked, Component name) {
 	}
 
-	/** Grab QTE state for the grabbed player. roundStart is in level game time. */
+	/**
+	 * One reaction check of a grab, for either side. For the victim it is a horizontal bar with a
+	 * bouncing cursor; for the Shape it is a ring with a rotating needle. roundStart is level game time.
+	 */
 	public record Qte(
-		boolean active, float zoneStart, float zoneWidth, int period, long roundStart, int roundTicks,
-		int successes, int needed, int misses, int maxMisses
+		boolean active, boolean forShape, float zoneStart, float zoneWidth, int period, long roundStart, int roundTicks,
+		int points, int needed, int enemyPoints, int enemyNeeded, boolean window, boolean bloody
 	) implements CustomPacketPayload {
 		public static final Type<Qte> TYPE = payloadType("qte");
-		public static final Qte INACTIVE = new Qte(false, 0, 0, 1, 0, 1, 0, 0, 0, 0);
+		public static final Qte INACTIVE = new Qte(false, false, 0, 0, 1, 0, 1, 0, 0, 0, 0, false, false);
 		public static final StreamCodec<RegistryFriendlyByteBuf, Qte> CODEC = StreamCodec.of((buf, v) -> {
 			buf.writeBoolean(v.active);
+			buf.writeBoolean(v.forShape);
 			buf.writeFloat(v.zoneStart);
 			buf.writeFloat(v.zoneWidth);
 			buf.writeVarInt(v.period);
 			buf.writeVarLong(v.roundStart);
 			buf.writeVarInt(v.roundTicks);
-			buf.writeVarInt(v.successes);
+			buf.writeVarInt(v.points);
 			buf.writeVarInt(v.needed);
-			buf.writeVarInt(v.misses);
-			buf.writeVarInt(v.maxMisses);
+			buf.writeVarInt(v.enemyPoints);
+			buf.writeVarInt(v.enemyNeeded);
+			buf.writeBoolean(v.window);
+			buf.writeBoolean(v.bloody);
 		}, buf -> new Qte(
-			buf.readBoolean(), buf.readFloat(), buf.readFloat(), buf.readVarInt(), buf.readVarLong(), buf.readVarInt(),
-			buf.readVarInt(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt()
+			buf.readBoolean(), buf.readBoolean(), buf.readFloat(), buf.readFloat(), buf.readVarInt(), buf.readVarLong(), buf.readVarInt(),
+			buf.readVarInt(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt(), buf.readBoolean(), buf.readBoolean()
 		));
 
 		@Override
@@ -133,38 +192,116 @@ public final class HwNet {
 		}
 	}
 
+	/** Score popup for the XP feed: "+075 XP" with reason lines. */
+	public record ScoreEvent(int points, List<Component> lines) implements CustomPacketPayload {
+		public static final Type<ScoreEvent> TYPE = payloadType("score_event");
+		public static final StreamCodec<RegistryFriendlyByteBuf, ScoreEvent> CODEC = StreamCodec.of((buf, v) -> {
+			buf.writeVarInt(v.points);
+			buf.writeVarInt(v.lines.size());
+			for (Component c : v.lines) {
+				ComponentSerialization.TRUSTED_STREAM_CODEC.encode(buf, c);
+			}
+		}, buf -> {
+			int points = buf.readVarInt();
+			int n = buf.readVarInt();
+			List<Component> lines = new ArrayList<>(n);
+			for (int i = 0; i < n; i++) {
+				lines.add(ComponentSerialization.TRUSTED_STREAM_CODEC.decode(buf));
+			}
+			return new ScoreEvent(points, lines);
+		});
+
+		@Override
+		public Type<ScoreEvent> type() {
+			return TYPE;
+		}
+	}
+
+	/** Detection Impulse result: victims outdoors are outlined, victims indoors only reveal their building. */
+	public record Impulse(List<Integer> outdoorIds, List<Vec3> indoorSpots, int durationTicks) implements CustomPacketPayload {
+		public static final Type<Impulse> TYPE = payloadType("impulse");
+		public static final StreamCodec<RegistryFriendlyByteBuf, Impulse> CODEC = StreamCodec.of((buf, v) -> {
+			buf.writeVarInt(v.outdoorIds.size());
+			for (int id : v.outdoorIds) {
+				buf.writeVarInt(id);
+			}
+			buf.writeVarInt(v.indoorSpots.size());
+			for (Vec3 p : v.indoorSpots) {
+				writeVec(buf, p);
+			}
+			buf.writeVarInt(v.durationTicks);
+		}, buf -> {
+			int n = buf.readVarInt();
+			List<Integer> ids = new ArrayList<>(n);
+			for (int i = 0; i < n; i++) {
+				ids.add(buf.readVarInt());
+			}
+			int m = buf.readVarInt();
+			List<Vec3> spots = new ArrayList<>(m);
+			for (int i = 0; i < m; i++) {
+				spots.add(readVec(buf));
+			}
+			return new Impulse(ids, spots, buf.readVarInt());
+		});
+
+		@Override
+		public Type<Impulse> type() {
+			return TYPE;
+		}
+	}
+
 	// ---------------------------------------------------------------- C2S
 
-	public record SenseToggle(boolean active) implements CustomPacketPayload {
-		public static final Type<SenseToggle> TYPE = payloadType("sense_toggle");
-		public static final StreamCodec<RegistryFriendlyByteBuf, SenseToggle> CODEC = StreamCodec.of(
-			(buf, v) -> buf.writeBoolean(v.active), buf -> new SenseToggle(buf.readBoolean())
+	/** Held state of Killer Sense and focusing. */
+	public record SenseInput(boolean sense, boolean focus) implements CustomPacketPayload {
+		public static final Type<SenseInput> TYPE = payloadType("sense_input");
+		public static final StreamCodec<RegistryFriendlyByteBuf, SenseInput> CODEC = StreamCodec.of(
+			(buf, v) -> {
+				buf.writeBoolean(v.sense);
+				buf.writeBoolean(v.focus);
+			}, buf -> new SenseInput(buf.readBoolean(), buf.readBoolean())
 		);
 
 		@Override
-		public Type<SenseToggle> type() {
+		public Type<SenseInput> type() {
 			return TYPE;
 		}
 	}
 
-	public record ShapeJump() implements CustomPacketPayload {
-		public static final Type<ShapeJump> TYPE = payloadType("shape_jump");
-		public static final StreamCodec<RegistryFriendlyByteBuf, ShapeJump> CODEC = StreamCodec.of((buf, v) -> {
-		}, buf -> new ShapeJump());
+	/** The Shape's melee swing; targetId -1 means a swing at nothing. */
+	public record ShapeAttack(int targetId, boolean heavy) implements CustomPacketPayload {
+		public static final Type<ShapeAttack> TYPE = payloadType("shape_attack");
+		public static final StreamCodec<RegistryFriendlyByteBuf, ShapeAttack> CODEC = StreamCodec.of(
+			(buf, v) -> {
+				buf.writeVarInt(v.targetId);
+				buf.writeBoolean(v.heavy);
+			}, buf -> new ShapeAttack(buf.readVarInt(), buf.readBoolean())
+		);
 
 		@Override
-		public Type<ShapeJump> type() {
+		public Type<ShapeAttack> type() {
 			return TYPE;
 		}
 	}
 
-	public record QtePress() implements CustomPacketPayload {
-		public static final Type<QtePress> TYPE = payloadType("qte_press");
-		public static final StreamCodec<RegistryFriendlyByteBuf, QtePress> CODEC = StreamCodec.of((buf, v) -> {
-		}, buf -> new QtePress());
+	/** Single-press abilities of the Shape. */
+	public enum Action {
+		SHAPE_JUMP, DASH, PUSH, IMPULSE, QTE_PRESS;
+
+		static Action byId(int id) {
+			Action[] values = values();
+			return id >= 0 && id < values.length ? values[id] : QTE_PRESS;
+		}
+	}
+
+	public record ActionPress(Action action) implements CustomPacketPayload {
+		public static final Type<ActionPress> TYPE = payloadType("action_press");
+		public static final StreamCodec<RegistryFriendlyByteBuf, ActionPress> CODEC = StreamCodec.of(
+			(buf, v) -> buf.writeVarInt(v.action.ordinal()), buf -> new ActionPress(Action.byId(buf.readVarInt()))
+		);
 
 		@Override
-		public Type<QtePress> type() {
+		public Type<ActionPress> type() {
 			return TYPE;
 		}
 	}
@@ -173,14 +310,21 @@ public final class HwNet {
 		PayloadTypeRegistry.clientboundPlay().register(WorldSync.TYPE, WorldSync.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(ShapeHud.TYPE, ShapeHud.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(Qte.TYPE, Qte.CODEC);
-		PayloadTypeRegistry.serverboundPlay().register(SenseToggle.TYPE, SenseToggle.CODEC);
-		PayloadTypeRegistry.serverboundPlay().register(ShapeJump.TYPE, ShapeJump.CODEC);
-		PayloadTypeRegistry.serverboundPlay().register(QtePress.TYPE, QtePress.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(ScoreEvent.TYPE, ScoreEvent.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(Impulse.TYPE, Impulse.CODEC);
+		PayloadTypeRegistry.serverboundPlay().register(SenseInput.TYPE, SenseInput.CODEC);
+		PayloadTypeRegistry.serverboundPlay().register(ShapeAttack.TYPE, ShapeAttack.CODEC);
+		PayloadTypeRegistry.serverboundPlay().register(ActionPress.TYPE, ActionPress.CODEC);
 	}
 
-	/** Position of the QTE cursor in [0, 1]: a triangle wave bouncing across the bar. */
+	/** Position of the victim's QTE cursor in [0, 1]: a triangle wave bouncing across the bar. */
 	public static float qteCursor(double elapsedTicks, int period) {
 		double t = (elapsedTicks % period) / period;
 		return (float) (t < 0.5 ? t * 2 : 2 - t * 2);
+	}
+
+	/** Position of the Shape's needle in [0, 1) around the ring. */
+	public static float needle(double elapsedTicks, int period) {
+		return (float) ((elapsedTicks % period) / period);
 	}
 }

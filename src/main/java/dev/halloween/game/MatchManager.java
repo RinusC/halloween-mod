@@ -10,10 +10,12 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.ChatFormatting;
+import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.particles.BlockParticleOption;
@@ -25,8 +27,10 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
@@ -37,21 +41,46 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.LightLayer;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.scores.PlayerTeam;
 import net.minecraft.world.scores.Scoreboard;
 import net.minecraft.world.scores.Team;
 
-/** Server-side match state: roles, the Shape's abilities, victims, grabs and kills. */
+/**
+ * Server-side match state: roles, the Shape's abilities, stalking, Bloodthirst, grabs, kills,
+ * corpses and score. Mechanics follow docs/ORIGINAL_NOTES.md.
+ */
 public final class MatchManager {
 	public static final String VICTIM_TAG = "hw_victim";
+	public static final String CORPSE_TAG = "hw_corpse";
 	private static final String TEAM = "hw_match";
 	private static final Identifier SPEED_ID = Halloween.id("speed");
 
 	private static final Map<UUID, Role> ROLES = new HashMap<>();
 	private static final Map<UUID, ShapeState> SHAPES = new HashMap<>();
 	private static final Map<UUID, VictimState> VICTIMS = new HashMap<>();
+	private static final List<Corpse> CORPSES = new ArrayList<>();
 	private static boolean dirty = true;
+
+	public enum KillKind {
+		STRIKE, EXECUTION, WINDOW
+	}
+
+	/** A body left after a kill; the Shape gains Bloodthirst by admiring it for a while. */
+	private static final class Corpse {
+		final ServerLevel level;
+		final Vec3 pos;
+		final Component name;
+		int admireLeft;
+
+		Corpse(ServerLevel level, Vec3 pos, Component name, int admireTicks) {
+			this.level = level;
+			this.pos = pos;
+			this.name = name;
+			this.admireLeft = admireTicks;
+		}
+	}
 
 	private MatchManager() {
 	}
@@ -80,18 +109,22 @@ public final class MatchManager {
 		return VICTIMS.computeIfAbsent(entity.getUUID(), id -> new VictimState(entity));
 	}
 
+	/** Stalk progress (0..3) of a victim, 0 if untracked. Used by tests and debugging. */
+	public static float stalkOf(Entity entity) {
+		VictimState vs = entity == null ? null : VICTIMS.get(entity.getUUID());
+		return vs == null ? 0 : vs.stalk;
+	}
+
 	public static void applyRole(ServerPlayer player, Role role) {
 		HwConfig cfg = HwConfig.get();
 		Role old = role(player);
 		if (old == Role.SHAPE) {
 			ShapeState state = SHAPES.remove(player.getUUID());
-			if (state != null) {
-				if (state.grab != null) {
-					state.grab.end();
-				}
-				player.setInvisible(false);
-				player.setSilent(false);
+			if (state != null && state.grab != null) {
+				state.grab.end();
 			}
+			player.setInvisible(false);
+			player.setSilent(false);
 		}
 		VictimState vs = VICTIMS.remove(player.getUUID());
 		if (vs != null) {
@@ -107,10 +140,14 @@ public final class MatchManager {
 		}
 
 		AttributeInstance maxHealth = player.getAttribute(Attributes.MAX_HEALTH);
+		AttributeInstance camera = player.getAttribute(Attributes.CAMERA_DISTANCE);
 		switch (role) {
 			case SHAPE -> {
 				ROLES.put(player.getUUID(), role);
-				SHAPES.put(player.getUUID(), new ShapeState());
+				ShapeState state = new ShapeState();
+				state.lastX = player.getX();
+				state.lastZ = player.getZ();
+				SHAPES.put(player.getUUID(), state);
 				player.setGameMode(GameType.ADVENTURE);
 				player.getInventory().clearContent();
 				ItemStack knife = new ItemStack(Items.IRON_SWORD);
@@ -118,6 +155,7 @@ public final class MatchManager {
 				player.getInventory().setItem(0, knife);
 				player.getInventory().setSelectedSlot(0);
 				maxHealth.setBaseValue(20);
+				camera.setBaseValue(cfg.shapeCameraDistance);
 				player.setHealth(player.getMaxHealth());
 				scoreboard.addPlayerToTeam(player.getScoreboardName(), team);
 			}
@@ -126,12 +164,14 @@ public final class MatchManager {
 				player.setGameMode(GameType.ADVENTURE);
 				player.getInventory().clearContent();
 				maxHealth.setBaseValue(cfg.civilianMaxHealth);
+				camera.setBaseValue(camera.getAttribute().value().getDefaultValue());
 				player.setHealth(player.getMaxHealth());
 				scoreboard.addPlayerToTeam(player.getScoreboardName(), team);
 			}
 			case NONE -> {
 				ROLES.remove(player.getUUID());
 				maxHealth.setBaseValue(20);
+				camera.setBaseValue(camera.getAttribute().value().getDefaultValue());
 				player.getAttribute(Attributes.MOVEMENT_SPEED).removeModifier(SPEED_ID);
 				if (player.isSpectator()) {
 					player.setGameMode(GameType.SURVIVAL);
@@ -152,14 +192,20 @@ public final class MatchManager {
 			if (state.grab != null) {
 				state.grab.end();
 			}
-			SHAPES.put(entry.getKey(), new ShapeState());
+			ShapeState fresh = new ShapeState();
+			SHAPES.put(entry.getKey(), fresh);
 			ServerPlayer player = server.getPlayerList().getPlayer(entry.getKey());
 			if (player != null) {
 				player.setInvisible(false);
 				player.setSilent(false);
+				fresh.lastX = player.getX();
+				fresh.lastZ = player.getZ();
 			}
 		}
 		VICTIMS.clear();
+		CORPSES.clear();
+		CommandSourceStack console = server.createCommandSourceStack().withSuppressedOutput();
+		server.getCommands().performPrefixedCommand(console, "kill @e[tag=" + CORPSE_TAG + "]");
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
 			if (role(player) == Role.CIVILIAN) {
 				player.setGameMode(GameType.ADVENTURE);
@@ -174,16 +220,11 @@ public final class MatchManager {
 		ROLES.clear();
 		SHAPES.clear();
 		VICTIMS.clear();
+		CORPSES.clear();
 	}
 
 	public static void markDirty() {
 		dirty = true;
-	}
-
-	/** Stalk progress of a victim, 0 if untracked. Used by tests and debugging. */
-	public static float stalkOf(Entity entity) {
-		VictimState vs = VICTIMS.get(entity.getUUID());
-		return vs == null ? 0 : vs.stalk;
 	}
 
 	// ---------------------------------------------------------------- tick
@@ -198,11 +239,14 @@ public final class MatchManager {
 				it.remove();
 				continue;
 			}
-			if (--vs.focusTimer <= 0) {
-				vs.focus = vs.entity.getRandom().nextInt(FocusPoints.COUNT);
-				vs.focusTimer = cfg.focusPointSwitchTicks;
+			if (vs.markTicks > 0) {
+				vs.markTicks--;
+			}
+			if (vs.staggerTicks > 0) {
+				vs.staggerTicks--;
 			}
 		}
+		CORPSES.removeIf(c -> c.admireLeft <= 0);
 
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
 			Role role = role(player);
@@ -217,10 +261,12 @@ public final class MatchManager {
 			} else {
 				VictimState vs = VICTIMS.get(player.getUUID());
 				double speed = 0;
-				if (vs != null && vs.grabbed) {
-					speed = -1;
-				} else if (vs != null && vs.weakened()) {
-					speed = cfg.weakenedSpeedModifier;
+				if (vs != null) {
+					if (vs.grabbed) {
+						speed = -1;
+					} else {
+						speed = HwConfig.at(cfg.speedByStalk, vs.level()) + (vs.staggerTicks > 0 ? cfg.staggerSpeedModifier : 0);
+					}
 				}
 				setSpeed(player, speed);
 			}
@@ -237,11 +283,23 @@ public final class MatchManager {
 		if (state.attackCooldown > 0) {
 			state.attackCooldown--;
 		}
+		if (state.comboTimer > 0 && --state.comboTimer == 0) {
+			state.comboCount = 0;
+		}
 		if (state.grabCooldown > 0) {
 			state.grabCooldown--;
 		}
+		if (state.pushCooldown > 0) {
+			state.pushCooldown--;
+		}
 		if (state.jumpCooldown > 0) {
 			state.jumpCooldown--;
+		}
+		if (state.impulseCooldown > 0) {
+			state.impulseCooldown--;
+		}
+		if (state.dashCooldown > 0) {
+			state.dashCooldown--;
 		}
 		if (state.recoverTicks > 0) {
 			state.recoverTicks--;
@@ -253,31 +311,55 @@ public final class MatchManager {
 			}
 		}
 
+		// Stillness is part of how fast stalking goes.
+		double moved = Math.hypot(player.getX() - state.lastX, player.getZ() - state.lastZ);
+		state.still = moved < 0.02;
+		state.lastX = player.getX();
+		state.lastZ = player.getZ();
+
+		if (state.dashTicks > 0) {
+			state.dashTicks--;
+			if (state.dashTicks % 5 == 0) {
+				player.level().playSound(null, player.getX(), player.getY(), player.getZ(), HwSounds.HEAVY_STEP, SoundSource.HOSTILE, cfg.dashStepVolume, 1f);
+			}
+			if (state.dashTicks == 0 || state.busy() || state.shadowTicks > 0) {
+				state.dashTicks = 0;
+			}
+		}
+
 		if (state.shadowTicks > 0) {
 			state.shadowTicks--;
-			if (state.shadowTicks == 0 || inLight(player)) {
+			if (state.shadowTicks == 0 || serverTick % 5 == 0 && exposed(player)) {
 				exitShadow(player, state);
 			}
 		}
 
 		if (state.senseActive()) {
 			state.fatigue = Math.min(1f, state.fatigue + 1f / (cfg.senseFatigueSeconds * 20f));
-			tickStalk(player, state);
 		} else {
 			state.fatigue = Math.max(0f, state.fatigue - 1f / (cfg.senseRecoverySeconds * 20f));
 		}
+		if (state.grab == null && state.shadowTicks == 0) {
+			tickStalk(player, state);
+			tickCorpses(player, state);
+		}
 
-		if (state.updateTier()) {
-			player.sendOverlayMessage(Component.translatable("halloween.msg.tier_up", tierName(state.tier)).withStyle(ChatFormatting.DARK_RED));
+		// Standing in light drains Bloodthirst.
+		if (inLight(player)) {
+			state.addBloodthirst(-cfg.bloodthirstLightLossPerSecond / 20f);
 		}
 
 		double speed = cfg.shapeSpeedModifier;
 		if (state.busy()) {
 			speed = -1;
 		} else if (state.shadowTicks > 0) {
-			speed += HwConfig.tierValue(cfg.shapeJumpSpeedModifier, state.tier);
+			speed += HwConfig.at(cfg.shapeJumpSpeedByTier, state.tier());
+		} else if (state.focusActive()) {
+			speed += cfg.focusSpeedModifier;
 		} else if (state.senseActive()) {
 			speed += cfg.senseSpeedModifier;
+		} else if (state.dashTicks > 0) {
+			speed += cfg.dashSpeedModifier;
 		}
 		setSpeed(player, speed);
 
@@ -289,29 +371,107 @@ public final class MatchManager {
 	private static void tickStalk(ServerPlayer player, ShapeState state) {
 		HwConfig cfg = HwConfig.get();
 		ServerLevel level = player.level();
+		boolean sense = state.senseActive();
+		double range = sense ? cfg.senseRange : cfg.passiveStalkRange;
 		Vec3 eye = player.getEyePosition();
 		Vec3 look = player.getViewVector(1f);
-		float multiplier = 1f - cfg.senseFatiguePenalty * state.fatigue;
-		for (LivingEntity target : level.getEntitiesOfClass(LivingEntity.class, player.getBoundingBox().inflate(cfg.senseRange), MatchManager::isVictim)) {
+		for (LivingEntity target : level.getEntitiesOfClass(LivingEntity.class, player.getBoundingBox().inflate(range), MatchManager::isVictim)) {
 			VictimState vs = victim(target);
-			Vec3 focus = FocusPoints.get(target, vs.focus, 1f);
-			double focusAngle = Sight.angleTo(eye, look, focus);
-			double bodyAngle = Sight.angleTo(eye, look, FocusPoints.bodyCenter(target));
-			float rate;
-			if (focusAngle <= cfg.senseFocusAngleDeg) {
-				rate = cfg.stalkPerSecondFocus;
-			} else if (bodyAngle <= cfg.senseBodyAngleDeg) {
-				rate = cfg.stalkPerSecondBody;
+			float cap = sense ? 3f : cfg.passiveStalkCap;
+			if (vs.stalk >= cap || vs.grabbed) {
+				continue;
+			}
+			Vec3 body = FocusPoints.bodyCenter(target);
+			double dist = eye.distanceTo(body);
+			if (dist > range) {
+				continue;
+			}
+			double bodyAngle = Sight.angleTo(eye, look, body);
+			float aim;
+			Vec3 seen = body;
+			if (sense) {
+				double best = Double.MAX_VALUE;
+				for (int i = 0; i < FocusPoints.COUNT; i++) {
+					Vec3 p = FocusPoints.get(target, i, 1f);
+					double a = Sight.angleTo(eye, look, p);
+					if (a < best) {
+						best = a;
+						seen = p;
+					}
+				}
+				if (best <= cfg.reticleFocusAngleDeg) {
+					aim = 1f;
+				} else if (bodyAngle <= cfg.reticleBodyAngleDeg) {
+					aim = cfg.bodyAimMultiplier;
+					seen = body;
+				} else {
+					continue;
+				}
+			} else if (bodyAngle <= cfg.passiveStalkAngleDeg) {
+				aim = 1f;
 			} else {
 				continue;
 			}
-			if (vs.stalk >= 100f || !Sight.canSee(level, eye, focus, player)) {
+			if (!Sight.canSee(level, eye, seen, player)) {
 				continue;
 			}
-			float gain = Math.min(100f - vs.stalk, rate / 20f * multiplier);
-			vs.stalk += gain;
-			state.addBloodthirst(gain * cfg.bloodthirstPerStalk);
+			double t = Math.max(0, Math.min(1, (dist - cfg.proximityNear) / Math.max(1, cfg.senseRange - cfg.proximityNear)));
+			float proximity = (float) (cfg.proximityNearMultiplier + (cfg.proximityFarMultiplier - cfg.proximityNearMultiplier) * t);
+			float rate = sense ? cfg.senseStalkPerSecond : cfg.passiveStalkPerSecond;
+			float multiplier = aim * proximity * (state.still ? cfg.stillnessMultiplier : cfg.movingMultiplier);
+			if (sense) {
+				multiplier *= 1f - cfg.senseFatiguePenalty * state.fatigue;
+				if (state.focusActive()) {
+					multiplier *= cfg.focusMultiplier;
+				}
+			}
+			int before = vs.level();
+			vs.stalk = Math.min(cap, vs.stalk + rate / 20f * multiplier);
+			int after = vs.level();
+			if (after >= 1) {
+				vs.markTicks = Math.max(vs.markTicks, HwConfig.at(cfg.markTicksByStalk, after));
+			}
+			if (after > before) {
+				gainBloodthirst(player, state, cfg.bloodthirstPerStalkLevel);
+				score(player, state, cfg.scoreStalkLevel * after,
+					Component.translatable("halloween.score.stalk", target.getDisplayName(), after));
+			}
 		}
+	}
+
+	private static void tickCorpses(ServerPlayer player, ShapeState state) {
+		HwConfig cfg = HwConfig.get();
+		if (!state.still) {
+			return;
+		}
+		Vec3 eye = player.getEyePosition();
+		Vec3 look = player.getViewVector(1f);
+		for (Corpse corpse : CORPSES) {
+			if (corpse.level != player.level() || corpse.admireLeft <= 0) {
+				continue;
+			}
+			Vec3 target = corpse.pos.add(0, 0.3, 0);
+			if (eye.distanceTo(target) > cfg.corpseAdmireRange || Sight.angleTo(eye, look, target) > 30
+				|| !Sight.canSee(player.level(), eye, target, player)) {
+				continue;
+			}
+			corpse.admireLeft--;
+			gainBloodthirst(player, state, cfg.bloodthirstPerCorpseSecond / 20f);
+			if (corpse.admireLeft == 0) {
+				score(player, state, cfg.scoreCorpse, Component.translatable("halloween.score.corpse", corpse.name));
+			}
+		}
+	}
+
+	private static void gainBloodthirst(ServerPlayer player, ShapeState state, float amount) {
+		if (state.addBloodthirst(amount)) {
+			player.sendOverlayMessage(Component.translatable("halloween.msg.tier_up", state.level()).withStyle(ChatFormatting.DARK_RED));
+		}
+	}
+
+	private static void score(ServerPlayer player, ShapeState state, int points, Component... lines) {
+		state.score += points;
+		ServerPlayNetworking.send(player, new HwNet.ScoreEvent(points, List.of(lines)));
 	}
 
 	private static void setSpeed(ServerPlayer player, double amount) {
@@ -351,7 +511,15 @@ public final class MatchManager {
 		return false;
 	}
 
-	/** 0 ready, 1 light, 2 seen, 3 cooldown, 4 busy. */
+	/**
+	 * Shape Jump works when nobody sees the Shape OR he stands in shadow (per the in-game tutorial);
+	 * only being watched while lit blocks it.
+	 */
+	static boolean exposed(ServerPlayer player) {
+		return inLight(player) && seenByCivilian(player);
+	}
+
+	/** 0 ready, 2 watched while lit, 3 cooldown, 4 busy. */
 	static int jumpBlockReason(ServerPlayer player, ShapeState state) {
 		if (state.busy() || state.shadowTicks > 0) {
 			return 4;
@@ -359,18 +527,17 @@ public final class MatchManager {
 		if (state.jumpCooldown > 0) {
 			return 3;
 		}
-		if (inLight(player)) {
-			return 1;
-		}
-		if (seenByCivilian(player)) {
-			return 2;
-		}
-		return 0;
+		return exposed(player) ? 2 : 0;
 	}
 
 	public static void onShapeJump(ServerPlayer player) {
 		ShapeState state = SHAPES.get(player.getUUID());
 		if (role(player) != Role.SHAPE || state == null) {
+			return;
+		}
+		// Pressing again cancels the jump early.
+		if (state.shadowTicks > 0) {
+			exitShadow(player, state);
 			return;
 		}
 		int reason = jumpBlockReason(player, state);
@@ -381,6 +548,7 @@ public final class MatchManager {
 			return;
 		}
 		state.shadowTicks = HwConfig.get().shapeJumpDurationTicks;
+		state.dashTicks = 0;
 		player.setInvisible(true);
 		player.setSilent(true);
 		player.level().sendParticles(ParticleTypes.LARGE_SMOKE, player.getX(), player.getY() + 1, player.getZ(), 12, 0.3, 0.6, 0.3, 0.01);
@@ -390,7 +558,7 @@ public final class MatchManager {
 	static void exitShadow(ServerPlayer player, ShapeState state) {
 		HwConfig cfg = HwConfig.get();
 		state.shadowTicks = 0;
-		state.jumpCooldownMax = HwConfig.tierValue(cfg.shapeJumpCooldownTicks, state.tier);
+		state.jumpCooldownMax = HwConfig.at(cfg.shapeJumpCooldownByTier, state.tier());
 		state.jumpCooldown = state.jumpCooldownMax;
 		player.setInvisible(false);
 		player.setSilent(false);
@@ -400,44 +568,137 @@ public final class MatchManager {
 		dirty = true;
 	}
 
+	// ---------------------------------------------------------------- other abilities
+
+	public static void onDash(ServerPlayer player) {
+		ShapeState state = SHAPES.get(player.getUUID());
+		if (role(player) != Role.SHAPE || state == null || state.busy() || state.shadowTicks > 0 || state.dashCooldown > 0 || state.dashTicks > 0) {
+			return;
+		}
+		HwConfig cfg = HwConfig.get();
+		state.dashTicks = cfg.dashTicks;
+		state.dashCooldownMax = HwConfig.at(cfg.dashCooldownByTier, state.tier());
+		state.dashCooldown = state.dashCooldownMax;
+	}
+
+	public static void onPush(ServerPlayer player) {
+		ShapeState state = SHAPES.get(player.getUUID());
+		if (role(player) != Role.SHAPE || state == null || state.busy() || state.pushCooldown > 0) {
+			return;
+		}
+		HwConfig cfg = HwConfig.get();
+		if (state.shadowTicks > 0) {
+			exitShadow(player, state);
+		}
+		player.swing(InteractionHand.OFF_HAND, true);
+		Vec3 eye = player.getEyePosition();
+		Vec3 look = player.getViewVector(1f);
+		LivingEntity best = null;
+		double bestDist = Double.MAX_VALUE;
+		for (LivingEntity target : player.level().getEntitiesOfClass(LivingEntity.class, player.getBoundingBox().inflate(cfg.pushRange), MatchManager::isVictim)) {
+			Vec3 body = FocusPoints.bodyCenter(target);
+			double d = eye.distanceTo(body);
+			if (d <= cfg.pushRange + 0.5 && Sight.angleTo(eye, look, body) <= 50 && d < bestDist) {
+				best = target;
+				bestDist = d;
+			}
+		}
+		if (best == null) {
+			state.pushCooldown = 10;
+			return;
+		}
+		state.pushCooldown = cfg.pushCooldownTicks;
+		Vec3 away = best.position().subtract(player.position()).multiply(1, 0, 1).normalize().scale(cfg.pushStrength);
+		best.setDeltaMovement(away.x, 0.3, away.z);
+		best.hurtMarked = true;
+		victim(best).staggerTicks = cfg.pushStaggerTicks;
+		player.level().playSound(null, best.getX(), best.getY(), best.getZ(), HwSounds.PUSH, SoundSource.HOSTILE, 1f, 1f);
+	}
+
+	public static void onImpulse(ServerPlayer player) {
+		ShapeState state = SHAPES.get(player.getUUID());
+		if (role(player) != Role.SHAPE || state == null || state.busy() || state.impulseCooldown > 0) {
+			return;
+		}
+		HwConfig cfg = HwConfig.get();
+		ServerLevel level = player.level();
+		List<Integer> outdoor = new ArrayList<>();
+		List<Vec3> indoor = new ArrayList<>();
+		for (LivingEntity target : level.getEntitiesOfClass(LivingEntity.class, player.getBoundingBox().inflate(cfg.impulseRange), MatchManager::isVictim)) {
+			if (level.canSeeSky(BlockPos.containing(target.getEyePosition()).above())) {
+				outdoor.add(target.getId());
+			} else {
+				// Indoors only the building gives itself away, not the exact spot.
+				var r = player.getRandom();
+				indoor.add(target.position().add((r.nextDouble() - 0.5) * 6, 0, (r.nextDouble() - 0.5) * 6));
+			}
+		}
+		state.impulseCooldownMax = HwConfig.at(cfg.impulseCooldownByTier, state.tier());
+		state.impulseCooldown = state.impulseCooldownMax;
+		level.playSound(null, player.getX(), player.getY(), player.getZ(), HwSounds.IMPULSE, SoundSource.HOSTILE, 1f, 1f);
+		ServerPlayNetworking.send(player, new HwNet.Impulse(outdoor, indoor, cfg.impulseDurationTicks));
+	}
+
 	// ---------------------------------------------------------------- combat
 
-	public static InteractionResult onAttack(Player attacker, Entity target) {
+	/** Vanilla attacks: the Shape attacks through {@link #onShapeAttack}, civilians can't hurt anyone yet. */
+	public static InteractionResult onVanillaAttack(Player attacker, Entity target) {
 		if (!(attacker instanceof ServerPlayer player)) {
 			return InteractionResult.PASS;
 		}
 		Role role = role(player);
-		if (role == Role.NONE) {
-			return InteractionResult.PASS;
-		}
-		if (role == Role.CIVILIAN) {
-			// Fighting back comes with weapons in a later slice; until then civilians can't hurt anyone.
-			return isVictim(target) || target instanceof Player ? InteractionResult.FAIL : InteractionResult.PASS;
-		}
-		ShapeState state = SHAPES.get(player.getUUID());
-		if (state == null || state.busy() || state.attackCooldown > 0 || !isVictim(target)) {
+		if (role == Role.SHAPE) {
 			return InteractionResult.FAIL;
 		}
+		if (role == Role.CIVILIAN) {
+			return isVictim(target) || target instanceof Player ? InteractionResult.FAIL : InteractionResult.PASS;
+		}
+		return InteractionResult.PASS;
+	}
+
+	public static void onShapeAttack(ServerPlayer player, int targetId, boolean heavy) {
+		ShapeState state = SHAPES.get(player.getUUID());
+		if (role(player) != Role.SHAPE || state == null || state.busy() || state.attackCooldown > 0) {
+			return;
+		}
 		HwConfig cfg = HwConfig.get();
-		LivingEntity victim = (LivingEntity) target;
-		VictimState vs = victim(victim);
+		ServerLevel level = player.level();
 		if (state.shadowTicks > 0) {
 			exitShadow(player, state);
 		}
-		state.attackCooldown = cfg.shapeAttackCooldownTicks;
-		float damage = cfg.shapeBaseDamage * HwConfig.tierValue(cfg.tierDamageMultiplier, state.tier);
-		if (vs.weakened()) {
-			damage *= cfg.weakenedDamageMultiplier;
+		state.dashTicks = 0;
+		player.swing(InteractionHand.MAIN_HAND, true);
+		state.attackCooldown = heavy ? cfg.heavyCooldownTicks : cfg.lightCooldownTicks;
+		Entity entity = targetId >= 0 ? level.getEntity(targetId) : null;
+		Vec3 eye = player.getEyePosition();
+		if (!(entity instanceof LivingEntity victim) || !isVictim(victim)
+			|| eye.distanceTo(FocusPoints.bodyCenter(victim)) > cfg.attackReach + 0.6
+			|| !Sight.canSee(level, eye, FocusPoints.bodyCenter(victim), player)) {
+			level.playSound(null, player.getX(), player.getY(), player.getZ(), HwSounds.SWING, SoundSource.HOSTILE, 0.8f, heavy ? 0.7f : 1f);
+			state.comboCount = 0;
+			state.comboTimer = 0;
+			return;
 		}
-		ServerLevel level = player.level();
-		level.playSound(null, victim.getX(), victim.getY(), victim.getZ(), HwSounds.STAB, SoundSource.HOSTILE, 1f, 1f);
+		VictimState vs = victim(victim);
+		state.comboCount = state.comboTimer > 0 ? Math.min(state.comboCount + 1, cfg.comboMultiplier.length - 1) : 0;
+		state.comboTimer = cfg.comboWindowTicks;
+		float damage = (heavy ? cfg.heavyDamage : cfg.lightDamage)
+			* HwConfig.at(cfg.comboMultiplier, state.comboCount)
+			* HwConfig.at(cfg.damageMultiplierByTier, state.tier())
+			* vs.damageTakenMultiplier();
+		level.playSound(null, victim.getX(), victim.getY(), victim.getZ(), HwSounds.STAB, SoundSource.HOSTILE, 1f, heavy ? 0.8f : 1.05f);
+		if (heavy) {
+			vs.staggerTicks = Math.max(vs.staggerTicks, 15);
+		}
 		if (victim.getHealth() - damage <= 0) {
-			kill(player, state, victim, false);
+			kill(player, state, victim, KillKind.STRIKE, false);
 		} else {
 			victim.hurtServer(level, player.damageSources().playerAttack(player), damage);
-			bleed(level, victim, 8);
+			// Strikes don't throw victims around; only the push does.
+			victim.setDeltaMovement(Vec3.ZERO);
+			victim.hurtMarked = true;
+			bleed(level, victim, heavy ? 14 : 8);
 		}
-		return InteractionResult.SUCCESS;
 	}
 
 	public static InteractionResult onUseEntity(Player user, InteractionHand hand, Entity target) {
@@ -461,14 +722,17 @@ public final class MatchManager {
 		if (state.shadowTicks > 0) {
 			exitShadow(player, state);
 		}
+		state.dashTicks = 0;
+		gainBloodthirst(player, state, cfg.bloodthirstPerGrab);
+		score(player, state, cfg.scoreGrab, Component.translatable("halloween.score.grab", victim.getDisplayName(), vs.level()));
 		state.grab = new GrabSession(player, state, victim, vs);
 		return InteractionResult.SUCCESS;
 	}
 
 	public static void onQtePress(ServerPlayer player) {
 		for (ShapeState state : SHAPES.values()) {
-			if (state.grab != null && state.grab.victim == player) {
-				state.grab.press();
+			if (state.grab != null && (state.grab.victim == player || SHAPES.get(player.getUUID()) == state)) {
+				state.grab.press(player);
 				return;
 			}
 		}
@@ -483,24 +747,51 @@ public final class MatchManager {
 	}
 
 	static void bleed(ServerLevel level, LivingEntity victim, int count) {
-		level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, net.minecraft.world.level.block.Blocks.REDSTONE_BLOCK.defaultBlockState()),
+		level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, Blocks.REDSTONE_BLOCK.defaultBlockState()),
 			victim.getX(), victim.getY() + victim.getBbHeight() * 0.6, victim.getZ(), count, 0.2, 0.25, 0.2, 0.1);
 	}
 
-	/** Kills a victim on behalf of the Shape (strike, finisher or window finisher). */
-	static void kill(ServerPlayer shape, ShapeState state, LivingEntity victim, boolean window) {
+	/** Kills a victim on behalf of the Shape, leaves a corpse and pays out Bloodthirst and score. */
+	static void kill(ServerPlayer shape, ShapeState state, LivingEntity victim, KillKind kind, boolean bloody) {
 		HwConfig cfg = HwConfig.get();
 		ServerLevel level = (ServerLevel) victim.level();
-		state.addBloodthirst(window ? cfg.bloodthirstPerWindowKill : cfg.bloodthirstPerKill);
-		bleed(level, victim, 40);
-		VICTIMS.remove(victim.getUUID());
+		VictimState vs = VICTIMS.get(victim.getUUID());
+		int stalkLevel = vs == null ? 0 : vs.level();
 		Component name = victim.getDisplayName();
+		Vec3 pos = victim.position();
+		float yaw = victim.getYRot();
+
+		gainBloodthirst(shape, state, cfg.bloodthirstPerKill + (kind == KillKind.WINDOW ? cfg.bloodthirstPerWindowKill : 0));
+		bleed(level, victim, bloody ? 80 : 40);
+		List<Component> lines = new ArrayList<>();
+		int points = cfg.scoreKill + cfg.scoreKillPerStalkLevel * stalkLevel;
+		lines.add(Component.translatable("halloween.score.kill", name, stalkLevel));
+		if (kind == KillKind.WINDOW) {
+			points += cfg.scoreWindow;
+			lines.add(Component.translatable("halloween.score.window"));
+		}
+		if (bloody) {
+			points += cfg.scoreBloody;
+			lines.add(Component.translatable("halloween.score.bloody"));
+		}
+		score(shape, state, points, lines.toArray(Component[]::new));
+
 		eliminate(victim);
+		spawnCorpse(level, pos, yaw);
+		CORPSES.add(new Corpse(level, pos, name, cfg.corpseAdmireTicks));
 		for (ServerPlayer player : level.getServer().getPlayerList().getPlayers()) {
 			if (role(player) != Role.NONE) {
 				player.sendSystemMessage(Component.translatable("halloween.msg.killed", name).withStyle(ChatFormatting.DARK_RED));
 			}
 		}
+	}
+
+	private static void spawnCorpse(ServerLevel level, Vec3 pos, float yaw) {
+		CommandSourceStack console = level.getServer().createCommandSourceStack().withLevel(level).withSuppressedOutput();
+		String command = String.format(Locale.ROOT,
+			"summon minecraft:mannequin %.2f %.2f %.2f {Tags:[\"%s\"],pose:\"sleeping\",immovable:1b,Invulnerable:1b,hide_description:1b,Rotation:[%.1ff,0f]}",
+			pos.x, pos.y, pos.z, CORPSE_TAG, yaw);
+		level.getServer().getCommands().performPrefixedCommand(console, command);
 	}
 
 	/** Takes a victim out of the match: civilian players become spectators, mannequins die. */
@@ -513,17 +804,25 @@ public final class MatchManager {
 			player.connection.send(new ClientboundSetTitleTextPacket(Component.translatable("halloween.msg.you_died").withStyle(ChatFormatting.DARK_RED)));
 			ServerPlayNetworking.send(player, HwNet.Qte.INACTIVE);
 		} else {
-			victim.kill((ServerLevel) victim.level());
+			victim.discard();
 		}
 		dirty = true;
 	}
 
-	/** Damage filter: the Shape can't be hurt yet (stuns come later), civilians can't hurt each other. */
-	public static boolean allowDamage(LivingEntity entity, Entity attacker) {
+	/**
+	 * Damage filter. The Shape can't die (stuns come later) but loses Bloodthirst from any damage
+	 * or a hard fall; civilians can't hurt each other.
+	 */
+	public static boolean allowDamage(LivingEntity entity, DamageSource source) {
 		if (entity instanceof ServerPlayer player && role(player) == Role.SHAPE) {
+			ShapeState state = SHAPES.get(player.getUUID());
+			if (state != null) {
+				HwConfig cfg = HwConfig.get();
+				state.addBloodthirst(-(source.is(DamageTypeTags.IS_FALL) ? cfg.bloodthirstFallLoss : cfg.bloodthirstDamageLoss));
+			}
 			return false;
 		}
-		return !(attacker instanceof ServerPlayer source && role(source) == Role.CIVILIAN && isVictim(entity));
+		return !(source.getEntity() instanceof ServerPlayer attacker && role(attacker) == Role.CIVILIAN && isVictim(entity));
 	}
 
 	/** Civilians who would die from anything else (falls etc.) are eliminated instead. */
@@ -548,20 +847,36 @@ public final class MatchManager {
 		HwConfig cfg = HwConfig.get();
 		ServerLevel level = player.level();
 		Map<Integer, HwNet.VictimInfo> infos = new LinkedHashMap<>();
-		Vec3 eye = player.getEyePosition();
-		for (LivingEntity target : level.getEntitiesOfClass(LivingEntity.class, player.getBoundingBox().inflate(cfg.senseRange), MatchManager::isVictim)) {
-			VictimState vs = victim(target);
-			infos.put(target.getId(), new HwNet.VictimInfo(target.getId(), vs.stalk, vs.focus,
-				vs.marked() && !Sight.canSee(level, eye, FocusPoints.bodyCenter(target), player)));
-		}
-		for (VictimState vs : VICTIMS.values()) {
-			if (vs.stalk > 0 && vs.entity.level() == level && !infos.containsKey(vs.entity.getId())) {
-				infos.put(vs.entity.getId(), new HwNet.VictimInfo(vs.entity.getId(), vs.stalk, vs.focus, vs.marked()));
+		List<Vec3> beams = new ArrayList<>();
+		boolean showBeams = state.shadowTicks > 0 && state.level() >= cfg.beamsMinLevel;
+		int alive = 0;
+		boolean anyUnderThree = false;
+		for (LivingEntity target : level.getEntitiesOfClass(LivingEntity.class, player.getBoundingBox().inflate(256), MatchManager::isVictim)) {
+			alive++;
+			VictimState vs = VICTIMS.get(target.getUUID());
+			float stalk = vs == null ? 0 : vs.stalk;
+			if (stalk < 3f) {
+				anyUnderThree = true;
+			}
+			if (showBeams) {
+				beams.add(target.position());
+			}
+			if (stalk > 0 || player.distanceTo(target) <= cfg.senseRange) {
+				infos.put(target.getId(), new HwNet.VictimInfo(target.getId(), stalk, vs != null && vs.marked(), target.getDisplayName()));
 			}
 		}
+		List<Component> objectives = new ArrayList<>();
+		objectives.add(Component.translatable("halloween.objective.kill", alive));
+		if (anyUnderThree && alive > 0) {
+			objectives.add(Component.translatable("halloween.objective.stalk"));
+		}
 		ServerPlayNetworking.send(player, new HwNet.ShapeHud(
-			state.bloodthirst, state.tier, state.fatigue, state.senseActive(), state.jumpCooldown, state.jumpCooldownMax,
-			state.shadowTicks, state.grabCooldown, jumpBlockReason(player, state), new ArrayList<>(infos.values())
+			state.bloodthirst, state.score, state.fatigue, state.senseActive(), state.focusActive(),
+			state.jumpCooldown, state.jumpCooldownMax, state.shadowTicks, jumpBlockReason(player, state),
+			state.dashCooldown, state.dashCooldownMax, state.dashTicks,
+			state.impulseCooldown, state.impulseCooldownMax,
+			state.pushCooldown, state.grabCooldown, state.attackCooldown,
+			new ArrayList<>(infos.values()), beams, objectives
 		));
 	}
 
@@ -585,13 +900,5 @@ public final class MatchManager {
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
 			ServerPlayNetworking.send(player, sync);
 		}
-	}
-
-	public static Component tierName(int tier) {
-		return Component.literal(switch (tier) {
-			case 0 -> "I";
-			case 1 -> "II";
-			default -> "III";
-		});
 	}
 }
