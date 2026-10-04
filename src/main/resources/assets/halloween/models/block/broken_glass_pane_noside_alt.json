@@ -1,0 +1,8 @@
+{
+  "parent": "minecraft:block/template_glass_pane_noside_alt",
+  "textures": {
+    "edge": { "force_translucent": true, "sprite": "halloween:block/broken_glass_pane_top" },
+    "pane": { "force_translucent": true, "sprite": "halloween:block/broken_glass_pane" },
+    "particle": "halloween:block/broken_glass_pane"
+  }
+}

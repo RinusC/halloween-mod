@@ -25,6 +25,12 @@ public final class HwSounds {
 	public static final SoundEvent PUSH = register("shape.push");
 	public static final SoundEvent IMPULSE = register("shape.impulse");
 	public static final SoundEvent SWING = register("shape.swing");
+	public static final SoundEvent LOCK = register("door.lock");
+	public static final SoundEvent UNLOCK = register("door.unlock");
+	public static final SoundEvent DOOR_RATTLE = register("door.rattle");
+	public static final SoundEvent DOOR_HIT = register("door.hit");
+	public static final SoundEvent DOOR_BREAK = register("door.break");
+	public static final SoundEvent SHARDS = register("window.shards");
 
 	private HwSounds() {
 	}

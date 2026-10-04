@@ -278,14 +278,8 @@ public final class GrabSession {
 	}
 
 	private void smashWindow() {
-		ServerLevel level = this.level();
-		for (int dy = -2; dy <= 2; dy++) {
-			BlockPos pos = this.windowPos.above(dy);
-			if (Sight.isGlass(level.getBlockState(pos))) {
-				level.destroyBlock(pos, false);
-			}
-		}
-		level.playSound(null, this.windowPos, HwSounds.WINDOW_SMASH, SoundSource.BLOCKS, 1.5f, 0.9f);
+		// The glass shatters but shards stay in the frame (see Windows).
+		Windows.breakColumn(this.level(), this.windowPos);
 		Vec3 window = Vec3.atBottomCenterOf(this.windowPos);
 		Vec3 dir = window.subtract(this.shape.position()).multiply(1, 0, 1);
 		dir = dir.lengthSqr() < 1.0E-4 ? this.shape.getLookAngle().multiply(1, 0, 1) : dir;

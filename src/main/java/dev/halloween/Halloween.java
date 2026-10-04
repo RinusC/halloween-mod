@@ -1,8 +1,10 @@
 package dev.halloween;
 
+import dev.halloween.game.DoorLocks;
 import dev.halloween.game.HwCommands;
 import dev.halloween.game.LightSystem;
 import dev.halloween.game.MatchManager;
+import dev.halloween.game.Windows;
 import dev.halloween.net.HwNet;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
@@ -26,6 +28,7 @@ public class Halloween implements ModInitializer {
 	public void onInitialize() {
 		HwConfig.load();
 		HwSounds.init();
+		HwBlocks.init();
 		HwNet.registerPayloads();
 
 		ServerPlayNetworking.registerGlobalReceiver(HwNet.SenseInput.TYPE, (payload, ctx) -> {
@@ -33,6 +36,15 @@ public class Halloween implements ModInitializer {
 			if (state != null) {
 				state.senseHeld = payload.sense();
 				state.focusHeld = payload.focus();
+			}
+		});
+		ServerPlayNetworking.registerGlobalReceiver(HwNet.UseAction.TYPE, (payload, ctx) -> {
+			switch (payload.kind()) {
+				case HwNet.UseAction.DOOR_LOCK -> DoorLocks.ping(ctx.player(), payload.pos());
+				case HwNet.UseAction.VAULT_SLOW -> Windows.request(ctx.player(), payload.pos(), false);
+				case HwNet.UseAction.VAULT_FAST -> Windows.request(ctx.player(), payload.pos(), true);
+				default -> {
+				}
 			}
 		});
 		ServerPlayNetworking.registerGlobalReceiver(HwNet.Aim.TYPE, (payload, ctx) -> MatchManager.onAim(ctx.player(), payload.origin(), payload.direction()));
@@ -49,12 +61,26 @@ public class Halloween implements ModInitializer {
 		});
 
 		ServerTickEvents.END_SERVER_TICK.register(MatchManager::tick);
-		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> MatchManager.markDirty());
+		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
+			MatchManager.markDirty();
+			DoorLocks.syncTo(handler.player);
+		});
 		ServerLifecycleEvents.SERVER_STOPPED.register(server -> MatchManager.clearAll());
 
 		AttackEntityCallback.EVENT.register((player, level, hand, entity, hit) -> MatchManager.onVanillaAttack(player, entity));
 		UseEntityCallback.EVENT.register((player, level, hand, entity, hit) -> MatchManager.onUseEntity(player, hand, entity));
 		UseBlockCallback.EVENT.register(LightSystem::onUseBlock);
+		UseBlockCallback.EVENT.register((player, level, hand, hit) -> {
+			if (level.isClientSide()) {
+				return net.minecraft.world.InteractionResult.PASS;
+			}
+			// Civilians' window climbing arrives as its own packet; the vanilla click does nothing.
+			if (player instanceof net.minecraft.server.level.ServerPlayer sp && MatchManager.role(sp) == Role.CIVILIAN
+				&& Windows.isWindow(level.getBlockState(hit.getBlockPos()))) {
+				return net.minecraft.world.InteractionResult.FAIL;
+			}
+			return DoorLocks.onUseBlock(player, level, hit.getBlockPos());
+		});
 		ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) -> MatchManager.allowDamage(entity, source));
 		ServerLivingEntityEvents.ALLOW_DEATH.register((entity, source, amount) -> MatchManager.allowDeath(entity));
 

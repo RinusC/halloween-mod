@@ -15,6 +15,8 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
 import net.fabricmc.fabric.api.event.client.player.ClientPreAttackCallback;
+import net.fabricmc.fabric.api.event.player.UseBlockCallback;
+import dev.halloween.game.DoorPass;
 import net.minecraft.client.CameraType;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
@@ -78,6 +80,20 @@ public class HalloweenClient implements ClientModInitializer {
 			ClientState.impulseStart = now;
 			ClientState.impulseUntil = now + payload.durationTicks();
 		});
+		ClientPlayNetworking.registerGlobalReceiver(HwNet.DoorSync.TYPE, (payload, ctx) -> {
+			ClientState.LOCKED_DOORS.clear();
+			ClientState.LOCKED_DOORS.addAll(payload.locked());
+			ClientState.BROKEN_LOCKS.clear();
+			ClientState.BROKEN_LOCKS.addAll(payload.broken());
+		});
+		ClientPlayNetworking.registerGlobalReceiver(HwNet.Progress.TYPE, (payload, ctx) -> {
+			ClientState.progressKind = payload.kind();
+			ClientState.progress = payload.progress();
+		});
+		UseBlockCallback.EVENT.register(ClientInteractions::onUseBlock);
+		// The local Shape walks through doors during Shape Jump (the server agrees, see DoorPass).
+		DoorPass.clientCheck = entity -> entity == Minecraft.getInstance().player && ClientState.shadowActive();
+
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
 			ClientState.reset();
 			sentSense = false;
@@ -127,6 +143,7 @@ public class HalloweenClient implements ClientModInitializer {
 		if (mc.player == null || mc.level == null) {
 			return;
 		}
+		ClientInteractions.tick(mc);
 		Role role = ClientState.myRole();
 		CameraType wanted = role == Role.SHAPE ? CameraType.THIRD_PERSON_BACK : CameraType.FIRST_PERSON;
 		if (role != Role.NONE && mc.options.getCameraType() != wanted) {

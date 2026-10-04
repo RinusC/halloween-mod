@@ -69,6 +69,7 @@ public class SliceOneClientTest implements FabricClientGameTest {
 			this.corpseTest(ctx, server);
 			this.strikeAndPushTest(ctx, server);
 			this.dashAndImpulseTest(ctx, server);
+			this.doorsAndWindowsTest(ctx, server);
 			this.civilianHudTest(ctx, server);
 
 			server.runCommand("hw role @p none");
@@ -224,9 +225,9 @@ public class SliceOneClientTest implements FabricClientGameTest {
 		ctx.takeScreenshot("07_after_window_execution");
 		float after = server.computeOnServer(s -> shape(s).bloodthirst);
 		long glassLeft = server.computeOnServer(s -> BlockPos.betweenClosedStream(this.origin.offset(2, 1, 8), this.origin.offset(3, 2, 8))
-			.filter(p -> !s.overworld().getBlockState(p).isAir()).count());
+			.filter(p -> s.overworld().getBlockState(p).is(net.minecraft.world.level.block.Blocks.GLASS_PANE)).count());
 		check(server.computeOnServer(s -> this.victimNear(s, 2.5, 9.5) == null), "the victim is dead");
-		check(glassLeft < 4, "the window was smashed");
+		check(glassLeft == 0, "the window was smashed (shards left in the frame)");
 		check(server.computeOnServer(s -> !this.corpses(s).isEmpty()), "a corpse is left behind");
 		check(after > before, "the kill feeds Bloodthirst (" + before + " -> " + after + ")");
 		server.runOnServer(s -> HwConfig.get().mannequinQteSuccessChance = 0.35f);
@@ -297,6 +298,126 @@ public class SliceOneClientTest implements FabricClientGameTest {
 		check(ctx.computeOnClient(mc -> ClientState.impulseActive() && (!ClientState.IMPULSE_IDS.isEmpty() || !ClientState.impulseSpots.isEmpty())),
 			"detection impulse reveals victims");
 		ctx.takeScreenshot("09_impulse_hud");
+	}
+
+	private void doorsAndWindowsTest(ClientGameTestContext ctx, TestServerContext server) {
+		server.runCommand("hw role @p civilian");
+		ctx.waitTicks(10);
+		BlockPos door = this.origin.offset(0, 0, 8);
+
+		// Lock: crouch and hold use.
+		this.tp(server, 0.5, 0, 6.6);
+		this.lookAt(ctx, this.at(0.5, 1.0, 8.5));
+		int lockTicks = this.holdLockUntil(ctx, server, door, true);
+		check(lockTicks > 0, "a civilian locks the door (" + lockTicks + " ticks)");
+		ctx.takeScreenshot("11_locked_door_prompt");
+		ctx.getInput().pressKey(o -> o.keyUse);
+		ctx.waitTicks(5);
+		check(!server.computeOnServer(s -> s.overworld().getBlockState(door).getValue(net.minecraft.world.level.block.DoorBlock.OPEN)), "a locked door does not open");
+
+		// Unlock takes about twice as long.
+		int unlockTicks = this.holdLockUntil(ctx, server, door, false);
+		LOG.info("Lock {} ticks, unlock {} ticks", lockTicks, unlockTicks);
+		check(unlockTicks >= lockTicks * 1.7, "unlocking takes twice as long (" + lockTicks + " vs " + unlockTicks + ")");
+		check(this.holdLockUntil(ctx, server, door, true) > 0, "locked again for the Shape");
+
+		// Slow climb through an intact window: no damage, glass stays.
+		BlockPos pane = this.origin.offset(-2, 1, 8);
+		this.tp(server, -2.5, 0, 6.8);
+		this.lookAt(ctx, this.at(-2.5, 1.5, 8.5));
+		ctx.takeScreenshot("12_window_prompt");
+		ctx.getInput().pressKey(o -> o.keyUse);
+		ctx.waitTicks(10);
+		ctx.takeScreenshot("13_climbing");
+		ctx.waitTicks(HwConfig.get().vaultSlowTicks);
+		check(server.computeOnServer(s -> player(s).getZ()) > this.origin.getZ() + 8.6, "slow climb gets inside");
+		check(server.computeOnServer(s -> player(s).getHealth()) >= 20f, "slow climb through glass does no damage");
+		check(server.computeOnServer(s -> s.overworld().getBlockState(pane).is(net.minecraft.world.level.block.Blocks.GLASS_PANE)), "slow climb leaves the glass");
+
+		// Fast jump back out: 1 s, smashes the glass, costs a fifth of health.
+		this.lookAt(ctx, this.at(-2.5, 1.5, 8.5));
+		ctx.getInput().holdKey(o -> o.keySprint);
+		ctx.getInput().pressKey(o -> o.keyUse);
+		ctx.waitTicks(3);
+		ctx.getInput().releaseKey(o -> o.keySprint);
+		ctx.waitTicks(HwConfig.get().vaultFastTicks + 4);
+		check(server.computeOnServer(s -> player(s).getZ()) < this.origin.getZ() + 8.4, "fast jump gets outside");
+		float afterFast = server.computeOnServer(s -> player(s).getHealth());
+		check(Math.abs(afterFast - 16f) < 0.01f, "fast jump costs a fifth of health (" + afterFast + ")");
+		check(server.computeOnServer(s -> s.overworld().getBlockState(pane).is(dev.halloween.HwBlocks.BROKEN_GLASS_PANE)), "fast jump leaves broken glass");
+		this.lookAt(ctx, this.at(-2.5, 1.5, 8.5));
+		ctx.takeScreenshot("14_broken_window");
+
+		// Even a slow climb through shards hurts.
+		this.lookAt(ctx, this.at(-2.5, 1.5, 8.5));
+		ctx.getInput().pressKey(o -> o.keyUse);
+		ctx.waitTicks(HwConfig.get().vaultSlowTicks + 6);
+		float afterShards = server.computeOnServer(s -> player(s).getHealth());
+		check(Math.abs(afterShards - 12f) < 0.01f, "shards cut on a slow climb too (" + afterShards + ")");
+
+		// Too hurt for a fast jump.
+		server.runOnServer(s -> player(s).setHealth(3f));
+		double zBefore = server.computeOnServer(s -> player(s).getZ());
+		this.lookAt(ctx, this.at(-2.5, 1.5, 8.5));
+		ctx.getInput().holdKey(o -> o.keySprint);
+		ctx.getInput().pressKey(o -> o.keyUse);
+		ctx.waitTicks(3);
+		ctx.getInput().releaseKey(o -> o.keySprint);
+		ctx.waitTicks(HwConfig.get().vaultFastTicks + 4);
+		check(Math.abs(server.computeOnServer(s -> player(s).getZ()) - zBefore) < 0.5, "no fast jump with a fifth of health or less");
+		server.runOnServer(s -> player(s).setHealth(20f));
+
+		// The Shape: a locked door is a wall, Shape Jump goes through it, blows break it.
+		server.runCommand("hw role @p shape");
+		ctx.waitTicks(10);
+		this.tp(server, 0.5, 0, 6.4);
+		this.lookAt(ctx, this.at(0.5, 1.0, 12));
+		ctx.getInput().pressKey(o -> o.keyUse);
+		ctx.waitTicks(5);
+		check(!server.computeOnServer(s -> s.overworld().getBlockState(door).getValue(net.minecraft.world.level.block.DoorBlock.OPEN)), "the Shape can't open a locked door");
+		server.runOnServer(s -> shape(s).jumpCooldown = 0);
+		ctx.getInput().pressKey(HalloweenClient.KEY_SHAPE_JUMP);
+		ctx.waitTicks(6);
+		check(server.computeOnServer(s -> shape(s).shadowTicks > 0), "Shape Jump before the door");
+		ctx.getInput().holdKeyFor(o -> o.keyUp, 30);
+		ctx.waitTicks(5);
+		check(server.computeOnServer(s -> player(s).getZ()) > this.origin.getZ() + 9.2, "Shape Jump walks through the locked door");
+		ctx.getInput().pressKey(HalloweenClient.KEY_SHAPE_JUMP);
+		ctx.waitTicks(5);
+		check(server.computeOnServer(s -> shape(s).shadowTicks == 0), "and comes out inside");
+
+		double insideZ = server.computeOnServer(s -> player(s).getZ() - this.origin.getZ());
+		LOG.info("Shape inside at z={}", insideZ);
+		this.tp(server, 0.5, 0, 10.0);
+		this.lookAt(ctx, this.at(0.5, 1.0, 8.5));
+		for (int i = 0; i < 2; i++) {
+			ctx.getInput().holdKey(o -> o.keyAttack);
+			ctx.waitTicks(HwConfig.get().heavyChargeTicks + 4);
+			ctx.getInput().releaseKey(o -> o.keyAttack);
+			ctx.waitTicks(HwConfig.get().heavyCooldownTicks + 4);
+		}
+		check(server.computeOnServer(s -> dev.halloween.game.DoorLocks.isLockBroken(s.overworld(), door)), "two heavy blows break the lock");
+		check(server.computeOnServer(s -> s.overworld().getBlockState(door).getValue(net.minecraft.world.level.block.DoorBlock.OPEN)), "the broken door swings open");
+		ctx.takeScreenshot("15_door_broken");
+	}
+
+	/** Crouch and hold use on the door until its lock flips; returns ticks taken or -1. */
+	private int holdLockUntil(ClientGameTestContext ctx, TestServerContext server, BlockPos door, boolean locked) {
+		ctx.getInput().holdKey(o -> o.keyShift);
+		ctx.waitTicks(2);
+		ctx.getInput().holdKey(o -> o.keyUse);
+		int result = -1;
+		for (int t = 1; t <= 120; t++) {
+			ctx.waitTicks(1);
+			if (server.computeOnServer(s -> dev.halloween.game.DoorLocks.isLocked(s.overworld(), door)) == locked) {
+				result = t;
+				break;
+			}
+		}
+		ctx.getInput().releaseKey(o -> o.keyUse);
+		ctx.getInput().releaseKey(o -> o.keyShift);
+		ctx.waitTicks(5);
+		return result;
 	}
 
 	private void civilianHudTest(ClientGameTestContext ctx, TestServerContext server) {

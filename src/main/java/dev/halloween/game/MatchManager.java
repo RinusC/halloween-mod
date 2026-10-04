@@ -105,6 +105,11 @@ public final class MatchManager {
 		return !(living instanceof Player) && living.entityTags().contains(VICTIM_TAG);
 	}
 
+	public static boolean isGrabbed(ServerPlayer player) {
+		VictimState vs = VICTIMS.get(player.getUUID());
+		return vs != null && vs.grabbed;
+	}
+
 	private static VictimState victim(LivingEntity entity) {
 		return VICTIMS.computeIfAbsent(entity.getUUID(), id -> new VictimState(entity));
 	}
@@ -202,6 +207,8 @@ public final class MatchManager {
 				fresh.lastZ = player.getZ();
 			}
 		}
+		DoorLocks.clear(server);
+		Windows.clear(server);
 		VICTIMS.clear();
 		CORPSES.clear();
 		CommandSourceStack console = server.createCommandSourceStack().withSuppressedOutput();
@@ -231,6 +238,8 @@ public final class MatchManager {
 
 	public static void tick(MinecraftServer server) {
 		HwConfig cfg = HwConfig.get();
+		DoorLocks.tick(server);
+		Windows.tick(server);
 
 		Iterator<VictimState> it = VICTIMS.values().iterator();
 		while (it.hasNext()) {
@@ -261,7 +270,9 @@ public final class MatchManager {
 			} else {
 				VictimState vs = VICTIMS.get(player.getUUID());
 				double speed = 0;
-				if (vs != null) {
+				if (Windows.isVaulting(player)) {
+					speed = -1;
+				} else if (vs != null) {
 					if (vs.grabbed) {
 						speed = -1;
 					} else {
@@ -539,6 +550,21 @@ public final class MatchManager {
 	 * Entering and leaving Shape Jump both need darkness and nobody looking at that spot:
 	 * 0 allowed, 1 in light, 2 a civilian is looking.
 	 */
+	/** The Shape overlaps a door block (he can be inside one only during Shape Jump). */
+	static boolean insideDoor(ServerPlayer player) {
+		var box = player.getBoundingBox().deflate(0.05);
+		for (BlockPos pos : BlockPos.betweenClosed(BlockPos.containing(box.minX, box.minY, box.minZ), BlockPos.containing(box.maxX, box.maxY, box.maxZ))) {
+			var state = player.level().getBlockState(pos);
+			if (DoorLocks.isDoor(state)) {
+				var shape = state.getShape(player.level(), pos);
+				if (!shape.isEmpty() && shape.bounds().move(pos).intersects(box)) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
 	static int exposure(ServerPlayer player) {
 		if (inLight(player)) {
 			return 1;
@@ -548,11 +574,11 @@ public final class MatchManager {
 
 	/**
 	 * Out of Shape Jump: 0 ready, 1 light, 2 watched, 3 cooldown, 4 busy.
-	 * In Shape Jump: whether leaving is allowed right now (0, 1 or 2).
+	 * In Shape Jump: whether leaving is allowed right now (0, 1 light, 2 watched, 5 inside a door).
 	 */
 	static int jumpBlockReason(ServerPlayer player, ShapeState state) {
 		if (state.shadowTicks > 0) {
-			return exposure(player);
+			return insideDoor(player) ? 5 : exposure(player);
 		}
 		if (state.busy()) {
 			return 4;
@@ -694,6 +720,21 @@ public final class MatchManager {
 		return InteractionResult.PASS;
 	}
 
+	/** Door block under the reticle within striking reach, if any. */
+	private static BlockPos doorInReach(ServerPlayer player, ShapeState state) {
+		Vec3 camera = aimOrigin(player, state);
+		Vec3 dir = aimDirection(player, state);
+		Vec3 eye = player.getEyePosition();
+		Vec3 from = camera.add(dir.scale(Math.max(0, eye.subtract(camera).dot(dir))));
+		Vec3 to = from.add(dir.scale(HwConfig.get().attackReach + 0.5));
+		var hit = player.level().clip(new net.minecraft.world.level.ClipContext(from, to,
+			net.minecraft.world.level.ClipContext.Block.OUTLINE, net.minecraft.world.level.ClipContext.Fluid.NONE, player));
+		if (hit.getType() == net.minecraft.world.phys.HitResult.Type.MISS || !DoorLocks.isDoor(player.level().getBlockState(hit.getBlockPos()))) {
+			return null;
+		}
+		return hit.getBlockPos();
+	}
+
 	public static void onShapeAttack(ServerPlayer player, int targetId, boolean heavy) {
 		ShapeState state = SHAPES.get(player.getUUID());
 		if (role(player) != Role.SHAPE || state == null || state.busy() || state.attackCooldown > 0) {
@@ -713,9 +754,12 @@ public final class MatchManager {
 		if (!(entity instanceof LivingEntity victim) || !isVictim(victim)
 			|| eye.distanceTo(FocusPoints.bodyCenter(victim)) > cfg.attackReach + 0.6
 			|| !Sight.canSee(level, eye, FocusPoints.bodyCenter(victim), player)) {
-			level.playSound(null, player.getX(), player.getY(), player.getZ(), HwSounds.SWING, SoundSource.HOSTILE, 0.8f, heavy ? 0.7f : 1f);
 			state.comboCount = 0;
 			state.comboTimer = 0;
+			BlockPos door = doorInReach(player, state);
+			if (door == null || !DoorLocks.hit(player, door, heavy)) {
+				level.playSound(null, player.getX(), player.getY(), player.getZ(), HwSounds.SWING, SoundSource.HOSTILE, 0.8f, heavy ? 0.7f : 1f);
+			}
 			return;
 		}
 		VictimState vs = victim(victim);

@@ -5,6 +5,7 @@ import dev.halloween.Role;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import net.minecraft.core.BlockPos;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.chat.Component;
@@ -251,7 +252,75 @@ public final class HwNet {
 		}
 	}
 
+	/** Locked doors (lower halves) and doors whose lock the Shape has broken. */
+	public record DoorSync(List<BlockPos> locked, List<BlockPos> broken) implements CustomPacketPayload {
+		public static final Type<DoorSync> TYPE = payloadType("door_sync");
+		public static final StreamCodec<RegistryFriendlyByteBuf, DoorSync> CODEC = StreamCodec.of((buf, v) -> {
+			buf.writeVarInt(v.locked.size());
+			v.locked.forEach(buf::writeBlockPos);
+			buf.writeVarInt(v.broken.size());
+			v.broken.forEach(buf::writeBlockPos);
+		}, buf -> {
+			int n = buf.readVarInt();
+			List<BlockPos> locked = new ArrayList<>(n);
+			for (int i = 0; i < n; i++) {
+				locked.add(buf.readBlockPos());
+			}
+			int m = buf.readVarInt();
+			List<BlockPos> broken = new ArrayList<>(m);
+			for (int i = 0; i < m; i++) {
+				broken.add(buf.readBlockPos());
+			}
+			return new DoorSync(locked, broken);
+		});
+
+		@Override
+		public Type<DoorSync> type() {
+			return TYPE;
+		}
+	}
+
+	/** A timed action of this player (locking, unlocking, climbing through a window); kind 0 = none. */
+	public record Progress(int kind, float progress) implements CustomPacketPayload {
+		public static final int NONE = 0;
+		public static final int LOCK = 1;
+		public static final int UNLOCK = 2;
+		public static final int VAULT_SLOW = 3;
+		public static final int VAULT_FAST = 4;
+		public static final Type<Progress> TYPE = payloadType("progress");
+		public static final StreamCodec<RegistryFriendlyByteBuf, Progress> CODEC = StreamCodec.of(
+			(buf, v) -> {
+				buf.writeVarInt(v.kind);
+				buf.writeFloat(v.progress);
+			}, buf -> new Progress(buf.readVarInt(), buf.readFloat())
+		);
+
+		@Override
+		public Type<Progress> type() {
+			return TYPE;
+		}
+	}
+
 	// ---------------------------------------------------------------- C2S
+	/** A civilian's interaction with a door (lock/unlock, held) or a window (climb slowly or jump through). */
+	public record UseAction(int kind, BlockPos pos) implements CustomPacketPayload {
+		public static final int DOOR_LOCK = 0;
+		public static final int VAULT_SLOW = 1;
+		public static final int VAULT_FAST = 2;
+		public static final Type<UseAction> TYPE = payloadType("use_action");
+		public static final StreamCodec<RegistryFriendlyByteBuf, UseAction> CODEC = StreamCodec.of(
+			(buf, v) -> {
+				buf.writeVarInt(v.kind);
+				buf.writeBlockPos(v.pos);
+			}, buf -> new UseAction(buf.readVarInt(), buf.readBlockPos())
+		);
+
+		@Override
+		public Type<UseAction> type() {
+			return TYPE;
+		}
+	}
+
 
 	/** Held state of Killer Sense and focusing. */
 	public record SenseInput(boolean sense, boolean focus) implements CustomPacketPayload {
@@ -342,6 +411,9 @@ public final class HwNet {
 		PayloadTypeRegistry.clientboundPlay().register(Qte.TYPE, Qte.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(ScoreEvent.TYPE, ScoreEvent.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(Impulse.TYPE, Impulse.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(DoorSync.TYPE, DoorSync.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(Progress.TYPE, Progress.CODEC);
+		PayloadTypeRegistry.serverboundPlay().register(UseAction.TYPE, UseAction.CODEC);
 		PayloadTypeRegistry.serverboundPlay().register(SenseInput.TYPE, SenseInput.CODEC);
 		PayloadTypeRegistry.serverboundPlay().register(ShapeAttack.TYPE, ShapeAttack.CODEC);
 		PayloadTypeRegistry.serverboundPlay().register(ActionPress.TYPE, ActionPress.CODEC);

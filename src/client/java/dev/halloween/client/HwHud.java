@@ -61,12 +61,15 @@ public final class HwHud {
 			feed(g, mc.font, h);
 			bloodthirstRing(g, mc.font, hud, h);
 			abilities(g, mc, hud, w, h);
+			shapeDoorPrompt(g, mc, w, h);
 		} else if (role == Role.CIVILIAN) {
 			if (mc.player.isSpectator()) {
 				g.centeredText(mc.font, Component.translatable("halloween.hud.dead"), w / 2, h - 40, BLOOD);
 				return;
 			}
 			healthBar(g, mc, w, h);
+			prompts(g, mc, w, h);
+			progressBar(g, mc, w, h);
 			if (ClientState.qte.active() && !ClientState.qte.forShape()) {
 				victimQte(g, mc, w, h, partial);
 			}
@@ -344,7 +347,11 @@ public final class HwHud {
 			inShadow ? (jumpReady ? 0xE07A5CC8 : 0xE0602A6A) : jumpReady ? DARK_FILL : RED_FILL, jumpProgress, 0xFF606060, TEXT);
 		if (inShadow && hud.jumpBlock() != 0) {
 			// Leaving the shadow is refused here: say why.
-			g.centeredText(font, Component.translatable(hud.jumpBlock() == 1 ? "halloween.hud.jump.light" : "halloween.hud.jump.seen"), jumpX, baseY - 26, 0xFFE07070);
+			g.centeredText(font, Component.translatable(switch (hud.jumpBlock()) {
+				case 1 -> "halloween.hud.jump.light";
+				case 5 -> "halloween.hud.jump.door";
+				default -> "halloween.hud.jump.seen";
+			}), jumpX, baseY - 26, 0xFFE07070);
 		} else if (!inShadow && hud.jumpBlock() == 3) {
 			g.centeredText(font, seconds(hud.jumpCooldown()), jumpX, baseY - 26, DIM);
 		} else if (!inShadow && (hud.jumpBlock() == 1 || hud.jumpBlock() == 2)) {
@@ -402,6 +409,65 @@ public final class HwHud {
 	}
 
 	// ---------------------------------------------------------------- Civilian
+
+	/** Hints for the door or window under the crosshair. */
+	private static void prompts(GuiGraphicsExtractor g, Minecraft mc, int w, int h) {
+		if (ClientState.progressKind != HwNet.Progress.NONE || !(mc.hitResult instanceof net.minecraft.world.phys.BlockHitResult hit)
+			|| hit.getType() == net.minecraft.world.phys.HitResult.Type.MISS) {
+			return;
+		}
+		var pos = hit.getBlockPos();
+		var state = mc.level.getBlockState(pos);
+		Component line = null;
+		Component second = null;
+		if (state.getBlock() instanceof net.minecraft.world.level.block.DoorBlock) {
+			var base = ClientInteractions.doorBase(mc.level, pos);
+			line = Component.translatable(ClientState.BROKEN_LOCKS.contains(base) ? "halloween.hud.prompt.door_broken"
+				: ClientState.LOCKED_DOORS.contains(base) ? "halloween.hud.prompt.door_locked" : "halloween.hud.prompt.door");
+		} else if (dev.halloween.game.Sight.isGlass(state)) {
+			boolean low = mc.player.getHealth() <= mc.player.getMaxHealth() * HwConfig.get().vaultDamageFraction;
+			line = low ? Component.translatable("halloween.hud.prompt.window_low")
+				: Component.translatable("halloween.hud.prompt.window", mc.options.keySprint.getTranslatedKeyMessage());
+			if (state.getBlock() == dev.halloween.HwBlocks.BROKEN_GLASS_PANE) {
+				second = Component.translatable("halloween.hud.prompt.window_broken");
+			}
+		}
+		if (line == null) {
+			return;
+		}
+		int y = h / 2 + 22;
+		g.textWithBackdrop(mc.font, line, w / 2 - mc.font.width(line) / 2, y, mc.font.width(line), TEXT);
+		if (second != null) {
+			g.textWithBackdrop(mc.font, second, w / 2 - mc.font.width(second) / 2, y + 12, mc.font.width(second), 0xFFE07070);
+		}
+	}
+
+	/** Locking, unlocking or climbing in progress. */
+	private static void progressBar(GuiGraphicsExtractor g, Minecraft mc, int w, int h) {
+		if (ClientState.progressKind == HwNet.Progress.NONE) {
+			return;
+		}
+		int barW = 120;
+		int x = w / 2 - barW / 2;
+		int y = h / 2 + 26;
+		Component label = Component.translatable("halloween.hud.progress." + ClientState.progressKind);
+		g.centeredText(mc.font, label, w / 2, y - 11, TEXT);
+		bar(g, x, y, barW, 4, ClientState.progress, ClientState.progressKind == HwNet.Progress.VAULT_FAST ? BLOOD : 0xFFD8D2C4);
+	}
+
+	/** The Shape looking at a locked door. */
+	private static void shapeDoorPrompt(GuiGraphicsExtractor g, Minecraft mc, int w, int h) {
+		if (!(mc.hitResult instanceof net.minecraft.world.phys.BlockHitResult hit) || hit.getType() == net.minecraft.world.phys.HitResult.Type.MISS) {
+			return;
+		}
+		var pos = hit.getBlockPos();
+		if (mc.level.getBlockState(pos).getBlock() instanceof net.minecraft.world.level.block.DoorBlock
+			&& ClientState.LOCKED_DOORS.contains(ClientInteractions.doorBase(mc.level, pos))) {
+			Component line = Component.translatable("halloween.hud.prompt.door_shape");
+			g.textWithBackdrop(mc.font, line, w / 2 - mc.font.width(line) / 2, h / 2 + 30, mc.font.width(line), TEXT);
+		}
+	}
+
 
 	private static void healthBar(GuiGraphicsExtractor g, Minecraft mc, int w, int h) {
 		int x = w - 110;

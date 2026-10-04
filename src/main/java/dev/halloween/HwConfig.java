@@ -141,6 +141,20 @@ public class HwConfig {
 	public int scoreBloody = 75;
 	public int scoreCorpse = 25;
 
+	// --- Doors: civilians lock, the Shape breaks them down ---
+	public int lockTicks = 30;
+	/** Unlocking takes twice as long as locking. */
+	public int unlockTicks = 60;
+	public int doorBreakPoints = 4;
+	public int doorLightHitPoints = 1;
+	public int doorHeavyHitPoints = 2;
+
+	// --- Windows: civilians climb through ---
+	public int vaultSlowTicks = 60;
+	public int vaultFastTicks = 20;
+	/** Damage from glass when jumping through fast, or from shards of a broken window, as a share of max health. */
+	public float vaultDamageFraction = 0.2f;
+
 	// --- Lights ---
 	public int breakerRadius = 14;
 
