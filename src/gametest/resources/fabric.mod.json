@@ -1,0 +1,13 @@
+{
+	"schemaVersion": 1,
+	"id": "halloween-test",
+	"version": "1.0.0",
+	"name": "Halloween slice tests",
+	"environment": "*",
+	"entrypoints": {
+		"fabric-client-gametest": ["dev.halloween.test.SliceOneClientTest"]
+	},
+	"depends": {
+		"halloween": "*"
+	}
+}

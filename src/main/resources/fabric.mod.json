@@ -1,0 +1,24 @@
+{
+	"schemaVersion": 1,
+	"id": "halloween",
+	"version": "${version}",
+	"name": "Halloween",
+	"description": "Halloween: The Game (IllFonic) gameplay recreated in Minecraft. Private build.",
+	"authors": ["RinusC"],
+	"license": "All-Rights-Reserved",
+	"icon": "assets/halloween/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": ["dev.halloween.Halloween"],
+		"client": ["dev.halloween.client.HalloweenClient"]
+	},
+	"mixins": [
+		{ "config": "halloween.client.mixins.json", "environment": "client" }
+	],
+	"depends": {
+		"fabricloader": ">=0.19.5",
+		"minecraft": "~26.2",
+		"java": ">=25",
+		"fabric-api": "*"
+	}
+}
