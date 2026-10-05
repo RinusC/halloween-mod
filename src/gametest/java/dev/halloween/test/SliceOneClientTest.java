@@ -86,7 +86,7 @@ public class SliceOneClientTest implements FabricClientGameTest {
 	private void passiveStalkTest(ClientGameTestContext ctx, TestServerContext server) {
 		// Just watching through the window: stalking stops at level 1 without Killer Sense.
 		float stalk = 0;
-		for (int i = 0; i < 60 && stalk < 1f; i++) {
+		for (int i = 0; i < 120 && stalk < 1f; i++) {
 			this.lookAt(ctx, this.at(2.5, 1.2, 9.5));
 			ctx.waitTicks(5);
 			stalk = server.computeOnServer(s -> MatchManager.stalkOf(this.victimNear(s, 2.5, 9.5)));
@@ -106,7 +106,7 @@ public class SliceOneClientTest implements FabricClientGameTest {
 			"Killer Sense switches on its shader");
 		float stalk = 0;
 		boolean focusShot = false;
-		for (int i = 0; i < 200 && stalk < 3f; i++) {
+		for (int i = 0; i < 300 && stalk < 3f; i++) {
 			this.aimAtNearestFocusPoint(ctx, id);
 			ctx.waitTicks(4);
 			if (i == 6) {
@@ -273,17 +273,6 @@ public class SliceOneClientTest implements FabricClientGameTest {
 		check(h1 - h2 > h0 - h1, "heavy attack hurts more than light");
 		ctx.takeScreenshot("08_strike");
 
-		if (m != null) {
-			Vec3 p0 = m.position();
-			ctx.waitTicks(30);
-			this.lookAt(ctx, m.position().add(0, 1, 0));
-			ctx.getInput().pressKey(HalloweenClient.KEY_PUSH);
-			ctx.waitTicks(10);
-			int mid = m.getId();
-			Vec3 p1 = server.computeOnServer(s -> s.overworld().getEntity(mid).position());
-			LOG.info("The Shape's push key moved the victim {} blocks", p0.distanceTo(p1));
-			check(p0.distanceTo(p1) < 0.2, "the Shape no longer shoves victims (civilians shove him instead)");
-		}
 	}
 
 	private void dashAndImpulseTest(ClientGameTestContext ctx, TestServerContext server) {

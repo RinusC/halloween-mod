@@ -608,10 +608,12 @@ final class BotBrain {
 			if (status != Walker.Status.MOVING) {
 				// Quietly unless he is right behind.
 				this.bot.setSprinting(this.threat != null && now - this.threatTick < 30 && this.bot.position().distanceTo(this.threat) < 6);
-				if (Lockers.enter(this.bot, this.locker)) {
+				this.walker.halt();
+				int in = Lockers.climbIn(this.bot, this.locker);
+				if (in > 0) {
 					this.hidLocker = true;
 					AiStats.add(this.bot, "locker");
-				} else {
+				} else if (in < 0) {
 					this.locker = null;
 					this.skipLocker = true;
 					this.hidePathSet = false;

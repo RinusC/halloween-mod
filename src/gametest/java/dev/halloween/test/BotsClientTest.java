@@ -157,7 +157,7 @@ public class BotsClientTest implements FabricClientGameTest {
 
 			// The Shape right behind a bot standing by a window: over the sill it goes.
 			UUID climber = server.computeOnServer(s -> {
-				BotPlayer bot = Bots.all().stream().filter(b -> !b.isSpectator()).toList().getFirst();
+				BotPlayer bot = Bots.all().stream().filter(b -> !b.isSpectator() && !dev.halloween.game.Windows.isVaulting(b) && !MatchManager.isHeld(b)).toList().getFirst();
 				Lockers.leave(bot, false);
 				dev.halloween.game.Talks.cancel(bot, false);
 				bot.teleportTo(s.overworld(), this.origin.getX() + 2.5, this.origin.getY(), this.origin.getZ() + 7.5, java.util.Set.of(), 0f, 0f, false);
@@ -187,8 +187,14 @@ public class BotsClientTest implements FabricClientGameTest {
 			// With a few steps' head start next to a house, a bot gets behind the door and locks it.
 			BlockPos door = this.origin.offset(-22, 0, 8);
 			UUID locker = server.computeOnServer(s -> {
-				BotPlayer bot = Bots.all().stream().filter(b -> !b.isSpectator()).toList().getLast();
+				BotPlayer bot = Bots.all().stream().filter(b -> !b.isSpectator() && !dev.halloween.game.Windows.isVaulting(b) && !MatchManager.isHeld(b)).toList().getLast();
 				Lockers.leave(bot, false);
+				// A neighbour may have locked up or sat in the locker already: start from an open house.
+				DoorLocks.clear(s);
+				net.minecraft.world.entity.LivingEntity sitting = Lockers.occupant(this.origin.offset(-19, 0, 15));
+				if (sitting != null) {
+					Lockers.leave(sitting, false);
+				}
 				bot.teleportTo(s.overworld(), this.origin.getX() - 21.5, this.origin.getY(), this.origin.getZ() + 5.5, java.util.Set.of(), 180f, 0f, false);
 				player(s).teleportTo(s.overworld(), this.origin.getX() - 21.5, this.origin.getY(), this.origin.getZ() - 2.5, java.util.Set.of(), 0f, 0f, false);
 				// A scream nearby gives the Shape away to every bot.
@@ -211,9 +217,14 @@ public class BotsClientTest implements FabricClientGameTest {
 			// the Shape throws the locker open and has whoever is inside.
 			BlockPos cupboard = this.origin.offset(-19, 0, 15);
 			boolean hiding = false;
-			for (int i = 0; i < 20 && !hiding; i++) {
+			for (int i = 0; i < 30 && !hiding; i++) {
 				ctx.waitTicks(10);
 				hiding = server.computeOnServer(s -> Lockers.occupied(cupboard));
+				String where = server.computeOnServer(s -> {
+					ServerPlayer bot = s.getPlayerList().getPlayer(locker);
+					return Bots.modeOf(bot) + " at " + bot.position() + ", stats " + dev.halloween.game.AiStats.snapshot().get(bot.getPlainTextName());
+				});
+				LOG.info("hiding bot: {}", where);
 			}
 			check(hiding, "someone hides in the locker");
 			LOG.info("In the locker: {}, the bot that locked: {} ({})", server.computeOnServer(s -> Lockers.occupantName(cupboard)),
@@ -238,6 +249,8 @@ public class BotsClientTest implements FabricClientGameTest {
 					: "needs " + grab.shapeNeeded() + " at stalk " + stalk;
 			});
 			check("ok".equals(pulled), "the Shape pulls whoever hides there out into a grab; the kill needs 5/5/4/3 hits by stalk, escape 4 (" + pulled + ")");
+			check(server.computeOnServer(s -> !cupboard.equals(Lockers.nearestFreeAway(s.overworld(), cupboard, 3, null, 0))),
+				"bots and townsfolk don't go back into a locker the Shape just threw open");
 			for (int stalk = 0; stalk <= 3; stalk++) {
 				LOG.info("Kill needs at stalk {}: {}", stalk, HwConfig.at(HwConfig.get().shapePointsToKillByStalk, stalk));
 			}
@@ -359,10 +372,14 @@ public class BotsClientTest implements FabricClientGameTest {
 			this.lookAt(ctx, Vec3.atCenterOf(cupboard2).add(0, 0.3, 0));
 			ctx.waitTicks(60);
 			ctx.takeScreenshot("b04_locker_front");
-			ctx.getInput().pressKey(o -> o.keyUse);
-			ctx.waitTicks(5);
-			check(server.computeOnServer(s -> Lockers.isInside(player(s))), "a civilian climbs into a locker");
-			check(server.computeOnServer(s -> !MatchManager.exposed(player(s))), "and is hidden from the Shape's senses");
+			// Walking up, it takes a moment to get in quietly (holding use); on the run it would be at once and loud.
+			ctx.getInput().holdKey(o -> o.keyUse);
+			ctx.waitTicks(HwConfig.get().lockerQuietTicks / 2);
+			check(server.computeOnServer(s -> !Lockers.isInside(player(s))) && ctx.computeOnClient(mc -> ClientState.progress.label().equals("halloween.hud.progress.locker")),
+				"getting into a locker quietly takes a moment");
+			ctx.waitTicks(HwConfig.get().lockerQuietTicks / 2 + 10);
+			ctx.getInput().releaseKey(o -> o.keyUse);
+			check(server.computeOnServer(s -> Lockers.isInside(player(s))), "a civilian climbs into a locker");			check(server.computeOnServer(s -> !MatchManager.exposed(player(s))), "and is hidden from the Shape's senses");
 			ctx.waitTicks(20);
 			ctx.takeScreenshot("b04a_inside_locker");
 			ctx.waitTicks(15);
@@ -426,7 +443,7 @@ public class BotsClientTest implements FabricClientGameTest {
 				return needle > check.zoneStart() + 0.02f && needle < check.zoneStart() + check.zoneWidth() - 0.02f;
 			});
 			if (inZone) {
-				ctx.getInput().pressKey(o -> o.keyJump);
+				ctx.getInput().pressKey(o -> o.keyAttack);
 				hits++;
 				ctx.waitTicks(3);
 				ticks += 3;

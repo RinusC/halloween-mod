@@ -48,6 +48,11 @@ public final class Lockers {
 
 	private static final Map<UUID, Inside> INSIDE = new HashMap<>();
 	private static final Map<BlockPos, UUID> OCCUPIED = new HashMap<>();
+	/** When the Shape last threw each locker open: bots and townsfolk keep away from those for a while. */
+	private static final Map<BlockPos, Integer> OPENED = new HashMap<>();
+	/** Bots and townsfolk getting in quietly: how far along {count, last tick}, and into which locker. */
+	private static final Map<UUID, int[]> CLIMBING = new HashMap<>();
+	private static final Map<UUID, BlockPos> CLIMBING_INTO = new HashMap<>();
 
 	private Lockers() {
 	}
@@ -100,8 +105,65 @@ public final class Lockers {
 		}
 	}
 
-	/** Climbs into the locker at {@code clicked}. Returns true when inside. */
+	/**
+	 * Hold use on a locker: on the run you are in at once (and loud), otherwise you climb in slowly and
+	 * quietly. Null when there is nothing to hold.
+	 */
+	public static Holds.Hold resolve(ServerPlayer player, BlockPos clicked) {
+		ServerLevel level = player.level();
+		BlockPos base = LockerBlock.base(level, clicked);
+		if (!Match.running() || !MatchManager.role(player).survivor() || !LockerBlock.is(level.getBlockState(base)) || isInside(player)) {
+			return null;
+		}
+		if (player.isSprinting() || OCCUPIED.containsKey(base)) {
+			enter(player, base, true);
+			return null;
+		}
+		return new Holds.Hold(base, "halloween.hud.progress.locker", false, HwConfig.get().lockerQuietTicks,
+			p -> !OCCUPIED.containsKey(base) && !isInside(p), p -> enter(p, base, false));
+	}
+
+	/**
+	 * Bots and townsfolk standing at a locker call this every tick: in at once if running, otherwise after
+	 * the same quiet climb a player makes. 1 inside, 0 still climbing, -1 can't get in.
+	 */
+	public static int climbIn(LivingEntity who, BlockPos clicked) {
+		ServerLevel level = (ServerLevel) who.level();
+		BlockPos base = LockerBlock.base(level, clicked);
+		if (isInside(who)) {
+			return 1;
+		}
+		if (!LockerBlock.is(level.getBlockState(base)) || OCCUPIED.containsKey(base) || who.position().distanceTo(center(base)) > 2.6) {
+			CLIMBING.remove(who.getUUID());
+			return -1;
+		}
+		if (who.isSprinting()) {
+			CLIMBING.remove(who.getUUID());
+			return enter(who, base, true) ? 1 : -1;
+		}
+		int now = level.getServer().getTickCount();
+		int[] climb = CLIMBING.get(who.getUUID());
+		if (climb == null || !base.equals(CLIMBING_INTO.get(who.getUUID())) || now - climb[1] > 2) {
+			climb = new int[]{0, now};
+			CLIMBING.put(who.getUUID(), climb);
+			CLIMBING_INTO.put(who.getUUID(), base.immutable());
+		}
+		climb[0]++;
+		climb[1] = now;
+		if (climb[0] < HwConfig.get().lockerQuietTicks) {
+			return 0;
+		}
+		CLIMBING.remove(who.getUUID());
+		return enter(who, base, false) ? 1 : -1;
+	}
+
+	/** Climbs into the locker at {@code clicked} at once, loud if on the run. Returns true when inside. */
 	public static boolean enter(LivingEntity who, BlockPos clicked) {
+		return enter(who, clicked, who.isSprinting());
+	}
+
+	/** Climbs into the locker at {@code clicked} at once. Returns true when inside. */
+	public static boolean enter(LivingEntity who, BlockPos clicked, boolean loud) {
 		ServerLevel level = (ServerLevel) who.level();
 		BlockPos base = LockerBlock.base(level, clicked);
 		BlockState state = level.getBlockState(base);
@@ -119,7 +181,6 @@ public final class Lockers {
 		if (who.position().distanceTo(center(base)) > 2.6) {
 			return false;
 		}
-		boolean loud = who.isSprinting();
 		Vec3 c = center(base);
 		place(who, c, facing.toYRot());
 		who.setSprinting(false);
@@ -136,8 +197,6 @@ public final class Lockers {
 					p.sendOverlayMessage(Component.translatable("halloween.msg.locker_slam").withStyle(ChatFormatting.GOLD));
 				}
 			}
-		} else {
-			level.playSound(null, c.x, c.y + 1, c.z, HwSounds.LOCKER_CLOSE, SoundSource.PLAYERS, 0.35f, 1.1f);
 		}
 		if (player != null) {
 			player.sendOverlayMessage(Component.translatable("halloween.locker.inside", cfg.lockerMaxTicks / 20).withStyle(ChatFormatting.GRAY));
@@ -187,6 +246,7 @@ public final class Lockers {
 			return;
 		}
 		state.attackCooldown = 20;
+		OPENED.put(base.immutable(), level.getServer().getTickCount());
 		Vec3 c = center(base);
 		level.playSound(null, c.x, c.y + 1, c.z, HwSounds.LOCKER_SLAM, SoundSource.HOSTILE, 1.6f, 0.7f);
 		UUID id = OCCUPIED.get(base);
@@ -253,7 +313,8 @@ public final class Lockers {
 		for (BlockPos pos : BlockPos.betweenClosed(from.offset(-radius, -2, -radius), from.offset(radius, 2, radius))) {
 			BlockState state = level.getBlockState(pos);
 			if (!LockerBlock.is(state) || state.getValue(LockerBlock.HALF) != net.minecraft.world.level.block.state.properties.DoubleBlockHalf.LOWER
-				|| OCCUPIED.containsKey(pos) || avoid != null && avoid.distanceTo(Vec3.atBottomCenterOf(pos)) < minDist) {
+				|| OCCUPIED.containsKey(pos) || avoid != null && avoid.distanceTo(Vec3.atBottomCenterOf(pos)) < minDist
+				|| recentlyOpened(level, pos)) {
 				continue;
 			}
 			double d = pos.distSqr(from);
@@ -284,7 +345,16 @@ public final class Lockers {
 		return best;
 	}
 
+	/** The Shape threw this locker open not long ago: he knows it, so it is no hiding place now. */
+	public static boolean recentlyOpened(ServerLevel level, BlockPos base) {
+		Integer at = OPENED.get(base);
+		return at != null && level.getServer().getTickCount() - at < HwConfig.get().lockerAvoidAfterOpenTicks;
+	}
+
 	public static void clear(MinecraftServer server) {
+		OPENED.clear();
+		CLIMBING.clear();
+		CLIMBING_INTO.clear();
 		for (Inside inside : new ArrayList<>(INSIDE.values())) {
 			leave(inside.who, false);
 		}

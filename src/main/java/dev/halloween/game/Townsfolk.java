@@ -154,6 +154,7 @@ public final class Townsfolk {
 			}
 			if (entity instanceof Mannequin body) {
 				body.getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(cfg.npcWalkSpeed);
+				MatchManager.noJumping(body, true);
 				Npc npc = new Npc(body, name);
 				npc.walker.closeDoors = false;
 				npc.nextStroll = level.getServer().getTickCount() + random.nextInt(100);
@@ -392,9 +393,6 @@ public final class Townsfolk {
 			}
 		}
 		Bots.alert(where, now);
-		if (shape != null) {
-			shape.sendOverlayMessage(Component.translatable("halloween.msg.npc_saw_you", npc.name).withStyle(ChatFormatting.GOLD));
-		}
 	}
 
 	public static void hearNoise(ServerLevel level, Vec3 pos, int now) {
@@ -583,7 +581,7 @@ public final class Townsfolk {
 			}
 		}
 		if (npc.locker != null) {
-			if (npc.walker.tick() != Walker.Status.MOVING && !Lockers.enter(npc.body, npc.locker)) {
+			if (npc.walker.tick() != Walker.Status.MOVING && Lockers.climbIn(npc.body, npc.locker) < 0) {
 				// Taken or out of reach: a dark corner will do.
 				npc.locker = null;
 				npc.pathSet = false;

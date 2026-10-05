@@ -137,6 +137,20 @@ public class MatchClientTest implements FabricClientGameTest {
 			this.holdUse(ctx, 3);
 			ctx.waitTicks(4);
 			check(!anyLight.get(), "a second click switches it off");
+			// The battery runs flat; a spare one from the pockets goes in on the next click.
+			server.runOnServer(s -> player(s).getMainHandItem().setDamageValue(player(s).getMainHandItem().getMaxDamage() - 5));
+			this.holdUse(ctx, 3);
+			ctx.waitTicks(20);
+			check(!anyLight.get() && server.computeOnServer(s -> HwItems.charge(player(s).getMainHandItem())) <= 0, "the flashlight goes out when the battery is flat");
+			server.runOnServer(s -> Inventory.give(player(s), HwItems.create(HwItems.Kind.BATTERY)));
+			ctx.waitTicks(2);
+			this.holdUse(ctx, 3);
+			ctx.waitTicks(6);
+			check(anyLight.get() && !server.computeOnServer(s -> Inventory.has(player(s), HwItems.Kind.BATTERY)), "a spare battery brings it back");
+			this.holdUse(ctx, 3);
+			ctx.waitTicks(4);
+			check(server.computeOnServer(s -> player(s).getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.JUMP_STRENGTH)) < 0.01,
+				"nobody jumps in a match");
 			ctx.runOnClient(mc -> mc.player.getInventory().setSelectedSlot(0));
 
 			// The car: a deputy can fix it but not drive off.

@@ -86,7 +86,7 @@ public final class HwHud {
 				alerts(g, mc, w, h, partial);
 				healthBar(g, mc, w, h);
 				int pushLeft = (int) Math.max(0, ClientState.pushReadyAt - mc.level.getGameTime());
-				smallAction(g, mc.font, w - 12, h - 84, Component.translatable("halloween.hud.shove"), HalloweenClient.KEY_PUSH.getTranslatedKeyMessage(), pushLeft);
+				smallAction(g, mc.font, w - 12, h - 84, Component.translatable("halloween.hud.shove"), mc.options.keyAttack.getTranslatedKeyMessage(), pushLeft);
 				inventoryBar(g, mc, w, h);
 				prompts(g, mc, w, h);
 				skillCheck(g, mc, w, h, partial);
@@ -469,7 +469,7 @@ public final class HwHud {
 			int y = (int) (cy + Math.sin(a) * t);
 			g.fill(x, y, x + 2, y + 2, BLOOD);
 		}
-		g.centeredText(mc.font, mc.options.keyJump.getTranslatedKeyMessage(), cx, cy - 4, TEXT);
+		g.centeredText(mc.font, mc.options.keyAttack.getTranslatedKeyMessage(), cx, cy - 4, TEXT);
 	}
 
 	private static void victimQte(GuiGraphicsExtractor g, Minecraft mc, int w, int h, float partial) {
@@ -478,7 +478,7 @@ public final class HwHud {
 		int x = w / 2 - barW / 2;
 		int y = (int) (h * 0.62);
 		g.fill(x - 6, y - 22, x + barW + 6, y + 34, 0xB0000000);
-		g.centeredText(mc.font, Component.translatable("halloween.hud.qte", mc.options.keyJump.getTranslatedKeyMessage()), w / 2, y - 16, TEXT);
+		g.centeredText(mc.font, Component.translatable("halloween.hud.qte", mc.options.keyAttack.getTranslatedKeyMessage()), w / 2, y - 16, TEXT);
 
 		if (mc.level.getGameTime() - qte.roundStart() + partial >= 0) {
 			g.fill(x, y, x + barW, y + 10, 0xFF1A1A1A);
@@ -696,9 +696,6 @@ public final class HwHud {
 			boolean low = mc.player.getHealth() <= mc.player.getMaxHealth() * HwConfig.get().vaultDamageFraction;
 			line = low ? Component.translatable("halloween.hud.prompt.window_low")
 				: Component.translatable("halloween.hud.prompt.window", mc.options.keySprint.getTranslatedKeyMessage());
-			if (state.getBlock() == dev.halloween.HwBlocks.BROKEN_GLASS_PANE) {
-				second = Component.translatable("halloween.hud.prompt.window_broken");
-			}
 		}
 		if (line == null) {
 			return;

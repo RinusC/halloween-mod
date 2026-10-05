@@ -50,24 +50,49 @@ public final class NpcMenuScreen extends Screen {
 		return (int) ((angle + Math.PI / SECTORS) / (Math.PI * 2 / SECTORS)) % SECTORS;
 	}
 
+	/** Sector of the ring at this offset from the centre; -1 in the gaps between sectors, the hole and outside. */
+	private static int ringSector(int dx, int dy) {
+		int d2 = dx * dx + dy * dy;
+		if (d2 < INNER * INNER || d2 > OUTER * OUTER) {
+			return -1;
+		}
+		double step = Math.PI * 2 / SECTORS;
+		double angle = Math.atan2(dx, -dy);
+		if (angle < 0) {
+			angle += Math.PI * 2;
+		}
+		int s = (int) ((angle + step / 2) / step) % SECTORS;
+		double off = Math.abs(Math.IEEEremainder(angle - s * step, Math.PI * 2));
+		return off > step / 2 - 0.05 ? -1 : s;
+	}
+
+	@Override
+	public void extractBackground(GuiGraphicsExtractor g, int mouseX, int mouseY, float partial) {
+		// No blur or dimming: the world stays in view around the ring.
+	}
+
 	@Override
 	public void extractRenderState(GuiGraphicsExtractor g, int mouseX, int mouseY, float partial) {
 		int cx = this.width / 2;
 		int cy = this.height / 2;
 		this.hovered = this.sectorAt(mouseX, mouseY);
 		double step = Math.PI * 2 / SECTORS;
-		// Sectors drawn as thick arcs of small squares (no shader needed).
-		for (int s = 0; s < SECTORS; s++) {
-			double from = s * step - step / 2 + 0.06;
-			double to = s * step + step / 2 - 0.06;
-			int color = s == this.hovered ? 0xD0B0302A : 0xA0151515;
-			for (double a = from; a <= to; a += 0.02) {
-				for (int r = INNER; r <= OUTER; r += 2) {
-					int x = cx + (int) Math.round(Math.sin(a) * r);
-					int y = cy - (int) Math.round(Math.cos(a) * r);
-					g.fill(x, y, x + 2, y + 2, color);
+		// The ring is filled row by row, one rectangle per run of pixels in the same sector: a few hundred fills a frame.
+		for (int dy = -OUTER; dy <= OUTER; dy++) {
+			int runStart = 0;
+			int runSector = -1;
+			for (int dx = -OUTER; dx <= OUTER + 1; dx++) {
+				int s = dx > OUTER ? -1 : ringSector(dx, dy);
+				if (s != runSector) {
+					if (runSector >= 0) {
+						g.fill(cx + runStart, cy + dy, cx + dx, cy + dy + 1, runSector == this.hovered ? 0xD0B0302A : 0xA0151515);
+					}
+					runSector = s;
+					runStart = dx;
 				}
 			}
+		}
+		for (int s = 0; s < SECTORS; s++) {
 			double mid = s * step;
 			int lx = cx + (int) Math.round(Math.sin(mid) * (OUTER + 14));
 			int ly = cy - (int) Math.round(Math.cos(mid) * (OUTER + 14));

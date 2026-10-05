@@ -53,7 +53,8 @@ public final class Loot {
 			HwItems.Kind.BOLT_CUTTERS, HwItems.Kind.PADLOCK_KEY,
 			HwItems.Kind.CAR_KEYS, HwItems.Kind.CAR_PART, HwItems.Kind.REPAIR_KIT, HwItems.Kind.REPAIR_KIT,
 			HwItems.Kind.BAT, HwItems.Kind.BAT, HwItems.Kind.KNIFE,
-			HwItems.Kind.DART, HwItems.Kind.DART, HwItems.Kind.DART));
+			HwItems.Kind.DART, HwItems.Kind.DART, HwItems.Kind.DART,
+			HwItems.Kind.BATTERY, HwItems.Kind.BATTERY));
 		List<BlockPos> shuffled = new ArrayList<>(CONTAINERS);
 		Collections.shuffle(shuffled, new java.util.Random(random.nextLong()));
 		for (int i = 0; i < Math.min(items.size(), shuffled.size()); i++) {

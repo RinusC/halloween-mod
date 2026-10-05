@@ -181,7 +181,7 @@ public final class Exits {
 						setNearby(level, cellar, true);
 						level.playSound(null, cellar, SoundEvents.CHAIN_BREAK, SoundSource.BLOCKS, 1.5f, 0.8f);
 						Match.score(p, cfg.scoreExitProgress, Component.translatable("halloween.score.cellar_open"));
-					});
+					}, true);
 			}
 			if (cellarState == OPEN && civilian) {
 				return escapeHold(pos, "halloween.hud.progress.escape_cellar", p -> cellarState == OPEN, p -> {

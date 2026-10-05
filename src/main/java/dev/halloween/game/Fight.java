@@ -55,8 +55,22 @@ public final class Fight {
 		if (!MatchManager.role(player).survivor() || player.isSpectator() || !HwItems.is(player.getMainHandItem(), HwItems.Kind.FLASHLIGHT)) {
 			return;
 		}
-		boolean on = SWITCHED_ON.add(player.getUUID());
-		if (!on) {
+		ItemStack light = player.getMainHandItem();
+		boolean on = !SWITCHED_ON.contains(player.getUUID());
+		if (on && HwItems.charge(light) <= 0) {
+			// Flat battery: put in a spare one if there is one in the pockets.
+			if (!Inventory.has(player, HwItems.Kind.BATTERY)) {
+				player.sendOverlayMessage(Component.translatable("halloween.msg.battery_dead").withStyle(ChatFormatting.GRAY));
+				player.level().playSound(null, player.getX(), player.getEyeY(), player.getZ(), SoundEvents.LEVER_CLICK, SoundSource.PLAYERS, 0.4f, 1.6f);
+				return;
+			}
+			Inventory.consume(player, HwItems.Kind.BATTERY);
+			HwItems.recharge(light);
+			player.sendOverlayMessage(Component.translatable("halloween.msg.battery_new").withStyle(ChatFormatting.GRAY));
+		}
+		if (on) {
+			SWITCHED_ON.add(player.getUUID());
+		} else {
 			SWITCHED_ON.remove(player.getUUID());
 		}
 		player.level().playSound(null, player.getX(), player.getEyeY(), player.getZ(), SoundEvents.LEVER_CLICK, SoundSource.PLAYERS, 0.5f, on ? 1.6f : 1.2f);
@@ -227,9 +241,17 @@ public final class Fight {
 			}
 		}
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-			if (holdsLight(player)) {
-				shine(player);
+			if (!holdsLight(player)) {
+				continue;
 			}
+			// The battery runs down while it shines (counted in steps so the item isn't resent every tick).
+			if (server.getTickCount() % 5 == 0 && HwItems.drain(player.getMainHandItem(), 5) <= 0) {
+				SWITCHED_ON.remove(player.getUUID());
+				player.sendOverlayMessage(Component.translatable("halloween.msg.battery_dead").withStyle(ChatFormatting.GRAY));
+				player.level().playSound(null, player.getX(), player.getEyeY(), player.getZ(), SoundEvents.LEVER_CLICK, SoundSource.PLAYERS, 0.4f, 1.2f);
+				continue;
+			}
+			shine(player);
 		}
 	}
 

@@ -25,9 +25,10 @@ public final class HwItems {
 		REPAIR_KIT("bundle", 0, 0f),
 		BAT("stick", 4, 0.34f),
 		KNIFE("stone_sword", 6, 0.25f),
-		DART("arrow", 1, 0.5f),
+		DART("arrow", 1, 1f),
 		BATON("breeze_rod", 8, 0.5f),
-		FLASHLIGHT("lantern", 0, 0f);
+		FLASHLIGHT("lantern", 0, 0f),
+		BATTERY("iron_nugget", 0, 0f);
 
 		public final String baseItem;
 		public final int uses;
@@ -60,7 +61,29 @@ public final class HwItems {
 			tag.putInt(USES, kind.uses);
 		}
 		stack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
+		if (kind == Kind.FLASHLIGHT) {
+			// The battery charge shows as the durability bar.
+			stack.set(DataComponents.MAX_STACK_SIZE, 1);
+			stack.set(DataComponents.MAX_DAMAGE, Math.max(1, dev.halloween.HwConfig.get().flashlightChargeTicks));
+			stack.set(DataComponents.DAMAGE, 0);
+		}
 		return stack;
+	}
+
+	/** Ticks of light left in a flashlight. */
+	public static int charge(ItemStack stack) {
+		return stack.getMaxDamage() - stack.getDamageValue();
+	}
+
+	/** Burns {@code ticks} of a flashlight battery; returns the charge left. */
+	public static int drain(ItemStack stack, int ticks) {
+		stack.setDamageValue(Math.min(stack.getMaxDamage(), stack.getDamageValue() + ticks));
+		return charge(stack);
+	}
+
+	/** A fresh battery in the flashlight. */
+	public static void recharge(ItemStack stack) {
+		stack.setDamageValue(0);
 	}
 
 	public static Kind kindOf(ItemStack stack) {

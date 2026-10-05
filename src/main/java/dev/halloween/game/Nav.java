@@ -183,7 +183,7 @@ public final class Nav {
 			if (standable(level, n)) {
 				sink.accept(n, stepInto(level, n), null, 1);
 				open[i] = passable(level, n) == 1 && passable(level, n.above()) == 1;
-			} else if (headroom && passable(level, n) == 0 && standable(level, n.above()) && passable(level, n.above()) == 1) {
+			} else if (headroom && passable(level, n) == 0 && standable(level, n.above()) && passable(level, n.above()) == 1 && stepsUp(level, n)) {
 				sink.accept(n.above(), Step.WALK, null, 1.6);
 			} else if (passable(level, n) != 0 && passable(level, n.above()) != 0) {
 				for (int k = 1; k <= 3; k++) {
@@ -220,6 +220,15 @@ public final class Nav {
 				sink.accept(n, Step.WALK, null, 1.414);
 			}
 		}
+	}
+
+	/** Up one block: a jump, unless jumping is off; then only stairs and slabs, which you walk up. */
+	private static boolean stepsUp(Level level, BlockPos block) {
+		if (dev.halloween.HwConfig.get().jumping) {
+			return true;
+		}
+		net.minecraft.world.level.block.Block b = level.getBlockState(block).getBlock();
+		return b instanceof net.minecraft.world.level.block.StairBlock || b instanceof net.minecraft.world.level.block.SlabBlock;
 	}
 
 	private static int indexOf(Direction d) {

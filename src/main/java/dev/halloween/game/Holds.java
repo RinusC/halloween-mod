@@ -62,6 +62,10 @@ public final class Holds {
 			RELEASE.put(player.getUUID(), now);
 			return;
 		}
+		if (LockerBlock.is(player.level().getBlockState(pos))) {
+			// Either half of a locker is the same locker.
+			pos = LockerBlock.base(player.level(), pos);
+		}
 		Work work = WORK.get(player.getUUID());
 		if (work != null && work.hold.pos().equals(pos)) {
 			work.lastPing = now;
@@ -70,6 +74,9 @@ public final class Holds {
 		Hold hold = Loot.resolve(player, pos);
 		if (hold == null) {
 			hold = Exits.resolve(player, pos);
+		}
+		if (hold == null) {
+			hold = Lockers.resolve(player, pos);
 		}
 		if (hold != null) {
 			WORK.put(player.getUUID(), new Work(hold, now));
@@ -119,6 +126,12 @@ public final class Holds {
 	/** Drops whatever this player was holding use on. */
 	public static void clear(UUID player) {
 		WORK.remove(player);
+	}
+
+	/** Rummaging through a container right now? */
+	public static boolean searching(ServerPlayer player) {
+		Work work = WORK.get(player.getUUID());
+		return work != null && work.hold.label().equals("halloween.hud.progress.search");
 	}
 
 	/** Is this player in the middle of a hold action? */

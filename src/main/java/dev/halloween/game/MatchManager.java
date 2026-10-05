@@ -56,6 +56,7 @@ public final class MatchManager {
 	public static final String CORPSE_TAG = "hw_corpse";
 	private static final String TEAM = "hw_match";
 	private static final Identifier SPEED_ID = Halloween.id("speed");
+	private static final Identifier NO_JUMP_ID = Halloween.id("no_jump");
 
 	private static final Map<UUID, Role> ROLES = new HashMap<>();
 	private static final Map<UUID, ShapeState> SHAPES = new HashMap<>();
@@ -194,6 +195,7 @@ public final class MatchManager {
 				maxHealth.setBaseValue(20);
 				camera.setBaseValue(camera.getAttribute().value().getDefaultValue());
 				player.getAttribute(Attributes.MOVEMENT_SPEED).removeModifier(SPEED_ID);
+				noJumping(player, false);
 				if (player.isSpectator()) {
 					player.setGameMode(GameType.SURVIVAL);
 				}
@@ -287,6 +289,7 @@ public final class MatchManager {
 			}
 			player.getFoodData().setFoodLevel(20);
 			player.getFoodData().setSaturation(5f);
+			noJumping(player, true);
 			if (role == Role.SHAPE) {
 				ShapeState state = SHAPES.computeIfAbsent(player.getUUID(), id -> new ShapeState());
 				tickShape(player, state, server.getTickCount());
@@ -301,6 +304,10 @@ public final class MatchManager {
 					} else {
 						speed = HwConfig.at(cfg.speedByStalk, vs.level()) + (vs.staggerTicks > 0 ? cfg.staggerSpeedModifier : 0);
 					}
+				}
+				// Rummaging through a container you shuffle along at best.
+				if (speed > -1 && Holds.searching(player)) {
+					speed = Math.max(-1, speed + cfg.searchSpeedModifier);
 				}
 				setSpeed(player, speed);
 			}
@@ -513,6 +520,21 @@ public final class MatchManager {
 	private static void score(ServerPlayer player, ShapeState state, int points, Component... lines) {
 		state.score += points;
 		ServerPlayNetworking.send(player, new HwNet.ScoreEvent(points, List.of(lines)));
+	}
+
+	/** Nobody jumps in a match: the game is on foot, and the maps are built for it. */
+	public static void noJumping(net.minecraft.world.entity.LivingEntity body, boolean on) {
+		AttributeInstance jump = body.getAttribute(Attributes.JUMP_STRENGTH);
+		if (jump == null) {
+			return;
+		}
+		if (on && !HwConfig.get().jumping) {
+			if (!jump.hasModifier(NO_JUMP_ID)) {
+				jump.addTransientModifier(new AttributeModifier(NO_JUMP_ID, -1, AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
+			}
+		} else {
+			jump.removeModifier(NO_JUMP_ID);
+		}
 	}
 
 	private static void setSpeed(ServerPlayer player, double amount) {

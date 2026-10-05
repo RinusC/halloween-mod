@@ -34,8 +34,6 @@ public class HalloweenClient implements ClientModInitializer {
 		new KeyMapping("key.halloween.killer_sense", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_R, CATEGORY));
 	public static final KeyMapping KEY_SHAPE_JUMP = KeyMappingHelper.registerKeyMapping(
 		new KeyMapping("key.halloween.shape_jump", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_V, CATEGORY));
-	public static final KeyMapping KEY_PUSH = KeyMappingHelper.registerKeyMapping(
-		new KeyMapping("key.halloween.push", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_G, CATEGORY));
 	public static final KeyMapping KEY_IMPULSE = KeyMappingHelper.registerKeyMapping(
 		new KeyMapping("key.halloween.impulse", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_B, CATEGORY));
 
@@ -122,7 +120,8 @@ public class HalloweenClient implements ClientModInitializer {
 		});
 
 		// The Shape's melee goes through our own light/heavy logic instead of vanilla attacks.
-		ClientPreAttackCallback.EVENT.register((client, player, clickCount) -> ClientState.myRole() == Role.SHAPE);
+		// Survivors: the left button answers reaction checks, and with no weapon in hand it shoves the Shape.
+		ClientPreAttackCallback.EVENT.register((client, player, clickCount) -> ClientState.myRole() == Role.SHAPE || survivorAttack(client, clickCount));
 
 		ClientTickEvents.END_CLIENT_TICK.register(HalloweenClient::tick);
 
@@ -185,15 +184,6 @@ public class HalloweenClient implements ClientModInitializer {
 				sentFocus = false;
 				ClientPlayNetworking.send(new HwNet.SenseInput(false, false));
 			}
-			// Survivors shove the Shape with the push key.
-			while (KEY_PUSH.consumeClick()) {
-				if (role.survivor() && !mc.player.isSpectator()) {
-					ClientPlayNetworking.send(new HwNet.ActionPress(HwNet.Action.PUSH));
-					if (ClientState.pushReadyAt <= mc.level.getGameTime()) {
-						ClientState.pushReadyAt = mc.level.getGameTime() + HwConfig.get().survivorPushCooldownTicks;
-					}
-				}
-			}
 			for (KeyMapping key : new KeyMapping[]{KEY_SHAPE_JUMP, KEY_IMPULSE}) {
 				while (key.consumeClick()) {
 					// Shape-only keys do nothing for other roles.
@@ -206,12 +196,32 @@ public class HalloweenClient implements ClientModInitializer {
 			theme = new LoopSound(HwSounds.THEME, SoundSource.HOSTILE, 1f, () -> themeVolume(mc));
 			mc.getSoundManager().play(theme);
 		}
+	}
 
-		if (ClientState.qte.active() && !ClientState.qte.forShape() || ClientState.skill.active()) {
-			while (mc.options.keyJump.consumeClick()) {
-				ClientPlayNetworking.send(new HwNet.ActionPress(HwNet.Action.QTE_PRESS));
-			}
+	/**
+	 * A survivor's left click. During a reaction check (or breaking free) it is the answer and nothing else;
+	 * with no weapon in hand it shoves the Shape. Returns true when the vanilla attack must not run.
+	 */
+	private static boolean survivorAttack(Minecraft mc, int clickCount) {
+		if (clickCount <= 0 || mc.player == null || mc.level == null || !ClientState.myRole().survivor() || mc.player.isSpectator()) {
+			return false;
 		}
+		if (ClientState.qte.active() && !ClientState.qte.forShape() || ClientState.skill.active()) {
+			ClientPlayNetworking.send(new HwNet.ActionPress(HwNet.Action.QTE_PRESS));
+			return true;
+		}
+		dev.halloween.game.HwItems.Kind held = dev.halloween.game.HwItems.kindOf(mc.player.getMainHandItem());
+		if (held != null && held.melee() || mc.player.isInvisible()) {
+			return false;
+		}
+		ClientPlayNetworking.send(new HwNet.ActionPress(HwNet.Action.PUSH));
+		// The cooldown on screen starts only when the Shape was really in reach.
+		net.minecraft.world.entity.Entity shape = mc.level.getEntity(ClientState.shapeEntityId);
+		if (shape != null && ClientState.pushReadyAt <= mc.level.getGameTime()
+			&& mc.player.getEyePosition().distanceTo(shape.getBoundingBox().getCenter()) <= HwConfig.get().survivorPushRange + 0.5) {
+			ClientState.pushReadyAt = mc.level.getGameTime() + HwConfig.get().survivorPushCooldownTicks;
+		}
+		return false;
 	}
 
 	private static void tickShape(Minecraft mc) {

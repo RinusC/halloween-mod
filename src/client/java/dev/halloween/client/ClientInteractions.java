@@ -79,8 +79,12 @@ public final class ClientInteractions {
 		boolean door = state.getBlock() instanceof DoorBlock;
 		if (role.survivor()) {
 			if (state.getBlock() instanceof dev.halloween.game.LockerBlock) {
-				ClientPlayNetworking.send(new HwNet.UseAction(HwNet.UseAction.LOCKER, pos));
-				return InteractionResult.SUCCESS;
+				// Held like a search: slow and quiet, or at once (and loud) on the run. FAIL sends no vanilla
+				// click, which would be refused right after the teleport inside with a build-limit message.
+				if (!player.isInvisible()) {
+					ClientPlayNetworking.send(new HwNet.UseAction(HwNet.UseAction.INTERACT, pos));
+				}
+				return InteractionResult.FAIL;
 			}
 			if (door) {
 				if (player.isShiftKeyDown()) {

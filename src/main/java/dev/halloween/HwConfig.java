@@ -46,10 +46,12 @@ public class HwConfig {
 	// Survivors shove the Shape (he no longer pushes them).
 	public double survivorPushRange = 2.6;
 	public double survivorPushStrength = 0.9;
-	public int survivorPushCooldownTicks = 200;
+	public int survivorPushCooldownTicks = 300;
 	/** How long a shoved Shape is slowed, and by how much. */
 	public int pushedSlowTicks = 25;
 	public double pushedSlowModifier = -0.5;
+	/** Jumping during a match (off: everyone stays on foot, bots and townsfolk too). */
+	public boolean jumping = false;
 	/** Pause between two reaction checks of a grab (on top of the round itself). */
 	public int qteRoundGapTicks = 20;
 	public double staggerSpeedModifier = -0.6;
@@ -65,10 +67,10 @@ public class HwConfig {
 	public float passiveStalkCap = 1f;
 	public double passiveStalkRange = 20;
 	public float passiveStalkAngleDeg = 25f;
-	public float passiveStalkPerSecond = 0.08f;
+	public float passiveStalkPerSecond = 0.056f;
 	public double senseRange = 32;
 	public double senseSpeedModifier = -0.45;
-	public float senseStalkPerSecond = 0.22f;
+	public float senseStalkPerSecond = 0.154f;
 	/** Reticle on a focus point counts fully; anywhere else on the body only partly. */
 	public float reticleFocusAngleDeg = 5f;
 	public float reticleBodyAngleDeg = 18f;
@@ -179,8 +181,10 @@ public class HwConfig {
 
 	// --- Hold-to-interact durations (ticks) ---
 	public int searchTicks = 30;
-	public int boltCuttersTicks = 60;
-	public int padlockKeyTicks = 30;
+	/** Walking while rummaging through a container. */
+	public double searchSpeedModifier = -0.6;
+	public int boltCuttersTicks = 400;
+	public int padlockKeyTicks = 400;
 	public int closeCellarTicks = 40;
 	public int installPartTicks = 60;
 	public int repairCarTicks = 100;
@@ -203,6 +207,8 @@ public class HwConfig {
 	/** The beam blinds the Shape only if he faces it within this angle. */
 	public float flashlightFaceDeg = 70f;
 	public int flashlightLightLevel = 12;
+	/** A battery lasts this long switched on; spare batteries are found in containers. */
+	public int flashlightChargeTicks = 200;
 
 	// --- Civilian score ---
 	public int scoreEscape = 500;
@@ -285,6 +291,10 @@ public class HwConfig {
 	public int lockerMaxTicks = 1200;
 	/** Getting in on the run: the Shape sees where for this long. */
 	public int lockerSlamRevealTicks = 60;
+	/** Getting in quietly (not on the run) takes this long. */
+	public int lockerQuietTicks = 30;
+	/** Bots and townsfolk keep away from a locker the Shape threw open this recently. */
+	public int lockerAvoidAfterOpenTicks = 1200;
 
 	// --- Reaction checks during long actions (police call, talking to townsfolk) ---
 	public int skillCheckPeriodTicks = 30;
