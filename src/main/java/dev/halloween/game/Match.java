@@ -109,6 +109,7 @@ public final class Match {
 		Exits.setup(level, level.getRandom());
 		Lockers.clear(server);
 		Talks.clear();
+		Minigames.clear();
 		Nav.setArea(area(points));
 		Loot.setup(level, center, level.getRandom());
 
@@ -201,6 +202,7 @@ public final class Match {
 		}
 		Lockers.clear(server);
 		Talks.clear();
+		Minigames.clear();
 		PEOPLE.clear();
 		Nav.setArea(null);
 		Townsfolk.clear(server);

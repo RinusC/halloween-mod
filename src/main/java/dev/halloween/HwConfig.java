@@ -187,7 +187,7 @@ public class HwConfig {
 	public int padlockKeyTicks = 400;
 	public int closeCellarTicks = 40;
 	public int installPartTicks = 60;
-	public int repairCarTicks = 100;
+	public int repairCarTicks = 300;
 	public int startCarTicks = 30;
 	public int removePartTicks = 40;
 	public int callPoliceTicks = 400;
@@ -293,6 +293,10 @@ public class HwConfig {
 	public int lockerSlamRevealTicks = 60;
 	/** Getting in quietly (not on the run) takes this long. */
 	public int lockerQuietTicks = 30;
+	/** Bots don't play the minigames: joining a breaker's wires takes them this long (fixing the car: repairCarTicks). */
+	public int botWiresTicks = 200;
+	/** Slipping off the line while fixing the car: the Shape sees where for this long. */
+	public int minigameNoiseRevealTicks = 60;
 	/** Bots and townsfolk keep away from a locker the Shape threw open this recently. */
 	public int lockerAvoidAfterOpenTicks = 1200;
 

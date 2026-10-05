@@ -439,6 +439,45 @@ public final class HwNet {
 		}
 	}
 
+	/** Opens a minigame panel on the client ({@link Minigame#WIRES}, {@link Minigame#CURVE}); kind -1 closes it. */
+	public record Minigame(int kind, BlockPos pos, long seed) implements CustomPacketPayload {
+		public static final int WIRES = 0;
+		public static final int CURVE = 1;
+		public static final Type<Minigame> TYPE = payloadType("minigame");
+		public static final StreamCodec<RegistryFriendlyByteBuf, Minigame> CODEC = StreamCodec.of((buf, v) -> {
+			buf.writeVarInt(v.kind + 1);
+			buf.writeBlockPos(v.pos);
+			buf.writeLong(v.seed);
+		}, buf -> new Minigame(buf.readVarInt() - 1, buf.readBlockPos(), buf.readLong()));
+
+		public static Minigame close(BlockPos pos) {
+			return new Minigame(-1, pos, 0);
+		}
+
+		@Override
+		public Type<Minigame> type() {
+			return TYPE;
+		}
+	}
+
+	/** What the player did in a minigame: {@link #DONE}, {@link #SLIP} (off the line: noise), {@link #CLOSED}. */
+	public record MinigameResult(int kind, BlockPos pos, int outcome) implements CustomPacketPayload {
+		public static final int DONE = 0;
+		public static final int SLIP = 1;
+		public static final int CLOSED = 2;
+		public static final Type<MinigameResult> TYPE = payloadType("minigame_result");
+		public static final StreamCodec<RegistryFriendlyByteBuf, MinigameResult> CODEC = StreamCodec.of((buf, v) -> {
+			buf.writeVarInt(v.kind);
+			buf.writeBlockPos(v.pos);
+			buf.writeVarInt(v.outcome);
+		}, buf -> new MinigameResult(buf.readVarInt(), buf.readBlockPos(), buf.readVarInt()));
+
+		@Override
+		public Type<MinigameResult> type() {
+			return TYPE;
+		}
+	}
+
 	/** A short notice in the corner of the screen (instead of a chat line). */
 	public record Notice(Component text) implements CustomPacketPayload {
 		public static final Type<Notice> TYPE = payloadType("notice");
@@ -596,8 +635,10 @@ public final class HwNet {
 		PayloadTypeRegistry.clientboundPlay().register(Progress.TYPE, Progress.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(Alert.TYPE, Alert.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(Notice.TYPE, Notice.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(Minigame.TYPE, Minigame.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(SkillCheck.TYPE, SkillCheck.CODEC);
 		PayloadTypeRegistry.serverboundPlay().register(NpcTalk.TYPE, NpcTalk.CODEC);
+		PayloadTypeRegistry.serverboundPlay().register(MinigameResult.TYPE, MinigameResult.CODEC);
 		PayloadTypeRegistry.serverboundPlay().register(UseAction.TYPE, UseAction.CODEC);
 		PayloadTypeRegistry.serverboundPlay().register(SenseInput.TYPE, SenseInput.CODEC);
 		PayloadTypeRegistry.serverboundPlay().register(ShapeAttack.TYPE, ShapeAttack.CODEC);

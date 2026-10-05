@@ -685,6 +685,10 @@ public final class HwHud {
 			line = Component.translatable("halloween.hud.prompt.exit");
 		} else if (shape) {
 			return;
+		} else if (dev.halloween.game.LightSystem.isBreaker(mc.level, pos)) {
+			if (!state.getValue(net.minecraft.world.level.block.LeverBlock.POWERED)) {
+				line = Component.translatable("halloween.hud.prompt.breaker");
+			}
 		} else if (state.getBlock() instanceof dev.halloween.game.LockerBlock) {
 			// Survivors are only ever invisible while hiding in a locker.
 			line = Component.translatable(mc.player.isInvisible() ? "halloween.hud.prompt.locker_out" : "halloween.hud.prompt.locker");

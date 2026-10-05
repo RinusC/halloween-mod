@@ -811,12 +811,6 @@ final class BotBrain {
 				this.replanAt = now;
 				return true;
 			}
-			case "power" -> {
-				LightSystem.flip(this.level(), task.target, true);
-				this.bot.swing(InteractionHand.MAIN_HAND, true);
-				AiStats.add(this.bot, "power.on");
-				return true;
-			}
 			default -> {
 				return false;
 			}
@@ -1027,7 +1021,7 @@ final class BotBrain {
 			for (BlockPos breaker : this.breakers()) {
 				if (!LightSystem.isOn(level, breaker) && this.bot.position().distanceTo(Vec3.atCenterOf(breaker)) < 32
 					&& !Bots.claimedByOther(breaker, this.bot)) {
-					out.put(new Task(breaker, 2.0, false, "power"), 45.0);
+					out.put(new Task(breaker, 2.0, true, "power"), 45.0);
 				}
 			}
 			// Neighbours at home don't know what is going on: tell them to hide (they score if they live).

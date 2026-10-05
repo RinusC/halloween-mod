@@ -147,6 +147,20 @@ public final class Exits {
 		return level.getBlockState(pos).is(HwBlocks.PHONE);
 	}
 
+	/** The car has its part in, isn't fixed yet, and this player carries a repair kit. */
+	public static boolean canRepairCar(ServerPlayer player) {
+		return car != null && (carFlags & CAR_PART) != 0 && (carFlags & CAR_REPAIRED) == 0 && (carFlags & CAR_GONE) == 0
+			&& Inventory.has(player, HwItems.Kind.REPAIR_KIT);
+	}
+
+	/** Uses up the repair kit: the car is ready to start. */
+	public static void repairCar(ServerPlayer player) {
+		Inventory.consume(player, HwItems.Kind.REPAIR_KIT);
+		carFlags |= CAR_REPAIRED;
+		player.level().playSound(null, car, SoundEvents.ANVIL_USE, SoundSource.BLOCKS, 0.6f, 1.1f);
+		Match.score(player, HwConfig.get().scoreExitProgress, Component.translatable("halloween.score.car_repair"));
+	}
+
 	/** What holding use on {@code pos} would do for this player, or null (a hint may have been sent). */
 	public static Holds.Hold resolve(ServerPlayer player, BlockPos pos) {
 		HwConfig cfg = HwConfig.get();
@@ -226,13 +240,12 @@ public final class Exits {
 					hint(player, "halloween.hint.car_repair");
 					return null;
 				}
-				return new Holds.Hold(pos, "halloween.hud.progress.repair_car", false, cfg.repairCarTicks,
-					p -> (carFlags & CAR_PART) != 0 && (carFlags & CAR_REPAIRED) == 0 && Inventory.has(p, HwItems.Kind.REPAIR_KIT), p -> {
-						Inventory.consume(p, HwItems.Kind.REPAIR_KIT);
-						carFlags |= CAR_REPAIRED;
-						level.playSound(null, car, SoundEvents.ANVIL_USE, SoundSource.BLOCKS, 0.6f, 1.1f);
-						Match.score(p, cfg.scoreExitProgress, Component.translatable("halloween.score.car_repair"));
-					});
+				if (!Bots.isBot(player)) {
+					// People do it by hand on the panel; bots just take their time.
+					Minigames.open(player, HwNet.Minigame.CURVE, car);
+					return null;
+				}
+				return new Holds.Hold(pos, "halloween.hud.progress.repair_car", false, cfg.repairCarTicks, Exits::canRepairCar, Exits::repairCar);
 			}
 			if (!civilian) {
 				hint(player, "halloween.hint.deputy_no_escape");

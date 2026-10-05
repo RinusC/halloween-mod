@@ -263,6 +263,7 @@ public final class MatchManager {
 		Windows.tick(server);
 		Lockers.tick(server);
 		Talks.tick(server);
+		Minigames.tick(server);
 		Bots.tick(server);
 		Townsfolk.tick(server);
 
@@ -296,7 +297,7 @@ public final class MatchManager {
 			} else {
 				VictimState vs = VICTIMS.get(player.getUUID());
 				double speed = 0;
-				if (Windows.isVaulting(player) || Match.frozen() || Lockers.isInside(player)) {
+				if (Windows.isVaulting(player) || Match.frozen() || Lockers.isInside(player) || Minigames.active(player)) {
 					speed = -1;
 				} else if (vs != null) {
 					if (vs.grabbed) {

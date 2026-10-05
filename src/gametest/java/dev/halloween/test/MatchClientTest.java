@@ -153,6 +153,45 @@ public class MatchClientTest implements FabricClientGameTest {
 				"nobody jumps in a match");
 			ctx.runOnClient(mc -> mc.player.getInventory().setSelectedSlot(0));
 
+			// A dark breaker box: the power comes back by joining the wires on a panel.
+			BlockPos breaker = this.origin.offset(-17, 1, 15);
+			server.runOnServer(s -> dev.halloween.game.LightSystem.flip(s.overworld(), breaker, false));
+			this.tp(server, -15.5, 0, 15.5);
+			this.lookAt(ctx, Vec3.atCenterOf(breaker));
+			ctx.waitTicks(5);
+			this.holdUse(ctx, 3);
+			ctx.waitTicks(3);
+			check(ctx.computeOnClient(mc -> mc.gui.screen() instanceof dev.halloween.client.WiresScreen), "using a dark breaker box opens the wires panel");
+			check(server.computeOnServer(s -> !dev.halloween.game.LightSystem.isOn(s.overworld(), breaker)), "the click alone doesn't switch the power on");
+			ctx.takeScreenshot("m03a_wires");
+			// Esc and back: the joined wire stays joined.
+			ctx.runOnClient(mc -> ((dev.halloween.client.WiresScreen) mc.gui.screen()).join(0));
+			ctx.runOnClient(mc -> mc.gui.screen().onClose());
+			ctx.waitTicks(3);
+			check(server.computeOnServer(s -> !dev.halloween.game.Minigames.active(player(s))), "Esc steps away from the panel");
+			this.holdUse(ctx, 3);
+			ctx.waitTicks(3);
+			String wires = ctx.computeOnClient(mc -> {
+				if (!(mc.gui.screen() instanceof dev.halloween.client.WiresScreen panel)) {
+					return "no panel";
+				}
+				// Drag every wire by hand; a wrong terminal doesn't count.
+				for (int i = 0; i < dev.halloween.client.WiresScreen.WIRES; i++) {
+					double[] from = panel.leftEnd(i);
+					double[] to = panel.rightEndFor(i);
+					panel.mouseClicked(mouse(from[0], from[1]), false);
+					panel.mouseDragged(mouse(to[0], to[1]), 0, 0);
+					panel.mouseReleased(mouse(to[0], to[1]));
+					if (mc.gui.screen() != panel) {
+						return i == dev.halloween.client.WiresScreen.WIRES - 1 ? "ok" : "closed early at " + i;
+					}
+				}
+				return "still open";
+			});
+			check("ok".equals(wires), "joining the four wires of matching colour finishes the job (" + wires + ")");
+			ctx.waitTicks(4);
+			check(server.computeOnServer(s -> dev.halloween.game.LightSystem.isOn(s.overworld(), breaker)), "the power is back on");
+
 			// The car: a deputy can fix it but not drive off.
 			server.runOnServer(s -> {
 				Inventory.give(player(s), HwItems.create(HwItems.Kind.CAR_PART));
@@ -165,7 +204,42 @@ public class MatchClientTest implements FabricClientGameTest {
 			this.lookAt(ctx, new Vec3(cp.getX() + 0.5, cp.getY() + 0.6, cp.getZ() + 0.5));
 			this.holdUse(ctx, HwConfig.get().installPartTicks + 12);
 			check((this.exit(ctx, Exits.CAR).state() & 1) != 0, "the engine part goes in");
-			this.holdUse(ctx, HwConfig.get().repairCarTicks + 12);
+			// The repair kit is a minigame: follow the wavy line, three times.
+			this.holdUse(ctx, 6);
+			check(ctx.computeOnClient(mc -> mc.gui.screen() instanceof dev.halloween.client.CurveScreen), "the repair kit opens the line minigame");
+			check(server.computeOnServer(s -> dev.halloween.game.Minigames.active(player(s))), "the server knows the player is busy at the car");
+			ctx.takeScreenshot("m04a_curve");
+			// Slipping off the line starts it over.
+			String slip = ctx.computeOnClient(mc -> {
+				var curve = (dev.halloween.client.CurveScreen) mc.gui.screen();
+				double[] a = curve.point(0);
+				double[] b = curve.point(30);
+				curve.mouseClicked(mouse(a[0], a[1]), false);
+				curve.mouseDragged(mouse(b[0], b[1]), 0, 0);
+				curve.mouseDragged(mouse(b[0], b[1] + 30), 0, 0);
+				return curve.linesDone() + "";
+			});
+			check("0".equals(slip), "slipping off the line starts it over");
+			ctx.waitTicks(2);
+			int lines = ctx.computeOnClient(mc -> {
+				var curve = (dev.halloween.client.CurveScreen) mc.gui.screen();
+				for (int line = 0; line < dev.halloween.client.CurveScreen.LINES; line++) {
+					double[] p = curve.point(0);
+					curve.mouseClicked(mouse(p[0], p[1]), false);
+					for (int dx = 4; dx <= 210; dx += 4) {
+						double[] q = curve.point(Math.min(dx, 208));
+						curve.mouseDragged(mouse(q[0], q[1]), 0, 0);
+						if (mc.gui.screen() != curve) {
+							return dev.halloween.client.CurveScreen.LINES;
+						}
+					}
+					curve.mouseReleased(mouse(p[0], p[1]));
+				}
+				return curve.linesDone();
+			});
+			check(lines == dev.halloween.client.CurveScreen.LINES, "tracing all three lines finishes the job (" + lines + ")");
+			ctx.waitTicks(4);
+			check(ctx.computeOnClient(mc -> mc.gui.screen() == null), "the panel closes when the job is done");
 			check((this.exit(ctx, Exits.CAR).state() & 2) != 0, "the car gets repaired");
 			ctx.takeScreenshot("m04_car_fixed");
 
@@ -250,6 +324,10 @@ public class MatchClientTest implements FabricClientGameTest {
 		ctx.waitTicks(ticks);
 		ctx.getInput().releaseKey(o -> o.keyUse);
 		ctx.waitTicks(4);
+	}
+
+	private static net.minecraft.client.input.MouseButtonEvent mouse(double x, double y) {
+		return new net.minecraft.client.input.MouseButtonEvent(x, y, new net.minecraft.client.input.MouseButtonInfo(0, 0));
 	}
 
 	private static ServerPlayer player(MinecraftServer server) {

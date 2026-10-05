@@ -78,6 +78,9 @@ public final class Holds {
 		if (hold == null) {
 			hold = Lockers.resolve(player, pos);
 		}
+		if (hold == null) {
+			hold = LightSystem.resolve(player, pos);
+		}
 		if (hold != null) {
 			WORK.put(player.getUUID(), new Work(hold, now));
 		}

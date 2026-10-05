@@ -92,6 +92,19 @@ public class HalloweenClient implements ClientModInitializer {
 			return net.minecraft.world.InteractionResult.FAIL;
 		});
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.Notice.TYPE, (payload, ctx) -> ClientState.notice(payload.text()));
+		ClientPlayNetworking.registerGlobalReceiver(HwNet.Minigame.TYPE, (payload, ctx) -> {
+			Minecraft mc = Minecraft.getInstance();
+			if (mc.gui.screen() instanceof MinigameScreen open) {
+				if (payload.kind() < 0 || !open.shows(payload)) {
+					open.closeQuietly();
+				} else {
+					return;
+				}
+			}
+			if (payload.kind() >= 0) {
+				mc.gui.setScreen(MinigameScreen.create(payload));
+			}
+		});
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.Alert.TYPE, (payload, ctx) -> {
 			long now = ctx.client().level == null ? 0 : ctx.client().level.getGameTime();
 			ClientState.ALERTS.removeIf(a -> a.until() < now);
@@ -115,6 +128,7 @@ public class HalloweenClient implements ClientModInitializer {
 
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
 			ClientState.reset();
+			MinigameScreen.forgetAll();
 			sentSense = false;
 			sentFocus = false;
 		});

@@ -47,10 +47,30 @@ public final class LightSystem {
 		}
 		BlockState state = level.getBlockState(pos);
 		boolean on = !state.getValue(LeverBlock.POWERED);
+		if (on && Match.running() && player instanceof net.minecraft.server.level.ServerPlayer sp && MatchManager.role(sp).survivor()) {
+			// Getting the power back means joining the wires by hand (bots take a while instead, see resolve).
+			if (!Bots.isBot(sp)) {
+				Minigames.open(sp, dev.halloween.net.HwNet.Minigame.WIRES, pos);
+			}
+			return InteractionResult.SUCCESS;
+		}
 		level.setBlock(pos, state.setValue(LeverBlock.POWERED, on), Block.UPDATE_CLIENTS);
 		setLights(serverLevel, pos, on);
 		level.playSound(null, pos, HwSounds.BREAKER, SoundSource.BLOCKS, 1f, on ? 1.1f : 0.8f);
 		return InteractionResult.SUCCESS;
+	}
+
+	/** A bot holding use on a dark breaker box: the wires take it a while. */
+	public static Holds.Hold resolve(net.minecraft.server.level.ServerPlayer player, BlockPos pos) {
+		ServerLevel level = player.level();
+		if (!Bots.isBot(player) || !MatchManager.role(player).survivor() || !isBreaker(level, pos) || isOn(level, pos)) {
+			return null;
+		}
+		BlockPos at = pos.immutable();
+		return new Holds.Hold(at, "halloween.hud.progress.wires", false, HwConfig.get().botWiresTicks, p -> !isOn(level, at), p -> {
+			flip(level, at, true);
+			AiStats.add(p, "power.on");
+		});
 	}
 
 	/** Switches a breaker (and its house lights) on or off, as if someone flipped it. */

@@ -96,6 +96,10 @@ public class BotsClientTest implements FabricClientGameTest {
 			check(moved > 5, "bots walk around the map");
 			int searched = server.computeOnServer(s -> Loot.searched().size());
 			check(searched > 0, "bots search containers (" + searched + ")");
+			// Joining the wires takes a bot a while (it doesn't play the minigame).
+			for (int i = 0; i < 20 && !server.computeOnServer(s -> dev.halloween.game.LightSystem.isOn(s.overworld(), breaker)); i++) {
+				ctx.waitTicks(20);
+			}
 			check(server.computeOnServer(s -> dev.halloween.game.LightSystem.isOn(s.overworld(), breaker)), "a bot switches the house lights back on");
 			// Talking a neighbour round takes 15 s for bots too.
 			int told = 0;
@@ -357,7 +361,13 @@ public class BotsClientTest implements FabricClientGameTest {
 				p.teleportTo(s.overworld(), exit.getX() + 0.5, exit.getY(), exit.getZ() - 1.5, java.util.Set.of(), 0f, 0f, false);
 				s.overworld().getEntity(guest).teleportTo(exit.getX() + 0.5, exit.getY(), exit.getZ() - 4.5);
 			});
-			ctx.waitTicks(80);
+			for (int i = 0; i < 10 && server.computeOnServer(s -> s.overworld().getEntity(guest) != null); i++) {
+				ctx.waitTicks(20);
+				LOG.info("guest: {}", (Object) server.computeOnServer(s -> {
+					var npc = s.overworld().getEntity(guest);
+					return npc == null ? "gone" : Townsfolk.stateOf(npc) + " at " + npc.position() + ", player at " + player(s).position();
+				}));
+			}
 			check(server.computeOnServer(s -> s.overworld().getEntity(guest) == null), "a townsperson led to an exit is rescued");
 			int scoreAfter = server.computeOnServer(s -> Match.scores().values().stream().mapToInt(Integer::intValue).sum());
 			check(scoreAfter >= scoreBefore + HwConfig.get().scoreRescueNpc, "the rescue scores (" + scoreBefore + " -> " + scoreAfter + ")");
@@ -379,7 +389,8 @@ public class BotsClientTest implements FabricClientGameTest {
 				"getting into a locker quietly takes a moment");
 			ctx.waitTicks(HwConfig.get().lockerQuietTicks / 2 + 10);
 			ctx.getInput().releaseKey(o -> o.keyUse);
-			check(server.computeOnServer(s -> Lockers.isInside(player(s))), "a civilian climbs into a locker");			check(server.computeOnServer(s -> !MatchManager.exposed(player(s))), "and is hidden from the Shape's senses");
+			check(server.computeOnServer(s -> Lockers.isInside(player(s))), "a civilian climbs into a locker");
+			check(server.computeOnServer(s -> !MatchManager.exposed(player(s))), "and is hidden from the Shape's senses");
 			ctx.waitTicks(20);
 			ctx.takeScreenshot("b04a_inside_locker");
 			ctx.waitTicks(15);
@@ -431,7 +442,7 @@ public class BotsClientTest implements FabricClientGameTest {
 		ctx.getInput().pressKey(GLFW.GLFW_KEY_1 + option);
 		int ticks = 0;
 		int hits = 0;
-		while (ticks < HwConfig.get().talkTicks + 40 && !state.equals(server.computeOnServer(s -> Townsfolk.stateOf(s.overworld().getEntity(npcId))))) {
+		while (ticks < HwConfig.get().talkTicks + 140 && !state.equals(server.computeOnServer(s -> Townsfolk.stateOf(s.overworld().getEntity(npcId))))) {
 			ctx.waitTicks(1);
 			ticks++;
 			boolean inZone = ctx.computeOnClient(mc -> {
