@@ -481,7 +481,7 @@ public final class HwNet {
 
 	/** Single-press abilities of the Shape. */
 	public enum Action {
-		SHAPE_JUMP, DASH, PUSH, IMPULSE, QTE_PRESS;
+		SHAPE_JUMP, DASH, PUSH, IMPULSE, QTE_PRESS, FLASHLIGHT;
 
 		static Action byId(int id) {
 			Action[] values = values();

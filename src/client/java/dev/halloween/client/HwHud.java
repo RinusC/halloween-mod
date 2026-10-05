@@ -560,6 +560,11 @@ public final class HwHud {
 
 	/** Hints for the door or window under the crosshair. */
 	private static void prompts(GuiGraphicsExtractor g, Minecraft mc, int w, int h) {
+		if (ClientState.progress.label().isEmpty() && ClientState.myRole().survivor()
+			&& dev.halloween.game.HwItems.is(mc.player.getMainHandItem(), dev.halloween.game.HwItems.Kind.FLASHLIGHT)) {
+			Component torch = Component.translatable("halloween.hud.prompt.flashlight");
+			g.textWithBackdrop(mc.font, torch, w / 2 - mc.font.width(torch) / 2, h / 2 + 46, mc.font.width(torch), DIM);
+		}
 		if (!ClientState.progress.label().isEmpty() || !(mc.hitResult instanceof net.minecraft.world.phys.BlockHitResult hit)
 			|| hit.getType() == net.minecraft.world.phys.HitResult.Type.MISS) {
 			return;

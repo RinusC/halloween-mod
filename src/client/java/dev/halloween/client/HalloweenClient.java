@@ -55,6 +55,7 @@ public class HalloweenClient implements ClientModInitializer {
 
 	@Override
 	public void onInitializeClient() {
+		net.fabricmc.fabric.api.client.particle.v1.ParticleProviderRegistry.getInstance().register(dev.halloween.HwParticles.BEAM, BeamParticle.Provider::new);
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.WorldSync.TYPE, (payload, ctx) -> {
 			ClientState.ROLES.clear();
 			for (HwNet.RoleEntry entry : payload.roles()) {

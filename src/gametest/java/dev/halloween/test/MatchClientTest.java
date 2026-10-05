@@ -116,10 +116,22 @@ public class MatchClientTest implements FabricClientGameTest {
 			this.tp(server, 0.5, 0, 0.5);
 			this.lookAt(ctx, new Vec3(this.origin.getX() + 0.5, this.origin.getY() + 1, this.origin.getZ() + 10));
 			ctx.waitTicks(10);
-			boolean lit = server.computeOnServer(s -> BlockPos.betweenClosedStream(this.origin.offset(-3, -1, -2), this.origin.offset(4, 4, 12))
+			java.util.function.Supplier<Boolean> anyLight = () -> server.computeOnServer(s -> BlockPos.betweenClosedStream(this.origin.offset(-3, -1, -2), this.origin.offset(4, 4, 12))
 				.anyMatch(p -> s.overworld().getBlockState(p).is(Blocks.LIGHT)));
-			check(lit, "the flashlight lights up what it points at");
+			check(!anyLight.get(), "the flashlight starts switched off");
+			this.holdUse(ctx, 3);
+			ctx.waitTicks(6);
+			check(anyLight.get(), "right click switches the flashlight on and it lights up what it points at");
+			long beam = ctx.computeOnClient(mc -> {
+				String count = mc.particleEngine.countParticles();
+				return Long.parseLong(count.substring(count.lastIndexOf(" ") + 1));
+			});
+			LOG.info("Particles in view: {}", beam);
+			check(beam > 5, "the beam is visible");
 			ctx.takeScreenshot("m03_deputy_flashlight");
+			this.holdUse(ctx, 3);
+			ctx.waitTicks(4);
+			check(!anyLight.get(), "a second click switches it off");
 			ctx.runOnClient(mc -> mc.player.getInventory().setSelectedSlot(0));
 
 			// The car: a deputy can fix it but not drive off.

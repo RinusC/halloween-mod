@@ -29,6 +29,7 @@ public class Halloween implements ModInitializer {
 		HwConfig.load();
 		HwSounds.init();
 		HwBlocks.init();
+		HwParticles.init();
 		HwNet.registerPayloads();
 
 		ServerPlayNetworking.registerGlobalReceiver(HwNet.SenseInput.TYPE, (payload, ctx) -> {
@@ -58,6 +59,7 @@ public class Halloween implements ModInitializer {
 				case PUSH -> MatchManager.onPush(ctx.player());
 				case IMPULSE -> MatchManager.onImpulse(ctx.player());
 				case QTE_PRESS -> MatchManager.onQtePress(ctx.player());
+				case FLASHLIGHT -> dev.halloween.game.Fight.toggleFlashlight(ctx.player());
 			}
 		});
 

@@ -1,6 +1,7 @@
 package dev.halloween.game;
 
 import dev.halloween.HwConfig;
+import dev.halloween.HwParticles;
 import dev.halloween.HwSounds;
 import dev.halloween.Role;
 import java.util.HashMap;
@@ -43,8 +44,26 @@ public final class Fight {
 	private static final Map<UUID, Integer> LAST_HIT = new HashMap<>();
 	/** Light blocks placed by each flashlight, removed when the beam moves on. */
 	private static final Map<UUID, BlockPos> LIGHTS = new HashMap<>();
+	/** Players whose flashlight is switched on (it only shines while also held in hand). */
+	private static final java.util.Set<UUID> SWITCHED_ON = new java.util.HashSet<>();
 
 	private Fight() {
+	}
+
+	/** Right click with the flashlight in hand switches it on or off. */
+	public static void toggleFlashlight(ServerPlayer player) {
+		if (!MatchManager.role(player).survivor() || player.isSpectator() || !HwItems.is(player.getMainHandItem(), HwItems.Kind.FLASHLIGHT)) {
+			return;
+		}
+		boolean on = SWITCHED_ON.add(player.getUUID());
+		if (!on) {
+			SWITCHED_ON.remove(player.getUUID());
+		}
+		player.level().playSound(null, player.getX(), player.getEyeY(), player.getZ(), SoundEvents.LEVER_CLICK, SoundSource.PLAYERS, 0.5f, on ? 1.6f : 1.2f);
+	}
+
+	public static boolean flashlightOn(ServerPlayer player) {
+		return SWITCHED_ON.contains(player.getUUID());
 	}
 
 	// ---------------------------------------------------------------- stun
@@ -168,7 +187,34 @@ public final class Fight {
 	}
 
 	private static boolean holdsLight(ServerPlayer player) {
-		return MatchManager.role(player).survivor() && !player.isSpectator() && HwItems.is(player.getMainHandItem(), HwItems.Kind.FLASHLIGHT);
+		return SWITCHED_ON.contains(player.getUUID()) && MatchManager.role(player).survivor() && !player.isSpectator()
+			&& HwItems.is(player.getMainHandItem(), HwItems.Kind.FLASHLIGHT);
+	}
+
+	/**
+	 * The visible beam: short-lived glowing puffs along the light from the hand to where it lands, widening like a cone,
+	 * with a brighter spot at the end. Everyone sees it, so it also gives the deputy away.
+	 */
+	private static void drawBeam(ServerPlayer player, Vec3 eye, Vec3 look, Vec3 end, boolean hitSomething) {
+		ServerLevel level = player.level();
+		Vec3 right = look.cross(new Vec3(0, 1, 0));
+		right = right.lengthSqr() < 1.0E-4 ? new Vec3(1, 0, 0) : right.normalize();
+		Vec3 start = eye.add(right.scale(0.3)).add(0, -0.25, 0).add(look.scale(0.8));
+		Vec3 path = end.subtract(start);
+		double length = path.length();
+		if (length < 0.5) {
+			return;
+		}
+		Vec3 dir = path.scale(1 / length);
+		double spread = Math.tan(Math.toRadians(HwConfig.get().flashlightConeDeg));
+		for (double t = 0.3; t < length; t += 0.3 + t * 0.06) {
+			Vec3 p = start.add(dir.scale(t));
+			level.sendParticles(HwParticles.BEAM, true, false, p.x, p.y, p.z, 0, 0.12 + t * spread * 0.7, 0, 0, 1);
+		}
+		if (hitSomething) {
+			Vec3 spot = end.subtract(dir.scale(0.1));
+			level.sendParticles(HwParticles.BEAM, true, false, spot.x, spot.y, spot.z, 0, 0.45 + length * spread * 0.8, 0, 0, 1);
+		}
 	}
 
 	private static void shine(ServerPlayer player) {
@@ -179,6 +225,7 @@ public final class Fight {
 		Vec3 end = eye.add(look.scale(cfg.flashlightRange));
 		BlockHitResult hit = level.clip(new ClipContext(eye, end, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player));
 		BlockPos spot = hit.getType() == HitResult.Type.MISS ? BlockPos.containing(end) : hit.getBlockPos().relative(hit.getDirection());
+		drawBeam(player, eye, look, hit.getLocation(), hit.getType() != HitResult.Type.MISS);
 		BlockPos old = LIGHTS.get(player.getUUID());
 		if (!spot.equals(old)) {
 			if (old != null) {
@@ -220,5 +267,6 @@ public final class Fight {
 		LIGHTS.values().forEach(pos -> removeLight(server.overworld(), pos));
 		LIGHTS.clear();
 		LAST_HIT.clear();
+		SWITCHED_ON.clear();
 	}
 }

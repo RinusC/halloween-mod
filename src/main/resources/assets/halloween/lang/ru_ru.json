@@ -170,6 +170,8 @@
 	"halloween.hud.prompt.phone": "Удерживайте ПКМ — телефон",
 	"halloween.hud.prompt.phone_cut": "Линия перерезана — удерживайте ПКМ с ремкомплектом",
 	"halloween.hud.prompt.exit": "Удерживайте ПКМ",
+	"halloween.hud.prompt.flashlight": "ПКМ — включить / выключить фонарик",
+	"halloween.match.deputy_hint": "Свети фонариком Майклу в глаза",
 	"halloween.hud.my_score": "Очки: %s",
 	"halloween.hud.end_title": "Матч окончен",
 	"subtitles.halloween.stinger": "Майкл появляется"

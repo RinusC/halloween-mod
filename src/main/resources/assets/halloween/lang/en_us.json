@@ -170,6 +170,8 @@
 	"halloween.hud.prompt.phone": "Hold use - phone",
 	"halloween.hud.prompt.phone_cut": "Line cut - hold use with a repair kit",
 	"halloween.hud.prompt.exit": "Hold use",
+	"halloween.hud.prompt.flashlight": "Use — switch the flashlight on / off",
+	"halloween.match.deputy_hint": "Shine the flashlight in his eyes",
 	"halloween.hud.my_score": "Score: %s",
 	"halloween.hud.end_title": "Match over",
 	"subtitles.halloween.stinger": "The Shape appears"

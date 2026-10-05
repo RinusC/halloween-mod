@@ -26,6 +26,7 @@ public final class ClientInteractions {
 	/** A window climb fires once per click, not again while the button stays held. */
 	private static boolean vaultArmed = true;
 	private static int lastSlot;
+	private static boolean useWasDown;
 
 	private ClientInteractions() {
 	}
@@ -55,6 +56,14 @@ public final class ClientInteractions {
 			}
 		}
 		return 0;
+	}
+
+	private static boolean aimsAtUsable(Minecraft mc) {
+		if (!(mc.hitResult instanceof BlockHitResult hit) || hit.getType() != net.minecraft.world.phys.HitResult.Type.BLOCK) {
+			return false;
+		}
+		BlockState state = mc.level.getBlockState(hit.getBlockPos());
+		return state.getBlock() instanceof DoorBlock || Sight.isGlass(state) || matchObject(mc.level, hit.getBlockPos()) != 0;
 	}
 
 	public static InteractionResult onUseBlock(Player player, Level level, InteractionHand hand, BlockHitResult hit) {
@@ -97,9 +106,16 @@ public final class ClientInteractions {
 	}
 
 	public static void tick(Minecraft mc) {
-		if (!mc.options.keyUse.isDown()) {
+		boolean useDown = mc.options.keyUse.isDown();
+		if (!useDown) {
 			vaultArmed = true;
 		}
+		// Right click with the flashlight switches it, unless the click is meant for a door, window or object.
+		if (useDown && !useWasDown && mc.player != null && mc.level != null && ClientState.myRole().survivor()
+			&& dev.halloween.game.HwItems.is(mc.player.getMainHandItem(), dev.halloween.game.HwItems.Kind.FLASHLIGHT) && !aimsAtUsable(mc)) {
+			ClientPlayNetworking.send(new HwNet.ActionPress(HwNet.Action.FLASHLIGHT));
+		}
+		useWasDown = useDown;
 		// Survivors have a hand and three pockets: the selection wraps around slots 0-3.
 		if (mc.player != null && ClientState.myRole().survivor()) {
 			var inv = mc.player.getInventory();
