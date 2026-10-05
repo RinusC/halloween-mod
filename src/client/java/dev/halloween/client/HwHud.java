@@ -88,6 +88,7 @@ public final class HwHud {
 				int pushLeft = (int) Math.max(0, ClientState.pushReadyAt - mc.level.getGameTime());
 				smallAction(g, mc.font, w - 12, h - 84, Component.translatable("halloween.hud.shove"), mc.options.keyAttack.getTranslatedKeyMessage(), pushLeft);
 				inventoryBar(g, mc, w, h);
+				gunHud(g, mc, w, h);
 				prompts(g, mc, w, h);
 				skillCheck(g, mc, w, h, partial);
 				progressBar(g, mc, w, h);
@@ -229,6 +230,10 @@ public final class HwHud {
 			var stack = inv.getItem(i);
 			if (!stack.isEmpty()) {
 				g.item(stack, x + 2, y + 2);
+				// Guns show the rounds in them; stacks their count; the flashlight its battery.
+				dev.halloween.game.HwItems.Kind kind = dev.halloween.game.HwItems.kindOf(stack);
+				String count = kind != null && kind.gun() ? String.valueOf(dev.halloween.game.Guns.loaded(stack)) : null;
+				g.itemDecorations(mc.font, stack, x + 2, y + 2, count);
 			}
 		}
 		var held = inv.getItem(inv.getSelectedSlot());
@@ -236,6 +241,44 @@ public final class HwHud {
 			Component name = held.getHoverName();
 			g.centeredText(mc.font, name, w / 2, y - 11, TEXT);
 		}
+	}
+
+	/** With a gun in hand: a reticle as wide as the cone of fire, and the rounds in it and in the pockets. */
+	private static void gunHud(GuiGraphicsExtractor g, Minecraft mc, int w, int h) {
+		dev.halloween.game.HwItems.Kind kind = ClientGuns.heldGun(mc);
+		if (kind == null || mc.gui.screen() != null) {
+			return;
+		}
+		int cx = w / 2;
+		int cy = h / 2;
+		// The cone's edge on screen: tan(spread) over tan(half the view), times half the screen height.
+		double fov = mc.options.fov().get() * ClientState.fovMultiplier();
+		double spread = ClientGuns.spread(mc) + ClientGuns.bloom() * 4;
+		int gap = (int) Math.round(2 + Math.tan(Math.toRadians(spread)) / Math.tan(Math.toRadians(fov / 2)) * (h / 2.0));
+		int len = 4;
+		int color = ClientGuns.aiming() ? 0xE0FFFFFF : 0xB0E8E2D6;
+		g.fill(cx - gap - len, cy, cx - gap, cy + 1, color);
+		g.fill(cx + gap + 1, cy, cx + gap + 1 + len, cy + 1, color);
+		g.fill(cx, cy - gap - len, cx + 1, cy - gap, color);
+		g.fill(cx, cy + gap + 1, cx + 1, cy + gap + 1 + len, color);
+		g.fill(cx, cy, cx + 1, cy + 1, color);
+		var held = mc.player.getMainHandItem();
+		int loaded = dev.halloween.game.Guns.loaded(held);
+		int cap = dev.halloween.game.Guns.capacity(kind);
+		int spare = 0;
+		var inv = mc.player.getInventory();
+		dev.halloween.game.HwItems.Kind ammo = dev.halloween.game.Guns.ammoFor(kind);
+		for (int i = 0; i < dev.halloween.game.Inventory.SLOTS; i++) {
+			if (dev.halloween.game.HwItems.is(inv.getItem(i), ammo)) {
+				spare += inv.getItem(i).getCount();
+			}
+		}
+		StringBuilder rounds = new StringBuilder();
+		for (int i = 0; i < cap; i++) {
+			rounds.append(i < loaded ? "●" : "○");
+		}
+		Component line = Component.translatable("halloween.hud.ammo", rounds.toString(), spare);
+		g.text(mc.font, line, w - 10 - mc.font.width(line), h - 48, loaded == 0 ? BLOOD : TEXT, true);
 	}
 
 	/** The Shape's stun meter, knock-down and the flashlight glare. */
@@ -700,6 +743,9 @@ public final class HwHud {
 			line = Component.translatable(ClientState.match.searched().contains(pos) ? "halloween.hud.prompt.searched" : "halloween.hud.prompt.search");
 		} else if (object == 2) {
 			line = Component.translatable(ClientState.match.cutPhones().contains(pos) && !shape ? "halloween.hud.prompt.phone_cut" : "halloween.hud.prompt.phone");
+		} else if (object == 4 && !shape) {
+			line = Component.translatable("halloween.hud.prompt.case");
+			second = Component.translatable("halloween.hud.prompt.case_how");
 		} else if (object == 3) {
 			line = Component.translatable("halloween.hud.prompt.exit");
 		} else if (shape) {

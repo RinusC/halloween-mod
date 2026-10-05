@@ -723,7 +723,9 @@ public final class Townsfolk {
 		double dist = leader.distanceTo(npc.body);
 		// Keep up: run when the leader runs or falls behind.
 		setSpeed(npc, dist > 5 || leader.isSprinting() ? cfg.npcRunSpeed : cfg.npcWalkSpeed + 0.02);
-		if (dist <= 2.2) {
+		// The leader at an open way out: come right up to it, not wait a couple of steps behind.
+		double keep = Exits.openExitNear(leader.position(), cfg.npcRescueRadius + 1) ? 0.9 : 2.2;
+		if (dist <= keep) {
 			npc.walker.stop();
 			npc.walker.face(leader.getEyePosition());
 			return;
@@ -731,7 +733,7 @@ public final class Townsfolk {
 		if (now >= npc.repathAt || npc.walker.idle()) {
 			npc.repathAt = now + 10;
 			npc.walker.speed = 1f;
-			npc.walker.follow(Nav.to(level, npc.body.blockPosition(), leader.blockPosition(), 1.8, Nav.Options.walker()));
+			npc.walker.follow(Nav.to(level, npc.body.blockPosition(), leader.blockPosition(), keep < 1 ? 0.6 : 1.8, Nav.Options.walker()));
 		}
 		npc.walker.tick();
 	}

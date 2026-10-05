@@ -52,6 +52,8 @@ public class Halloween implements ModInitializer {
 		});
 		ServerPlayNetworking.registerGlobalReceiver(HwNet.NpcTalk.TYPE, (payload, ctx) -> dev.halloween.game.Talks.request(ctx.player(), payload.entityId(), payload.option()));
 		ServerPlayNetworking.registerGlobalReceiver(HwNet.MinigameResult.TYPE, (payload, ctx) -> dev.halloween.game.Minigames.result(ctx.player(), payload));
+		ServerPlayNetworking.registerGlobalReceiver(HwNet.GunFire.TYPE, (payload, ctx) -> dev.halloween.game.Guns.fire(ctx.player(), payload.yaw(), payload.pitch()));
+		ServerPlayNetworking.registerGlobalReceiver(HwNet.GunAim.TYPE, (payload, ctx) -> dev.halloween.game.Guns.setAiming(ctx.player(), payload.aiming()));
 		ServerPlayNetworking.registerGlobalReceiver(HwNet.Aim.TYPE, (payload, ctx) -> MatchManager.onAim(ctx.player(), payload.origin(), payload.direction()));
 		ServerPlayNetworking.registerGlobalReceiver(HwNet.Grab.TYPE, (payload, ctx) -> MatchManager.onGrab(ctx.player(), payload.targetId()));
 		ServerPlayNetworking.registerGlobalReceiver(HwNet.ShapeAttack.TYPE, (payload, ctx) -> MatchManager.onShapeAttack(ctx.player(), payload.targetId(), payload.heavy()));
@@ -63,6 +65,7 @@ public class Halloween implements ModInitializer {
 				case IMPULSE -> MatchManager.onImpulse(ctx.player());
 				case QTE_PRESS -> MatchManager.onQtePress(ctx.player());
 				case FLASHLIGHT -> dev.halloween.game.Fight.toggleFlashlight(ctx.player());
+				case RELOAD -> dev.halloween.game.Guns.reload(ctx.player());
 			}
 		});
 
@@ -95,7 +98,7 @@ public class Halloween implements ModInitializer {
 			}
 			// Match containers are searched by holding use, never opened.
 			if (player instanceof net.minecraft.server.level.ServerPlayer sp2 && MatchManager.role(sp2) != Role.NONE
-				&& (dev.halloween.game.Loot.isContainer(hit.getBlockPos()) || level.getBlockState(hit.getBlockPos()).is(HwBlocks.PHONE))) {
+				&& (dev.halloween.game.Loot.isContainer(hit.getBlockPos()) || dev.halloween.game.GunCase.isCase(hit.getBlockPos()) || level.getBlockState(hit.getBlockPos()).is(HwBlocks.PHONE))) {
 				return net.minecraft.world.InteractionResult.FAIL;
 			}
 			return DoorLocks.onUseBlock(player, level, hit.getBlockPos());

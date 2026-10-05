@@ -39,7 +39,11 @@ public abstract class MinigameScreen extends Screen {
 	}
 
 	public static MinigameScreen create(HwNet.Minigame open) {
-		return open.kind() == HwNet.Minigame.WIRES ? new WiresScreen(open.pos(), open.seed()) : new CurveScreen(open.pos(), open.seed());
+		return switch (open.kind()) {
+			case HwNet.Minigame.WIRES -> new WiresScreen(open.pos(), open.seed());
+			case HwNet.Minigame.KEYPAD -> new KeypadScreen(open.pos(), open.seed());
+			default -> new CurveScreen(open.pos(), open.seed());
+		};
 	}
 
 	public boolean shows(HwNet.Minigame open) {

@@ -71,7 +71,13 @@ public final class Holds {
 			work.lastPing = now;
 			return;
 		}
-		Hold hold = Loot.resolve(player, pos);
+		Hold hold = GunCase.resolve(player, pos);
+		if (hold == null && GunCase.isCase(pos)) {
+			return;
+		}
+		if (hold == null) {
+			hold = Loot.resolve(player, pos);
+		}
 		if (hold == null) {
 			hold = Exits.resolve(player, pos);
 		}

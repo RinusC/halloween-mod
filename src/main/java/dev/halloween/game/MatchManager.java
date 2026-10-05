@@ -267,6 +267,7 @@ public final class MatchManager {
 		Bots.tick(server);
 		Townsfolk.tick(server);
 		Police.tick(server);
+		Guns.tick(server);
 
 		Iterator<VictimState> it = VICTIMS.values().iterator();
 		while (it.hasNext()) {
@@ -306,6 +307,10 @@ public final class MatchManager {
 					} else {
 						speed = HwConfig.at(cfg.speedByStalk, vs.level()) + (vs.staggerTicks > 0 ? cfg.staggerSpeedModifier : 0);
 					}
+				}
+				if (speed > -1 && Guns.aiming(player)) {
+					// Gun raised: careful steps.
+					speed = Math.max(-1, speed + cfg.aimSpeedModifier);
 				}
 				// Rummaging through a container you shuffle along at best.
 				if (speed > -1 && Holds.searching(player)) {
@@ -951,6 +956,19 @@ public final class MatchManager {
 		}
 	}
 
+	/** Killed by a stray bullet: a body is left like after any death, and somebody has to find it. */
+	public static void shotDead(LivingEntity victim) {
+		ServerLevel level = (ServerLevel) victim.level();
+		Vec3 pos = victim.position();
+		float yaw = victim.getYRot();
+		Component name = victim.getDisplayName();
+		AiStats.add(victim, "killed.shot");
+		bleed(level, victim, 40);
+		eliminate(victim);
+		spawnCorpse(level, pos, yaw);
+		Police.addBody(pos, name);
+	}
+
 	private static void spawnCorpse(ServerLevel level, Vec3 pos, float yaw) {
 		CommandSourceStack console = level.getServer().createCommandSourceStack().withLevel(level).withSuppressedOutput();
 		String command = String.format(Locale.ROOT,
@@ -970,6 +988,8 @@ public final class MatchManager {
 			player.connection.send(new ClientboundSetTitleTextPacket(Component.translatable("halloween.msg.you_died").withStyle(ChatFormatting.DARK_RED)));
 			ServerPlayNetworking.send(player, HwNet.Qte.INACTIVE);
 		} else {
+			// A fallen officer leaves the revolver and rounds lying there.
+			Police.dropGear(victim);
 			victim.discard();
 		}
 		dirty = true;

@@ -110,13 +110,16 @@ public final class Match {
 		Lockers.clear(server);
 		Talks.clear();
 		Minigames.clear();
+		Guns.clear();
+		GunCase.clear(server.overworld());
 		Nav.setArea(area(points));
+		GunCase.setup(level, level.getRandom());
 		Loot.setup(level, center, level.getRandom());
 
 		CommandSourceStack console = server.createCommandSourceStack().withLevel(level).withSuppressedOutput();
 		for (String command : new String[]{"time set midnight", "weather clear", "gamerule advance_time false",
 			"gamerule advance_weather false", "gamerule spawn_mobs false", "gamerule natural_health_regeneration false",
-			"gamerule show_death_messages false", "gamerule locator_bar false", "kill @e[type=item]", "kill @e[type=arrow]",
+			"gamerule show_death_messages false", "gamerule show_advancement_messages false", "gamerule locator_bar false", "kill @e[type=item]", "kill @e[type=arrow]",
 			// The arena's practice mannequins have no place in a match; townsfolk take their role.
 			"kill @e[type=minecraft:mannequin,tag=" + MatchManager.VICTIM_TAG + ",tag=!" + Townsfolk.TAG + "]"}) {
 			server.getCommands().performPrefixedCommand(console, command);
@@ -204,6 +207,8 @@ public final class Match {
 		Lockers.clear(server);
 		Talks.clear();
 		Minigames.clear();
+		Guns.clear();
+		GunCase.clear(server.overworld());
 		PEOPLE.clear();
 		Nav.setArea(null);
 		Townsfolk.clear(server);
@@ -349,6 +354,7 @@ public final class Match {
 			spawn = points.first(MapPoints.Type.SPAWN_CIVILIAN);
 		}
 		MatchManager.applyRole(player, Role.DEPUTY);
+		Inventory.give(player, HwItems.create(HwItems.Kind.REVOLVER));
 		Inventory.give(player, HwItems.create(HwItems.Kind.BATON));
 		Inventory.give(player, HwItems.create(HwItems.Kind.FLASHLIGHT));
 		teleport(player, spawn);
@@ -428,7 +434,7 @@ public final class Match {
 			Participant p = PEOPLE.get(player.getUUID());
 			int respawn = p != null && p.respawnAt >= 0 ? Math.max(0, p.respawnAt - tickCounter) : 0;
 			ServerPlayNetworking.send(player, new HwNet.MatchSync(state.ordinal(), ticksLeft, countdown, exits, containers, searched,
-				phones, cut, respawn, p == null ? 0 : p.score, npcs, Townsfolk.followerIds(player), Police.wanted(), Police.reportable()));
+				phones, cut, respawn, p == null ? 0 : p.score, npcs, Townsfolk.followerIds(player), Police.wanted(), Police.reportable(), GunCase.closed()));
 		}
 	}
 

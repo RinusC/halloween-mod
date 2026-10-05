@@ -376,6 +376,13 @@ public final class Exits {
 		return null;
 	}
 
+	/** Is there an exit a townsperson could leave through near {@code at} (without using it up)? */
+	public static boolean openExitNear(Vec3 at, double radius) {
+		return cellar != null && cellarState == OPEN && Vec3.atCenterOf(cellar).distanceTo(at) <= radius
+			|| police != null && vanSeats > 0 && Vec3.atCenterOf(police).distanceTo(at) <= radius + 1
+			|| gate != null && gateState == OPEN && Vec3.atCenterOf(gate).distanceTo(at) <= radius;
+	}
+
 	/** Opens an exit straight away (map testing: /hw exit open, and tests). */
 	public static void forceOpen(ServerLevel level, int type) {
 		switch (type) {

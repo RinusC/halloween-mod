@@ -115,11 +115,17 @@ public final class ArenaBuilder {
 			points.add(MapPoints.Type.NPC, this.at(p[0], 0, p[1]));
 		}
 
+		// The locked gun case stands in one of these (picked each match); the code note is in a container.
+		for (int[] c : new int[][]{{-25, 13}, {15, -12}}) {
+			points.add(MapPoints.Type.GUN_CASE, this.at(c[0], 0, c[1]));
+		}
+
 		// Containers: chests and barrels indoors and around the yards.
 		for (int[] c : new int[][]{{-22, 15}, {1, 15}, {18, -15}, {-14, 20}, {24, 12}, {-26, -20}, {6, -24}}) {
 			this.set(c[0], 0, c[1], b("chest"));
 		}
-		for (int[] c : new int[][]{{-25, 10}, {-1, 15}, {15, -10}, {-28, 23}, {26, -24}, {12, 25}, {-18, -28}, {30, 20}}) {
+		for (int[] c : new int[][]{{-25, 10}, {-1, 15}, {15, -10}, {-28, 23}, {26, -24}, {12, 25}, {-18, -28}, {30, 20},
+			{-8, 12}, {8, 14}, {-20, -12}, {22, 8}, {-2, -12}, {10, -22}}) {
 			this.set(c[0], 0, c[1], b("barrel"));
 		}
 	}

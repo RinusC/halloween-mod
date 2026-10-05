@@ -318,9 +318,9 @@ public final class HwNet {
 	 */
 	public record MatchSync(int state, int ticksLeft, int countdown, List<ExitInfo> exits, List<BlockPos> containers,
 		List<BlockPos> searched, List<BlockPos> phones, List<BlockPos> cutPhones, int respawnTicks, int myScore, List<Integer> npcs, List<Integer> followers,
-		int wanted, int reportable) implements CustomPacketPayload {
+		int wanted, int reportable, List<BlockPos> cases) implements CustomPacketPayload {
 		public static final Type<MatchSync> TYPE = payloadType("match_sync");
-		public static final MatchSync IDLE = new MatchSync(0, 0, 0, List.of(), List.of(), List.of(), List.of(), List.of(), 0, 0, List.of(), List.of(), 0, 0);
+		public static final MatchSync IDLE = new MatchSync(0, 0, 0, List.of(), List.of(), List.of(), List.of(), List.of(), 0, 0, List.of(), List.of(), 0, 0, List.of());
 		private static void writePositions(RegistryFriendlyByteBuf buf, List<BlockPos> list) {
 			buf.writeVarInt(list.size());
 			list.forEach(buf::writeBlockPos);
@@ -358,6 +358,7 @@ public final class HwNet {
 			v.followers.forEach(buf::writeVarInt);
 			buf.writeVarInt(v.wanted);
 			buf.writeVarInt(v.reportable);
+			writePositions(buf, v.cases);
 		}, buf -> {
 			int state = buf.readVarInt();
 			int ticksLeft = buf.readVarInt();
@@ -384,7 +385,7 @@ public final class HwNet {
 				followers.add(buf.readVarInt());
 			}
 			return new MatchSync(state, ticksLeft, countdown, exits, containers, searched, phones, cut, respawn, score, npcs, followers,
-				buf.readVarInt(), buf.readVarInt());
+				buf.readVarInt(), buf.readVarInt(), readPositions(buf));
 		});
 
 		@Override
@@ -447,12 +448,15 @@ public final class HwNet {
 	public record Minigame(int kind, BlockPos pos, long seed) implements CustomPacketPayload {
 		public static final int WIRES = 0;
 		public static final int CURVE = 1;
+		public static final int KEYPAD = 2;
+		/** Sent back when a typed code was wrong (the keypad stays up). */
+		public static final int WRONG_CODE = -2;
 		public static final Type<Minigame> TYPE = payloadType("minigame");
 		public static final StreamCodec<RegistryFriendlyByteBuf, Minigame> CODEC = StreamCodec.of((buf, v) -> {
-			buf.writeVarInt(v.kind + 1);
+			buf.writeVarInt(v.kind + 2);
 			buf.writeBlockPos(v.pos);
 			buf.writeLong(v.seed);
-		}, buf -> new Minigame(buf.readVarInt() - 1, buf.readBlockPos(), buf.readLong()));
+		}, buf -> new Minigame(buf.readVarInt() - 2, buf.readBlockPos(), buf.readLong()));
 
 		public static Minigame close(BlockPos pos) {
 			return new Minigame(-1, pos, 0);
@@ -469,6 +473,8 @@ public final class HwNet {
 		public static final int DONE = 0;
 		public static final int SLIP = 1;
 		public static final int CLOSED = 2;
+		/** Keypad: outcome = CODE + the four digits typed. */
+		public static final int CODE = 100000;
 		public static final Type<MinigameResult> TYPE = payloadType("minigame_result");
 		public static final StreamCodec<RegistryFriendlyByteBuf, MinigameResult> CODEC = StreamCodec.of((buf, v) -> {
 			buf.writeVarInt(v.kind);
@@ -478,6 +484,32 @@ public final class HwNet {
 
 		@Override
 		public Type<MinigameResult> type() {
+			return TYPE;
+		}
+	}
+
+	/** The trigger pulled, with where the shooter was looking at that moment. */
+	public record GunFire(float yaw, float pitch) implements CustomPacketPayload {
+		public static final Type<GunFire> TYPE = payloadType("gun_fire");
+		public static final StreamCodec<RegistryFriendlyByteBuf, GunFire> CODEC = StreamCodec.of((buf, v) -> {
+			buf.writeFloat(v.yaw);
+			buf.writeFloat(v.pitch);
+		}, buf -> new GunFire(buf.readFloat(), buf.readFloat()));
+
+		@Override
+		public Type<GunFire> type() {
+			return TYPE;
+		}
+	}
+
+	/** The gun raised (right mouse held) or lowered. */
+	public record GunAim(boolean aiming) implements CustomPacketPayload {
+		public static final Type<GunAim> TYPE = payloadType("gun_aim");
+		public static final StreamCodec<RegistryFriendlyByteBuf, GunAim> CODEC = StreamCodec.of(
+			(buf, v) -> buf.writeBoolean(v.aiming), buf -> new GunAim(buf.readBoolean()));
+
+		@Override
+		public Type<GunAim> type() {
 			return TYPE;
 		}
 	}
@@ -607,7 +639,7 @@ public final class HwNet {
 
 	/** Single-press abilities of the Shape. */
 	public enum Action {
-		SHAPE_JUMP, DASH, PUSH, IMPULSE, QTE_PRESS, FLASHLIGHT;
+		SHAPE_JUMP, DASH, PUSH, IMPULSE, QTE_PRESS, FLASHLIGHT, RELOAD;
 
 		static Action byId(int id) {
 			Action[] values = values();
@@ -643,6 +675,8 @@ public final class HwNet {
 		PayloadTypeRegistry.clientboundPlay().register(SkillCheck.TYPE, SkillCheck.CODEC);
 		PayloadTypeRegistry.serverboundPlay().register(NpcTalk.TYPE, NpcTalk.CODEC);
 		PayloadTypeRegistry.serverboundPlay().register(MinigameResult.TYPE, MinigameResult.CODEC);
+		PayloadTypeRegistry.serverboundPlay().register(GunFire.TYPE, GunFire.CODEC);
+		PayloadTypeRegistry.serverboundPlay().register(GunAim.TYPE, GunAim.CODEC);
 		PayloadTypeRegistry.serverboundPlay().register(UseAction.TYPE, UseAction.CODEC);
 		PayloadTypeRegistry.serverboundPlay().register(SenseInput.TYPE, SenseInput.CODEC);
 		PayloadTypeRegistry.serverboundPlay().register(ShapeAttack.TYPE, ShapeAttack.CODEC);

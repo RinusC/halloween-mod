@@ -177,6 +177,58 @@ public class HwConfig {
 	public int policeArriveSeconds = 120;
 	public int policeStaySeconds = 90;
 
+	// --- Firearms ---
+	/** Rounds in the cylinder / magazine. */
+	public int revolverCapacity = 3;
+	public int rifleCapacity = 1;
+	/** Stun meter one hit fills: the rifle knocks him down at once. */
+	public float revolverStun = 0.30f;
+	public float rifleStun = 1.0f;
+	/** Damage to anyone else the bullet finds (survivors have 20). */
+	public float revolverDamage = 7f;
+	public float rifleDamage = 12f;
+	public double revolverRange = 50;
+	public double rifleRange = 110;
+	/** Cone of fire in degrees: from the hip and aimed (right mouse), plus extra when walking and running. */
+	public float revolverHipSpread = 5f;
+	public float revolverAimSpread = 1.2f;
+	public float rifleHipSpread = 7f;
+	public float rifleAimSpread = 0.2f;
+	public float moveSpread = 2.5f;
+	public float runSpread = 6f;
+	/** Ticks between revolver shots (a heavy double-action trigger). */
+	public int revolverShotTicks = 9;
+	/** Revolver: one round into the cylinder per this many ticks; rifle: a new round and the bolt worked. */
+	public int revolverRoundTicks = 16;
+	public int rifleReloadTicks = 80;
+	/** Muzzle rise per shot in degrees (the camera kicks up). */
+	public float revolverRecoil = 5f;
+	public float rifleRecoil = 11f;
+	/** Walking with the gun raised. */
+	public double aimSpeedModifier = -0.35;
+	/** Field of view while aiming (1 = no zoom). */
+	public float revolverAimZoom = 0.82f;
+	public float rifleAimZoom = 0.55f;
+	/** A shot is heard far off: the Shape sees where for this long; townsfolk this close are frightened. */
+	public int gunshotRevealTicks = 60;
+	public double gunshotHearRange = 48;
+	public float gunshotVolume = 6f;
+	/** Rounds per find in a container, and how many finds of each are hidden. */
+	public int revolverAmmoPerFind = 3;
+	public int rifleAmmoPerFind = 2;
+	public int revolverAmmoFinds = 2;
+	public int rifleAmmoFinds = 2;
+	/** Gun case: cutting the lock with bolt cutters takes this long. */
+	public int caseCutTicks = 200;
+	/** Police revolvers: spare rounds, how long they take to aim, how far they shoot, how steady they are. */
+	public int policeSpareRounds = 6;
+	public int policeAimTicks = 14;
+	public double policeShootRange = 22;
+	public float policeSpread = 2.2f;
+	/** Bots with a revolver (deputies): aim time and spread. */
+	public int botAimTicks = 16;
+	public float botSpread = 2.8f;
+
 	// --- Police and Michael's wanted level ---
 	/** Calls that can get through in a match; each needs a body someone has found. */
 	public int policeMaxCalls = 3;

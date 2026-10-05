@@ -164,7 +164,7 @@ public final class ClientState {
 	}
 
 	public static float fovMultiplier() {
-		return focusActive() ? 0.6f : 1f;
+		return focusActive() ? 0.6f : ClientGuns.fovMultiplier();
 	}
 
 	public static void addFeed(int points, List<Component> lines) {

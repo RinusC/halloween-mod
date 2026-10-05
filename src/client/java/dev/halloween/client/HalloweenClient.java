@@ -96,6 +96,12 @@ public class HalloweenClient implements ClientModInitializer {
 			// Screens (and the mouse cursor with them) only on the game thread.
 			Minecraft mc = Minecraft.getInstance();
 			mc.execute(() -> {
+				if (payload.kind() == HwNet.Minigame.WRONG_CODE) {
+					if (mc.gui.screen() instanceof KeypadScreen keypad) {
+						keypad.wrong();
+					}
+					return;
+				}
 				if (mc.gui.screen() instanceof MinigameScreen open) {
 					if (payload.kind() < 0 || !open.shows(payload)) {
 						open.closeQuietly();
@@ -132,6 +138,7 @@ public class HalloweenClient implements ClientModInitializer {
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
 			ClientState.reset();
 			MinigameScreen.forgetAll();
+			ClientGuns.reset();
 			sentSense = false;
 			sentFocus = false;
 		});
@@ -201,6 +208,8 @@ public class HalloweenClient implements ClientModInitializer {
 				sentFocus = false;
 				ClientPlayNetworking.send(new HwNet.SenseInput(false, false));
 			}
+			// R and the right mouse button work the gun, if there is one in hand.
+			ClientGuns.tick(mc);
 			for (KeyMapping key : new KeyMapping[]{KEY_SHAPE_JUMP, KEY_IMPULSE}) {
 				while (key.consumeClick()) {
 					// Shape-only keys do nothing for other roles.
@@ -225,6 +234,9 @@ public class HalloweenClient implements ClientModInitializer {
 		}
 		if (ClientState.qte.active() && !ClientState.qte.forShape() || ClientState.skill.active()) {
 			ClientPlayNetworking.send(new HwNet.ActionPress(HwNet.Action.QTE_PRESS));
+			return true;
+		}
+		if (ClientGuns.trigger(mc)) {
 			return true;
 		}
 		dev.halloween.game.HwItems.Kind held = dev.halloween.game.HwItems.kindOf(mc.player.getMainHandItem());

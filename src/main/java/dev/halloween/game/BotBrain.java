@@ -62,6 +62,8 @@ final class BotBrain {
 	private int fightUntil;
 	private int nextHit;
 	private int nextDart;
+	private int gunAim;
+	private int nextGunShot;
 	private int pathAt;
 	private BlockPos shelterDoor;
 	private BlockPos locker;
@@ -196,6 +198,10 @@ final class BotBrain {
 			}
 		}
 		this.tryDart(now, shape, shapeState);
+		if (this.tryShoot(now, shape, shapeState)) {
+			// Standing to take the shot: no running about this tick.
+			return;
+		}
 
 		switch (this.mode) {
 			case FIGHT -> this.tickFight(now, shape, shapeState);
@@ -693,6 +699,67 @@ final class BotBrain {
 		}
 	}
 
+	/**
+	 * With a loaded gun and the Shape in sight, not too close and not too far, and nobody in the way: stop,
+	 * aim for a moment and fire. Out of rounds with spares in a pocket: reload. True while aiming.
+	 */
+	private boolean tryShoot(int now, ServerPlayer shape, ShapeState state) {
+		HwConfig cfg = this.cfg();
+		int slot = -1;
+		for (int i = 0; i < Inventory.SLOTS; i++) {
+			HwItems.Kind k = HwItems.kindOf(this.bot.getInventory().getItem(i));
+			if (k != null && k.gun()) {
+				slot = i;
+				break;
+			}
+		}
+		if (slot < 0 || Guns.reloading(this.bot) || Lockers.isInside(this.bot)) {
+			this.gunAim = 0;
+			return false;
+		}
+		ItemStack gun = this.bot.getInventory().getItem(slot);
+		HwItems.Kind kind = HwItems.kindOf(gun);
+		boolean seen = shape != null && state != null && state.shadowTicks == 0 && now - this.threatTick <= 4;
+		if (Guns.loaded(gun) <= 0) {
+			this.gunAim = 0;
+			if (Inventory.count(this.bot, Guns.ammoFor(kind)) > 0 && !(seen && this.bot.distanceTo(shape) < 6)) {
+				this.bot.getInventory().setSelectedSlot(slot);
+				Guns.reload(this.bot);
+			}
+			return false;
+		}
+		if (!seen || now < this.nextGunShot) {
+			this.gunAim = 0;
+			return false;
+		}
+		double dist = this.bot.distanceTo(shape);
+		boolean helping = state.grab != null && state.grab.victim != this.bot;
+		// Close in and not helping anyone: better to run than stand and shoot.
+		if (dist < 2.5 || dist > 24 || dist < 7 && !helping) {
+			this.gunAim = 0;
+			return false;
+		}
+		Vec3 eye = this.bot.getEyePosition();
+		Vec3 target = FocusPoints.bodyCenter(shape);
+		if (!Guns.lineClear(this.level(), this.bot, eye, target, shape)) {
+			this.gunAim = 0;
+			return false;
+		}
+		this.bot.getInventory().setSelectedSlot(slot);
+		this.walker.halt();
+		this.walker.face(target);
+		if (++this.gunAim < cfg.botAimTicks) {
+			return true;
+		}
+		this.gunAim = 0;
+		this.nextGunShot = now + cfg.revolverShotTicks + 8;
+		Guns.setLoaded(gun, Guns.loaded(gun) - 1);
+		this.bot.swing(InteractionHand.MAIN_HAND, true);
+		AiStats.add(this.bot, "shot." + kind.key());
+		Guns.shoot(this.bot, kind, eye, target.subtract(eye), cfg.botSpread, this.bot);
+		return true;
+	}
+
 	private void tryDart(int now, ServerPlayer shape, ShapeState state) {
 		if (shape == null || state == null || now < this.nextDart || state.shadowTicks > 0) {
 			return;
@@ -920,6 +987,9 @@ final class BotBrain {
 			case REPAIR_KIT -> true;
 			case BAT, KNIFE -> this.meleeSlot() < 0;
 			case DART -> true;
+			case REVOLVER, RIFLE -> !Inventory.has(this.bot, HwItems.Kind.REVOLVER) && !Inventory.has(this.bot, HwItems.Kind.RIFLE);
+			case REVOLVER_AMMO -> Inventory.has(this.bot, HwItems.Kind.REVOLVER);
+			case RIFLE_AMMO -> Inventory.has(this.bot, HwItems.Kind.RIFLE);
 			default -> false;
 		};
 	}

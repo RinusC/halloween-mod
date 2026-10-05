@@ -153,6 +153,8 @@ public class MatchClientTest implements FabricClientGameTest {
 				"nobody jumps in a match");
 			ctx.runOnClient(mc -> mc.player.getInventory().setSelectedSlot(0));
 
+			this.gunsTest(ctx, server);
+
 			// A dark breaker box: the power comes back by joining the wires on a panel.
 			BlockPos breaker = this.origin.offset(-17, 1, 15);
 			server.runOnServer(s -> dev.halloween.game.LightSystem.flip(s.overworld(), breaker, false));
@@ -364,6 +366,132 @@ public class MatchClientTest implements FabricClientGameTest {
 	private HwNet.ExitInfo exit(ClientGameTestContext ctx, int type) {
 		ctx.waitTicks(12);
 		return ctx.computeOnClient(mc -> ClientState.match.exits().stream().filter(e -> e.type() == type).findFirst().orElseThrow());
+	}
+
+	/** The deputy's revolver: firing, a dry click, reloading, aiming, a stray bullet; then the gun case and the rifle. */
+	private void gunsTest(ClientGameTestContext ctx, TestServerContext server) {
+		check(server.computeOnServer(s -> Inventory.has(player(s), HwItems.Kind.REVOLVER)
+			&& dev.halloween.game.Guns.loaded(player(s).getInventory().getItem(Inventory.slotOf(player(s), HwItems.Kind.REVOLVER))) == 3),
+			"the deputy carries a loaded revolver (3 rounds)");
+		int gunSlot = server.computeOnServer(s -> Inventory.slotOf(player(s), HwItems.Kind.REVOLVER));
+		ctx.runOnClient(mc -> mc.player.getInventory().setSelectedSlot(gunSlot));
+		this.tp(server, 0.5, 0, 0.5);
+		this.lookAt(ctx, new Vec3(this.origin.getX() + 0.5, this.origin.getY() + 1.5, this.origin.getZ() + 9.0));
+		ctx.waitTicks(5);
+		java.util.function.Supplier<Integer> loaded = () -> server.computeOnServer(s -> dev.halloween.game.Guns.loaded(player(s).getMainHandItem()));
+		// Aiming: the gun goes up, the view zooms in.
+		ctx.getInput().holdKey(o -> o.keyUse);
+		ctx.waitTicks(4);
+		check(server.computeOnServer(s -> dev.halloween.game.Guns.aiming(player(s))) && ctx.computeOnClient(mc -> ClientState.fovMultiplier()) < 1f,
+			"right mouse raises the revolver and zooms in");
+		ctx.takeScreenshot("m03b_aiming");
+		float pitchBefore = ctx.computeOnClient(mc -> mc.player.getXRot());
+		ctx.getInput().pressKey(o -> o.keyAttack);
+		ctx.waitTicks(4);
+		ctx.getInput().releaseKey(o -> o.keyUse);
+		check(loaded.get() == 2, "a shot uses a round (" + loaded.get() + " left)");
+		check(ctx.computeOnClient(mc -> mc.player.getXRot()) < pitchBefore - 1f, "the recoil kicks the view up");
+		for (int i = 0; i < 2; i++) {
+			ctx.waitTicks(HwConfig.get().revolverShotTicks + 2);
+			ctx.getInput().pressKey(o -> o.keyAttack);
+		}
+		ctx.waitTicks(4);
+		check(loaded.get() == 0, "three shots empty the cylinder");
+		ctx.waitTicks(12);
+		ctx.getInput().pressKey(o -> o.keyAttack);
+		ctx.waitTicks(4);
+		check(loaded.get() == 0, "an empty revolver only clicks");
+		// R with rounds in a pocket: one at a time into the cylinder.
+		ctx.getInput().pressKey(dev.halloween.client.HalloweenClient.KEY_SENSE);
+		ctx.waitTicks(4);
+		check(loaded.get() == 0 && server.computeOnServer(s -> !dev.halloween.game.Guns.reloading(player(s))), "no rounds, no reload");
+		server.runOnServer(s -> Inventory.give(player(s), Loot.found(HwItems.Kind.REVOLVER_AMMO)));
+		ctx.waitTicks(2);
+		ctx.getInput().pressKey(dev.halloween.client.HalloweenClient.KEY_SENSE);
+		ctx.waitTicks(HwConfig.get().revolverRoundTicks + 4);
+		check(loaded.get() == 1 && ctx.computeOnClient(mc -> ClientState.progress.label()).equals("halloween.hud.progress.reload"),
+			"reloading puts the rounds in one by one");
+		ctx.waitTicks(HwConfig.get().revolverRoundTicks * 2 + 6);
+		check(loaded.get() == 3 && server.computeOnServer(s -> Inventory.count(player(s), HwItems.Kind.REVOLVER_AMMO)) == 0,
+			"three rounds from the pocket fill the cylinder");
+		// A stray bullet wounds whoever is in the way.
+		server.runCommand(String.format(Locale.ROOT, "summon minecraft:mannequin %.1f %d %.1f {Tags:[\"%s\"],hide_description:1b}",
+			this.origin.getX() + 0.5, this.origin.getY(), this.origin.getZ() + 4.5, MatchManager.VICTIM_TAG));
+		ctx.waitTicks(5);
+		this.lookAt(ctx, new Vec3(this.origin.getX() + 0.5, this.origin.getY() + 1.1, this.origin.getZ() + 4.5));
+		ctx.getInput().holdKey(o -> o.keyUse);
+		ctx.waitTicks(6);
+		ctx.getInput().pressKey(o -> o.keyAttack);
+		ctx.waitTicks(4);
+		ctx.getInput().releaseKey(o -> o.keyUse);
+		float health = server.computeOnServer(s -> s.overworld().getEntitiesOfClass(net.minecraft.world.entity.decoration.Mannequin.class,
+			new AABB(this.origin).inflate(8), m -> m.entityTags().contains(MatchManager.VICTIM_TAG)).stream().findFirst().map(m -> m.getHealth()).orElse(-1f));
+		check(health >= 0 && health < 20, "a stray bullet wounds a person in the way (" + health + ")");
+		server.runCommand("kill @e[type=minecraft:mannequin,tag=" + MatchManager.VICTIM_TAG + ",tag=!" + dev.halloween.game.Townsfolk.TAG + ",tag=!" + dev.halloween.game.Police.TAG + "]");
+		ctx.runOnClient(mc -> mc.player.getInventory().setSelectedSlot(0));
+
+		// The gun case: the code from the note opens it, a wrong one doesn't.
+		BlockPos casePos = server.computeOnServer(s -> dev.halloween.game.GunCase.closed().isEmpty() ? null : dev.halloween.game.GunCase.closed().getFirst());
+		check(casePos != null, "a gun case stands on the map");
+		String code = server.computeOnServer(s -> dev.halloween.game.GunCase.code());
+		server.runOnServer(s -> {
+			Inventory.dropAll(player(s));
+			Inventory.give(player(s), Loot.found(HwItems.Kind.SAFE_CODE));
+		});
+		ctx.waitTicks(2);
+		check(server.computeOnServer(s -> player(s).getInventory().getItem(Inventory.slotOf(player(s), HwItems.Kind.SAFE_CODE)).getHoverName().getString()).contains(code),
+			"the note has the code on it");
+		server.runCommand(String.format(Locale.ROOT, "tp @p %.1f %d %.1f", casePos.getX() + 1.5, casePos.getY(), casePos.getZ() + 0.5));
+		ctx.waitTicks(3);
+		this.lookAt(ctx, Vec3.atCenterOf(casePos));
+		this.holdUse(ctx, 6);
+		check(ctx.computeOnClient(mc -> mc.gui.screen() instanceof dev.halloween.client.KeypadScreen), "using the case brings up its keypad");
+		ctx.takeScreenshot("m03c_keypad");
+		String wrong = String.format(Locale.ROOT, "%04d", (Integer.parseInt(code) + 1) % 10000);
+		ctx.runOnClient(mc -> {
+			var pad = (dev.halloween.client.KeypadScreen) mc.gui.screen();
+			for (char c : wrong.toCharArray()) {
+				pad.press(String.valueOf(c));
+			}
+			pad.press("OK");
+		});
+		ctx.waitTicks(5);
+		check(server.computeOnServer(s -> !dev.halloween.game.GunCase.closed().isEmpty()) && ctx.computeOnClient(mc -> mc.gui.screen() instanceof dev.halloween.client.KeypadScreen pad && pad.entered().isEmpty()),
+			"a wrong code doesn't open it");
+		ctx.runOnClient(mc -> {
+			var pad = (dev.halloween.client.KeypadScreen) mc.gui.screen();
+			for (char c : code.toCharArray()) {
+				pad.press(String.valueOf(c));
+			}
+			pad.press("OK");
+		});
+		ctx.waitTicks(5);
+		check(ctx.computeOnClient(mc -> mc.gui.screen() == null) && server.computeOnServer(s -> Inventory.has(player(s), HwItems.Kind.RIFLE)),
+			"the right code opens the case: the rifle");
+		// The rifle: one round, a long reload.
+		int rifleSlot = server.computeOnServer(s -> Inventory.slotOf(player(s), HwItems.Kind.RIFLE));
+		ctx.runOnClient(mc -> mc.player.getInventory().setSelectedSlot(rifleSlot));
+		this.lookAt(ctx, Vec3.atCenterOf(casePos).add(0, 1.5, 0));
+		ctx.waitTicks(3);
+		check(loaded.get() == 1, "the rifle holds a single round");
+		ctx.getInput().pressKey(o -> o.keyAttack);
+		ctx.waitTicks(4);
+		check(loaded.get() == 0, "and it's gone after one shot");
+		server.runOnServer(s -> Inventory.give(player(s), Loot.found(HwItems.Kind.RIFLE_AMMO)));
+		ctx.waitTicks(2);
+		ctx.getInput().pressKey(dev.halloween.client.HalloweenClient.KEY_SENSE);
+		ctx.waitTicks(HwConfig.get().rifleReloadTicks / 2);
+		check(loaded.get() == 0, "the rifle takes a long time to reload");
+		ctx.waitTicks(HwConfig.get().rifleReloadTicks / 2 + 8);
+		check(loaded.get() == 1 && server.computeOnServer(s -> Inventory.count(player(s), HwItems.Kind.RIFLE_AMMO)) == HwConfig.get().rifleAmmoPerFind - 1,
+			"a new round is in after the reload");
+		server.runOnServer(s -> {
+			Inventory.dropAll(player(s));
+			Inventory.give(player(s), HwItems.create(HwItems.Kind.BATON));
+			Inventory.give(player(s), HwItems.create(HwItems.Kind.FLASHLIGHT));
+		});
+		server.runCommand("kill @e[type=item]");
+		ctx.runOnClient(mc -> mc.player.getInventory().setSelectedSlot(0));
 	}
 
 	private void holdUse(ClientGameTestContext ctx, int ticks) {

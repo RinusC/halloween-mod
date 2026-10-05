@@ -24,6 +24,18 @@ public final class Inventory {
 		return -1;
 	}
 
+	/** How many of this kind the pockets hold, stacks added up (rounds). */
+	public static int count(ServerPlayer player, HwItems.Kind kind) {
+		var inv = player.getInventory();
+		int n = 0;
+		for (int i = 0; i < SLOTS; i++) {
+			if (HwItems.is(inv.getItem(i), kind)) {
+				n += inv.getItem(i).getCount();
+			}
+		}
+		return n;
+	}
+
 	public static void consume(ServerPlayer player, HwItems.Kind kind) {
 		int slot = slotOf(player, kind);
 		if (slot >= 0) {
@@ -32,9 +44,24 @@ public final class Inventory {
 		}
 	}
 
-	/** Puts an item into a free slot, or drops it at the player's feet when all four are taken. */
+	/**
+	 * Puts an item into the pockets: onto a stack of the same (rounds go in with rounds), else into a free
+	 * slot, else at the player's feet.
+	 */
 	public static void give(ServerPlayer player, ItemStack stack) {
 		var inv = player.getInventory();
+		for (int i = 0; i < SLOTS && !stack.isEmpty(); i++) {
+			ItemStack have = inv.getItem(i);
+			if (!have.isEmpty() && ItemStack.isSameItemSameComponents(have, stack) && have.getCount() < have.getMaxStackSize()) {
+				int move = Math.min(stack.getCount(), have.getMaxStackSize() - have.getCount());
+				have.grow(move);
+				stack.shrink(move);
+			}
+		}
+		if (stack.isEmpty()) {
+			inv.setChanged();
+			return;
+		}
 		for (int i = 0; i < SLOTS; i++) {
 			if (inv.getItem(i).isEmpty()) {
 				inv.setItem(i, stack);

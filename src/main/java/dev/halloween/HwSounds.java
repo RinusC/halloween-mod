@@ -34,6 +34,16 @@ public final class HwSounds {
 	public static final SoundEvent NPC_SCREAM = register("npc.scream");
 	public static final SoundEvent LOCKER_SLAM = register("locker.slam");
 	public static final SoundEvent LOCKER_CLOSE = register("locker.close");
+	public static final SoundEvent GUN_REVOLVER = register("gun.revolver");
+	public static final SoundEvent GUN_RIFLE = register("gun.rifle");
+	public static final SoundEvent GUN_CRACK = register("gun.crack");
+	public static final SoundEvent GUN_DRY = register("gun.dry");
+	public static final SoundEvent GUN_LOAD_ROUND = register("gun.load_round");
+	public static final SoundEvent GUN_BOLT = register("gun.bolt");
+	public static final SoundEvent GUN_RICOCHET = register("gun.ricochet");
+	public static final SoundEvent CASE_KEY = register("case.key");
+	public static final SoundEvent CASE_WRONG = register("case.wrong");
+	public static final SoundEvent CASE_OPEN = register("case.open");
 
 	private HwSounds() {
 	}

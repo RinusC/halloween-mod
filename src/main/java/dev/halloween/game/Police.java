@@ -64,6 +64,11 @@ public final class Police {
 		int lastSeenTick = -100000;
 		int nextHit;
 		int repathAt;
+		/** Revolver: rounds in the cylinder and in the belt pouch; aiming and reloading progress. */
+		int cylinder;
+		int spare;
+		int aimTicks;
+		int reloadTicks = -1;
 
 		Officer(Mannequin body) {
 			this.body = body;
@@ -271,9 +276,12 @@ public final class Police {
 		body.getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(cfg.policeWalkSpeed);
 		body.getAttribute(Attributes.MAX_HEALTH).setBaseValue(cfg.policeHealth);
 		body.setHealth(body.getMaxHealth());
-		body.setItemSlot(EquipmentSlot.MAINHAND, HwItems.create(HwItems.Kind.BATON));
+		body.setItemSlot(EquipmentSlot.MAINHAND, HwItems.create(HwItems.Kind.REVOLVER));
 		MatchManager.noJumping(body, true);
-		OFFICERS.put(body.getUUID(), new Officer(body));
+		Officer officer = new Officer(body);
+		officer.cylinder = Guns.capacity(HwItems.Kind.REVOLVER);
+		officer.spare = cfg.policeSpareRounds;
+		OFFICERS.put(body.getUUID(), officer);
 		return body;
 	}
 
@@ -371,11 +379,16 @@ public final class Police {
 		boolean fresh = officer.lastSeen != null && now - officer.lastSeenTick < 60;
 		boolean engage = fresh && officer.lastSeen.distanceTo(home) <= cfg.policeLeash
 			&& (officer.lastSeen.distanceTo(body.position()) <= cfg.policeEngageRange || officer.lastSeen.distanceTo(home) <= cfg.policeGuardAlarm);
+		tickReload(level, officer);
 		if (engage) {
 			ServerPlayer shape = Senses.shape(level);
 			boolean inSight = shape != null && now - officer.lastSeenTick < 8;
 			Vec3 target = inSight ? shape.position() : officer.lastSeen;
 			body.getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(cfg.policeRunSpeed);
+			if (inSight && shootAt(level, officer, shape, now)) {
+				return;
+			}
+			officer.aimTicks = 0;
 			if (inSight && body.distanceTo(shape) <= cfg.policeHitRange) {
 				officer.walker.stop();
 				officer.walker.face(shape.getEyePosition());
@@ -396,6 +409,7 @@ public final class Police {
 			officer.walker.tick();
 			return;
 		}
+		officer.aimTicks = 0;
 		// Guarding: keep a few steps from the one we look after.
 		double dist = body.position().distanceTo(home);
 		if (dist <= cfg.policeGuardDistance) {
@@ -414,6 +428,87 @@ public final class Police {
 			officer.walker.follow(Nav.to(level, body.blockPosition(), BlockPos.containing(home), cfg.policeGuardDistance - 1, Nav.Options.walker()));
 		}
 		officer.walker.tick();
+	}
+
+	/**
+	 * Stands, aims and fires at the Shape when there is a round in the cylinder, he is in pistol range but
+	 * not at arm's length, and nobody else is in the line of fire. True while busy with it.
+	 */
+	private static boolean shootAt(ServerLevel level, Officer officer, ServerPlayer shape, int now) {
+		HwConfig cfg = HwConfig.get();
+		Mannequin body = officer.body;
+		double dist = body.distanceTo(shape);
+		if (officer.cylinder <= 0 || officer.reloadTicks >= 0 || dist <= cfg.policeHitRange || dist > cfg.policeShootRange) {
+			return false;
+		}
+		Vec3 eye = body.getEyePosition();
+		Vec3 target = FocusPoints.bodyCenter(shape);
+		if (!Guns.lineClear(level, body, eye, target, shape)) {
+			return false;
+		}
+		officer.walker.stop();
+		officer.walker.face(target);
+		if (++officer.aimTicks < cfg.policeAimTicks || now < officer.nextHit) {
+			return true;
+		}
+		officer.aimTicks = cfg.policeAimTicks / 2;
+		officer.nextHit = now + cfg.revolverShotTicks + 6;
+		officer.cylinder--;
+		body.swing(InteractionHand.MAIN_HAND, true);
+		Guns.shoot(body, HwItems.Kind.REVOLVER, eye, target.subtract(eye), cfg.policeSpread, null);
+		AiStats.add(body, "police.shot");
+		if (officer.cylinder <= 0 && officer.spare > 0) {
+			officer.reloadTicks = 0;
+		}
+		return true;
+	}
+
+	/** Reloading on the move, one round at a time; out of rounds for good, the baton comes out. */
+	private static void tickReload(ServerLevel level, Officer officer) {
+		HwConfig cfg = HwConfig.get();
+		if (officer.reloadTicks < 0) {
+			if (officer.cylinder <= 0 && officer.spare <= 0 && !HwItems.is(officer.body.getMainHandItem(), HwItems.Kind.BATON)) {
+				officer.body.setItemSlot(EquipmentSlot.MAINHAND, HwItems.create(HwItems.Kind.BATON));
+			}
+			return;
+		}
+		if (++officer.reloadTicks < cfg.revolverRoundTicks) {
+			return;
+		}
+		officer.reloadTicks = 0;
+		officer.cylinder++;
+		officer.spare--;
+		level.playSound(null, officer.body.getX(), officer.body.getEyeY(), officer.body.getZ(), dev.halloween.HwSounds.GUN_LOAD_ROUND, SoundSource.NEUTRAL, 0.7f, 1f);
+		if (officer.cylinder >= Guns.capacity(HwItems.Kind.REVOLVER) || officer.spare <= 0) {
+			officer.reloadTicks = -1;
+		}
+	}
+
+	/** An officer goes down: the revolver (with what is left in it) and the spare rounds fall where it lay. */
+	public static void dropGear(LivingEntity victim) {
+		Officer officer = OFFICERS.get(victim.getUUID());
+		if (officer == null) {
+			return;
+		}
+		ServerLevel level = (ServerLevel) victim.level();
+		if (officer.cylinder > 0 || officer.spare > 0) {
+			net.minecraft.world.item.ItemStack gun = HwItems.create(HwItems.Kind.REVOLVER);
+			Guns.setLoaded(gun, officer.cylinder);
+			level.addFreshEntity(new net.minecraft.world.entity.item.ItemEntity(level, victim.getX(), victim.getY() + 0.3, victim.getZ(), gun));
+		}
+		if (officer.spare > 0) {
+			net.minecraft.world.item.ItemStack rounds = HwItems.create(HwItems.Kind.REVOLVER_AMMO);
+			rounds.setCount(officer.spare);
+			level.addFreshEntity(new net.minecraft.world.entity.item.ItemEntity(level, victim.getX(), victim.getY() + 0.3, victim.getZ(), rounds));
+		}
+		officer.cylinder = 0;
+		officer.spare = 0;
+	}
+
+	/** Rounds an officer has left, cylinder and pouch (tests). */
+	public static int rounds(Entity entity) {
+		Officer officer = entity == null ? null : OFFICERS.get(entity.getUUID());
+		return officer == null ? 0 : officer.cylinder + officer.spare;
 	}
 
 	/**

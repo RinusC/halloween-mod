@@ -36,7 +36,7 @@ public final class ClientInteractions {
 		return state.getBlock() instanceof DoorBlock && state.getValue(DoorBlock.HALF) == DoubleBlockHalf.UPPER ? pos.below() : pos;
 	}
 
-	/** What kind of match object is at {@code pos}: 0 none, 1 container, 2 phone, 3 exit. */
+	/** What kind of match object is at {@code pos}: 0 none, 1 container, 2 phone, 3 exit, 4 gun case. */
 	public static int matchObject(Level level, BlockPos pos) {
 		HwNet.MatchSync match = ClientState.match;
 		if (match.state() != 2) {
@@ -44,6 +44,9 @@ public final class ClientInteractions {
 		}
 		if (match.containers().contains(pos)) {
 			return 1;
+		}
+		if (match.cases().contains(pos)) {
+			return 4;
 		}
 		if (level.getBlockState(pos).is(HwBlocks.PHONE)) {
 			return 2;
@@ -58,7 +61,7 @@ public final class ClientInteractions {
 		return 0;
 	}
 
-	private static boolean aimsAtUsable(Minecraft mc) {
+	static boolean aimsAtUsable(Minecraft mc) {
 		if (!(mc.hitResult instanceof BlockHitResult hit) || hit.getType() != net.minecraft.world.phys.HitResult.Type.BLOCK) {
 			return false;
 		}

@@ -43,15 +43,28 @@ public final class Loot {
 			for (int z = cz - cr; z <= cz + cr; z++) {
 				LevelChunk chunk = level.getChunk(x, z);
 				for (BlockEntity be : chunk.getBlockEntities().values()) {
-					if ((be instanceof ChestBlockEntity || be instanceof BarrelBlockEntity) && be.getBlockPos().closerThan(center, r)) {
+					if ((be instanceof ChestBlockEntity || be instanceof BarrelBlockEntity) && be.getBlockPos().closerThan(center, r)
+						&& !GunCase.isCase(be.getBlockPos())) {
 						CONTAINERS.add(be.getBlockPos().immutable());
 					}
 				}
 			}
 		}
+		// What the exits need comes first: if a map has few containers, the extras are what gets left out.
 		List<HwItems.Kind> items = new ArrayList<>(List.of(
 			HwItems.Kind.BOLT_CUTTERS, HwItems.Kind.PADLOCK_KEY,
-			HwItems.Kind.CAR_KEYS, HwItems.Kind.CAR_PART, HwItems.Kind.REPAIR_KIT, HwItems.Kind.REPAIR_KIT,
+			HwItems.Kind.CAR_KEYS, HwItems.Kind.CAR_PART, HwItems.Kind.REPAIR_KIT, HwItems.Kind.REPAIR_KIT));
+		HwConfig cfg = HwConfig.get();
+		if (GunCase.present()) {
+			items.add(HwItems.Kind.SAFE_CODE);
+			for (int i = 0; i < cfg.rifleAmmoFinds; i++) {
+				items.add(HwItems.Kind.RIFLE_AMMO);
+			}
+		}
+		for (int i = 0; i < cfg.revolverAmmoFinds; i++) {
+			items.add(HwItems.Kind.REVOLVER_AMMO);
+		}
+		items.addAll(List.of(
 			HwItems.Kind.BAT, HwItems.Kind.BAT, HwItems.Kind.KNIFE,
 			HwItems.Kind.DART, HwItems.Kind.DART, HwItems.Kind.DART,
 			HwItems.Kind.BATTERY, HwItems.Kind.BATTERY));
@@ -90,10 +103,24 @@ public final class Loot {
 				return;
 			}
 			Component name = Component.translatable("halloween.item." + kind.key());
-			Inventory.give(p, HwItems.create(kind));
+			Inventory.give(p, found(kind));
 			p.sendOverlayMessage(Component.translatable("halloween.hint.found", name));
 			Match.score(p, HwConfig.get().scoreItemFound, Component.translatable("halloween.score.item_found", name));
 		});
+	}
+
+	/** What a find turns into: rounds come by the handful, the note has the gun case's code on it. */
+	public static net.minecraft.world.item.ItemStack found(HwItems.Kind kind) {
+		HwConfig cfg = HwConfig.get();
+		net.minecraft.world.item.ItemStack stack = HwItems.create(kind);
+		if (kind == HwItems.Kind.REVOLVER_AMMO) {
+			stack.setCount(cfg.revolverAmmoPerFind);
+		} else if (kind == HwItems.Kind.RIFLE_AMMO) {
+			stack.setCount(cfg.rifleAmmoPerFind);
+		} else if (kind == HwItems.Kind.SAFE_CODE) {
+			stack.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME, Component.translatable("halloween.item.safe_code_with", GunCase.code()));
+		}
+		return stack;
 	}
 
 	/** Puts a specific item into a specific container (tests, debugging). */

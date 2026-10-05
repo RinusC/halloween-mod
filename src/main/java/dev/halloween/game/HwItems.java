@@ -28,7 +28,12 @@ public final class HwItems {
 		DART("arrow", 1, 1f),
 		BATON("breeze_rod", 8, 0.5f),
 		FLASHLIGHT("lantern", 0, 0f),
-		BATTERY("iron_nugget", 0, 0f);
+		BATTERY("iron_nugget", 0, 0f),
+		REVOLVER("barrier", 0, 0f),
+		RIFLE("barrier", 0, 0f),
+		REVOLVER_AMMO("barrier", 0, 0f),
+		RIFLE_AMMO("barrier", 0, 0f),
+		SAFE_CODE("barrier", 0, 0f);
 
 		public final String baseItem;
 		public final int uses;
@@ -42,6 +47,15 @@ public final class HwItems {
 
 		public String key() {
 			return this.name().toLowerCase(Locale.ROOT);
+		}
+
+		/** Has its own item model (assets/halloween/items/{key}.json). */
+		public boolean ownModel() {
+			return this == REVOLVER || this == RIFLE || this == REVOLVER_AMMO || this == RIFLE_AMMO || this == SAFE_CODE;
+		}
+
+		public boolean gun() {
+			return this == REVOLVER || this == RIFLE;
 		}
 
 		public boolean melee() {
@@ -61,6 +75,16 @@ public final class HwItems {
 			tag.putInt(USES, kind.uses);
 		}
 		stack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
+		if (kind.ownModel()) {
+			stack.set(DataComponents.ITEM_MODEL, Identifier.fromNamespaceAndPath("halloween", kind.key()));
+		}
+		if (kind.gun()) {
+			stack.set(DataComponents.MAX_STACK_SIZE, 1);
+			Guns.setLoaded(stack, Guns.capacity(kind));
+		}
+		if (kind == Kind.REVOLVER_AMMO || kind == Kind.RIFLE_AMMO) {
+			stack.set(DataComponents.MAX_STACK_SIZE, 24);
+		}
 		if (kind == Kind.FLASHLIGHT) {
 			// The battery charge shows as the durability bar.
 			stack.set(DataComponents.MAX_STACK_SIZE, 1);

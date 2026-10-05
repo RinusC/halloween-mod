@@ -159,6 +159,64 @@ public class BotsClientTest implements FabricClientGameTest {
 			});
 			check("ok".equals(shoved) || "no bot".equals(shoved), "a civilian shoves the Shape back and slows him (" + shoved + ")");
 
+			// Bullets: the revolver fills a third of his stun meter, the rifle drops him, in Shape Jump they pass through.
+			String guns = server.computeOnServer(s -> {
+				BotPlayer bot = Bots.all().stream().filter(b -> !b.isSpectator() && !Lockers.isInside(b)).findFirst().orElse(null);
+				if (bot == null) {
+					return "no bot";
+				}
+				ServerPlayer shape = player(s);
+				dev.halloween.game.ShapeState st = MatchManager.shapeState(shape);
+				st.stun = 0;
+				st.stunnedTicks = 0;
+				shape.teleportTo(s.overworld(), this.origin.getX() + 10.5, this.origin.getY(), this.origin.getZ() - 10.5, java.util.Set.of(), 0f, 0f, false);
+				bot.teleportTo(s.overworld(), this.origin.getX() + 10.5, this.origin.getY(), this.origin.getZ() - 4.5, java.util.Set.of(), 180f, 0f, false);
+				Vec3 eye = bot.getEyePosition();
+				Vec3 at = dev.halloween.game.FocusPoints.bodyCenter(shape);
+				var hit = dev.halloween.game.Guns.shoot(bot, dev.halloween.game.HwItems.Kind.REVOLVER, eye, at.subtract(eye), 0f, bot);
+				float revolver = st.stun;
+				if (hit != shape) {
+					return "revolver missed (" + hit + ")";
+				}
+				dev.halloween.game.Guns.shoot(bot, dev.halloween.game.HwItems.Kind.RIFLE, eye, at.subtract(eye), 0f, bot);
+				boolean down = st.stunnedTicks > 0;
+				st.stunnedTicks = 0;
+				st.stun = 0;
+				st.shadowTicks = 1;
+				var ghost = dev.halloween.game.Guns.shoot(bot, dev.halloween.game.HwItems.Kind.RIFLE, eye, at.subtract(eye), 0f, bot);
+				st.shadowTicks = 0;
+				return Math.abs(revolver - HwConfig.get().revolverStun) < 0.01 && down && ghost != shape ? "ok"
+					: String.format(Locale.ROOT, "revolver %.2f, rifle down %s, in Shape Jump hit %s", revolver, down, ghost == shape);
+			});
+			check("ok".equals(guns) || "no bot".equals(guns), "a revolver bullet fills 30% of the stun meter, a rifle bullet stuns at once, Shape Jump is bulletproof (" + guns + ")");
+
+			// An officer with a revolver near someone it guards fires at the Shape coming at them.
+			int officerId = server.computeOnServer(s -> {
+				BotPlayer bot = Bots.all().stream().filter(b -> !b.isSpectator() && !Lockers.isInside(b)).findFirst().orElseThrow();
+				Vec3 at = bot.position().add(2, 0, 0);
+				var officer = Police.spawnOfficer(s.overworld(), at);
+				ServerPlayer shape = player(s);
+				Vec3 d = shape.position().subtract(at);
+				float yaw = (float) (Mth.atan2(d.z, d.x) * Mth.RAD_TO_DEG) - 90f;
+				officer.setYRot(yaw);
+				officer.setYHeadRot(yaw);
+				officer.setYBodyRot(yaw);
+				return officer.getId();
+			});
+			int fullRounds = dev.halloween.game.Guns.capacity(dev.halloween.game.HwItems.Kind.REVOLVER) + HwConfig.get().policeSpareRounds;
+			boolean fired = false;
+			for (int i = 0; i < 12 && !fired; i++) {
+				ctx.waitTicks(10);
+				fired = server.computeOnServer(s -> Police.rounds(s.overworld().getEntity(officerId))) < fullRounds;
+			}
+			check(fired, "a police officer fires its revolver at the Shape");
+			ctx.takeScreenshot("b02d_police_fire");
+			server.runOnServer(s -> {
+				Police.clear(s);
+				MatchManager.shapeState(player(s)).stun = 0;
+				MatchManager.shapeState(player(s)).stunnedTicks = 0;
+			});
+
 			// Shape Jump can't be left right on top of a survivor.
 			String close = server.computeOnServer(s -> {
 				BotPlayer bot = Bots.all().stream().filter(b -> !b.isSpectator() && !Lockers.isInside(b)).findFirst().orElse(null);
@@ -215,6 +273,13 @@ public class BotsClientTest implements FabricClientGameTest {
 				if (sitting != null) {
 					Lockers.leave(sitting, false);
 				}
+				// Its neighbours go for a long walk, so the door and the locker are the bot's to use.
+				for (Mannequin npc : npcs(s)) {
+					if (npc.position().distanceTo(Vec3.atCenterOf(this.origin.offset(-22, 0, 12))) < 9) {
+						Lockers.leave(npc, false);
+						npc.teleportTo(this.origin.getX() + 30.5, this.origin.getY(), this.origin.getZ() + 25.5);
+					}
+				}
 				bot.teleportTo(s.overworld(), this.origin.getX() - 21.5, this.origin.getY(), this.origin.getZ() + 5.5, java.util.Set.of(), 180f, 0f, false);
 				player(s).teleportTo(s.overworld(), this.origin.getX() - 21.5, this.origin.getY(), this.origin.getZ() - 2.5, java.util.Set.of(), 0f, 0f, false);
 				// A scream nearby gives the Shape away to every bot.
@@ -224,7 +289,8 @@ public class BotsClientTest implements FabricClientGameTest {
 			boolean locked = false;
 			for (int i = 0; i < 20 && !locked; i++) {
 				ctx.waitTicks(10);
-				locked = server.computeOnServer(s -> DoorLocks.isLocked(s.overworld(), door));
+				locked = server.computeOnServer(s -> DoorLocks.isLocked(s.overworld(), door)
+					&& dev.halloween.game.AiStats.snapshot().getOrDefault(s.getPlayerList().getPlayer(locker).getPlainTextName(), Map.of()).getOrDefault("door.locked", 0) > 0);
 				LOG.info("door bot: {} at {}", server.computeOnServer(s -> Bots.modeOf(s.getPlayerList().getPlayer(locker))),
 					server.computeOnServer(s -> s.getPlayerList().getPlayer(locker).position()));
 			}

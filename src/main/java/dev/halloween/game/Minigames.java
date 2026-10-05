@@ -55,6 +55,15 @@ public final class Minigames {
 		if (session == null || session.kind != result.kind() || !session.pos.equals(result.pos())) {
 			return;
 		}
+		if (session.kind == HwNet.Minigame.KEYPAD && result.outcome() >= HwNet.MinigameResult.CODE) {
+			if (GunCase.tryCode(player, result.outcome() - HwNet.MinigameResult.CODE)) {
+				OPEN.remove(player.getUUID());
+				ServerPlayNetworking.send(player, HwNet.Minigame.close(session.pos));
+			} else {
+				ServerPlayNetworking.send(player, new HwNet.Minigame(HwNet.Minigame.WRONG_CODE, session.pos, 0));
+			}
+			return;
+		}
 		switch (result.outcome()) {
 			case HwNet.MinigameResult.DONE -> {
 				OPEN.remove(player.getUUID());
