@@ -207,6 +207,8 @@ public class MatchClientTest implements FabricClientGameTest {
 			// The repair kit is a minigame: follow the wavy line, three times.
 			this.holdUse(ctx, 6);
 			check(ctx.computeOnClient(mc -> mc.gui.screen() instanceof dev.halloween.client.CurveScreen), "the repair kit opens the line minigame");
+			ctx.waitTicks(2);
+			check(ctx.computeOnClient(mc -> !mc.mouseHandler.isMouseGrabbed()), "the mouse cursor is free on the panel");
 			check(server.computeOnServer(s -> dev.halloween.game.Minigames.active(player(s))), "the server knows the player is busy at the car");
 			ctx.takeScreenshot("m04a_curve");
 			// Slipping off the line starts it over.

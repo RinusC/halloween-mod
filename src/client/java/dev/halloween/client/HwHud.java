@@ -595,6 +595,7 @@ public final class HwHud {
 			g.centeredText(font, Component.translatable(switch (hud.jumpBlock()) {
 				case 1 -> "halloween.hud.jump.light";
 				case 5 -> "halloween.hud.jump.door";
+				case 6 -> "halloween.hud.jump.close";
 				default -> "halloween.hud.jump.seen";
 			}), jumpX, baseY - 26, 0xFFE07070);
 		} else if (!inShadow && hud.jumpBlock() == 3) {

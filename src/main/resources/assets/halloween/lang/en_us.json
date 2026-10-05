@@ -56,6 +56,8 @@
 	"halloween.msg.vault_blocked": "No room on the other side",
 	"halloween.msg.exit_blocked.5": "Can't leave inside a door",
 	"halloween.hud.jump.door": "in a door",
+	"halloween.hud.jump.close": "too close",
+	"halloween.msg.exit_blocked.6": "Can't step out right next to a victim",
 	"halloween.hud.progress.lock": "Locking the door...",
 	"halloween.hud.progress.unlock": "Unlocking the door...",
 	"halloween.hud.progress.vault_slow": "Climbing through the window...",

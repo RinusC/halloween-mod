@@ -623,6 +623,17 @@ public final class MatchManager {
 		return false;
 	}
 
+	/** No stepping out of Shape Jump right on top of someone: a survivor or townsperson closer than {@link HwConfig#shapeJumpExitMinDistance}. */
+	public static boolean tooCloseToVictim(ServerPlayer player) {
+		double min = HwConfig.get().shapeJumpExitMinDistance;
+		for (ServerPlayer other : player.level().players()) {
+			if (other != player && role(other).survivor() && !other.isSpectator() && other.distanceTo(player) < min) {
+				return true;
+			}
+		}
+		return !player.level().getEntities(player, player.getBoundingBox().inflate(min), e -> Townsfolk.isNpc(e) && e.distanceTo(player) < min).isEmpty();
+	}
+
 	static int exposure(ServerPlayer player) {
 		if (inLight(player)) {
 			return 1;
@@ -632,11 +643,11 @@ public final class MatchManager {
 
 	/**
 	 * Out of Shape Jump: 0 ready, 1 light, 2 watched, 3 cooldown, 4 busy.
-	 * In Shape Jump: whether leaving is allowed right now (0, 1 light, 2 watched, 5 inside a door).
+	 * In Shape Jump: whether leaving is allowed right now (0, 1 light, 2 watched, 5 inside a door, 6 right next to a victim).
 	 */
 	static int jumpBlockReason(ServerPlayer player, ShapeState state) {
 		if (state.shadowTicks > 0) {
-			return insideDoor(player) ? 5 : exposure(player);
+			return insideDoor(player) ? 5 : tooCloseToVictim(player) ? 6 : exposure(player);
 		}
 		if (state.busy()) {
 			return 4;

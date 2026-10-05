@@ -132,6 +132,8 @@ public class HwConfig {
 
 	// --- Shape Jump (Поступь Призрака) ---
 	public int[] shapeJumpCooldownByTier = {600, 480, 360};
+	/** Shape Jump can't be left closer than this to a survivor or townsperson. */
+	public double shapeJumpExitMinDistance = 2.0;
 	public double[] shapeJumpSpeedByTier = {0.6, 0.9, 1.2};
 	public int lightThreshold = 7;
 	public double civilianSightRange = 40;

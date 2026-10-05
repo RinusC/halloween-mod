@@ -93,17 +93,20 @@ public class HalloweenClient implements ClientModInitializer {
 		});
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.Notice.TYPE, (payload, ctx) -> ClientState.notice(payload.text()));
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.Minigame.TYPE, (payload, ctx) -> {
+			// Screens (and the mouse cursor with them) only on the game thread.
 			Minecraft mc = Minecraft.getInstance();
-			if (mc.gui.screen() instanceof MinigameScreen open) {
-				if (payload.kind() < 0 || !open.shows(payload)) {
-					open.closeQuietly();
-				} else {
-					return;
+			mc.execute(() -> {
+				if (mc.gui.screen() instanceof MinigameScreen open) {
+					if (payload.kind() < 0 || !open.shows(payload)) {
+						open.closeQuietly();
+					} else {
+						return;
+					}
 				}
-			}
-			if (payload.kind() >= 0) {
-				mc.gui.setScreen(MinigameScreen.create(payload));
-			}
+				if (payload.kind() >= 0) {
+					mc.gui.setScreen(MinigameScreen.create(payload));
+				}
+			});
 		});
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.Alert.TYPE, (payload, ctx) -> {
 			long now = ctx.client().level == null ? 0 : ctx.client().level.getGameTime();

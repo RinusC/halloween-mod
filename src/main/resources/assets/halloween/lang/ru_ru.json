@@ -56,6 +56,8 @@
 	"halloween.msg.vault_blocked": "С той стороны нет места",
 	"halloween.msg.exit_blocked.5": "Нельзя выйти внутри двери",
 	"halloween.hud.jump.door": "в двери",
+	"halloween.hud.jump.close": "вплотную",
+	"halloween.msg.exit_blocked.6": "Нельзя выйти вплотную к жертве",
 	"halloween.hud.progress.lock": "Запираю дверь…",
 	"halloween.hud.progress.unlock": "Отпираю дверь…",
 	"halloween.hud.progress.vault_slow": "Перелезаю через окно…",

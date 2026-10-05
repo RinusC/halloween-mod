@@ -67,6 +67,26 @@ public abstract class MinigameScreen extends Screen {
 		return this.height / 2 - H / 2;
 	}
 
+	@Override
+	public void tick() {
+		super.tick();
+		// The panel is played with the mouse: keep the cursor free, whatever grabbed it.
+		Minecraft mc = Minecraft.getInstance();
+		if (mc.mouseHandler.isMouseGrabbed()) {
+			mc.mouseHandler.releaseMouse();
+		}
+		long window = mc.getWindow().handle();
+		if (org.lwjgl.glfw.GLFW.glfwGetInputMode(window, org.lwjgl.glfw.GLFW.GLFW_CURSOR) != org.lwjgl.glfw.GLFW.GLFW_CURSOR_NORMAL) {
+			org.lwjgl.glfw.GLFW.glfwSetInputMode(window, org.lwjgl.glfw.GLFW.GLFW_CURSOR, org.lwjgl.glfw.GLFW.GLFW_CURSOR_NORMAL);
+		}
+	}
+
+	@Override
+	public void added() {
+		super.added();
+		this.tick();
+	}
+
 	protected void finish() {
 		SAVED.remove(this.key());
 		ClientPlayNetworking.send(new HwNet.MinigameResult(this.kind, this.pos, HwNet.MinigameResult.DONE));

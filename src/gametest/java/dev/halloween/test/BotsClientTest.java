@@ -157,6 +157,21 @@ public class BotsClientTest implements FabricClientGameTest {
 				return "not shoved: " + why;
 			});
 			check("ok".equals(shoved) || "no bot".equals(shoved), "a civilian shoves the Shape back and slows him (" + shoved + ")");
+
+			// Shape Jump can't be left right on top of a survivor.
+			String close = server.computeOnServer(s -> {
+				BotPlayer bot = Bots.all().stream().filter(b -> !b.isSpectator() && !Lockers.isInside(b)).findFirst().orElse(null);
+				if (bot == null) {
+					return "no bot";
+				}
+				ServerPlayer shape = player(s);
+				shape.teleportTo(s.overworld(), bot.getX() + 1.2, bot.getY(), bot.getZ(), java.util.Set.of(), 0f, 0f, false);
+				boolean near = MatchManager.tooCloseToVictim(shape);
+				shape.teleportTo(s.overworld(), this.origin.getX() + 30.5, this.origin.getY(), this.origin.getZ() - 30.5, java.util.Set.of(), 0f, 0f, false);
+				boolean far = MatchManager.tooCloseToVictim(shape);
+				return near && !far ? "ok" : "near " + near + ", far " + far;
+			});
+			check("ok".equals(close) || "no bot".equals(close), "Shape Jump can't be left within two blocks of a survivor (" + close + ")");
 			ctx.takeScreenshot("b02_bot_flees");
 
 			// The Shape right behind a bot standing by a window: over the sill it goes.
