@@ -8,6 +8,7 @@ import dev.halloween.game.Exits;
 import dev.halloween.game.HwItems;
 import dev.halloween.game.Inventory;
 import dev.halloween.game.Loot;
+import dev.halloween.game.MapPoints;
 import dev.halloween.game.Match;
 import dev.halloween.game.MatchManager;
 import dev.halloween.net.HwNet;
@@ -76,8 +77,27 @@ public class MatchClientTest implements FabricClientGameTest {
 			// Open the cellar and escape through it.
 			HwNet.ExitInfo cellar = this.exit(ctx, Exits.CELLAR);
 			BlockPos c = cellar.pos();
-			server.runCommand(String.format(Locale.ROOT, "tp @p %.1f %d %.1f", c.getX() + 0.5, c.getY() + 1, c.getZ() - 1.5));
-			this.lookAt(ctx, new Vec3(c.getX() + 0.5, c.getY() + 0.9, c.getZ() + 0.5));
+			String props = server.computeOnServer(s -> {
+				var level = s.overworld();
+				for (MapPoints.Type type : new MapPoints.Type[]{MapPoints.Type.CELLAR, MapPoints.Type.CAR, MapPoints.Type.GATE}) {
+					int exitType = type == MapPoints.Type.CELLAR ? Exits.CELLAR : type == MapPoints.Type.CAR ? Exits.CAR : Exits.GATE;
+					BlockPos used = Exits.infos().stream().filter(e -> e.type() == exitType).findFirst().orElseThrow().pos();
+					for (BlockPos p : MapPoints.get(level).list(type)) {
+						BlockPos probe = type == MapPoints.Type.CELLAR ? p.below() : p;
+						boolean built = Exits.isProp(probe);
+						if (built != p.equals(used)) {
+							return type.key() + " at " + p.toShortString() + (built ? " has a prop but is unused" : " has no prop but is used");
+						}
+					}
+				}
+				return "ok";
+			});
+			check("ok".equals(props), "only the picked exit spots get their props (" + props + ")");
+			server.runCommand(String.format(Locale.ROOT, "tp @p %.1f %d %.1f", c.getX() + 0.5, c.getY(), c.getZ() - 1.5));
+			this.lookAt(ctx, new Vec3(c.getX() + 0.5, c.getY() - 0.1, c.getZ() + 0.5));
+			this.holdUse(ctx, 5);
+			check(server.computeOnServer(s -> !s.overworld().getBlockState(c.below()).getValue(net.minecraft.world.level.block.state.properties.BlockStateProperties.OPEN)),
+				"the cellar hatch doesn't open by hand");
 			this.holdUse(ctx, HwConfig.get().boltCuttersTicks + 12);
 			check(this.exit(ctx, Exits.CELLAR).state() == 1, "bolt cutters open the cellar");
 			this.holdUse(ctx, HwConfig.get().escapeTicks + 10);

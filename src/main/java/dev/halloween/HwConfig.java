@@ -176,7 +176,7 @@ public class HwConfig {
 	public int repairCarTicks = 100;
 	public int startCarTicks = 30;
 	public int removePartTicks = 40;
-	public int callPoliceTicks = 80;
+	public int callPoliceTicks = 200;
 	public int cutPhoneTicks = 40;
 	public int repairPhoneTicks = 80;
 	public int openGateTicks = 160;

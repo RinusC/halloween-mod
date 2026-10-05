@@ -79,6 +79,10 @@ public class Halloween implements ModInitializer {
 			if (level.isClientSide()) {
 				return net.minecraft.world.InteractionResult.PASS;
 			}
+			// Exit hatches and gates open only through the exits' own actions.
+			if (dev.halloween.game.Exits.isProp(hit.getBlockPos())) {
+				return net.minecraft.world.InteractionResult.FAIL;
+			}
 			// Civilians' window climbing arrives as its own packet; the vanilla click does nothing.
 			if (player instanceof net.minecraft.server.level.ServerPlayer sp && MatchManager.role(sp).survivor()
 				&& Windows.isWindow(level.getBlockState(hit.getBlockPos()))) {

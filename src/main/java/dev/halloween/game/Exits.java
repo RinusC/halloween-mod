@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Set;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
@@ -27,6 +28,7 @@ import net.minecraft.world.level.block.FenceGateBlock;
 import net.minecraft.world.level.block.TrapDoorBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.block.state.properties.Half;
 import net.minecraft.world.phys.Vec3;
 
 /**
@@ -71,6 +73,11 @@ public final class Exits {
 	private static final Set<BlockPos> CUT_PHONES = new HashSet<>();
 	/** Blocks replaced by the police van, to restore when it leaves. */
 	private static final Map<BlockPos, BlockState> VAN = new LinkedHashMap<>();
+	/**
+	 * Blocks replaced by the cellar, car and gate. They are built only at the spots picked for the match,
+	 * so no dead exit stands on the map; the old blocks come back when the match is over.
+	 */
+	private static final Map<BlockPos, BlockState> PROPS = new LinkedHashMap<>();
 
 	private Exits() {
 	}
@@ -84,8 +91,15 @@ public final class Exits {
 		car = pick(points.list(MapPoints.Type.CAR), random);
 		police = pick(points.list(MapPoints.Type.POLICE), random);
 		gate = pick(points.list(MapPoints.Type.GATE), random);
-		setNearby(level, cellar, false);
-		setNearby(level, gate, false);
+		if (cellar != null) {
+			buildCellar(level, cellar);
+		}
+		if (car != null) {
+			buildCar(level, car);
+		}
+		if (gate != null) {
+			buildGate(level, gate, points.first(MapPoints.Type.CENTER));
+		}
 	}
 
 	private static BlockPos pick(List<BlockPos> list, RandomSource random) {
@@ -94,12 +108,8 @@ public final class Exits {
 
 	public static void clear(ServerLevel level) {
 		removeVan(level);
-		if (cellar != null) {
-			setNearby(level, cellar, false);
-		}
-		if (gate != null) {
-			setNearby(level, gate, false);
-		}
+		PROPS.forEach((pos, old) -> level.setBlock(pos, old, Block.UPDATE_ALL));
+		PROPS.clear();
 		cellar = car = police = gate = null;
 		cellarState = gateState = CLOSED;
 		carFlags = 0;
@@ -374,8 +384,67 @@ public final class Exits {
 	}
 
 	private static void place(ServerLevel level, BlockPos pos, BlockState state) {
-		VAN.putIfAbsent(pos.immutable(), level.getBlockState(pos));
+		place(level, pos, state, VAN);
+	}
+
+	private static void place(ServerLevel level, BlockPos pos, BlockState state, Map<BlockPos, BlockState> undo) {
+		undo.putIfAbsent(pos.immutable(), level.getBlockState(pos));
 		level.setBlock(pos, state, Block.UPDATE_ALL);
+	}
+
+	/** Exit hatches and gates can't be opened by hand, only by the exit's own actions. */
+	public static boolean isProp(BlockPos pos) {
+		return PROPS.containsKey(pos);
+	}
+
+	/**
+	 * A storm cellar: two pairs of trapdoors in the ground in front of {@code at} (where a player stands),
+	 * framed in stone, over a solid dark floor, so an open hatch is a shallow hole and not a way under the map.
+	 */
+	private static void buildCellar(ServerLevel level, BlockPos at) {
+		BlockPos ground = at.below();
+		for (int dx = -1; dx <= 2; dx++) {
+			for (int dz = -1; dz <= 2; dz++) {
+				boolean hatch = dx >= 0 && dx <= 1 && dz >= 0 && dz <= 1;
+				place(level, ground.offset(dx, -1, dz), block(hatch ? "black_concrete" : "stone_bricks"), PROPS);
+				if (!hatch) {
+					place(level, ground.offset(dx, 0, dz), block("stone_bricks"), PROPS);
+				}
+			}
+		}
+		BlockState door = block("spruce_trapdoor").setValue(BlockStateProperties.HALF, Half.TOP);
+		place(level, ground, door.setValue(BlockStateProperties.HORIZONTAL_FACING, Direction.NORTH), PROPS);
+		place(level, ground.east(), door.setValue(BlockStateProperties.HORIZONTAL_FACING, Direction.NORTH), PROPS);
+		place(level, ground.south(), door.setValue(BlockStateProperties.HORIZONTAL_FACING, Direction.SOUTH), PROPS);
+		place(level, ground.south().east(), door.setValue(BlockStateProperties.HORIZONTAL_FACING, Direction.SOUTH), PROPS);
+	}
+
+	/** A boxy car five blocks long along X, standing on the ground at {@code at}. */
+	private static void buildCar(ServerLevel level, BlockPos at) {
+		BlockState body = block("red_concrete");
+		BlockState wheel = block("black_concrete");
+		// Not real glass: car windows must not count as windows to climb through.
+		BlockState glass = block("black_terracotta");
+		for (int dx = -2; dx <= 2; dx++) {
+			for (int dz = 0; dz <= 1; dz++) {
+				place(level, at.offset(dx, 0, dz), Math.abs(dx) == 2 ? wheel : body, PROPS);
+				place(level, at.offset(dx, 1, dz), Math.abs(dx) == 2 ? body : glass, PROPS);
+				if (Math.abs(dx) <= 1) {
+					place(level, at.offset(dx, 2, dz), body, PROPS);
+				}
+			}
+		}
+	}
+
+	/** A double fence gate at {@code at}, set across the line that faces the middle of the map. */
+	private static void buildGate(ServerLevel level, BlockPos at, BlockPos center) {
+		int dx = center == null ? 0 : center.getX() - at.getX();
+		int dz = center == null ? 1 : center.getZ() - at.getZ();
+		boolean alongX = Math.abs(dz) >= Math.abs(dx);
+		Direction facing = alongX ? (dz < 0 ? Direction.NORTH : Direction.SOUTH) : (dx < 0 ? Direction.WEST : Direction.EAST);
+		BlockState state = block("spruce_fence_gate").setValue(BlockStateProperties.HORIZONTAL_FACING, facing);
+		place(level, at, state, PROPS);
+		place(level, alongX ? at.east() : at.south(), state, PROPS);
 	}
 
 	private static void removeVan(ServerLevel level) {
