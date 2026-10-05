@@ -249,12 +249,57 @@ public class MatchClientTest implements FabricClientGameTest {
 			BlockPos phone = this.origin.offset(3, 1, 14);
 			this.tp(server, 3.5, 0, 12.3);
 			this.lookAt(ctx, new Vec3(phone.getX() + 0.5, phone.getY() + 0.15, phone.getZ() + 0.5));
+			// Nothing to report yet: no call goes through.
+			this.holdUse(ctx, 40);
+			check(this.exit(ctx, Exits.POLICE).state() == Exits.POLICE_NEED_BODY && server.computeOnServer(s -> dev.halloween.game.Police.wanted()) == 0,
+				"without a body found nobody can call the police");
+			// A body at the player's feet (as if the Shape had killed someone here): found at once.
+			server.runOnServer(s -> dev.halloween.game.Police.addBody(player(s).position().add(0, 0, 1.0), net.minecraft.network.chat.Component.literal("Annie")));
+			ctx.waitTicks(25);
+			check(server.computeOnServer(s -> dev.halloween.game.Police.reportable()) == 1, "a civilian finds the body");
+			check(this.exit(ctx, Exits.POLICE).state() == Exits.POLICE_IDLE, "now there is something to report");
 			this.holdUse(ctx, HwConfig.get().callPoliceTicks + 12);
-			check(this.exit(ctx, Exits.POLICE).state() >= 1, "the phone calls the police");
+			check(this.exit(ctx, Exits.POLICE).state() == Exits.POLICE_COMING, "the phone calls the police");
+			check(ctx.computeOnClient(mc -> ClientState.match.wanted()) == 1, "Michael's wanted level goes up to 1");
+			this.holdUse(ctx, 40);
+			check(server.computeOnServer(s -> dev.halloween.game.Police.wanted()) == 1, "one body, one call");
 			ctx.waitTicks(HwConfig.get().policeArriveSeconds * 20 + 20);
 			check(this.exit(ctx, Exits.POLICE).state() == 2, "the police van arrives");
 			BlockPos van = this.exit(ctx, Exits.POLICE).pos();
 			check(server.computeOnServer(s -> net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(s.overworld().getBlockState(van).getBlock()).getPath().equals("white_concrete")), "the van is built on its spot");
+			check(server.computeOnServer(s -> dev.halloween.game.Police.officers()) == 2, "two officers come with level 1");
+			ctx.waitTicks(40);
+			String wards = server.computeOnServer(s -> String.join(", ", dev.halloween.game.Police.wards(s.overworld())));
+			String me = server.computeOnServer(s -> player(s).getPlainTextName());
+			LOG.info("Officers guard: {}", wards);
+			check(wards.contains("-> " + me), "the officers guard the survivor (" + wards + ")");
+			// Bring one over to see the uniform.
+			Vec3 officerAt = server.computeOnServer(s -> {
+				ServerPlayer p = player(s);
+				Vec3 at = p.position().add(p.getViewVector(1f).multiply(1, 0, 1).normalize().scale(2.5));
+				s.overworld().getEntity(dev.halloween.game.Police.ids().getFirst()).teleportTo(at.x, p.getY(), at.z);
+				return new Vec3(at.x, p.getY() + 1.2, at.z);
+			});
+			this.lookAt(ctx, officerAt);
+			ctx.waitTicks(5);
+			ctx.takeScreenshot("m04b_police");
+			// Two more bodies, two more calls: level 2 brings officers, level 3 officers and another van seat.
+			server.runOnServer(s -> {
+				dev.halloween.game.Police.addBody(player(s).position(), net.minecraft.network.chat.Component.literal("Lynda"));
+				dev.halloween.game.Police.addBody(player(s).position(), net.minecraft.network.chat.Component.literal("Bob"));
+				dev.halloween.game.Police.findAll();
+				dev.halloween.game.Police.reportCall(s.overworld(), net.minecraft.network.chat.Component.literal("test call"));
+			});
+			ctx.waitTicks(HwConfig.get().policeArriveSeconds * 20 + 20);
+			check(server.computeOnServer(s -> dev.halloween.game.Police.officers()) == 4, "level 2 brings two more officers");
+			server.runOnServer(s -> dev.halloween.game.Police.reportCall(s.overworld(), net.minecraft.network.chat.Component.literal("test call")));
+			ctx.waitTicks(HwConfig.get().policeArriveSeconds * 20 + 20);
+			check(server.computeOnServer(s -> dev.halloween.game.Police.officers()) == 6 && dev.halloween.game.Police.wanted() == 3,
+				"level 3 brings two more");
+			check(server.computeOnServer(s -> Exits.vanSeats()) == 2, "and one more seat in the van");
+			check(ctx.computeOnClient(mc -> ClientState.match.wanted()) == 3, "the wanted meter is full");
+			// Out of the way of the rest of the test.
+			server.runOnServer(s -> dev.halloween.game.Police.clear(s));
 
 			// The gates open only near the end.
 			HwNet.ExitInfo gate = this.exit(ctx, Exits.GATE);

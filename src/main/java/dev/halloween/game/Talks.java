@@ -54,6 +54,11 @@ public final class Talks {
 		if (npc == null || !Townsfolk.canTalk(player, npc)) {
 			return false;
 		}
+		if (option == Townsfolk.CALL && !Exits.policeCallable()) {
+			// Nothing to tell the police until somebody finds a body.
+			player.sendOverlayMessage(Component.translatable("halloween.hint.police_no_body").withStyle(ChatFormatting.GRAY));
+			return false;
+		}
 		if (option == Townsfolk.FOLLOW && Townsfolk.followsPlayer(npc, player)) {
 			// "Stay here" to someone already following you needs no persuading.
 			Townsfolk.beginTalk(player, npc);

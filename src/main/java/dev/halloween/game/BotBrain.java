@@ -952,6 +952,7 @@ final class BotBrain {
 		HwConfig cfg = this.cfg();
 		Map<Task, Double> out = new HashMap<>();
 		boolean policeIdle = false;
+		boolean phonesMatter = false;
 		for (HwNet.ExitInfo exit : Exits.infos()) {
 			BlockPos pos = exit.pos();
 			switch (exit.type()) {
@@ -983,7 +984,9 @@ final class BotBrain {
 					if (exit.state() == Exits.POLICE_HERE) {
 						out.put(new Task(pos, 2.6, true, "exit"), 100.0);
 					}
+					// A call only goes through once a body has been found; cut lines are worth fixing before that.
 					policeIdle = exit.state() == Exits.POLICE_IDLE;
+					phonesMatter = policeIdle || exit.state() == Exits.POLICE_NEED_BODY;
 				}
 				case Exits.GATE -> {
 					if (exit.state() == Exits.OPEN) {
@@ -996,14 +999,14 @@ final class BotBrain {
 				}
 			}
 		}
-		if (policeIdle) {
+		if (phonesMatter) {
 			List<BlockPos> cut = Exits.cutPhones();
 			for (BlockPos phone : MapPoints.get(this.level()).list(MapPoints.Type.PHONE)) {
 				if (cut.contains(phone)) {
 					if (Inventory.has(this.bot, HwItems.Kind.REPAIR_KIT)) {
 						out.put(new Task(phone, 2.0, true, "phone"), 50.0);
 					}
-				} else if (!Bots.othersOn("call", this.bot)) {
+				} else if (policeIdle && !Bots.othersOn("call", this.bot)) {
 					out.put(new Task(phone, 2.0, true, "call"), 55.0);
 				}
 			}

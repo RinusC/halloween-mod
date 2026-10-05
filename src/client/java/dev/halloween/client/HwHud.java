@@ -174,8 +174,8 @@ public final class HwHud {
 				case 2 -> {
 					line = e.state() == 1 || e.state() == 2
 						? Component.translatable("halloween.hud.exit.police." + e.state(), clock(e.extra()))
-						: Component.translatable("halloween.hud.exit.police." + e.state());
-					color = e.state() == 2 ? 0xFF7FE07F : color;
+						: Component.translatable("halloween.hud.exit.police." + e.state(), m.reportable());
+					color = e.state() == 2 ? 0xFF7FE07F : e.state() == 0 ? 0xFFE8C95A : color;
 				}
 				default -> {
 					if (e.state() == 0) {
@@ -193,6 +193,24 @@ public final class HwHud {
 		}
 		if (!m.cutPhones().isEmpty()) {
 			g.text(font, Component.translatable("halloween.hud.phones_cut", m.cutPhones().size()), x + 12, y, 0xFFE07070, true);
+			y += 11;
+		}
+		wantedMeter(g, font, x, y + 3, m.wanted());
+	}
+
+	/** Michael's wanted level: three boxes, filled one per call that got through. */
+	private static void wantedMeter(GuiGraphicsExtractor g, Font font, int x, int y, int wanted) {
+		Component label = Component.translatable("halloween.hud.wanted");
+		g.text(font, label, x, y, 0xFFB8C2DA, true);
+		int bx = x + font.width(label) + 4;
+		int max = dev.halloween.HwConfig.get().policeMaxCalls;
+		for (int i = 0; i < max; i++) {
+			int left = bx + i * 12;
+			g.fill(left, y, left + 10, y + 8, 0xFF2A3550);
+			if (i < wanted) {
+				// Red and blue like the lights on a patrol car.
+				g.fill(left + 1, y + 1, left + 9, y + 7, i % 2 == 0 ? 0xFFD03A3A : 0xFF3A6AD8);
+			}
 		}
 	}
 

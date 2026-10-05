@@ -12,6 +12,7 @@ import dev.halloween.game.Loot;
 import dev.halloween.game.Match;
 import dev.halloween.game.MatchManager;
 import dev.halloween.game.Nav;
+import dev.halloween.game.Police;
 import dev.halloween.game.Sight;
 import dev.halloween.game.Townsfolk;
 import dev.halloween.game.Talks;
@@ -419,6 +420,39 @@ public class BotsClientTest implements FabricClientGameTest {
 			int hider = server.computeOnServer(s -> npcs(s).stream().filter(m -> !Lockers.isInside(m)).findFirst().orElseThrow().getId());
 			this.talk(ctx, server, hider, 1, "hidden");
 			check("hidden".equals(server.computeOnServer(s -> Townsfolk.stateOf(s.overworld().getEntity(hider)))), "a townsperson hides when told");
+
+			// Nobody can call the police about nothing: "call" stays greyed out until a body is found.
+			int caller = server.computeOnServer(s -> npcs(s).stream().filter(m -> !Lockers.isInside(m) && m.getId() != hider
+				&& "home".equals(Townsfolk.stateOf(m))).findFirst().orElse(npcs(s).getFirst()).getId());
+			check(server.computeOnServer(s -> !Exits.policeCallable()), "no body found yet: the police can't be called");
+			this.openMenu(ctx, server, caller);
+			ctx.getInput().pressKey(GLFW.GLFW_KEY_3);
+			ctx.waitTicks(5);
+			check(ctx.computeOnClient(mc -> !ClientState.talking()), "\"call the police\" can't be picked before a body is found");
+			ctx.runOnClient(mc -> {
+				if (mc.gui.screen() != null) {
+					mc.gui.screen().onClose();
+				}
+			});
+			// A body right in front of a townsperson: it screams, and now there is something to report.
+			this.tp(server, 30.5, 0, -30.5);
+			ctx.waitTicks(2);
+			int bodyScreams = server.computeOnServer(s -> Townsfolk.screams);
+			server.runOnServer(s -> {
+				Entity npc = s.overworld().getEntity(caller);
+				Vec3 ahead = npc.position().add(npc.getViewVector(1f).multiply(1, 0, 1).normalize().scale(1.5));
+				Police.addBody(ahead, net.minecraft.network.chat.Component.literal("Annie"));
+			});
+			boolean found = false;
+			for (int i = 0; i < 10 && !found; i++) {
+				ctx.waitTicks(10);
+				found = server.computeOnServer(s -> Police.reportable() > 0);
+			}
+			check(found, "a townsperson finds the body");
+			check(server.computeOnServer(s -> Townsfolk.screams) > bodyScreams, "and screams");
+			check(server.computeOnServer(s -> Exits.policeCallable()), "with a body found the police can be called");
+			ctx.waitTicks(10);
+			check(ctx.computeOnClient(mc -> ClientState.match.reportable()) > 0, "the client knows there is something to report");
 			int beforeEnd = server.computeOnServer(s -> Match.scores().values().stream().mapToInt(Integer::intValue).sum());
 			server.runCommand("hw timer 1");
 			ctx.waitTicks(40);

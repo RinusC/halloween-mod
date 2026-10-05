@@ -54,20 +54,24 @@ public final class Exits {
 	static final int CAR_PART = 1;
 	static final int CAR_REPAIRED = 2;
 	static final int CAR_GONE = 4;
-	// Police states.
-	static final int POLICE_IDLE = 0;
-	static final int POLICE_COMING = 1;
-	static final int POLICE_HERE = 2;
-	static final int POLICE_GONE = 3;
-	static final int POLICE_USED = 4;
+	// Police exit as shown to players: can call now, on the way, van waiting, van gone, van used, find a body first.
+	public static final int POLICE_IDLE = 0;
+	public static final int POLICE_COMING = 1;
+	public static final int POLICE_HERE = 2;
+	public static final int POLICE_GONE = 3;
+	public static final int POLICE_USED = 4;
+	public static final int POLICE_NEED_BODY = 5;
 
 	private static BlockPos cellar;
 	private static int cellarState;
 	private static BlockPos car;
 	private static int carFlags;
 	private static BlockPos police;
-	private static int policeState;
-	private static int policeTimer;
+	/** Survivors the waiting van can still take (levels 1 and 3 each bring one seat), and how long it waits. */
+	private static int vanSeats;
+	private static int vanTimer;
+	/** How the last van ended: {@link #POLICE_GONE} or {@link #POLICE_USED}, 0 if none came yet. */
+	private static int vanOutcome;
 	private static BlockPos gate;
 	private static int gateState;
 	private static final Set<BlockPos> CUT_PHONES = new HashSet<>();
@@ -113,8 +117,9 @@ public final class Exits {
 		cellar = car = police = gate = null;
 		cellarState = gateState = CLOSED;
 		carFlags = 0;
-		policeState = POLICE_IDLE;
-		policeTimer = 0;
+		vanSeats = 0;
+		vanTimer = 0;
+		vanOutcome = 0;
 		CUT_PHONES.clear();
 	}
 
@@ -122,16 +127,9 @@ public final class Exits {
 
 	public static void tick(ServerLevel level) {
 		HwConfig cfg = HwConfig.get();
-		if (policeState == POLICE_COMING && --policeTimer <= 0) {
-			policeState = POLICE_HERE;
-			policeTimer = cfg.policeStaySeconds * 20;
-			if (police != null) {
-				buildVan(level, police);
-				level.playSound(null, police, SoundEvents.BELL_BLOCK, SoundSource.BLOCKS, 3f, 0.7f);
-			}
-			Match.announce(level.getServer(), Component.translatable("halloween.match.police_here").withStyle(ChatFormatting.BLUE));
-		} else if (policeState == POLICE_HERE && --policeTimer <= 0) {
-			policeState = POLICE_GONE;
+		if (vanSeats > 0 && --vanTimer <= 0) {
+			vanSeats = 0;
+			vanOutcome = POLICE_GONE;
 			removeVan(level);
 			Match.announce(level.getServer(), Component.translatable("halloween.match.police_gone").withStyle(ChatFormatting.GRAY));
 		}
@@ -264,11 +262,10 @@ public final class Exits {
 					Match.escape(p, Component.translatable("halloween.exit.car"));
 				});
 		}
-		if (policeState == POLICE_HERE && near(police, pos, 3.5)) {
+		if (vanSeats > 0 && near(police, pos, 3.5)) {
 			if (civilian) {
-				return escapeHold(pos, "halloween.hud.progress.escape_police", p -> policeState == POLICE_HERE, p -> {
-					policeState = POLICE_USED;
-					removeVan(level);
+				return escapeHold(pos, "halloween.hud.progress.escape_police", p -> vanSeats > 0, p -> {
+					takeSeat(level);
 					Match.escape(p, Component.translatable("halloween.exit.police"));
 				});
 			}
@@ -313,11 +310,11 @@ public final class Exits {
 		BlockPos phone = pos.immutable();
 		boolean cut = CUT_PHONES.contains(phone);
 		if (role == Role.SHAPE) {
-			if (cut || policeState != POLICE_IDLE) {
+			if (cut || Police.wanted() >= cfg.policeMaxCalls) {
 				return null;
 			}
 			return new Holds.Hold(phone, "halloween.hud.progress.cut_phone", true, cfg.cutPhoneTicks,
-				p -> !CUT_PHONES.contains(phone) && policeState == POLICE_IDLE, p -> {
+				p -> !CUT_PHONES.contains(phone), p -> {
 					CUT_PHONES.add(phone);
 					level.playSound(null, phone, SoundEvents.SHEEP_SHEAR, SoundSource.BLOCKS, 1f, 0.6f);
 				});
@@ -326,8 +323,8 @@ public final class Exits {
 			hint(player, "halloween.hint.no_police");
 			return null;
 		}
-		if (policeState != POLICE_IDLE) {
-			hint(player, "halloween.hint.police_called");
+		if (Police.wanted() >= cfg.policeMaxCalls) {
+			hint(player, "halloween.hint.police_max");
 			return null;
 		}
 		if (cut) {
@@ -342,8 +339,13 @@ public final class Exits {
 					Match.score(p, cfg.scoreExitProgress, Component.translatable("halloween.score.phone_repair"));
 				});
 		}
+		if (!Police.callable()) {
+			// Nothing to tell them yet: somebody has to find a body first.
+			hint(player, "halloween.hint.police_no_body");
+			return null;
+		}
 		return new Holds.Hold(phone, "halloween.hud.progress.call_police", false, cfg.callPoliceTicks,
-			p -> !CUT_PHONES.contains(phone) && policeState == POLICE_IDLE, p -> {
+			p -> !CUT_PHONES.contains(phone) && Police.callable(), p -> {
 				Match.score(p, cfg.scoreCallPolice, Component.translatable("halloween.score.police_called"));
 				callPolice(level, Component.translatable("halloween.match.police_called"));
 			}, true);
@@ -360,9 +362,8 @@ public final class Exits {
 			Match.markDirty();
 			return Component.translatable("halloween.exit.cellar");
 		}
-		if (police != null && policeState == POLICE_HERE && Vec3.atCenterOf(police).distanceTo(at) <= radius + 1) {
-			policeState = POLICE_USED;
-			removeVan(level);
+		if (police != null && vanSeats > 0 && Vec3.atCenterOf(police).distanceTo(at) <= radius + 1) {
+			takeSeat(level);
 			Match.markDirty();
 			return Component.translatable("halloween.exit.police");
 		}
@@ -391,11 +392,7 @@ public final class Exits {
 				}
 			}
 			case POLICE -> {
-				if (police != null) {
-					policeState = POLICE_HERE;
-					policeTimer = HwConfig.get().policeStaySeconds * 20;
-					buildVan(level, police);
-				}
+				vanArrives(level);
 			}
 			case CAR -> carFlags = CAR_PART | CAR_REPAIRED;
 			default -> {
@@ -404,24 +401,54 @@ public final class Exits {
 		Match.markDirty();
 	}
 
-	/** The police can still be called (they exist on this map and nobody has called yet). */
+	/** The police can be called now: they exist on this map and there is a found body nobody reported. */
 	public static boolean policeCallable() {
-		return police != null && policeState == POLICE_IDLE;
+		return police != null && Police.callable();
+	}
+
+	/** Where the police van parks and officers step out (null if this map has no police). */
+	public static BlockPos policePoint() {
+		return police;
+	}
+
+	/** A van pulls up (or the one waiting gets another seat): one more survivor can leave in it. */
+	public static void vanArrives(ServerLevel level) {
+		if (police == null) {
+			return;
+		}
+		vanSeats++;
+		vanTimer = HwConfig.get().policeStaySeconds * 20;
+		if (VAN.isEmpty()) {
+			buildVan(level, police);
+		}
+		level.playSound(null, police, SoundEvents.BELL_BLOCK, SoundSource.BLOCKS, 3f, 0.7f);
+		Match.announce(level.getServer(), Component.translatable("halloween.match.police_here").withStyle(ChatFormatting.BLUE));
+		Match.markDirty();
+	}
+
+	/** How many survivors the waiting van can still take (tests, debugging). */
+	public static int vanSeats() {
+		return vanSeats;
+	}
+
+	private static void takeSeat(ServerLevel level) {
+		vanSeats--;
+		if (vanSeats <= 0) {
+			vanSeats = 0;
+			vanOutcome = POLICE_USED;
+			removeVan(level);
+		}
 	}
 
 	public static boolean phoneWorks(BlockPos phone) {
 		return !CUT_PHONES.contains(phone);
 	}
 
-	/** Someone got through on the phone: the van is on its way. */
+	/** Someone got through on the phone: the wanted level goes up and the police set off. */
 	public static void callPolice(ServerLevel level, Component announcement) {
-		if (!policeCallable()) {
-			return;
+		if (policeCallable()) {
+			Police.reportCall(level, announcement);
 		}
-		policeState = POLICE_COMING;
-		policeTimer = HwConfig.get().policeArriveSeconds * 20;
-		Match.announce(level.getServer(), announcement.copy().withStyle(ChatFormatting.BLUE));
-		Match.markDirty();
 	}
 
 	private static Holds.Hold escapeHold(BlockPos pos, String label, Holds.Check valid, Holds.Done done) {
@@ -549,12 +576,28 @@ public final class Exits {
 			list.add(new HwNet.ExitInfo(CAR, car, carFlags, 0));
 		}
 		if (police != null) {
-			list.add(new HwNet.ExitInfo(POLICE, police, policeState, policeTimer));
+			list.add(policeInfo());
 		}
 		if (gate != null) {
 			list.add(new HwNet.ExitInfo(GATE, gate, gateState, 0));
 		}
 		return list;
+	}
+
+	/** The police line of the exits list: the van waiting beats police on the way beats whether you can call. */
+	private static HwNet.ExitInfo policeInfo() {
+		HwConfig cfg = HwConfig.get();
+		int coming = Police.nextArrival();
+		if (vanSeats > 0) {
+			return new HwNet.ExitInfo(POLICE, police, POLICE_HERE, vanTimer);
+		}
+		if (coming >= 0) {
+			return new HwNet.ExitInfo(POLICE, police, POLICE_COMING, coming);
+		}
+		if (Police.wanted() < cfg.policeMaxCalls) {
+			return new HwNet.ExitInfo(POLICE, police, Police.callable() ? POLICE_IDLE : POLICE_NEED_BODY, 0);
+		}
+		return new HwNet.ExitInfo(POLICE, police, vanOutcome == 0 ? POLICE_GONE : vanOutcome, 0);
 	}
 
 	public static List<BlockPos> cutPhones() {
@@ -564,6 +607,6 @@ public final class Exits {
 	/** Exits still able to take someone (for the end-of-match check). */
 	public static boolean anyLeft() {
 		return cellar != null && cellarState != USED || car != null && (carFlags & CAR_GONE) == 0
-			|| police != null && policeState != POLICE_USED && policeState != POLICE_GONE || gate != null && gateState != USED;
+			|| police != null && (vanSeats > 0 || Police.vanStillPossible()) || gate != null && gateState != USED;
 	}
 }

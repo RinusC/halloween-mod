@@ -136,6 +136,7 @@ public final class Match {
 				players.add(Bots.spawn(server, names.get(b), spawns.get((civilians + b) % spawns.size())));
 			}
 		}
+		Police.clear(server);
 		Townsfolk.spawnAll(level, level.getRandom());
 		int i = 0;
 		for (ServerPlayer player : players) {
@@ -206,6 +207,7 @@ public final class Match {
 		PEOPLE.clear();
 		Nav.setArea(null);
 		Townsfolk.clear(server);
+		Police.clear(server);
 		Bots.removeAll(server);
 	}
 
@@ -426,7 +428,7 @@ public final class Match {
 			Participant p = PEOPLE.get(player.getUUID());
 			int respawn = p != null && p.respawnAt >= 0 ? Math.max(0, p.respawnAt - tickCounter) : 0;
 			ServerPlayNetworking.send(player, new HwNet.MatchSync(state.ordinal(), ticksLeft, countdown, exits, containers, searched,
-				phones, cut, respawn, p == null ? 0 : p.score, npcs, Townsfolk.followerIds(player)));
+				phones, cut, respawn, p == null ? 0 : p.score, npcs, Townsfolk.followerIds(player), Police.wanted(), Police.reportable()));
 		}
 	}
 

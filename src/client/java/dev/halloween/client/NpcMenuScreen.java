@@ -32,8 +32,13 @@ public final class NpcMenuScreen extends Screen {
 		return switch (option) {
 			case 0 -> Component.translatable(this.following ? "halloween.menu.stay" : "halloween.menu.follow");
 			case 1 -> Component.translatable("halloween.menu.hide");
-			default -> Component.translatable("halloween.menu.call");
+			default -> Component.translatable(this.enabled(option) ? "halloween.menu.call" : "halloween.menu.call_no_body");
 		};
+	}
+
+	/** Calling the police needs a body somebody has found and nobody reported yet. */
+	private boolean enabled(int option) {
+		return option != 2 || ClientState.match.reportable() > 0;
 	}
 
 	/** Sector under the mouse: 0 at the top, then clockwise; -1 in the middle. */
@@ -85,7 +90,7 @@ public final class NpcMenuScreen extends Screen {
 				int s = dx > OUTER ? -1 : ringSector(dx, dy);
 				if (s != runSector) {
 					if (runSector >= 0) {
-						g.fill(cx + runStart, cy + dy, cx + dx, cy + dy + 1, runSector == this.hovered ? 0xD0B0302A : 0xA0151515);
+						g.fill(cx + runStart, cy + dy, cx + dx, cy + dy + 1, !this.enabled(runSector) ? 0x70151515 : runSector == this.hovered ? 0xD0B0302A : 0xA0151515);
 					}
 					runSector = s;
 					runStart = dx;
@@ -97,7 +102,7 @@ public final class NpcMenuScreen extends Screen {
 			int lx = cx + (int) Math.round(Math.sin(mid) * (OUTER + 14));
 			int ly = cy - (int) Math.round(Math.cos(mid) * (OUTER + 14));
 			Component text = Component.literal((s + 1) + ". ").append(this.label(s));
-			g.centeredText(this.font, text, lx, ly - 4, s == this.hovered ? 0xFFFFFFFF : 0xFFD8D2C4);
+			g.centeredText(this.font, text, lx, ly - 4, !this.enabled(s) ? 0xFF6A665E : s == this.hovered ? 0xFFFFFFFF : 0xFFD8D2C4);
 		}
 		g.centeredText(this.font, this.getTitle(), cx, cy - 4, 0xFFFFFFFF);
 		g.centeredText(this.font, Component.translatable("halloween.menu.hint"), cx, cy + OUTER + 30, 0xFF8A847A);
@@ -125,6 +130,9 @@ public final class NpcMenuScreen extends Screen {
 	}
 
 	private void choose(int option) {
+		if (!this.enabled(option)) {
+			return;
+		}
 		ClientPlayNetworking.send(new HwNet.NpcTalk(this.npcId, Mth.clamp(option, 0, SECTORS - 1)));
 		this.onClose();
 	}

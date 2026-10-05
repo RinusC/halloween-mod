@@ -266,6 +266,7 @@ public final class MatchManager {
 		Minigames.tick(server);
 		Bots.tick(server);
 		Townsfolk.tick(server);
+		Police.tick(server);
 
 		Iterator<VictimState> it = VICTIMS.values().iterator();
 		while (it.hasNext()) {
@@ -940,8 +941,11 @@ public final class MatchManager {
 		eliminate(victim);
 		spawnCorpse(level, pos, yaw);
 		CORPSES.add(new Corpse(level, pos, name, cfg.corpseAdmireTicks));
+		// Somebody has to find the body before the police can be called about it.
+		Police.addBody(pos, name);
+		// Survivors only learn about a death when they find the body (or hear the scream).
 		for (ServerPlayer player : level.getServer().getPlayerList().getPlayers()) {
-			if (role(player) != Role.NONE) {
+			if (role(player) == Role.SHAPE) {
 				Notices.send(player, Component.translatable("halloween.msg.killed", name).withStyle(ChatFormatting.DARK_RED));
 			}
 		}

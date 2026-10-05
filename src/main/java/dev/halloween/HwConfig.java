@@ -176,6 +176,38 @@ public class HwConfig {
 	public int gateOpenLastSeconds = 300;
 	public int policeArriveSeconds = 120;
 	public int policeStaySeconds = 90;
+
+	// --- Police and Michael's wanted level ---
+	/** Calls that can get through in a match; each needs a body someone has found. */
+	public int policeMaxCalls = 3;
+	/** Officers arriving at wanted levels 1, 2, 3. */
+	public int[] policeOfficersByLevel = {2, 2, 2};
+	/** Wanted levels whose police bring a van one survivor can leave in. */
+	public int[] policeVanLevels = {1, 3};
+	public String[] policeNames = {"Officer Miller", "Officer Hayes", "Officer Reed", "Officer Cole", "Officer Grant", "Officer Walsh"};
+	public float policeHealth = 30f;
+	public double policeWalkSpeed = 0.075;
+	public double policeRunSpeed = 0.12;
+	public double policeSightRange = 24;
+	public double policeDarkSightRange = 10;
+	public float policeFovDeg = 140f;
+	/** How close an officer keeps to the one it guards. */
+	public double policeGuardDistance = 3.5;
+	/** The Shape this close to the one it guards: the officer goes for him even from further off. */
+	public double policeGuardAlarm = 8;
+	/** The Shape this close to the officer itself: it goes for him. */
+	public double policeEngageRange = 12;
+	/** An officer doesn't chase him further than this from the one it guards. */
+	public double policeLeash = 20;
+	public double policeHitRange = 2.6;
+	public int policeHitCooldownTicks = 30;
+	/** Stun meter a baton blow fills (a full meter knocks the Shape down). */
+	public float policeBatonStun = 0.25f;
+	/** How far a body can be seen, in light and in the dark, and across what field of view. */
+	public double bodySightRange = 16;
+	public double bodyDarkSightRange = 7;
+	public float bodyFovDeg = 100f;
+	public int scoreFindBody = 25;
 	public int deputyRespawnSeconds = 30;
 	public int maxDeputies = 2;
 	/** Containers are looked for this far around the map centre. */

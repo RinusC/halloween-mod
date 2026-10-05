@@ -317,9 +317,10 @@ public final class HwNet {
 	 * coming back as a deputy (0 = not waiting).
 	 */
 	public record MatchSync(int state, int ticksLeft, int countdown, List<ExitInfo> exits, List<BlockPos> containers,
-		List<BlockPos> searched, List<BlockPos> phones, List<BlockPos> cutPhones, int respawnTicks, int myScore, List<Integer> npcs, List<Integer> followers) implements CustomPacketPayload {
+		List<BlockPos> searched, List<BlockPos> phones, List<BlockPos> cutPhones, int respawnTicks, int myScore, List<Integer> npcs, List<Integer> followers,
+		int wanted, int reportable) implements CustomPacketPayload {
 		public static final Type<MatchSync> TYPE = payloadType("match_sync");
-		public static final MatchSync IDLE = new MatchSync(0, 0, 0, List.of(), List.of(), List.of(), List.of(), List.of(), 0, 0, List.of(), List.of());
+		public static final MatchSync IDLE = new MatchSync(0, 0, 0, List.of(), List.of(), List.of(), List.of(), List.of(), 0, 0, List.of(), List.of(), 0, 0);
 		private static void writePositions(RegistryFriendlyByteBuf buf, List<BlockPos> list) {
 			buf.writeVarInt(list.size());
 			list.forEach(buf::writeBlockPos);
@@ -355,6 +356,8 @@ public final class HwNet {
 			v.npcs.forEach(buf::writeVarInt);
 			buf.writeVarInt(v.followers.size());
 			v.followers.forEach(buf::writeVarInt);
+			buf.writeVarInt(v.wanted);
+			buf.writeVarInt(v.reportable);
 		}, buf -> {
 			int state = buf.readVarInt();
 			int ticksLeft = buf.readVarInt();
@@ -380,7 +383,8 @@ public final class HwNet {
 			for (int i = 0; i < f; i++) {
 				followers.add(buf.readVarInt());
 			}
-			return new MatchSync(state, ticksLeft, countdown, exits, containers, searched, phones, cut, respawn, score, npcs, followers);
+			return new MatchSync(state, ticksLeft, countdown, exits, containers, searched, phones, cut, respawn, score, npcs, followers,
+				buf.readVarInt(), buf.readVarInt());
 		});
 
 		@Override

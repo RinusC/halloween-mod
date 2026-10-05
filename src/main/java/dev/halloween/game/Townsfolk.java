@@ -425,6 +425,37 @@ public final class Townsfolk {
 		}
 	}
 
+	/**
+	 * A townsperson came upon a body: it screams (survivors see where), then goes to call the police if a
+	 * working phone is in reach, or else hides.
+	 */
+	public static void sawBody(Entity entity, Vec3 pos, int now) {
+		Npc npc = entity == null ? null : NPCS.get(entity.getUUID());
+		if (npc == null) {
+			return;
+		}
+		HwConfig cfg = HwConfig.get();
+		ServerLevel level = (ServerLevel) npc.body.level();
+		AiStats.add(npc.body, "npc.saw_body");
+		if (now >= npc.screamReadyAt) {
+			scream(npc, now, null);
+		}
+		if (npc.state != State.HOME && npc.state != State.HIDE && npc.state != State.HIDDEN) {
+			return;
+		}
+		npc.threat = pos;
+		npc.threatTick = now;
+		BlockPos phone = nearestPhone(level, npc.body);
+		if (phone != null) {
+			startCall(npc, phone);
+		} else if (npc.state == State.HOME) {
+			npc.state = State.HIDE;
+			npc.pathSet = false;
+			npc.hideUntil = now + cfg.npcHideMinTicks;
+			setSpeed(npc, cfg.npcRunSpeed);
+		}
+	}
+
 	/** Townsfolk minding their own business at home near {@code pos}: ones a civilian could warn. */
 	public static List<Mannequin> idleNear(Vec3 pos, double radius) {
 		List<Mannequin> list = new ArrayList<>();
