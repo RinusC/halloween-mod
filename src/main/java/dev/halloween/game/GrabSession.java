@@ -91,7 +91,9 @@ public final class GrabSession {
 			- HwConfig.at(cfg.victimZoneShrinkByStalk, this.victimState.level()));
 		t.zoneStart = 0.1f + this.random.nextFloat() * (0.8f - t.zoneWidth);
 		t.open = true;
-		t.simSuccess = this.random.nextFloat() < (this.victim instanceof BotPlayer ? cfg.botQteSuccessChance : cfg.mannequinQteSuccessChance);
+		// Simulated victims (bots, townsfolk) find a narrower zone harder to hit, like a person does.
+		float base = this.victim instanceof BotPlayer ? cfg.botQteSuccessChance : cfg.mannequinQteSuccessChance;
+		t.simSuccess = this.random.nextFloat() < base * Mth.clamp(t.zoneWidth / cfg.victimZoneWidth, 0.35f, 1f);
 		t.simPressTick = 8 + this.random.nextInt(Math.max(1, cfg.victimRoundTicks - 12));
 	}
 
@@ -118,6 +120,23 @@ public final class GrabSession {
 		ServerPlayNetworking.send(this.shape, new HwNet.Qte(true, true, s.zoneStart, s.zoneWidth, cfg.shapeNeedlePeriodTicks,
 			s.roundStart, cfg.shapeRoundTicks, this.shapePoints, this.shapeNeeded(), this.victimPoints, cfg.victimPointsToEscape,
 			windowReady, this.bloody));
+	}
+
+	/** Would the Shape's press land right now? (For the AI simulation's Shape.) */
+	public boolean shapeWouldHit() {
+		if (this.finishing || !this.shapeTrack.open) {
+			return false;
+		}
+		long elapsed = this.level().getGameTime() - this.shapeTrack.roundStart;
+		if (elapsed < 3) {
+			return false;
+		}
+		float needle = HwNet.needle(elapsed, this.cfg().shapeNeedlePeriodTicks);
+		return needle >= this.shapeTrack.zoneStart && needle <= this.shapeTrack.zoneStart + this.shapeTrack.zoneWidth;
+	}
+
+	public LivingEntity victim() {
+		return this.victim;
 	}
 
 	/** Someone in the grab pressed their check key. */
@@ -192,6 +211,7 @@ public final class GrabSession {
 	}
 
 	private void escape() {
+		AiStats.add(this.victim, "grab.escaped");
 		HwConfig cfg = this.cfg();
 		this.state.recoverTicks = cfg.escapeShapeRecoverTicks;
 		this.state.grabCooldown = HwConfig.at(cfg.grabCooldownByTier, this.state.tier());

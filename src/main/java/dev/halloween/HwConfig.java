@@ -209,7 +209,7 @@ public class HwConfig {
 	/** Bots are added until there are this many civilians (only when someone plays the Shape). 0 = no bots. */
 	public int botsFillTo = 4;
 	public String[] botNames = {"Laurie", "Tommy", "Lindsey", "Annie", "Lynda", "Bob", "Marion", "Lonnie"};
-	public float botQteSuccessChance = 0.45f;
+	public float botQteSuccessChance = 0.55f;
 	public int botReactionMinTicks = 8;
 	public int botReactionMaxTicks = 24;
 	public double botSightRange = 28;
@@ -224,8 +224,10 @@ public class HwConfig {
 	/** Out of sight this long after fleeing: hide (with {@link #botHideChance}) or carry on. */
 	public int botCalmTicks = 60;
 	public float botHideChance = 0.6f;
-	public int botHideMinTicks = 200;
-	public int botHideMaxTicks = 500;
+	public int botHideMinTicks = 160;
+	public int botHideMaxTicks = 360;
+	/** A callout puts the Shape this far away: hiding bots come out early. */
+	public double botHideReleaseDistance = 30;
 	/** Bots lock a door behind them only when the Shape is at least this far back. */
 	public double botLockMinDistance = 4;
 	/** Closer than this, a fleeing bot first looks for a window right at hand. */
@@ -233,6 +235,18 @@ public class HwConfig {
 	/** At least this far ahead of the Shape, a fleeing bot runs behind a nearby door and locks it. */
 	public double botShelterMinDistance = 4;
 	public int botLockerRange = 14;
+	/** Bots hide in a locker only this far from where they last saw the Shape (he searches around there). */
+	public double botLockerAwayFromSighting = 9;
+	/** Bots tell neighbours at home this close to hide (when it is calm). */
+	public double botWarnRange = 16;
+	/** On the way to an exit, bots take a neighbour this close along. */
+	public double botEscortRange = 14;
+	/** The Shape this close (by the proximity music): bots start nothing long (gates, calls, repairs). */
+	public double botCautionDistance = 12;
+	/** While the music plays, bots look all around about this often (ticks). */
+	public int botLookAroundTicks = 40;
+	public int botCalloutCooldownTicks = 300;
+	public float botSwingWhenCaughtChance = 0.6f;
 
 	// --- Townsfolk ---
 	public int npcMax = 8;
@@ -246,6 +260,8 @@ public class HwConfig {
 	public int npcScreamCooldownTicks = 200;
 	public float npcCallChance = 0.5f;
 	public double npcPhoneRange = 28;
+	/** Townsfolk at home hear a scream or a battered door this far away and go hide (or call). */
+	public double npcHearRange = 18;
 	public int npcCalmTicks = 80;
 	public int npcHideMinTicks = 400;
 	public int npcHideMaxTicks = 900;

@@ -56,6 +56,19 @@ public final class Lockers {
 		return entity != null && INSIDE.containsKey(entity.getUUID());
 	}
 
+	public static LivingEntity occupant(BlockPos base) {
+		UUID id = OCCUPIED.get(base);
+		Inside inside = id == null ? null : INSIDE.get(id);
+		return inside == null ? null : inside.who;
+	}
+
+	/** Who sits in this locker (tests, debugging), or null. */
+	public static String occupantName(BlockPos base) {
+		UUID id = OCCUPIED.get(base);
+		Inside inside = id == null ? null : INSIDE.get(id);
+		return inside == null ? null : inside.who.getPlainTextName();
+	}
+
 	public static boolean occupied(BlockPos base) {
 		return OCCUPIED.containsKey(base);
 	}
@@ -182,6 +195,7 @@ public final class Lockers {
 			shape.sendOverlayMessage(Component.translatable("halloween.locker.empty").withStyle(ChatFormatting.GRAY));
 			return;
 		}
+		AiStats.add(inside.who, "locker.pulled_out");
 		LivingEntity victim = inside.who;
 		leave(victim, false);
 		MatchManager.grabOut(shape, victim);
@@ -227,6 +241,28 @@ public final class Lockers {
 				leave(who, true);
 			}
 		}
+	}
+
+	/**
+	 * The nearest free locker that is at least {@code minDist} from {@code avoid} (where the Shape last saw
+	 * whoever is hiding: he searches around there), or null.
+	 */
+	public static BlockPos nearestFreeAway(ServerLevel level, BlockPos from, int radius, Vec3 avoid, double minDist) {
+		BlockPos best = null;
+		double bestDist = Double.MAX_VALUE;
+		for (BlockPos pos : BlockPos.betweenClosed(from.offset(-radius, -2, -radius), from.offset(radius, 2, radius))) {
+			BlockState state = level.getBlockState(pos);
+			if (!LockerBlock.is(state) || state.getValue(LockerBlock.HALF) != net.minecraft.world.level.block.state.properties.DoubleBlockHalf.LOWER
+				|| OCCUPIED.containsKey(pos) || avoid != null && avoid.distanceTo(Vec3.atBottomCenterOf(pos)) < minDist) {
+				continue;
+			}
+			double d = pos.distSqr(from);
+			if (d < bestDist) {
+				bestDist = d;
+				best = pos.immutable();
+			}
+		}
+		return best;
 	}
 
 	/** The nearest locker nobody is in, within {@code radius} blocks, or null. */

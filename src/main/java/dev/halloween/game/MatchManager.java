@@ -863,6 +863,10 @@ public final class MatchManager {
 		state.dashTicks = 0;
 		gainBloodthirst(player, state, cfg.bloodthirstPerGrab);
 		score(player, state, cfg.scoreGrab, Component.translatable("halloween.score.grab", victim.getDisplayName(), vs.level()));
+		AiStats.add(victim, "grabbed");
+		if (victim instanceof ServerPlayer vp) {
+			AiStats.add(victim, "grabbed.while." + Bots.modeOf(vp));
+		}
 		state.grab = new GrabSession(player, state, victim, vs);
 		return true;
 	}
@@ -899,6 +903,7 @@ public final class MatchManager {
 		Vec3 pos = victim.position();
 		float yaw = victim.getYRot();
 
+		AiStats.add(victim, "killed." + kind.name().toLowerCase(Locale.ROOT));
 		gainBloodthirst(shape, state, cfg.bloodthirstPerKill + (kind == KillKind.WINDOW ? cfg.bloodthirstPerWindowKill : 0));
 		bleed(level, victim, bloody ? 80 : 40);
 		List<Component> lines = new ArrayList<>();

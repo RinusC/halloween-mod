@@ -29,7 +29,10 @@ final class BotBrain {
 	}
 
 	/** Something to walk to and hold use on (or just walk to, when {@code hold} is false). */
-	private record Task(BlockPos target, double within, boolean hold, String key) {
+	private record Task(BlockPos target, double within, boolean hold, String key, int entity) {
+		Task(BlockPos target, double within, boolean hold, String key) {
+			this(target, within, hold, key, -1);
+		}
 	}
 
 	private final BotPlayer bot;
@@ -66,6 +69,23 @@ final class BotBrain {
 	private boolean skipLocker;
 	/** Doors this bot has locked (tests, debugging). */
 	int locks;
+	private boolean unlocking;
+	private boolean wasVaulting;
+	private boolean lockedIn;
+	/** When this bot itself last saw (or heard right behind it) the Shape, as opposed to hearing about him. */
+	private int ownSightTick = -100000;
+	private final Map<BlockPos, Integer> badWindows = new HashMap<>();
+	private String fleePlan = "open";
+	private int lastNow;
+	/** Where we stood when we last saw him: he will look for us around there. */
+	private Vec3 seenFrom;
+	/** The townsperson this bot asked to follow it (to take along out of an exit). */
+	private int escorting = -1;
+	private int nextLookAround;
+	private int enteredLockerSeenUntil;
+	private final java.util.Set<Integer> warned = new java.util.HashSet<>();
+	private static java.util.List<BlockPos> breakers;
+	private static int breakersForMatch = -1;
 
 	BotBrain(BotPlayer bot) {
 		this.bot = bot;
@@ -85,6 +105,16 @@ final class BotBrain {
 	private int rollReaction() {
 		HwConfig cfg = this.cfg();
 		return cfg.botReactionMinTicks + this.random.nextInt(Math.max(1, cfg.botReactionMaxTicks - cfg.botReactionMinTicks + 1));
+	}
+
+	String modeName() {
+		if (this.mode == Mode.FLEE && this.lockDoor == null) {
+			return "flee." + this.fleePlan + (this.walker.idle() && !Windows.isVaulting(this.bot) ? ".stalled" : "");
+		}
+		if (this.mode == Mode.ROAM && this.holdPos == null) {
+			return this.lastNow < this.quietUntil ? "roam.pause" : this.task == null ? "roam.notask" : "roam." + this.task.key;
+		}
+		return this.holdPos != null ? "hold" : this.lockDoor != null ? "lock" : Lockers.isInside(this.bot) ? "locker" : this.mode.name().toLowerCase(java.util.Locale.ROOT);
 	}
 
 	BlockPos claimed() {
@@ -110,6 +140,11 @@ final class BotBrain {
 	// ---------------------------------------------------------------- tick
 
 	void tick(int now) {
+		this.lastNow = now;
+		if (!MatchManager.role(this.bot).survivor()) {
+			// A bot body driven as something else (the AI simulation's Shape) has no civilian mind.
+			return;
+		}
 		if (this.bot.isSpectator() || !Match.running()) {
 			this.walker.halt();
 			this.bot.setSprinting(false);
@@ -117,7 +152,13 @@ final class BotBrain {
 		}
 		if (MatchManager.isGrabbed(this.bot) || Windows.isVaulting(this.bot)) {
 			this.walker.halt();
+			this.wasVaulting |= Windows.isVaulting(this.bot);
 			return;
+		}
+		if (this.wasVaulting) {
+			// Over the sill: work out where to run next right away, no standing about.
+			this.wasVaulting = false;
+			this.fleeRepathAt = now;
 		}
 		if (Lockers.isInside(this.bot)) {
 			// Sitting tight: only the Shape throwing the door open ends this early.
@@ -159,6 +200,7 @@ final class BotBrain {
 		if (this.mode == mode) {
 			return;
 		}
+		AiStats.add(this.bot, "mode." + mode.name().toLowerCase(java.util.Locale.ROOT));
 		this.mode = mode;
 		this.walker.stop();
 		this.holdPos = null;
@@ -169,6 +211,7 @@ final class BotBrain {
 		this.locker = null;
 		this.hidLocker = false;
 		this.skipLocker = false;
+		this.lockedIn = false;
 		this.bot.setShiftKeyDown(false);
 		this.bot.setSprinting(mode == Mode.FLEE || mode == Mode.FIGHT);
 		this.fleeRepathAt = now;
@@ -182,6 +225,14 @@ final class BotBrain {
 		}
 		HwConfig cfg = this.cfg();
 		ServerPlayer seen = Senses.seenShape(this.bot, cfg.botSightRange, cfg.botDarkSightRange, cfg.botFovDeg);
+		if (seen == null && now >= this.nextLookAround && this.uneasyDistance() < cfg.themeRange) {
+			// The music says he is near: glance all around now and then, as a person would.
+			this.nextLookAround = now + cfg.botLookAroundTicks + this.random.nextInt(cfg.botLookAroundTicks);
+			seen = Senses.seenShape(this.bot, cfg.botSightRange, cfg.botDarkSightRange, 360);
+			if (seen != null) {
+				AiStats.add(this.bot, "look_around.spotted");
+			}
+		}
 		if (seen == null) {
 			ServerPlayer shape = Senses.shape(this.level());
 			ShapeState st = shape == null ? null : MatchManager.shapeState(shape);
@@ -199,8 +250,20 @@ final class BotBrain {
 		}
 		this.seeing += 2;
 		if (this.seeing >= this.reaction || this.aware(now)) {
+			boolean news = now - this.ownSightTick > 100;
+			this.ownSightTick = now;
+			if (this.threat != null && this.threat.distanceTo(seen.position()) > 4) {
+				// He is somewhere else than we thought: rethink the escape now.
+				this.fleeRepathAt = now;
+			}
+			this.seenFrom = this.bot.position();
 			this.threat = seen.position();
 			this.threatTick = now;
+			if (news) {
+				// Tell the others, like a person shouting over voice chat.
+				Bots.callout(this.bot, this.threat, now);
+				AiStats.add(this.bot, "callout");
+			}
 		}
 	}
 
@@ -211,6 +274,18 @@ final class BotBrain {
 		if (this.lockDoor != null) {
 			this.tickLock(now);
 			return;
+		}
+		ServerPlayer onUs = Senses.shape(this.level());
+		if (onUs != null && this.bot.distanceTo(onUs) < 2.4 && this.meleeSlot() >= 0 && now >= this.nextHit) {
+			// He is right on us: swing at him; a full stun meter would drop him.
+			this.nextHit = now + cfg.survivorHitCooldownTicks + 4;
+			if (this.random.nextFloat() < cfg.botSwingWhenCaughtChance) {
+				this.bot.getInventory().setSelectedSlot(this.meleeSlot());
+				this.walker.face(onUs.getEyePosition().add(0, -0.4, 0));
+				this.bot.swing(InteractionHand.MAIN_HAND, true);
+				Fight.onSurvivorAttack(this.bot, onUs);
+				AiStats.add(this.bot, "hit.cornered");
+			}
 		}
 		boolean seenRecently = now - this.threatTick < 40;
 		if (seenRecently) {
@@ -223,9 +298,16 @@ final class BotBrain {
 			}
 			return;
 		}
-		if (now >= this.fleeRepathAt || this.walker.idle() && this.shelterDoor == null && now >= this.fleeRepathAt - 25) {
+		// Under pressure a finished (or empty) path is replaced at once; otherwise every 1.5 s.
+		boolean pressed = now - this.threatTick < 40;
+		if (now >= this.fleeRepathAt || this.walker.idle() && this.shelterDoor == null && (pressed || now >= this.fleeRepathAt - 25)) {
 			this.fleeRepathAt = now + 30;
 			this.planFlee(now);
+			if (this.walker.idle() && pressed) {
+				// Nowhere better found (cornered?): try again shortly rather than every tick.
+				this.fleeRepathAt = now + 8;
+				this.walker.follow(this.runAway());
+			}
 		}
 		Walker.Status status = this.walker.tick();
 		// Made it to the inner side of the shelter door: lock it.
@@ -245,7 +327,14 @@ final class BotBrain {
 			boolean close = this.threat != null && this.bot.position().distanceTo(this.threat) < 8;
 			boolean canFast = this.bot.getHealth() > this.bot.getMaxHealth() * cfg.vaultDamageFraction + 0.5;
 			Windows.request(this.bot, node.glass(), close && canFast);
+			boolean going = Windows.isVaulting(this.bot);
+			AiStats.add(this.bot, going ? "window" : "window.refused");
 			this.walker.skip();
+			if (!going) {
+				// That window won't do (blocked, too hurt for a fast jump): forget it and run on.
+				this.badWindows.put(node.glass(), now + 200);
+				this.fleeRepathAt = now;
+			}
 		} else if (status == Walker.Status.STUCK) {
 			this.fleeRepathAt = now;
 		}
@@ -280,7 +369,10 @@ final class BotBrain {
 			this.bot.setShiftKeyDown(false);
 			this.lockDoor = null;
 			this.locks++;
+			AiStats.add(this.bot, "door.locked");
 			this.startHide(now);
+			// A locked door between us buys the time to get into a locker unseen.
+			this.lockedIn = true;
 			return;
 		}
 		if (now > this.lockUntil || tooClose) {
@@ -329,20 +421,37 @@ final class BotBrain {
 			if (dist < cfg.botWindowEscapeDistance) {
 				List<Nav.Node> path = this.windowEscape(from);
 				if (path != null) {
+					this.fleePlan = "window";
 					this.walker.follow(path);
 					this.fleeRepathAt = now + 60;
 					return;
 				}
 			}
 			if (dist >= cfg.botShelterMinDistance && this.doorShelter(from)) {
+				this.fleePlan = "door";
 				this.fleeRepathAt = now + 80;
 				return;
 			}
 		}
+		this.fleePlan = "open";
 		Nav.Options opt = Nav.Options.climber();
 		opt.maxNodes = 2500;
 		opt.windowCost = this.bot.getHealth() > this.bot.getMaxHealth() * cfg.vaultDamageFraction + 1 ? 3 : 6;
 		this.walker.follow(Nav.search(this.level(), this.bot.blockPosition(), 28, opt, (p, cost) -> fleeScore(this.level(), p, cost, from, this.bot)));
+	}
+
+	/** Straight away from him, at least a few blocks further than now: the fallback when no good spot is found. */
+	private List<Nav.Node> runAway() {
+		if (this.threat == null) {
+			return List.of();
+		}
+		Vec3 away = this.bot.position().subtract(this.threat).multiply(1, 0, 1);
+		away = away.lengthSqr() < 1.0E-4 ? new Vec3(this.random.nextDouble() - 0.5, 0, this.random.nextDouble() - 0.5).normalize() : away.normalize();
+		BlockPos target = BlockPos.containing(this.bot.position().add(away.scale(10)));
+		Vec3 from = this.threat;
+		double need = this.bot.position().distanceTo(from) + 5;
+		return Nav.find(this.level(), this.bot.blockPosition(), target, p -> Vec3.atBottomCenterOf(p).distanceTo(from) >= need,
+			Nav.Options.climber().nodes(1500));
 	}
 
 	/** A window within a few steps that puts a wall between us and the Shape: the path to it and over it. */
@@ -352,7 +461,7 @@ final class BotBrain {
 		List<Nav.Node> best = null;
 		double bestDist = Double.MAX_VALUE;
 		for (BlockPos glass : BlockPos.betweenClosed(feet.offset(-3, 1, -3), feet.offset(3, 1, 3))) {
-			if (!Windows.isWindow(level.getBlockState(glass)) || Nav.passable(level, glass.below()) != 0) {
+			if (!Windows.isWindow(level.getBlockState(glass)) || Nav.passable(level, glass.below()) != 0 || this.badWindows.getOrDefault(glass, 0) > this.lastNow) {
 				continue;
 			}
 			BlockPos wall = glass.below();
@@ -439,6 +548,10 @@ final class BotBrain {
 	private void tickHide(int now) {
 		HwConfig cfg = this.cfg();
 		boolean inLocker = Lockers.isInside(this.bot);
+		if (this.threat != null && now - this.threatTick < 20 && this.bot.position().distanceTo(this.threat) > cfg.botHideReleaseDistance) {
+			// Someone just called him out far away: no need to sit here any longer.
+			this.hideUntil = Math.min(this.hideUntil, now);
+		}
 		if (now > this.hideUntil || this.hidLocker && !inLocker) {
 			if (inLocker) {
 				Lockers.leave(this.bot, false);
@@ -453,7 +566,9 @@ final class BotBrain {
 		}
 		if (!this.hidePathSet) {
 			this.hidePathSet = true;
-			this.locker = this.skipLocker ? null : Lockers.nearestFree(this.level(), this.bot.blockPosition(), cfg.botLockerRange);
+			// Not a locker if he just saw us: that is the first place he would look.
+			boolean watched = !this.lockedIn && this.threat != null && now - this.threatTick < 60 && this.bot.position().distanceTo(this.threat) < 16;
+			this.locker = this.skipLocker || watched ? null : this.safeLocker();
 			if (this.locker != null) {
 				BlockPos front = Lockers.front(this.level(), this.locker);
 				List<Nav.Node> path = Nav.to(this.level(), this.bot.blockPosition(), front, 0.6, Nav.Options.walker());
@@ -478,6 +593,7 @@ final class BotBrain {
 				this.bot.setSprinting(this.threat != null && now - this.threatTick < 30 && this.bot.position().distanceTo(this.threat) < 6);
 				if (Lockers.enter(this.bot, this.locker)) {
 					this.hidLocker = true;
+					AiStats.add(this.bot, "locker");
 				} else {
 					this.locker = null;
 					this.skipLocker = true;
@@ -498,6 +614,13 @@ final class BotBrain {
 	/** Dark, indoors, out of sight of where the Shape was. Shared with townsfolk. */
 	static double hideScore(ServerLevel level, BlockPos p, double cost, Vec3 from, net.minecraft.world.entity.Entity viewer) {
 		double score = -cost * 0.2;
+		// Not right by a window: that is where he looks in (the original's townsfolk loved standing there).
+		for (net.minecraft.core.Direction d : net.minecraft.core.Direction.Plane.HORIZONTAL) {
+			if (Windows.isWindow(level.getBlockState(p.relative(d).above()))) {
+				score -= 4;
+				break;
+			}
+		}
 		if (level.getBrightness(LightLayer.BLOCK, p) <= 4) {
 			score += 6;
 		}
@@ -547,6 +670,7 @@ final class BotBrain {
 			this.nextHit = now + this.cfg().survivorHitCooldownTicks + 3 + this.random.nextInt(6);
 			this.bot.swing(InteractionHand.MAIN_HAND, true);
 			Fight.onSurvivorAttack(this.bot, shape);
+			AiStats.add(this.bot, "hit");
 		}
 	}
 
@@ -570,6 +694,7 @@ final class BotBrain {
 		this.walker.face(aim);
 		ItemStack stack = this.bot.getInventory().getItem(slot);
 		Fight.onUseItem(this.bot, stack);
+		AiStats.add(this.bot, "dart");
 		this.bot.swing(InteractionHand.MAIN_HAND, true);
 		this.bot.getInventory().setSelectedSlot(previous);
 	}
@@ -593,12 +718,32 @@ final class BotBrain {
 			return;
 		}
 		Walker.Status status = this.walker.tick();
+		if (status == Walker.Status.LOCKED) {
+			// A locked door on the way (maybe our own from earlier): crouch and unlock it.
+			Nav.Node node = this.walker.current();
+			BlockPos door = DoorLocks.base(this.level(), node.pos());
+			if (DoorLocks.isLockBroken(this.level(), door) || !DoorLocks.isLocked(this.level(), door)) {
+				return;
+			}
+			this.bot.setShiftKeyDown(true);
+			this.unlocking = true;
+			if (now % 4 == 0) {
+				DoorLocks.ping(this.bot, door);
+			}
+			return;
+		}
+		if (this.unlocking) {
+			this.unlocking = false;
+			this.bot.setShiftKeyDown(false);
+			AiStats.add(this.bot, "door.unlocked");
+		}
 		boolean there = Vec3.atBottomCenterOf(this.bot.blockPosition()).distanceTo(Vec3.atCenterOf(this.task.target)) <= this.task.within + 0.8;
 		if (status == Walker.Status.WINDOW) {
 			Windows.request(this.bot, this.walker.current().glass(), false);
 			this.walker.skip();
 		} else if (status == Walker.Status.STUCK || (status != Walker.Status.MOVING && !there)) {
 			this.failed.put(this.task.target, now + 200);
+			AiStats.add(this.bot, status == Walker.Status.STUCK ? "stuck" : "task.unreachable." + this.task.key);
 			this.task = null;
 		} else if (status != Walker.Status.MOVING || there && this.walker.idle()) {
 			if (this.task.hold) {
@@ -606,9 +751,46 @@ final class BotBrain {
 				this.holdPos = this.task.target;
 				this.holdStart = now;
 				this.holdBegan = false;
-			} else {
+			} else if (this.act(this.task, now)) {
 				this.task = null;
-				this.quietUntil = now + 20 + this.random.nextInt(60);
+				this.quietUntil = now + 10;
+			} else {
+				// Only an aimless wander ends in a look around; anything else goes straight to the next job.
+				this.quietUntil = now + (this.task.key.equals("wander") ? 20 + this.random.nextInt(60) : 2);
+				this.task = null;
+			}
+		}
+	}
+
+	/** One-click jobs done on arrival (not hold-use): talk to a neighbour, flip a breaker. True when handled. */
+	private boolean act(Task task, int now) {
+		switch (task.key) {
+			case "warn", "escort" -> {
+				net.minecraft.world.entity.Entity npc = this.level().getEntity(task.entity);
+				this.warned.add(task.entity);
+				if (npc != null && !npc.isRemoved()) {
+					this.walker.face(npc.getEyePosition());
+					// "Hide here" is said crouched, "follow me" standing, as a person would use the controls.
+					boolean hide = task.key.equals("warn");
+					this.bot.setShiftKeyDown(hide);
+					Townsfolk.command(this.bot, npc);
+					this.bot.setShiftKeyDown(false);
+					AiStats.add(this.bot, hide ? "npc.told_hide" : "npc.told_follow");
+					if (!hide) {
+						this.escorting = npc.getId();
+					}
+				}
+				this.replanAt = now;
+				return true;
+			}
+			case "power" -> {
+				LightSystem.flip(this.level(), task.target, true);
+				this.bot.swing(InteractionHand.MAIN_HAND, true);
+				AiStats.add(this.bot, "power.on");
+				return true;
+			}
+			default -> {
+				return false;
 			}
 		}
 	}
@@ -623,11 +805,13 @@ final class BotBrain {
 			this.holdBegan = true;
 		} else if (this.holdBegan) {
 			// Done (or interrupted): let go of the button before anything else.
+			AiStats.add(this.bot, "hold." + (this.task == null ? "?" : this.task.key));
 			this.holdPos = null;
 			this.task = null;
 			this.quietUntil = now + 10;
 		} else if (now - this.holdStart > 14) {
 			this.failed.put(this.holdPos, now + 400);
+			AiStats.add(this.bot, "hold.refused." + (this.task == null ? "?" : this.task.key));
 			this.holdPos = null;
 			this.task = null;
 			this.quietUntil = now + 10;
@@ -657,12 +841,86 @@ final class BotBrain {
 			this.task = null;
 			return;
 		}
+		// On the way out: take a neighbour along if one is at home nearby (a rescue on top of the escape).
+		if (best.key.equals("exit") && !this.escortingSomeone()) {
+			for (net.minecraft.world.entity.decoration.Mannequin npc : Townsfolk.idleNear(this.bot.position(), this.cfg().botEscortRange)) {
+				if (!this.warned.contains(npc.getId())) {
+					this.warned.add(npc.getId());
+					best = new Task(npc.blockPosition(), 2.2, false, "escort", npc.getId());
+					break;
+				}
+			}
+		}
 		if (this.task == null || !this.task.equals(best) || this.walker.idle()) {
 			this.task = best;
-			Nav.Options opt = Nav.Options.climber();
+			Nav.Options opt = Nav.Options.climber().lockedDoors(10);
 			opt.windowCost = 8;
+			if (this.threat != null && now - this.threatTick < 600) {
+				// Keep away from where he was last seen.
+				opt.avoiding(this.threat, 12);
+			}
 			this.walker.follow(Nav.to(this.level(), this.bot.blockPosition(), best.target, best.within, opt));
 		}
+	}
+
+	/**
+	 * How far the Shape is, as the proximity music tells a person: only within its range and never while
+	 * he is in Shape Jump (the music goes silent then). {@link Double#MAX_VALUE} when nothing is heard.
+	 */
+	private double uneasyDistance() {
+		ServerPlayer shape = Senses.shape(this.level());
+		ShapeState st = shape == null ? null : MatchManager.shapeState(shape);
+		if (st == null || st.shadowTicks > 0) {
+			return Double.MAX_VALUE;
+		}
+		double d = this.bot.distanceTo(shape);
+		return d <= this.cfg().themeRange ? d : Double.MAX_VALUE;
+	}
+
+	/** Would this item on the ground be worth picking up? */
+	private boolean wants(HwItems.Kind kind) {
+		if (kind == null || Inventory.has(this.bot, kind)) {
+			return false;
+		}
+		boolean free = false;
+		for (int i = 0; i < Inventory.SLOTS; i++) {
+			free |= this.bot.getInventory().getItem(i).isEmpty();
+		}
+		if (!free) {
+			return false;
+		}
+		return switch (kind) {
+			case BOLT_CUTTERS, PADLOCK_KEY -> Exits.infos().stream().anyMatch(e -> e.type() == Exits.CELLAR && e.state() == Exits.CLOSED);
+			case CAR_PART, CAR_KEYS -> Exits.infos().stream().anyMatch(e -> e.type() == Exits.CAR && (e.state() & Exits.CAR_GONE) == 0);
+			case REPAIR_KIT -> true;
+			case BAT, KNIFE -> this.meleeSlot() < 0;
+			case DART -> true;
+			default -> false;
+		};
+	}
+
+	/**
+	 * The nearest free locker that is not where he lost us: he searches around the spot he last saw us,
+	 * so a locker right there is the first one he opens.
+	 */
+	private BlockPos safeLocker() {
+		HwConfig cfg = this.cfg();
+		return Lockers.nearestFreeAway(this.level(), this.bot.blockPosition(), cfg.botLockerRange, this.lockedIn ? null : this.seenFrom, cfg.botLockerAwayFromSighting);
+	}
+
+	private boolean escortingSomeone() {
+		net.minecraft.world.entity.Entity npc = this.escorting < 0 ? null : this.level().getEntity(this.escorting);
+		return npc != null && Townsfolk.follows(npc, this.bot);
+	}
+
+	/** Breakers of the map (they don't move during a match). */
+	private List<BlockPos> breakers() {
+		if (breakers == null || breakersForMatch != Match.startTick()) {
+			breakersForMatch = Match.startTick();
+			BlockPos center = MapPoints.get(this.level()).first(MapPoints.Type.CENTER);
+			breakers = center == null ? List.of() : LightSystem.breakers(this.level(), center, (int) this.cfg().lootRadius);
+		}
+		return breakers;
 	}
 
 	private Map<Task, Double> candidates(int now) {
@@ -730,6 +988,35 @@ final class BotBrain {
 			if (!searched.contains(container) && !Bots.claimedByOther(container, this.bot)) {
 				out.put(new Task(container, 2.0, true, "search"), 30.0);
 			}
+		}
+		ServerLevel level = this.level();
+		boolean calm = this.threat == null || now - this.threatTick > 400;
+		if (calm) {
+			// A dark house is where he can Shape Jump: switch its breaker back on.
+			for (BlockPos breaker : this.breakers()) {
+				if (!LightSystem.isOn(level, breaker) && this.bot.position().distanceTo(Vec3.atCenterOf(breaker)) < 32
+					&& !Bots.claimedByOther(breaker, this.bot)) {
+					out.put(new Task(breaker, 2.0, false, "power"), 45.0);
+				}
+			}
+			// Neighbours at home don't know what is going on: tell them to hide (they score if they live).
+			for (net.minecraft.world.entity.decoration.Mannequin npc : Townsfolk.idleNear(this.bot.position(), cfg.botWarnRange)) {
+				if (!this.warned.contains(npc.getId()) && !Bots.claimedByOther(npc.blockPosition(), this.bot)) {
+					out.put(new Task(npc.blockPosition(), 2.2, false, "warn", npc.getId()), 35.0);
+				}
+			}
+		}
+		// Things lying about that we need (a car part he pulled out, what someone dropped).
+		for (net.minecraft.world.entity.item.ItemEntity item : level.getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class,
+			this.bot.getBoundingBox().inflate(24), e -> this.wants(HwItems.kindOf(e.getItem())))) {
+			HwItems.Kind kind = HwItems.kindOf(item.getItem());
+			double value = kind.melee() || kind == HwItems.Kind.DART ? 40.0 : 65.0;
+			out.put(new Task(item.blockPosition(), 0.6, false, "pickup"), value);
+		}
+		// He's close (the music is loud): don't start anything long that pins us down.
+		if (this.uneasyDistance() < cfg.botCautionDistance) {
+			out.keySet().removeIf(t -> t.key.equals("gate") || t.key.equals("call") || t.key.equals("phone") || t.key.equals("car")
+				|| t.key.equals("warn") || t.key.equals("power"));
 		}
 		if (out.isEmpty()) {
 			// Nothing to do: drift towards another survivor, or somewhere random near the middle.

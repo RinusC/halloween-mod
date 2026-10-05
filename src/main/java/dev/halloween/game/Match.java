@@ -54,8 +54,14 @@ public final class Match {
 	private static final Map<UUID, Participant> PEOPLE = new LinkedHashMap<>();
 	private static boolean dirty;
 	private static int tickCounter;
+	private static int startedAt;
 
 	private Match() {
+	}
+
+	/** Server tick the current match was started at (identifies the match). */
+	public static int startTick() {
+		return startedAt;
 	}
 
 	public static boolean running() {
@@ -144,6 +150,7 @@ public final class Match {
 		}
 		state = State.COUNTDOWN;
 		countdown = cfg.countdownSeconds * 20;
+		startedAt = server.getTickCount();
 		ticksLeft = cfg.matchSeconds * 20;
 		dirty = true;
 		return Component.translatable("halloween.cmd.started", players.size());
@@ -263,6 +270,7 @@ public final class Match {
 		}
 		score(player, HwConfig.get().scoreEscape, Component.translatable("halloween.score.escape", exit));
 		p.escaped = true;
+		AiStats.add(player, "escaped");
 		Inventory.dropAll(player);
 		player.setGameMode(GameType.SPECTATOR);
 		player.connection.send(new ClientboundSetTitleTextPacket(Component.translatable("halloween.match.you_escaped").withStyle(ChatFormatting.GREEN)));
@@ -276,6 +284,7 @@ public final class Match {
 		if (p == null || state == State.IDLE) {
 			return;
 		}
+		AiStats.add(player, "died");
 		Inventory.dropAll(player);
 		if (MatchManager.role(player) == Role.DEPUTY || p.died) {
 			p.finalOut = true;
@@ -367,6 +376,11 @@ public final class Match {
 		stopQuietly(server);
 		state = State.IDLE;
 		syncAll(server);
+	}
+
+	/** Hands the Shape's place in the final tally to {@code shape} (the AI simulation gives the role to a bot). */
+	public static void setShape(ServerPlayer shape) {
+		shapeId = shape.getUUID();
 	}
 
 	public static void forceTimeLeft(int seconds) {

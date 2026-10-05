@@ -62,6 +62,7 @@ public final class Bots {
 	}
 
 	public static void removeAll(MinecraftServer server) {
+		LAST_CALLOUT.clear();
 		for (BotPlayer bot : new ArrayList<>(BOTS.values())) {
 			remove(server, bot);
 		}
@@ -95,6 +96,39 @@ public final class Bots {
 				bot.brain.hear(pos, now);
 			}
 		}
+	}
+
+	/** Last chat callout per bot, so they don't spam. */
+	private static final Map<UUID, Integer> LAST_CALLOUT = new java.util.HashMap<>();
+
+	/**
+	 * A bot spotted the Shape: the other bots hear it like over voice chat, and people on the civilians' side
+	 * get a short callout in chat ("Laurie: Michael by the car!").
+	 */
+	static void callout(BotPlayer from, Vec3 shapePos, int now) {
+		HwConfig cfg = HwConfig.get();
+		for (BotPlayer bot : BOTS.values()) {
+			if (bot != from && bot.brain != null && !bot.isSpectator()) {
+				bot.brain.hear(shapePos, now);
+			}
+		}
+		Integer last = LAST_CALLOUT.get(from.getUUID());
+		if (last != null && now - last < cfg.botCalloutCooldownTicks) {
+			return;
+		}
+		LAST_CALLOUT.put(from.getUUID(), now);
+		net.minecraft.network.chat.Component line = net.minecraft.network.chat.Component.translatable("halloween.bot.callout",
+			from.getDisplayName(), Landmarks.describe(from.level(), shapePos)).withStyle(net.minecraft.ChatFormatting.GOLD);
+		for (ServerPlayer p : from.level().getServer().getPlayerList().getPlayers()) {
+			if (!(p instanceof BotPlayer) && MatchManager.role(p).survivor()) {
+				p.sendSystemMessage(line);
+			}
+		}
+	}
+
+	/** What a bot is up to (simulation, debugging): roam, flee, hide, fight, hold, lock, locker. */
+	public static String modeOf(ServerPlayer player) {
+		return player instanceof BotPlayer bot && bot.brain != null ? bot.brain.modeName() : "-";
 	}
 
 	static boolean claimedByOther(BlockPos target, BotPlayer me) {

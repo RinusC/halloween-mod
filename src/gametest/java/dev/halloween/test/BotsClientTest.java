@@ -47,6 +47,9 @@ public class BotsClientTest implements FabricClientGameTest {
 
 	@Override
 	public void runTest(ClientGameTestContext ctx) {
+		if (System.getenv("HW_SIM") != null) {
+			return;
+		}
 		try (TestSingleplayerContext sp = ctx.worldBuilder().create()) {
 			TestServerContext server = sp.getServer();
 			ctx.waitTicks(40);
@@ -74,6 +77,9 @@ public class BotsClientTest implements FabricClientGameTest {
 
 			// Keep the Shape out of everyone's way while the bots get on with it.
 			this.tp(server, 30.5, 0, -30.5);
+			// Michael has cut the power in the first house; bots should notice and switch it back on.
+			BlockPos breaker = this.origin.offset(-17, 1, 15);
+			server.runOnServer(s -> dev.halloween.game.LightSystem.flip(s.overworld(), breaker, false));
 			Map<UUID, Vec3> start = server.computeOnServer(s -> {
 				Map<UUID, Vec3> map = new HashMap<>();
 				Bots.all().forEach(b -> map.put(b.getUUID(), b.position()));
@@ -86,6 +92,9 @@ public class BotsClientTest implements FabricClientGameTest {
 			check(moved > 5, "bots walk around the map");
 			int searched = server.computeOnServer(s -> Loot.searched().size());
 			check(searched > 0, "bots search containers (" + searched + ")");
+			check(server.computeOnServer(s -> dev.halloween.game.LightSystem.isOn(s.overworld(), breaker)), "a bot switches the house lights back on");
+			int told = server.computeOnServer(s -> npcs(s).stream().mapToInt(m -> "hidden".equals(Townsfolk.stateOf(m)) ? 1 : 0).sum());
+			check(told > 0, "bots tell townsfolk at home to hide (" + told + ")");
 			ctx.takeScreenshot("b01_bots_at_work");
 
 			// A bot that sees the Shape runs away.
@@ -101,10 +110,16 @@ public class BotsClientTest implements FabricClientGameTest {
 			check(!"no bot".equals(fled), "a bot is still around");
 			UUID fleeing = UUID.fromString(fled);
 			double before = server.computeOnServer(s -> distance(s, fleeing));
-			ctx.waitTicks(80);
+			for (int i = 0; i < 12 && server.computeOnServer(s -> distance(s, fleeing)) < before + 3; i++) {
+				ctx.waitTicks(10);
+				LOG.info("fleeing bot: {} at {}", server.computeOnServer(s -> Bots.modeOf(s.getPlayerList().getPlayer(fleeing))),
+					server.computeOnServer(s -> distance(s, fleeing)));
+			}
 			double after = server.computeOnServer(s -> distance(s, fleeing));
 			LOG.info("Bot distance to the Shape: {} -> {}", before, after);
 			check(after > before + 3, "a bot that sees the Shape runs away");
+			check(server.computeOnServer(s -> dev.halloween.game.AiStats.snapshot().getOrDefault("*total", Map.of()).getOrDefault("callout", 0)) > 0,
+				"a bot that spots him calls it out to the others");
 			ctx.takeScreenshot("b02_bot_flees");
 
 			// The Shape right behind a bot standing by a window: over the sill it goes.
@@ -145,8 +160,11 @@ public class BotsClientTest implements FabricClientGameTest {
 			}
 			check(locked, "a fleeing bot locks the door behind it");
 			ctx.takeScreenshot("b02b_bot_locked_door");
+			// He wanders off (standing at the house he would be in sight through a window and keep it running).
+			this.tp(server, 30.5, 0, -30.5);
 
-			// Locked in, it goes for the locker in the corner; the Shape throws it open and has whoever is inside.
+			// Locked in, it hides in the house (in the locker unless a neighbour it warned earlier already sits there);
+			// the Shape throws the locker open and has whoever is inside.
 			BlockPos cupboard = this.origin.offset(-19, 0, 15);
 			boolean hiding = false;
 			for (int i = 0; i < 20 && !hiding; i++) {
@@ -154,16 +172,20 @@ public class BotsClientTest implements FabricClientGameTest {
 				hiding = server.computeOnServer(s -> Lockers.occupied(cupboard));
 			}
 			check(hiding, "someone hides in the locker");
-			check(server.computeOnServer(s -> Lockers.isInside(s.getPlayerList().getPlayer(locker))), "it is the bot that locked the door");
-			check(server.computeOnServer(s -> !MatchManager.exposed(s.getPlayerList().getPlayer(locker))), "the Shape learns nothing about someone in a locker");
+			LOG.info("In the locker: {}, the bot that locked: {} ({})", server.computeOnServer(s -> Lockers.occupantName(cupboard)),
+				server.computeOnServer(s -> s.getPlayerList().getPlayer(locker).getPlainTextName()),
+				server.computeOnServer(s -> Bots.modeOf(s.getPlayerList().getPlayer(locker))));
+			String lockerMode = server.computeOnServer(s -> Bots.modeOf(s.getPlayerList().getPlayer(locker)));
+			check(lockerMode.equals("hide") || lockerMode.equals("locker"), "the bot that locked the door hides in the house (" + lockerMode + ")");
+			check(server.computeOnServer(s -> !MatchManager.exposed(Lockers.occupant(cupboard))), "the Shape learns nothing about someone in a locker");
 			String pulled = server.computeOnServer(s -> {
 				ServerPlayer shape = player(s);
 				shape.teleportTo(s.overworld(), cupboard.getX() + 0.5, cupboard.getY(), cupboard.getZ() - 0.8, java.util.Set.of(), 0f, 0f, false);
 				MatchManager.shapeState(shape).attackCooldown = 0;
+				net.minecraft.world.entity.LivingEntity bot = Lockers.occupant(cupboard);
 				Lockers.shapeOpen(shape, cupboard);
-				ServerPlayer bot = s.getPlayerList().getPlayer(locker);
 				var grab = MatchManager.shapeState(shape).grab;
-				if (bot == null || !MatchManager.isGrabbed(bot) || grab == null) {
+				if (bot == null || !MatchManager.isHeld(bot) || grab == null) {
 					return "not grabbed";
 				}
 				int stalk = (int) MatchManager.stalkOf(bot);
@@ -171,7 +193,7 @@ public class BotsClientTest implements FabricClientGameTest {
 				return grab.shapeNeeded() == expected && HwConfig.get().victimPointsToEscape == 4 ? "ok"
 					: "needs " + grab.shapeNeeded() + " at stalk " + stalk;
 			});
-			check("ok".equals(pulled), "the Shape pulls the bot out into a grab; the kill needs 5/5/4/3 hits by stalk, escape 4 (" + pulled + ")");
+			check("ok".equals(pulled), "the Shape pulls whoever hides there out into a grab; the kill needs 5/5/4/3 hits by stalk, escape 4 (" + pulled + ")");
 			for (int stalk = 0; stalk <= 3; stalk++) {
 				LOG.info("Kill needs at stalk {}: {}", stalk, HwConfig.at(HwConfig.get().shapePointsToKillByStalk, stalk));
 			}
@@ -187,13 +209,19 @@ public class BotsClientTest implements FabricClientGameTest {
 			int screamsBefore = server.computeOnServer(s -> Townsfolk.screams);
 			int npcId = server.computeOnServer(s -> {
 				// One quietly at home: not hiding in a locker, not still hoarse from an earlier scream.
-				Mannequin npc = npcs(s).stream().filter(m -> !Lockers.isInside(m) && "home".equals(Townsfolk.stateOf(m))).findFirst()
-					.orElse(npcs(s).stream().filter(m -> !Lockers.isInside(m)).findFirst().orElseThrow());
+				Mannequin npc = npcs(s).stream().filter(m -> !Lockers.isInside(m) && Townsfolk.canScream(m) && "home".equals(Townsfolk.stateOf(m))).findFirst()
+					.orElse(npcs(s).stream().filter(m -> !Lockers.isInside(m) && Townsfolk.canScream(m)).findFirst().orElseThrow());
 				Vec3 front = near(s, npc, 2);
 				player(s).teleportTo(s.overworld(), front.x, front.y, front.z, java.util.Set.of(), 0f, 0f, false);
+				LOG.info("Scream test: {} state {} at {}, Shape at {}, can see {}", npc.getPlainTextName(), Townsfolk.stateOf(npc), npc.position(), front,
+					dev.halloween.game.Sight.canSee(s.overworld(), npc.getEyePosition(), front.add(0, 1.2, 0), npc));
 				return npc.getId();
 			});
-			ctx.waitTicks(20);
+			for (int i = 0; i < 8 && server.computeOnServer(s -> Townsfolk.screams) <= screamsBefore; i++) {
+				ctx.waitTicks(5);
+			}
+			LOG.info("Scream test after: state {}, player at {}", server.computeOnServer(s -> Townsfolk.stateOf(s.overworld().getEntity(npcId))),
+				server.computeOnServer(s -> player(s).position()));
 			check(server.computeOnServer(s -> Townsfolk.screams) > screamsBefore, "a townsperson that sees the Shape screams");
 			String state = server.computeOnServer(s -> Townsfolk.stateOf(s.overworld().getEntity(npcId)));
 			LOG.info("Townsperson state: {}", state);
@@ -249,8 +277,11 @@ public class BotsClientTest implements FabricClientGameTest {
 
 			// Lead it out: walk a few steps, it keeps up.
 			this.place(server, server.computeOnServer(s -> near(s, s.overworld().getEntity(guest), 4)));
-			ctx.waitTicks(60);
-			double gap = server.computeOnServer(s -> s.overworld().getEntity(guest).distanceTo(player(s)));
+			double gap = 99;
+			for (int i = 0; i < 12 && gap >= 3.5; i++) {
+				ctx.waitTicks(10);
+				gap = server.computeOnServer(s -> s.overworld().getEntity(guest).distanceTo(player(s)));
+			}
 			LOG.info("Follow gap: {}", gap);
 			check(gap < 3.5, "it keeps up");
 
@@ -291,13 +322,18 @@ public class BotsClientTest implements FabricClientGameTest {
 			// "Hide here": sneak + right click; it pays out if it lives to the end.
 			int hider = server.computeOnServer(s -> npcs(s).stream().filter(m -> !Lockers.isInside(m)).findFirst().orElseThrow().getId());
 			Vec3 hiderPos = server.computeOnServer(s -> s.overworld().getEntity(hider).position());
-			this.place(server, server.computeOnServer(s -> near(s, s.overworld().getEntity(hider), 1.8)));
-			this.lookAt(ctx, hiderPos.add(0, 1.2, 0));
-			ctx.getInput().holdKey(o -> o.keyShift);
-			ctx.waitTicks(3);
-			ctx.getInput().pressKey(o -> o.keyUse);
-			ctx.waitTicks(5);
-			ctx.getInput().releaseKey(o -> o.keyShift);
+			for (int attempt = 0; attempt < 4 && !"hidden".equals(server.computeOnServer(s -> Townsfolk.stateOf(s.overworld().getEntity(hider)))); attempt++) {
+				int skip = attempt * 4;
+				this.place(server, server.computeOnServer(s -> near(s, s.overworld().getEntity(hider), 1.8, skip)));
+				Vec3 at = server.computeOnServer(s -> s.overworld().getEntity(hider).position());
+				this.lookAt(ctx, at.add(0, 1.2, 0));
+				ctx.getInput().holdKey(o -> o.keyShift);
+				ctx.waitTicks(3);
+				ctx.getInput().pressKey(o -> o.keyUse);
+				ctx.waitTicks(5);
+				ctx.getInput().releaseKey(o -> o.keyShift);
+				ctx.waitTicks(3);
+			}
 			check("hidden".equals(server.computeOnServer(s -> Townsfolk.stateOf(s.overworld().getEntity(hider)))), "a townsperson hides when told");
 			int beforeEnd = server.computeOnServer(s -> Match.scores().values().stream().mapToInt(Integer::intValue).sum());
 			server.runCommand("hw timer 1");

@@ -18,7 +18,9 @@ import net.minecraft.world.phys.Vec3;
  */
 public final class Walker {
 	public enum Status {
-		IDLE, MOVING, ARRIVED, STUCK, WINDOW
+		IDLE, MOVING, ARRIVED, STUCK, WINDOW,
+		/** The next step is a locked door: the owner unlocks or breaks it, then walking carries on. */
+		LOCKED
 	}
 
 	private final LivingEntity body;
@@ -113,6 +115,12 @@ public final class Walker {
 		BlockPos doorPos = node.pos();
 		BlockState state = level.getBlockState(doorPos);
 		if (state.getBlock() instanceof DoorBlock door && flat < 2.2) {
+			if (DoorLocks.isLocked(level, doorPos)) {
+				this.halt();
+				this.face(Vec3.atCenterOf(DoorLocks.base(level, doorPos).above()));
+				this.stuckTicks = 0;
+				return Status.LOCKED;
+			}
 			if (!door.isOpen(state)) {
 				door.setOpen(this.body, level, state, doorPos, true);
 			}

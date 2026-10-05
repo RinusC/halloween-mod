@@ -37,6 +37,28 @@ public final class Nav {
 		boolean windows;
 		int maxNodes = 5000;
 		double windowCost = 5;
+		/** Locked doors count as passable at this extra cost (to unlock or break them); negative: impassable. */
+		double lockedCost = -1;
+		/** Steps within {@link #avoidRadius} of this point cost extra: a path that keeps away from the Shape. */
+		net.minecraft.world.phys.Vec3 avoid;
+		double avoidRadius = 10;
+		double avoidCost = 6;
+
+		public Options lockedDoors(double cost) {
+			this.lockedCost = cost;
+			return this;
+		}
+
+		public Options avoiding(net.minecraft.world.phys.Vec3 point, double radius) {
+			this.avoid = point;
+			this.avoidRadius = radius;
+			return this;
+		}
+
+		public Options nodes(int max) {
+			this.maxNodes = max;
+			return this;
+		}
 
 		public static Options walker() {
 			return new Options();
@@ -64,11 +86,14 @@ public final class Nav {
 		return state.getBlock() instanceof DoorBlock;
 	}
 
+	/** Set for the duration of a search whose options let it through locked doors (the server thread is single). */
+	private static boolean lockedOk;
+
 	/** 0 blocked, 1 free, 2 door. */
 	static int passable(Level level, BlockPos pos) {
 		BlockState state = level.getBlockState(pos);
 		if (isDoor(state)) {
-			return DoorLocks.isLocked(level, pos) ? 0 : 2;
+			return DoorLocks.isLocked(level, pos) && !lockedOk ? 0 : 2;
 		}
 		if (state.getBlock() instanceof FenceGateBlock) {
 			return state.getValue(BlockStateProperties.OPEN) ? 1 : 0;
@@ -125,7 +150,20 @@ public final class Nav {
 		void accept(BlockPos pos, Step step, BlockPos glass, double cost);
 	}
 
-	private static void neighbours(Level level, BlockPos cur, Options opt, Sink sink) {
+	private static void neighbours(Level level, BlockPos cur, Options opt, Sink raw) {
+		Sink sink = (pos, step, glass, cost) -> {
+			double extra = 0;
+			if (step == Step.DOOR && opt.lockedCost >= 0 && DoorLocks.isLocked(level, pos)) {
+				extra += opt.lockedCost;
+			}
+			if (opt.avoid != null) {
+				double d = opt.avoid.distanceTo(net.minecraft.world.phys.Vec3.atBottomCenterOf(pos));
+				if (d < opt.avoidRadius) {
+					extra += opt.avoidCost * (1 - d / opt.avoidRadius);
+				}
+			}
+			raw.accept(pos, step, glass, cost + extra);
+		};
 		boolean headroom = passable(level, cur.above(2)) != 0;
 		boolean[] open = new boolean[4];
 		int i = 0;
@@ -213,6 +251,15 @@ public final class Nav {
 	 * unreachable within the node budget, or an empty list if nothing better than standing still exists.
 	 */
 	public static List<Node> find(Level level, BlockPos start, BlockPos target, Predicate<BlockPos> goal, Options opt) {
+		lockedOk = opt.lockedCost >= 0;
+		try {
+			return findImpl(level, start, target, goal, opt);
+		} finally {
+			lockedOk = false;
+		}
+	}
+
+	private static List<Node> findImpl(Level level, BlockPos start, BlockPos target, Predicate<BlockPos> goal, Options opt) {
 		start = snap(level, start);
 		Long2DoubleOpenHashMap g = new Long2DoubleOpenHashMap();
 		g.defaultReturnValue(Double.MAX_VALUE);
@@ -265,6 +312,15 @@ public final class Nav {
 	 * start itself is best).
 	 */
 	public static List<Node> search(Level level, BlockPos start, double maxCost, Options opt, Scorer scorer) {
+		lockedOk = opt.lockedCost >= 0;
+		try {
+			return searchImpl(level, start, maxCost, opt, scorer);
+		} finally {
+			lockedOk = false;
+		}
+	}
+
+	private static List<Node> searchImpl(Level level, BlockPos start, double maxCost, Options opt, Scorer scorer) {
 		start = snap(level, start);
 		Long2DoubleOpenHashMap g = new Long2DoubleOpenHashMap();
 		g.defaultReturnValue(Double.MAX_VALUE);

@@ -45,7 +45,7 @@ public final class Townsfolk {
 	private static final String[] SKINS = {"alex", "ari", "efe", "kai", "makena", "noor", "steve", "sunny", "zuri"};
 
 	private enum State {
-		HOME, PANIC, HIDE, CALL, FOLLOW, HIDDEN
+		HOME, PANIC, HIDE, CALL, FOLLOW, HIDDEN, LOCKING
 	}
 
 	private static final class Npc {
@@ -69,6 +69,10 @@ public final class Townsfolk {
 		boolean wasGrabbed;
 		BlockPos locker;
 		boolean noLocker;
+		BlockPos lockDoor;
+		int lockTicks;
+		/** Where it stood when it last saw the Shape. */
+		Vec3 seenFrom;
 
 		Npc(Mannequin body, String name) {
 			this.body = body;
@@ -101,6 +105,12 @@ public final class Townsfolk {
 
 	/** Screams so far (tests, debugging). */
 	public static int screams;
+
+	/** Could this townsperson scream right now (not still hoarse from the last one)? Tests, debugging. */
+	public static boolean canScream(Entity entity) {
+		Npc npc = entity == null ? null : NPCS.get(entity.getUUID());
+		return npc != null && entity.level().getServer().getTickCount() >= npc.screamReadyAt;
+	}
 
 	/** What a townsperson is doing (tests, debugging): home, panic, hide, call, follow, hidden; or none. */
 	public static String stateOf(Entity entity) {
@@ -253,6 +263,7 @@ public final class Townsfolk {
 			ServerPlayer seen = Senses.seenShape(body, cfg.npcSightRange, cfg.npcDarkSightRange, cfg.npcFovDeg);
 			if (seen != null) {
 				npc.threat = seen.position();
+				npc.seenFrom = body.position();
 				npc.threatTick = now;
 				double dist = body.distanceTo(seen);
 				boolean quiet = npc.state == State.HIDDEN && dist > 5;
@@ -295,6 +306,7 @@ public final class Townsfolk {
 			case HIDE, HIDDEN -> tickHide(npc, now, level);
 			case CALL -> tickCall(npc, now, level);
 			case FOLLOW -> tickFollow(npc, now, level);
+			case LOCKING -> tickLocking(npc, now, level);
 		}
 	}
 
@@ -308,8 +320,11 @@ public final class Townsfolk {
 		ServerLevel level = (ServerLevel) body.level();
 		npc.screamReadyAt = now + cfg.npcScreamCooldownTicks;
 		screams++;
+		AiStats.add(body, "npc.scream");
 		level.playSound(null, body.getX(), body.getEyeY(), body.getZ(), HwSounds.NPC_SCREAM, SoundSource.NEUTRAL, 3f, 0.9f + level.getRandom().nextFloat() * 0.3f);
 		Vec3 where = shape != null ? shape.position() : body.position();
+		// The neighbours hear it too.
+		hearNoise(level, where, now, npc);
 		HwNet.Alert alert = new HwNet.Alert(where, cfg.alertTicks);
 		for (ServerPlayer player : level.players()) {
 			if (MatchManager.role(player).survivor() && !player.isSpectator() && !Bots.isBot(player)) {
@@ -322,10 +337,59 @@ public final class Townsfolk {
 		}
 	}
 
+	public static void hearNoise(ServerLevel level, Vec3 pos, int now) {
+		hearNoise(level, pos, now, null);
+	}
+
+	/**
+	 * A scream or a door being battered nearby: townsfolk at home that hear it don't wait to see him. They
+	 * hide (in a locker if one is close), or, if a working phone is nearer to them than to the noise, call
+	 * the police.
+	 */
+	private static void hearNoise(ServerLevel level, Vec3 pos, int now, Npc source) {
+		HwConfig cfg = HwConfig.get();
+		for (Npc npc : NPCS.values()) {
+			if (npc == source || npc.state != State.HOME || npc.body.position().distanceTo(pos) > cfg.npcHearRange) {
+				continue;
+			}
+			AiStats.add(npc.body, "npc.heard");
+			npc.threat = pos;
+			npc.threatTick = now;
+			BlockPos phone = level.getRandom().nextFloat() < cfg.npcCallChance ? nearestPhone(level, npc.body) : null;
+			if (phone != null && Vec3.atCenterOf(phone).distanceTo(pos) > Vec3.atCenterOf(phone).distanceTo(npc.body.position()) + 4) {
+				startCall(npc, phone);
+			} else {
+				npc.state = State.HIDE;
+				npc.pathSet = false;
+				npc.hideUntil = now + cfg.npcHideMinTicks + level.getRandom().nextInt(Math.max(1, cfg.npcHideMaxTicks - cfg.npcHideMinTicks));
+				setSpeed(npc, cfg.npcRunSpeed);
+			}
+		}
+	}
+
+	/** Townsfolk minding their own business at home near {@code pos}: ones a civilian could warn. */
+	public static List<Mannequin> idleNear(Vec3 pos, double radius) {
+		List<Mannequin> list = new ArrayList<>();
+		for (Npc npc : NPCS.values()) {
+			if (npc.state == State.HOME && !npc.body.isRemoved() && !Lockers.isInside(npc.body) && !MatchManager.isHeld(npc.body)
+				&& npc.body.position().distanceTo(pos) <= radius) {
+				list.add(npc.body);
+			}
+		}
+		return list;
+	}
+
+	/** Is this townsperson following {@code leader} right now? */
+	public static boolean follows(Entity npc, Entity leader) {
+		Npc n = npc == null ? null : NPCS.get(npc.getUUID());
+		return n != null && n.state == State.FOLLOW && leader.getUUID().equals(n.leader);
+	}
+
 	private static void panic(Npc npc, int now) {
 		if (npc.state == State.FOLLOW) {
 			return;
 		}
+		AiStats.add(npc.body, "npc.panic");
 		npc.state = State.PANIC;
 		npc.calmSince = now;
 		npc.repathAt = now;
@@ -373,11 +437,52 @@ public final class Townsfolk {
 			Nav.Options opt = Nav.Options.walker();
 			opt.maxNodes = 2000;
 			npc.walker.speed = 1f;
-			npc.walker.follow(Nav.search(level, npc.body.blockPosition(), 24, opt, (p, cost) -> BotBrain.fleeScore(level, p, cost, from, npc.body)));
+			npc.walker.follow(Nav.search(level, npc.body.blockPosition(), 24, opt, (p, cost) -> BotBrain.fleeScore(level, p, cost, from, npc.body) + refuge(level, p)));
 		}
 		if (npc.walker.tick() == Walker.Status.STUCK) {
 			npc.repathAt = now;
 		}
+		// Ran in through a door with him some way back: lock it behind (takes as long as for anyone).
+		BlockPos door = npc.walker.takePassedDoor();
+		if (door != null && npc.threat != null && npc.threat.distanceTo(Vec3.atCenterOf(door)) > HwConfig.get().botLockMinDistance
+			&& !DoorLocks.isLocked(level, door) && !DoorLocks.isLockBroken(level, door)) {
+			npc.lockDoor = DoorLocks.base(level, door);
+			npc.lockTicks = 0;
+			npc.state = State.LOCKING;
+		}
+	}
+
+	private static void tickLocking(Npc npc, int now, ServerLevel level) {
+		HwConfig cfg = HwConfig.get();
+		npc.walker.halt();
+		npc.walker.face(Vec3.atCenterOf(npc.lockDoor.above()));
+		npc.body.setPose(Pose.CROUCHING);
+		boolean close = npc.threat != null && now - npc.threatTick < 20 && npc.body.position().distanceTo(npc.threat) < 3;
+		if (close || DoorLocks.isLockBroken(level, npc.lockDoor) || npc.body.position().distanceTo(Vec3.atCenterOf(npc.lockDoor)) > 3) {
+			npc.body.setPose(Pose.STANDING);
+			panic(npc, now);
+			return;
+		}
+		if (++npc.lockTicks >= cfg.lockTicks) {
+			DoorLocks.forceLock(level, npc.lockDoor);
+			AiStats.add(npc.body, "npc.locked_door");
+			npc.body.setPose(Pose.STANDING);
+			npc.state = State.HIDE;
+			npc.pathSet = false;
+			npc.hideUntil = now + cfg.npcHideMinTicks + level.getRandom().nextInt(Math.max(1, cfg.npcHideMaxTicks - cfg.npcHideMinTicks));
+		}
+	}
+
+	/** Running townsfolk head for light (he can't Shape Jump there) and for other people. */
+	private static double refuge(ServerLevel level, BlockPos p) {
+		double score = level.getBrightness(net.minecraft.world.level.LightLayer.BLOCK, p) >= 8 ? 3 : 0;
+		for (ServerPlayer player : level.players()) {
+			if (MatchManager.role(player).survivor() && !player.isSpectator() && player.position().distanceTo(Vec3.atBottomCenterOf(p)) < 5) {
+				score += 5;
+				break;
+			}
+		}
+		return score;
 	}
 
 	private static void tickHide(Npc npc, int now, ServerLevel level) {
@@ -399,7 +504,8 @@ public final class Townsfolk {
 		}
 		if (!npc.pathSet) {
 			npc.pathSet = true;
-			npc.locker = npc.noLocker ? null : Lockers.nearestFree(level, npc.body.blockPosition(), 12);
+			npc.locker = npc.noLocker ? null
+				: Lockers.nearestFreeAway(level, npc.body.blockPosition(), 12, npc.seenFrom, HwConfig.get().botLockerAwayFromSighting);
 			if (npc.locker != null) {
 				npc.walker.speed = 1f;
 				npc.walker.follow(Nav.to(level, npc.body.blockPosition(), Lockers.front(level, npc.locker), 0.6, Nav.Options.walker()));
@@ -484,6 +590,7 @@ public final class Townsfolk {
 		}
 		if (++npc.callTicks >= cfg.callPoliceTicks) {
 			Exits.callPolice(level, Component.translatable("halloween.match.npc_called_police", npc.name));
+			AiStats.add(npc.body, "npc.called_police");
 			npc.state = State.HIDE;
 			npc.pathSet = false;
 			npc.hideUntil = now + cfg.npcHideMinTicks;
@@ -509,7 +616,8 @@ public final class Townsfolk {
 			}
 		}
 		double dist = leader.distanceTo(npc.body);
-		setSpeed(npc, dist > 5 ? cfg.npcRunSpeed : cfg.npcWalkSpeed + 0.02);
+		// Keep up: run when the leader runs or falls behind.
+		setSpeed(npc, dist > 5 || leader.isSprinting() ? cfg.npcRunSpeed : cfg.npcWalkSpeed + 0.02);
 		if (dist <= 2.2) {
 			npc.walker.stop();
 			npc.walker.face(leader.getEyePosition());
@@ -529,6 +637,7 @@ public final class Townsfolk {
 		level.sendParticles(ParticleTypes.HAPPY_VILLAGER, body.getX(), body.getY() + 1, body.getZ(), 15, 0.4, 0.6, 0.4, 0);
 		Match.score(leader, cfg.scoreRescueNpc, Component.translatable("halloween.score.npc_rescued", npc.name));
 		Match.announce(level.getServer(), Component.translatable("halloween.match.npc_rescued", leader.getDisplayName(), npc.name).withStyle(ChatFormatting.GREEN));
+		AiStats.add(body, "npc.rescued");
 		NPCS.remove(body.getUUID());
 		MatchManager.eliminate(body);
 	}

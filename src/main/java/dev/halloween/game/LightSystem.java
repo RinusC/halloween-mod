@@ -53,6 +53,32 @@ public final class LightSystem {
 		return InteractionResult.SUCCESS;
 	}
 
+	/** Switches a breaker (and its house lights) on or off, as if someone flipped it. */
+	public static void flip(ServerLevel level, BlockPos breaker, boolean on) {
+		BlockState state = level.getBlockState(breaker);
+		if (!isBreaker(level, breaker) || state.getValue(LeverBlock.POWERED) == on) {
+			return;
+		}
+		level.setBlock(breaker, state.setValue(LeverBlock.POWERED, on), Block.UPDATE_CLIENTS);
+		setLights(level, breaker, on);
+		level.playSound(null, breaker, HwSounds.BREAKER, SoundSource.BLOCKS, 1f, on ? 1.1f : 0.8f);
+	}
+
+	public static boolean isOn(ServerLevel level, BlockPos breaker) {
+		return isBreaker(level, breaker) && level.getBlockState(breaker).getValue(LeverBlock.POWERED);
+	}
+
+	/** Breakers within {@code radius} of {@code center}. */
+	public static java.util.List<BlockPos> breakers(ServerLevel level, BlockPos center, int radius) {
+		java.util.List<BlockPos> list = new java.util.ArrayList<>();
+		for (BlockPos pos : BlockPos.betweenClosed(center.offset(-radius, -3, -radius), center.offset(radius, 4, radius))) {
+			if (level.getBlockState(pos).is(Blocks.LEVER) && isBreaker(level, pos)) {
+				list.add(pos.immutable());
+			}
+		}
+		return list;
+	}
+
 	public static void setLights(ServerLevel level, BlockPos center, boolean on) {
 		int r = HwConfig.get().breakerRadius;
 		for (BlockPos pos : BlockPos.betweenClosed(center.offset(-r, -r, -r), center.offset(r, r, r))) {

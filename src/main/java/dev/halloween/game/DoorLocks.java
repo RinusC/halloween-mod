@@ -210,6 +210,9 @@ public final class DoorLocks {
 		HwConfig cfg = HwConfig.get();
 		int damage = DAMAGE.merge(door, heavy ? cfg.doorHeavyHitPoints : cfg.doorLightHitPoints, Integer::sum);
 		Vec3 c = Vec3.atCenterOf(door.above());
+		// Everyone around hears him battering at it.
+		Bots.alert(Vec3.atCenterOf(door), level.getServer().getTickCount());
+		Townsfolk.hearNoise(level, Vec3.atCenterOf(door), level.getServer().getTickCount());
 		level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, level.getBlockState(door)), c.x, c.y - 0.5, c.z, 12, 0.3, 0.6, 0.3, 0.1);
 		if (damage >= cfg.doorBreakPoints) {
 			LOCKED.remove(door);
@@ -238,6 +241,19 @@ public final class DoorLocks {
 	}
 
 	// ---------------------------------------------------------------- sync
+
+	/** Locks a door outright (townsfolk do the waiting themselves). */
+	public static void forceLock(ServerLevel level, BlockPos pos) {
+		BlockPos door = base(level, pos);
+		if (!isDoor(level.getBlockState(door)) || LOCKED.contains(door) || BROKEN.contains(door)) {
+			return;
+		}
+		setOpen(level, door, false);
+		LOCKED.add(door);
+		DAMAGE.remove(door);
+		level.playSound(null, door, HwSounds.LOCK, SoundSource.BLOCKS, 1f, 1f);
+		sync(level.getServer());
+	}
 
 	public static void sync(MinecraftServer server) {
 		HwNet.DoorSync sync = new HwNet.DoorSync(new ArrayList<>(LOCKED), new ArrayList<>(BROKEN));
