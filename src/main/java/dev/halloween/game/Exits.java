@@ -333,7 +333,62 @@ public final class Exits {
 			p -> !CUT_PHONES.contains(phone) && policeState == POLICE_IDLE, p -> {
 				Match.score(p, cfg.scoreCallPolice, Component.translatable("halloween.score.police_called"));
 				callPolice(level, Component.translatable("halloween.match.police_called"));
-			});
+			}, true);
+	}
+
+	/**
+	 * A townsperson brought to an open exit leaves through it and uses it up, like a civilian: cellar open,
+	 * police van waiting, gates open. Returns the exit's name, or null if there is no open exit here.
+	 */
+	public static Component npcEscape(ServerLevel level, Vec3 at, double radius) {
+		if (cellar != null && cellarState == OPEN && Vec3.atCenterOf(cellar).distanceTo(at) <= radius) {
+			cellarState = USED;
+			setNearby(level, cellar, false);
+			Match.markDirty();
+			return Component.translatable("halloween.exit.cellar");
+		}
+		if (police != null && policeState == POLICE_HERE && Vec3.atCenterOf(police).distanceTo(at) <= radius + 1) {
+			policeState = POLICE_USED;
+			removeVan(level);
+			Match.markDirty();
+			return Component.translatable("halloween.exit.police");
+		}
+		if (gate != null && gateState == OPEN && Vec3.atCenterOf(gate).distanceTo(at) <= radius) {
+			gateState = USED;
+			setNearby(level, gate, false);
+			Match.markDirty();
+			return Component.translatable("halloween.exit.gate");
+		}
+		return null;
+	}
+
+	/** Opens an exit straight away (map testing: /hw exit open, and tests). */
+	public static void forceOpen(ServerLevel level, int type) {
+		switch (type) {
+			case CELLAR -> {
+				if (cellar != null) {
+					cellarState = OPEN;
+					setNearby(level, cellar, true);
+				}
+			}
+			case GATE -> {
+				if (gate != null) {
+					gateState = OPEN;
+					setNearby(level, gate, true);
+				}
+			}
+			case POLICE -> {
+				if (police != null) {
+					policeState = POLICE_HERE;
+					policeTimer = HwConfig.get().policeStaySeconds * 20;
+					buildVan(level, police);
+				}
+			}
+			case CAR -> carFlags = CAR_PART | CAR_REPAIRED;
+			default -> {
+			}
+		}
+		Match.markDirty();
 	}
 
 	/** The police can still be called (they exist on this map and nobody has called yet). */

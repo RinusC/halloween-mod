@@ -32,6 +32,16 @@ public final class HwCommands {
 			.then(Commands.literal("role").then(role))
 			.then(Commands.literal("arena").executes(HwCommands::arena))
 			.then(Commands.literal("mannequin").executes(HwCommands::mannequin))
+			.then(Commands.literal("exit").then(Commands.literal("open").then(Commands.argument("type", StringArgumentType.word())
+				.suggests((c, b) -> SharedSuggestionProvider.suggest(java.util.List.of("cellar", "car", "police", "gate"), b))
+				.executes(ctx -> {
+					int type = java.util.List.of("cellar", "car", "police", "gate").indexOf(StringArgumentType.getString(ctx, "type"));
+					if (type < 0) {
+						return 0;
+					}
+					Exits.forceOpen(ctx.getSource().getLevel(), type);
+					return 1;
+				}))))
 			.then(Commands.literal("locker").executes(ctx -> {
 				CommandSourceStack src = ctx.getSource();
 				// In front of whoever places it, door facing them.

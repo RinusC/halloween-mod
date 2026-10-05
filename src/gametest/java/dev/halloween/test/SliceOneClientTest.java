@@ -32,7 +32,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Plays through the Shape's kit in a real client on the test arena: passive and sensed stalking,
  * focus, Shape Jump with beams, the breaker, a grab won through reaction checks ending in a window
- * execution, admiring the corpse, light/heavy strikes, push, dash, impulse, and the civilian QTE.
+ * execution, admiring the corpse, light/heavy strikes, no push, dash, impulse, and the civilian QTE.
  * Screenshots land in build/run/clientGameTest/screenshots.
  */
 public class SliceOneClientTest implements FabricClientGameTest {
@@ -281,8 +281,8 @@ public class SliceOneClientTest implements FabricClientGameTest {
 			ctx.waitTicks(10);
 			int mid = m.getId();
 			Vec3 p1 = server.computeOnServer(s -> s.overworld().getEntity(mid).position());
-			LOG.info("Push moved the victim {} blocks", p0.distanceTo(p1));
-			check(p0.distanceTo(p1) > 0.3, "push shoves the victim");
+			LOG.info("The Shape's push key moved the victim {} blocks", p0.distanceTo(p1));
+			check(p0.distanceTo(p1) < 0.2, "the Shape no longer shoves victims (civilians shove him instead)");
 		}
 	}
 

@@ -14,6 +14,10 @@ import dev.halloween.game.MatchManager;
 import dev.halloween.game.Nav;
 import dev.halloween.game.Sight;
 import dev.halloween.game.Townsfolk;
+import dev.halloween.game.Talks;
+import dev.halloween.client.ClientState;
+import dev.halloween.client.NpcMenuScreen;
+import org.lwjgl.glfw.GLFW;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -93,7 +97,12 @@ public class BotsClientTest implements FabricClientGameTest {
 			int searched = server.computeOnServer(s -> Loot.searched().size());
 			check(searched > 0, "bots search containers (" + searched + ")");
 			check(server.computeOnServer(s -> dev.halloween.game.LightSystem.isOn(s.overworld(), breaker)), "a bot switches the house lights back on");
-			int told = server.computeOnServer(s -> npcs(s).stream().mapToInt(m -> "hidden".equals(Townsfolk.stateOf(m)) ? 1 : 0).sum());
+			// Talking a neighbour round takes 15 s for bots too.
+			int told = 0;
+			for (int i = 0; i < 30 && told == 0; i++) {
+				ctx.waitTicks(20);
+				told = server.computeOnServer(s -> npcs(s).stream().mapToInt(m -> "hidden".equals(Townsfolk.stateOf(m)) ? 1 : 0).sum());
+			}
 			check(told > 0, "bots tell townsfolk at home to hide (" + told + ")");
 			ctx.takeScreenshot("b01_bots_at_work");
 
@@ -120,23 +129,56 @@ public class BotsClientTest implements FabricClientGameTest {
 			check(after > before + 3, "a bot that sees the Shape runs away");
 			check(server.computeOnServer(s -> dev.halloween.game.AiStats.snapshot().getOrDefault("*total", Map.of()).getOrDefault("callout", 0)) > 0,
 				"a bot that spots him calls it out to the others");
+
+			// A civilian (here a bot) shoves the Shape: he is thrown back and slowed.
+			String shoved = server.computeOnServer(s -> {
+				String why = "no bot";
+				// Any bot that can shove right now will do (one in a tight corner may have no room in front).
+				for (BotPlayer bot : Bots.all().stream().filter(b -> !b.isSpectator() && !Lockers.isInside(b) && dev.halloween.game.Fight.pushCooldown(b) == 0).toList()) {
+					Vec3 front = near(s, bot, 1.6);
+					ServerPlayer shape = player(s);
+					shape.teleportTo(s.overworld(), front.x, front.y, front.z, java.util.Set.of(), 0f, 0f, false);
+					Vec3 d = shape.position().add(0, 1.2, 0).subtract(bot.getEyePosition());
+					bot.setYRot((float) (Mth.atan2(d.z, d.x) * Mth.RAD_TO_DEG) - 90f);
+					bot.setXRot((float) -(Mth.atan2(d.y, Math.sqrt(d.x * d.x + d.z * d.z)) * Mth.RAD_TO_DEG));
+					Vec3 body = dev.halloween.game.FocusPoints.bodyCenter(shape);
+					why = String.format(Locale.ROOT, "dist %.2f angle %.1f sees %s cooldown %d mode %s", bot.getEyePosition().distanceTo(body),
+						Sight.angleTo(bot.getEyePosition(), bot.getViewVector(1f), body), Sight.canSee(s.overworld(), bot.getEyePosition(), body, bot),
+						dev.halloween.game.Fight.pushCooldown(bot), Bots.modeOf(bot));
+					boolean ok = dev.halloween.game.Fight.survivorPush(bot);
+					if (ok && MatchManager.shapeState(shape).pushedTicks > 0) {
+						return "ok";
+					}
+				}
+				return "not shoved: " + why;
+			});
+			check("ok".equals(shoved) || "no bot".equals(shoved), "a civilian shoves the Shape back and slows him (" + shoved + ")");
 			ctx.takeScreenshot("b02_bot_flees");
 
 			// The Shape right behind a bot standing by a window: over the sill it goes.
 			UUID climber = server.computeOnServer(s -> {
 				BotPlayer bot = Bots.all().stream().filter(b -> !b.isSpectator()).toList().getFirst();
 				Lockers.leave(bot, false);
+				dev.halloween.game.Talks.cancel(bot, false);
 				bot.teleportTo(s.overworld(), this.origin.getX() + 2.5, this.origin.getY(), this.origin.getZ() + 7.5, java.util.Set.of(), 0f, 0f, false);
-				// Right behind it: too close not to notice.
-				player(s).teleportTo(s.overworld(), this.origin.getX() + 2.5, this.origin.getY(), this.origin.getZ() + 5.5, java.util.Set.of(), 0f, 0f, false);
+				// Right behind it (close enough to hear, just out of shoving reach).
+				player(s).teleportTo(s.overworld(), this.origin.getX() + 2.5, this.origin.getY(), this.origin.getZ() + 4.0, java.util.Set.of(), 0f, 0f, false);
 				return bot.getUUID();
 			});
+			// Any window will do: with two at hand it may take the other one.
+			int vaultsBefore = server.computeOnServer(s -> windowVaults(s, climber));
 			boolean inHouse = false;
 			for (int i = 0; i < 12 && !inHouse; i++) {
 				ctx.waitTicks(10);
+				String where = server.computeOnServer(s -> {
+					ServerPlayer bot = s.getPlayerList().getPlayer(climber);
+					return bot == null ? "gone" : Bots.modeOf(bot) + " at " + bot.position();
+				});
+				LOG.info("climbing bot: {}", where);
 				inHouse = server.computeOnServer(s -> {
 					ServerPlayer bot = s.getPlayerList().getPlayer(climber);
-					return bot != null && bot.getZ() > this.origin.getZ() + 8.6 && Math.abs(bot.getX() - this.origin.getX()) < 4;
+					return bot != null && (bot.getZ() > this.origin.getZ() + 8.6 && Math.abs(bot.getX() - this.origin.getX()) < 4
+						|| windowVaults(s, climber) > vaultsBefore && !dev.halloween.game.Windows.isVaulting(bot));
 				});
 			}
 			check(inHouse, "a bot with the Shape close behind climbs in through a window");
@@ -157,6 +199,8 @@ public class BotsClientTest implements FabricClientGameTest {
 			for (int i = 0; i < 20 && !locked; i++) {
 				ctx.waitTicks(10);
 				locked = server.computeOnServer(s -> DoorLocks.isLocked(s.overworld(), door));
+				LOG.info("door bot: {} at {}", server.computeOnServer(s -> Bots.modeOf(s.getPlayerList().getPlayer(locker))),
+					server.computeOnServer(s -> s.getPlayerList().getPlayer(locker).position()));
 			}
 			check(locked, "a fleeing bot locks the door behind it");
 			ctx.takeScreenshot("b02b_bot_locked_door");
@@ -260,19 +304,25 @@ public class BotsClientTest implements FabricClientGameTest {
 			check(server.computeOnServer(s -> s.getPlayerList().getPlayers().size()) == 1, "no bots without a Shape");
 			check(server.computeOnServer(s -> MatchManager.role(player(s))) == Role.CIVILIAN, "the player is a civilian");
 
-			// "Follow me": a real right click on a townsperson.
+			// Breaking a talk off: open the menu, start asking, use again.
 			int guest = server.computeOnServer(s -> npcs(s).stream().filter(m -> !Lockers.isInside(m)).findFirst().orElseThrow().getId());
-			Vec3 guestPos = server.computeOnServer(s -> s.overworld().getEntity(guest).position());
-			// A few tries from different sides: furniture (a locker, a table) can be in the line of the click.
-			for (int attempt = 0; attempt < 4 && !"follow".equals(server.computeOnServer(s -> Townsfolk.stateOf(s.overworld().getEntity(guest)))); attempt++) {
-				int skip = attempt * 4;
-				this.place(server, server.computeOnServer(s -> near(s, s.overworld().getEntity(guest), 1.8, skip)));
-				Vec3 at = server.computeOnServer(s -> s.overworld().getEntity(guest).position());
-				this.lookAt(ctx, at.add(0, 1.2, 0));
-				ctx.getInput().pressKey(o -> o.keyUse);
-				ctx.waitTicks(8);
-			}
-			check("follow".equals(server.computeOnServer(s -> Townsfolk.stateOf(s.overworld().getEntity(guest)))), "a townsperson follows when asked");
+			this.openMenu(ctx, server, guest);
+			ctx.takeScreenshot("b04_talk_menu");
+			ctx.getInput().pressKey(GLFW.GLFW_KEY_1);
+			ctx.waitTicks(20);
+			check(server.computeOnServer(s -> Talks.isTalking(player(s))), "picking from the menu starts the talk");
+			check("talk".equals(server.computeOnServer(s -> Townsfolk.stateOf(s.overworld().getEntity(guest)))), "the townsperson stops to listen");
+			ctx.getInput().holdKey(o -> o.keyUse);
+			ctx.waitTicks(3);
+			ctx.getInput().releaseKey(o -> o.keyUse);
+			ctx.waitTicks(5);
+			check(!server.computeOnServer(s -> Talks.isTalking(player(s))), "using it again breaks the talk off");
+			check(!"talk".equals(server.computeOnServer(s -> Townsfolk.stateOf(s.overworld().getEntity(guest)))), "and it goes back to what it was doing");
+
+			// "Follow me", talked through: about 15 s, reaction checks cut it short.
+			int took = this.talk(ctx, server, guest, 0, "follow");
+			check("follow".equals(server.computeOnServer(s -> Townsfolk.stateOf(s.overworld().getEntity(guest)))), "a townsperson follows when talked round");
+			check(took < HwConfig.get().talkTicks, "hit reaction checks make the talk shorter (" + took + " ticks)");
 			ctx.takeScreenshot("b04_follow_me");
 
 			// Lead it out: walk a few steps, it keeps up.
@@ -285,10 +335,11 @@ public class BotsClientTest implements FabricClientGameTest {
 			LOG.info("Follow gap: {}", gap);
 			check(gap < 3.5, "it keeps up");
 
-			// Near an exit it is rescued and the civilian scores.
+			// At an open exit it gets out (using the exit up) and the civilian scores.
 			int scoreBefore = server.computeOnServer(s -> Match.scores().values().stream().mapToInt(Integer::intValue).sum());
 			server.runOnServer(s -> {
-				BlockPos exit = Exits.infos().get(0).pos();
+				Exits.forceOpen(s.overworld(), Exits.CELLAR);
+				BlockPos exit = Exits.infos().stream().filter(e -> e.type() == Exits.CELLAR).findFirst().orElseThrow().pos();
 				ServerPlayer p = player(s);
 				p.teleportTo(s.overworld(), exit.getX() + 0.5, exit.getY(), exit.getZ() - 1.5, java.util.Set.of(), 0f, 0f, false);
 				s.overworld().getEntity(guest).teleportTo(exit.getX() + 0.5, exit.getY(), exit.getZ() - 4.5);
@@ -297,6 +348,8 @@ public class BotsClientTest implements FabricClientGameTest {
 			check(server.computeOnServer(s -> s.overworld().getEntity(guest) == null), "a townsperson led to an exit is rescued");
 			int scoreAfter = server.computeOnServer(s -> Match.scores().values().stream().mapToInt(Integer::intValue).sum());
 			check(scoreAfter >= scoreBefore + HwConfig.get().scoreRescueNpc, "the rescue scores (" + scoreBefore + " -> " + scoreAfter + ")");
+			check(server.computeOnServer(s -> Exits.infos().stream().filter(e -> e.type() == Exits.CELLAR).findFirst().orElseThrow().state()) == 2,
+				"the townsperson used the exit up, like a civilian would");
 
 			// A civilian hides in a locker and climbs out again.
 			BlockPos cupboard2 = server.computeOnServer(s -> Lockers.nearestFree(s.overworld(), this.origin, 40));
@@ -319,21 +372,9 @@ public class BotsClientTest implements FabricClientGameTest {
 			ctx.waitTicks(4);
 			check(server.computeOnServer(s -> !Lockers.isInside(player(s)) && player(s).position().distanceTo(front) < 1.0), "sneak climbs back out");
 
-			// "Hide here": sneak + right click; it pays out if it lives to the end.
+			// "Hide here", from the menu; it pays out if it lives to the end.
 			int hider = server.computeOnServer(s -> npcs(s).stream().filter(m -> !Lockers.isInside(m)).findFirst().orElseThrow().getId());
-			Vec3 hiderPos = server.computeOnServer(s -> s.overworld().getEntity(hider).position());
-			for (int attempt = 0; attempt < 4 && !"hidden".equals(server.computeOnServer(s -> Townsfolk.stateOf(s.overworld().getEntity(hider)))); attempt++) {
-				int skip = attempt * 4;
-				this.place(server, server.computeOnServer(s -> near(s, s.overworld().getEntity(hider), 1.8, skip)));
-				Vec3 at = server.computeOnServer(s -> s.overworld().getEntity(hider).position());
-				this.lookAt(ctx, at.add(0, 1.2, 0));
-				ctx.getInput().holdKey(o -> o.keyShift);
-				ctx.waitTicks(3);
-				ctx.getInput().pressKey(o -> o.keyUse);
-				ctx.waitTicks(5);
-				ctx.getInput().releaseKey(o -> o.keyShift);
-				ctx.waitTicks(3);
-			}
+			this.talk(ctx, server, hider, 1, "hidden");
 			check("hidden".equals(server.computeOnServer(s -> Townsfolk.stateOf(s.overworld().getEntity(hider)))), "a townsperson hides when told");
 			int beforeEnd = server.computeOnServer(s -> Match.scores().values().stream().mapToInt(Integer::intValue).sum());
 			server.runCommand("hw timer 1");
@@ -346,6 +387,53 @@ public class BotsClientTest implements FabricClientGameTest {
 			check(board.contains(String.valueOf(expected)), "a hidden townsperson that lives pays out at the end (" + expected + ")");
 		}
 		LOG.info("Bots client test finished OK");
+	}
+
+	/** Walks up to a townsperson and uses it until the radial menu opens (furniture can be in the way). */
+	private void openMenu(ClientGameTestContext ctx, TestServerContext server, int npcId) {
+		for (int attempt = 0; attempt < 4; attempt++) {
+			int skip = attempt * 4;
+			this.place(server, server.computeOnServer(s -> near(s, s.overworld().getEntity(npcId), 1.8, skip)));
+			Vec3 at = server.computeOnServer(s -> s.overworld().getEntity(npcId).position());
+			this.lookAt(ctx, at.add(0, 1.2, 0));
+			ctx.getInput().pressKey(o -> o.keyUse);
+			ctx.waitTicks(4);
+			if (ctx.computeOnClient(mc -> mc.gui.screen() instanceof NpcMenuScreen)) {
+				break;
+			}
+		}
+		check(ctx.computeOnClient(mc -> mc.gui.screen() instanceof NpcMenuScreen), "using a townsperson opens the radial menu");
+	}
+
+	/**
+	 * Talks a townsperson into {@code option} through the menu, hitting the reaction checks as they come.
+	 * Returns how many ticks the talk took.
+	 */
+	private int talk(ClientGameTestContext ctx, TestServerContext server, int npcId, int option, String state) {
+		this.openMenu(ctx, server, npcId);
+		ctx.getInput().pressKey(GLFW.GLFW_KEY_1 + option);
+		int ticks = 0;
+		int hits = 0;
+		while (ticks < HwConfig.get().talkTicks + 40 && !state.equals(server.computeOnServer(s -> Townsfolk.stateOf(s.overworld().getEntity(npcId))))) {
+			ctx.waitTicks(1);
+			ticks++;
+			boolean inZone = ctx.computeOnClient(mc -> {
+				var check = ClientState.skill;
+				if (!check.active()) {
+					return false;
+				}
+				float needle = dev.halloween.net.HwNet.needle(mc.level.getGameTime() - check.start(), check.period());
+				return needle > check.zoneStart() + 0.02f && needle < check.zoneStart() + check.zoneWidth() - 0.02f;
+			});
+			if (inZone) {
+				ctx.getInput().pressKey(o -> o.keyJump);
+				hits++;
+				ctx.waitTicks(3);
+				ticks += 3;
+			}
+		}
+		LOG.info("Talk ({}) took {} ticks, {} checks pressed", option, ticks, hits);
+		return ticks;
 	}
 
 	private static List<Mannequin> npcs(MinecraftServer server) {
@@ -381,6 +469,11 @@ public class BotsClientTest implements FabricClientGameTest {
 	private static double distance(MinecraftServer server, UUID botId) {
 		ServerPlayer bot = server.getPlayerList().getPlayer(botId);
 		return bot == null ? 999 : bot.distanceTo(player(server));
+	}
+
+	private static int windowVaults(MinecraftServer server, UUID botId) {
+		ServerPlayer bot = server.getPlayerList().getPlayer(botId);
+		return bot == null ? 0 : dev.halloween.game.AiStats.snapshot().getOrDefault(bot.getPlainTextName(), Map.of()).getOrDefault("window", 0);
 	}
 
 	private static ServerPlayer player(MinecraftServer server) {

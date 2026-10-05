@@ -39,9 +39,19 @@ public final class HwHud {
 		if (mc.player == null || mc.level == null) {
 			return;
 		}
+		// The whole match HUD is drawn a little smaller than the GUI scale.
+		float scale = (float) HwConfig.get().hudScale;
+		g.pose().pushMatrix();
+		g.pose().scale(scale, scale);
+		try {
+			renderScaled(g, delta, mc, Math.round(g.guiWidth() / scale), Math.round(g.guiHeight() / scale));
+		} finally {
+			g.pose().popMatrix();
+		}
+	}
+
+	private static void renderScaled(GuiGraphicsExtractor g, DeltaTracker delta, Minecraft mc, int w, int h) {
 		Role role = ClientState.myRole();
-		int w = g.guiWidth();
-		int h = g.guiHeight();
 		float partial = delta.getGameTimeDeltaPartialTick(false);
 		if (role == Role.SHAPE) {
 			HwNet.ShapeHud hud = ClientState.hud;
@@ -75,8 +85,11 @@ public final class HwHud {
 			} else {
 				alerts(g, mc, w, h, partial);
 				healthBar(g, mc, w, h);
+				int pushLeft = (int) Math.max(0, ClientState.pushReadyAt - mc.level.getGameTime());
+				smallAction(g, mc.font, w - 12, h - 84, Component.translatable("halloween.hud.shove"), HalloweenClient.KEY_PUSH.getTranslatedKeyMessage(), pushLeft);
 				inventoryBar(g, mc, w, h);
 				prompts(g, mc, w, h);
+				skillCheck(g, mc, w, h, partial);
 				progressBar(g, mc, w, h);
 				if (ClientState.qte.active() && !ClientState.qte.forShape()) {
 					victimQte(g, mc, w, h, partial);
@@ -86,7 +99,28 @@ public final class HwHud {
 			feed(g, mc.font, h);
 		}
 		matchTimer(g, mc, w);
+		notices(g, mc.font, w);
 		endScreen(g, mc, w, h);
+	}
+
+	/** Corner notices (match news, callouts, deaths), newest on top, fading after a few seconds. */
+	private static void notices(GuiGraphicsExtractor g, Font font, int w) {
+		long now = System.currentTimeMillis();
+		ClientState.NOTICES.removeIf(n -> now - n.time() > 7000);
+		int y = 34;
+		for (ClientState.Notice notice : ClientState.NOTICES) {
+			long age = now - notice.time();
+			int alpha = (int) (255 * Mth.clamp((7000 - age) / 1000f, 0, 1) * Mth.clamp(age / 150f, 0, 1));
+			if (alpha < 8) {
+				continue;
+			}
+			int tw = font.width(notice.text());
+			int x = w - 10 - tw;
+			g.fill(x - 5, y - 3, w - 6, y + 11, (Math.min(alpha, 170) << 24));
+			g.fill(w - 7, y - 3, w - 6, y + 11, (alpha << 24) | (BLOOD & 0xFFFFFF));
+			g.text(font, notice.text(), x, y, (alpha << 24) | 0xFFFFFF, true);
+			y += 17;
+		}
 	}
 
 	// ---------------------------------------------------------------- match
@@ -387,17 +421,20 @@ public final class HwHud {
 		int cx = w / 2;
 		int cy = h / 2 + 40;
 		float r = 22;
-		ring(g, cx, cy, r, 5, 0f, 1f, 0xC0303030);
-		ring(g, cx, cy, r, 5, qte.zoneStart(), qte.zoneStart() + qte.zoneWidth(), 0xFFC9C25A);
-		double elapsed = Math.max(0, mc.level.getGameTime() - qte.roundStart() + partial);
-		float needle = HwNet.needle(elapsed, qte.period());
-		double a = needle * Math.PI * 2 - Math.PI / 2;
-		for (float t = 0; t <= r + 4; t += 1f) {
-			int x = (int) (cx + Math.cos(a) * t);
-			int y = (int) (cy + Math.sin(a) * t);
-			g.fill(x, y, x + 2, y + 2, 0xFFFFFFFF);
+		// Between two checks there is a short pause: only the score shows.
+		if (mc.level.getGameTime() - qte.roundStart() + partial >= 0) {
+			ring(g, cx, cy, r, 5, 0f, 1f, 0xC0303030);
+			ring(g, cx, cy, r, 5, qte.zoneStart(), qte.zoneStart() + qte.zoneWidth(), 0xFFC9C25A);
+			double elapsed = Math.max(0, mc.level.getGameTime() - qte.roundStart() + partial);
+			float needle = HwNet.needle(elapsed, qte.period());
+			double a = needle * Math.PI * 2 - Math.PI / 2;
+			for (float t = 0; t <= r + 4; t += 1f) {
+				int x = (int) (cx + Math.cos(a) * t);
+				int y = (int) (cy + Math.sin(a) * t);
+				g.fill(x, y, x + 2, y + 2, 0xFFFFFFFF);
+			}
+			g.centeredText(mc.font, mc.options.keyAttack.getTranslatedKeyMessage(), cx, cy - 4, TEXT);
 		}
-		g.centeredText(mc.font, mc.options.keyAttack.getTranslatedKeyMessage(), cx, cy - 4, TEXT);
 		pips(g, cx, cy + (int) r + 10, qte.points(), qte.needed(), BLOOD);
 		pips(g, cx, cy + (int) r + 18, qte.enemyPoints(), qte.enemyNeeded(), 0xFFF2F2F2);
 		int y = cy + (int) r + 26;
@@ -410,6 +447,31 @@ public final class HwHud {
 		}
 	}
 
+	/** A circular reaction check during a call or a talk; plus how to break a talk off. */
+	private static void skillCheck(GuiGraphicsExtractor g, Minecraft mc, int w, int h, float partial) {
+		if (ClientState.talking()) {
+			Component hint = Component.translatable("halloween.hud.talk_cancel");
+			g.centeredText(mc.font, hint, w / 2, h - 60, DIM);
+		}
+		HwNet.SkillCheck check = ClientState.skill;
+		if (!check.active()) {
+			return;
+		}
+		int cx = w / 2;
+		int cy = h / 2 + 44;
+		float r = 20;
+		ring(g, cx, cy, r, 4, 0f, 1f, 0xC0303030);
+		ring(g, cx, cy, r, 4, check.zoneStart(), check.zoneStart() + check.zoneWidth(), 0xFFF2F2F2);
+		double elapsed = Math.max(0, mc.level.getGameTime() - check.start() + partial);
+		double a = HwNet.needle(elapsed, check.period()) * Math.PI * 2 - Math.PI / 2;
+		for (float t = 0; t <= r + 3; t += 1f) {
+			int x = (int) (cx + Math.cos(a) * t);
+			int y = (int) (cy + Math.sin(a) * t);
+			g.fill(x, y, x + 2, y + 2, BLOOD);
+		}
+		g.centeredText(mc.font, mc.options.keyJump.getTranslatedKeyMessage(), cx, cy - 4, TEXT);
+	}
+
 	private static void victimQte(GuiGraphicsExtractor g, Minecraft mc, int w, int h, float partial) {
 		HwNet.Qte qte = ClientState.qte;
 		int barW = 180;
@@ -418,18 +480,20 @@ public final class HwHud {
 		g.fill(x - 6, y - 22, x + barW + 6, y + 34, 0xB0000000);
 		g.centeredText(mc.font, Component.translatable("halloween.hud.qte", mc.options.keyJump.getTranslatedKeyMessage()), w / 2, y - 16, TEXT);
 
-		g.fill(x, y, x + barW, y + 10, 0xFF1A1A1A);
-		int z0 = x + (int) (barW * qte.zoneStart());
-		int z1 = x + (int) (barW * (qte.zoneStart() + qte.zoneWidth()));
-		g.fill(z0, y, z1, y + 10, 0xFF3FA34D);
+		if (mc.level.getGameTime() - qte.roundStart() + partial >= 0) {
+			g.fill(x, y, x + barW, y + 10, 0xFF1A1A1A);
+			int z0 = x + (int) (barW * qte.zoneStart());
+			int z1 = x + (int) (barW * (qte.zoneStart() + qte.zoneWidth()));
+			g.fill(z0, y, z1, y + 10, 0xFF3FA34D);
 
-		double elapsed = mc.level.getGameTime() - qte.roundStart() + partial;
-		float cursor = HwNet.qteCursor(Math.max(0, elapsed), qte.period());
-		int cx = x + (int) (barW * cursor);
-		g.fill(cx - 1, y - 3, cx + 1, y + 13, 0xFFFFFFFF);
+			double elapsed = mc.level.getGameTime() - qte.roundStart() + partial;
+			float cursor = HwNet.qteCursor(Math.max(0, elapsed), qte.period());
+			int cx = x + (int) (barW * cursor);
+			g.fill(cx - 1, y - 3, cx + 1, y + 13, 0xFFFFFFFF);
 
-		float timeLeft = 1f - (float) Mth.clamp(elapsed / qte.roundTicks(), 0, 1);
-		bar(g, x, y + 13, barW, 2, timeLeft, 0xFF8A847A);
+			float timeLeft = 1f - (float) Mth.clamp(elapsed / qte.roundTicks(), 0, 1);
+			bar(g, x, y + 13, barW, 2, timeLeft, 0xFF8A847A);
+		}
 
 		pips(g, w / 2, y + 20, qte.points(), qte.needed(), 0xFF3FA34D);
 		pips(g, w / 2, y + 28, qte.enemyPoints(), qte.enemyNeeded(), BLOOD);
@@ -555,10 +619,9 @@ public final class HwHud {
 		}
 		g.centeredText(font, mc.options.keyAttack.getTranslatedKeyMessage(), weaponX + 8, baseY + 12, DIM);
 
-		// Small actions: push, grab, dash, right-aligned to the left of the weapon.
+		// Small actions: grab, dash, right-aligned to the left of the weapon.
 		int sx = weaponX - 10;
 		int sy = baseY - 30;
-		smallAction(g, font, sx, sy, Component.translatable("halloween.hud.push"), HalloweenClient.KEY_PUSH.getTranslatedKeyMessage(), hud.pushCooldown());
 		smallAction(g, font, sx, sy + 11, Component.translatable("halloween.hud.grab"), mc.options.keyUse.getTranslatedKeyMessage(), hud.grabCooldown());
 		smallAction(g, font, sx, sy + 22, Component.translatable("halloween.hud.dash"), mc.options.keySprint.getTranslatedKeyMessage(),
 			hud.dashTicks() > 0 ? 0 : hud.dashCooldown());

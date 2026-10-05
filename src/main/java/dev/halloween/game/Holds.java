@@ -28,7 +28,11 @@ public final class Holds {
 		void run(ServerPlayer player);
 	}
 
-	public record Hold(BlockPos pos, String label, boolean danger, int ticks, Check valid, Done done) {
+	/** {@code checks}: reaction checks pop up while holding and shorten it. */
+	public record Hold(BlockPos pos, String label, boolean danger, int ticks, Check valid, Done done, boolean checks) {
+		public Hold(BlockPos pos, String label, boolean danger, int ticks, Check valid, Done done) {
+			this(pos, label, danger, ticks, valid, done, false);
+		}
 	}
 
 	private static final class Work {
@@ -88,14 +92,21 @@ public final class Holds {
 			if (!keep) {
 				it.remove();
 				if (player != null) {
+					SkillChecks.stop(player);
+				}
+				if (player != null) {
 					ServerPlayNetworking.send(player, HwNet.Progress.NONE);
 				}
 				continue;
 			}
 			work.ticks++;
+			if (work.hold.checks()) {
+				work.ticks += SkillChecks.tick(player);
+			}
 			if (work.ticks >= work.hold.ticks()) {
 				RELEASE.put(entry.getKey(), now);
 				it.remove();
+				SkillChecks.stop(player);
 				ServerPlayNetworking.send(player, HwNet.Progress.NONE);
 				work.hold.done().run(player);
 				Match.markDirty();
@@ -117,6 +128,7 @@ public final class Holds {
 
 	public static void clear() {
 		WORK.clear();
+		SkillChecks.clear();
 		RELEASE.clear();
 	}
 }

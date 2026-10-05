@@ -50,6 +50,7 @@ public class Halloween implements ModInitializer {
 				}
 			}
 		});
+		ServerPlayNetworking.registerGlobalReceiver(HwNet.NpcTalk.TYPE, (payload, ctx) -> dev.halloween.game.Talks.request(ctx.player(), payload.entityId(), payload.option()));
 		ServerPlayNetworking.registerGlobalReceiver(HwNet.Aim.TYPE, (payload, ctx) -> MatchManager.onAim(ctx.player(), payload.origin(), payload.direction()));
 		ServerPlayNetworking.registerGlobalReceiver(HwNet.Grab.TYPE, (payload, ctx) -> MatchManager.onGrab(ctx.player(), payload.targetId()));
 		ServerPlayNetworking.registerGlobalReceiver(HwNet.ShapeAttack.TYPE, (payload, ctx) -> MatchManager.onShapeAttack(ctx.player(), payload.targetId(), payload.heavy()));

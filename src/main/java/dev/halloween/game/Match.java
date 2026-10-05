@@ -108,6 +108,8 @@ public final class Match {
 		Fight.clear(server);
 		Exits.setup(level, level.getRandom());
 		Lockers.clear(server);
+		Talks.clear();
+		Nav.setArea(area(points));
 		Loot.setup(level, center, level.getRandom());
 
 		CommandSourceStack console = server.createCommandSourceStack().withLevel(level).withSuppressedOutput();
@@ -156,6 +158,23 @@ public final class Match {
 		return Component.translatable("halloween.cmd.started", players.size());
 	}
 
+	/** The match area: every map point, plus a block of slack. Bots never path or stay outside it. */
+	private static net.minecraft.world.level.levelgen.structure.BoundingBox area(MapPoints points) {
+		int minX = Integer.MAX_VALUE;
+		int minZ = Integer.MAX_VALUE;
+		int maxX = Integer.MIN_VALUE;
+		int maxZ = Integer.MIN_VALUE;
+		for (List<BlockPos> list : points.all().values()) {
+			for (BlockPos p : list) {
+				minX = Math.min(minX, p.getX());
+				minZ = Math.min(minZ, p.getZ());
+				maxX = Math.max(maxX, p.getX());
+				maxZ = Math.max(maxZ, p.getZ());
+			}
+		}
+		return new net.minecraft.world.level.levelgen.structure.BoundingBox(minX - 1, -2048, minZ - 1, maxX + 1, 2048, maxZ + 1);
+	}
+
 	private static void teleport(ServerPlayer player, BlockPos pos) {
 		player.teleportTo(player.level(), pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, java.util.Set.of(), player.getYRot(), 0f, false);
 	}
@@ -181,7 +200,9 @@ public final class Match {
 			}
 		}
 		Lockers.clear(server);
+		Talks.clear();
 		PEOPLE.clear();
+		Nav.setArea(null);
 		Townsfolk.clear(server);
 		Bots.removeAll(server);
 	}
@@ -335,7 +356,7 @@ public final class Match {
 
 	public static void announce(MinecraftServer server, Component message) {
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-			player.sendSystemMessage(message);
+			Notices.send(player, message);
 		}
 	}
 
@@ -370,7 +391,6 @@ public final class Match {
 		HwNet.MatchEnd payload = new HwNet.MatchEnd(shapeWon, lines);
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
 			ServerPlayNetworking.send(player, payload);
-			lines.forEach(player::sendSystemMessage);
 		}
 		syncAll(server);
 		stopQuietly(server);
@@ -404,7 +424,7 @@ public final class Match {
 			Participant p = PEOPLE.get(player.getUUID());
 			int respawn = p != null && p.respawnAt >= 0 ? Math.max(0, p.respawnAt - tickCounter) : 0;
 			ServerPlayNetworking.send(player, new HwNet.MatchSync(state.ordinal(), ticksLeft, countdown, exits, containers, searched,
-				phones, cut, respawn, p == null ? 0 : p.score, npcs));
+				phones, cut, respawn, p == null ? 0 : p.score, npcs, Townsfolk.followerIds(player)));
 		}
 	}
 

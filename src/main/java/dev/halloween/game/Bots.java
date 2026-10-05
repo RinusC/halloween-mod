@@ -84,8 +84,26 @@ public final class Bots {
 		int now = server.getTickCount();
 		for (BotPlayer bot : BOTS.values()) {
 			if (bot.brain != null && !bot.isRemoved()) {
+				if (now % 20 == 0 && !bot.isSpectator() && !Nav.inArea(bot.blockPosition())) {
+					// Got out of the match area somehow (a low fence on a custom map...): back to a spawn.
+					backInside(bot);
+				}
 				bot.brain.tick(now);
 			}
+		}
+	}
+
+	private static void backInside(BotPlayer bot) {
+		BlockPos best = null;
+		for (BlockPos p : MapPoints.get(bot.level()).list(MapPoints.Type.SPAWN_CIVILIAN)) {
+			if (best == null || p.distSqr(bot.blockPosition()) < best.distSqr(bot.blockPosition())) {
+				best = p;
+			}
+		}
+		if (best != null) {
+			bot.teleportTo(bot.level(), best.getX() + 0.5, best.getY(), best.getZ() + 0.5, java.util.Set.of(), bot.getYRot(), 0f, false);
+			AiStats.add(bot, "out_of_area");
+			Halloween.LOGGER.warn("Bot {} left the match area, put back at {}", bot.getPlainTextName(), best);
 		}
 	}
 
@@ -121,7 +139,7 @@ public final class Bots {
 			from.getDisplayName(), Landmarks.describe(from.level(), shapePos)).withStyle(net.minecraft.ChatFormatting.GOLD);
 		for (ServerPlayer p : from.level().getServer().getPlayerList().getPlayers()) {
 			if (!(p instanceof BotPlayer) && MatchManager.role(p).survivor()) {
-				p.sendSystemMessage(line);
+				Notices.send(p, line);
 			}
 		}
 	}

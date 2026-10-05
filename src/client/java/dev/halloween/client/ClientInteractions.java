@@ -114,6 +114,10 @@ public final class ClientInteractions {
 		if (!useDown) {
 			vaultArmed = true;
 		}
+		// Using again while talking to a townsperson breaks the talk off.
+		if (useDown && !useWasDown && ClientState.talking() && mc.gui.screen() == null) {
+			ClientPlayNetworking.send(new HwNet.NpcTalk(-1, -1));
+		}
 		// Right click with the flashlight switches it, unless the click is meant for a door, window or object.
 		if (useDown && !useWasDown && mc.player != null && mc.level != null && ClientState.myRole().survivor()
 			&& dev.halloween.game.HwItems.is(mc.player.getMainHandItem(), dev.halloween.game.HwItems.Kind.FLASHLIGHT) && !aimsAtUsable(mc)) {

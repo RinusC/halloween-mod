@@ -317,9 +317,9 @@ public final class HwNet {
 	 * coming back as a deputy (0 = not waiting).
 	 */
 	public record MatchSync(int state, int ticksLeft, int countdown, List<ExitInfo> exits, List<BlockPos> containers,
-		List<BlockPos> searched, List<BlockPos> phones, List<BlockPos> cutPhones, int respawnTicks, int myScore, List<Integer> npcs) implements CustomPacketPayload {
+		List<BlockPos> searched, List<BlockPos> phones, List<BlockPos> cutPhones, int respawnTicks, int myScore, List<Integer> npcs, List<Integer> followers) implements CustomPacketPayload {
 		public static final Type<MatchSync> TYPE = payloadType("match_sync");
-		public static final MatchSync IDLE = new MatchSync(0, 0, 0, List.of(), List.of(), List.of(), List.of(), List.of(), 0, 0, List.of());
+		public static final MatchSync IDLE = new MatchSync(0, 0, 0, List.of(), List.of(), List.of(), List.of(), List.of(), 0, 0, List.of(), List.of());
 		private static void writePositions(RegistryFriendlyByteBuf buf, List<BlockPos> list) {
 			buf.writeVarInt(list.size());
 			list.forEach(buf::writeBlockPos);
@@ -353,6 +353,8 @@ public final class HwNet {
 			buf.writeVarInt(v.myScore);
 			buf.writeVarInt(v.npcs.size());
 			v.npcs.forEach(buf::writeVarInt);
+			buf.writeVarInt(v.followers.size());
+			v.followers.forEach(buf::writeVarInt);
 		}, buf -> {
 			int state = buf.readVarInt();
 			int ticksLeft = buf.readVarInt();
@@ -373,7 +375,12 @@ public final class HwNet {
 			for (int i = 0; i < m; i++) {
 				npcs.add(buf.readVarInt());
 			}
-			return new MatchSync(state, ticksLeft, countdown, exits, containers, searched, phones, cut, respawn, score, npcs);
+			int f = buf.readVarInt();
+			List<Integer> followers = new ArrayList<>(f);
+			for (int i = 0; i < f; i++) {
+				followers.add(buf.readVarInt());
+			}
+			return new MatchSync(state, ticksLeft, countdown, exits, containers, searched, phones, cut, respawn, score, npcs, followers);
 		});
 
 		@Override
@@ -397,6 +404,54 @@ public final class HwNet {
 	}
 
 	/** Final scoreboard shown to everyone when the match ends. */
+	/**
+	 * A circular reaction check during a long action (a call, a talk): press when the needle crosses the
+	 * zone to gain time. {@code start} is the game time the needle starts from the top.
+	 */
+	public record SkillCheck(boolean active, float zoneStart, float zoneWidth, int period, long start) implements CustomPacketPayload {
+		public static final Type<SkillCheck> TYPE = payloadType("skill_check");
+		public static final SkillCheck INACTIVE = new SkillCheck(false, 0, 0, 1, 0);
+		public static final StreamCodec<RegistryFriendlyByteBuf, SkillCheck> CODEC = StreamCodec.of((buf, v) -> {
+			buf.writeBoolean(v.active);
+			buf.writeFloat(v.zoneStart);
+			buf.writeFloat(v.zoneWidth);
+			buf.writeVarInt(v.period);
+			buf.writeLong(v.start);
+		}, buf -> new SkillCheck(buf.readBoolean(), buf.readFloat(), buf.readFloat(), buf.readVarInt(), buf.readLong()));
+
+		@Override
+		public Type<SkillCheck> type() {
+			return TYPE;
+		}
+	}
+
+	/** Talk to a townsperson: {@code option} 0 follow, 1 hide, 2 call the police; -1 breaks off the talk. */
+	public record NpcTalk(int entityId, int option) implements CustomPacketPayload {
+		public static final Type<NpcTalk> TYPE = payloadType("npc_talk");
+		public static final StreamCodec<RegistryFriendlyByteBuf, NpcTalk> CODEC = StreamCodec.of((buf, v) -> {
+			buf.writeVarInt(v.entityId);
+			buf.writeVarInt(v.option);
+		}, buf -> new NpcTalk(buf.readVarInt(), buf.readVarInt()));
+
+		@Override
+		public Type<NpcTalk> type() {
+			return TYPE;
+		}
+	}
+
+	/** A short notice in the corner of the screen (instead of a chat line). */
+	public record Notice(Component text) implements CustomPacketPayload {
+		public static final Type<Notice> TYPE = payloadType("notice");
+		public static final StreamCodec<RegistryFriendlyByteBuf, Notice> CODEC = StreamCodec.of(
+			(buf, v) -> ComponentSerialization.TRUSTED_STREAM_CODEC.encode(buf, v.text),
+			buf -> new Notice(ComponentSerialization.TRUSTED_STREAM_CODEC.decode(buf)));
+
+		@Override
+		public Type<Notice> type() {
+			return TYPE;
+		}
+	}
+
 	public record MatchEnd(boolean shapeWon, List<Component> lines) implements CustomPacketPayload {
 		public static final Type<MatchEnd> TYPE = payloadType("match_end");
 		public static final StreamCodec<RegistryFriendlyByteBuf, MatchEnd> CODEC = StreamCodec.of((buf, v) -> {
@@ -540,6 +595,9 @@ public final class HwNet {
 		PayloadTypeRegistry.clientboundPlay().register(MatchEnd.TYPE, MatchEnd.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(Progress.TYPE, Progress.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(Alert.TYPE, Alert.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(Notice.TYPE, Notice.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(SkillCheck.TYPE, SkillCheck.CODEC);
+		PayloadTypeRegistry.serverboundPlay().register(NpcTalk.TYPE, NpcTalk.CODEC);
 		PayloadTypeRegistry.serverboundPlay().register(UseAction.TYPE, UseAction.CODEC);
 		PayloadTypeRegistry.serverboundPlay().register(SenseInput.TYPE, SenseInput.CODEC);
 		PayloadTypeRegistry.serverboundPlay().register(ShapeAttack.TYPE, ShapeAttack.CODEC);

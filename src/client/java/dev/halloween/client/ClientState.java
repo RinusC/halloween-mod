@@ -47,6 +47,16 @@ public final class ClientState {
 	public static List<Vec3> impulseSpots = List.of();
 	public static long impulseUntil;
 	public static long impulseStart;
+	/** Reaction check during a long action (a call, a talk). */
+	public static HwNet.SkillCheck skill = HwNet.SkillCheck.INACTIVE;
+
+	/** Talking a townsperson round right now (the server shows it as a progress bar). */
+	public static boolean talking() {
+		return progress.label().startsWith("halloween.hud.progress.talk");
+	}
+
+	/** When this survivor can shove again (client estimate for the HUD). */
+	public static long pushReadyAt;
 
 	/** Where townsfolk screams pointed at, for survivors: position and the game time it fades. */
 	public record AlertMark(Vec3 pos, long until) {
@@ -56,6 +66,19 @@ public final class ClientState {
 
 	/** XP feed entries, newest first. */
 	public static final Deque<FeedEntry> FEED = new ArrayDeque<>();
+
+	/** Corner notices, newest first. */
+	public record Notice(Component text, long time) {
+	}
+
+	public static final java.util.List<Notice> NOTICES = new java.util.ArrayList<>();
+
+	public static void notice(Component text) {
+		NOTICES.add(0, new Notice(text, System.currentTimeMillis()));
+		while (NOTICES.size() > 6) {
+			NOTICES.remove(NOTICES.size() - 1);
+		}
+	}
 
 	public record FeedEntry(int points, List<Component> lines, long time) {
 	}
@@ -162,6 +185,8 @@ public final class ClientState {
 		impulseSpots = List.of();
 		impulseUntil = 0;
 		ALERTS.clear();
+		skill = HwNet.SkillCheck.INACTIVE;
+		NOTICES.clear();
 		FEED.clear();
 		LOCKED_DOORS.clear();
 		match = HwNet.MatchSync.IDLE;

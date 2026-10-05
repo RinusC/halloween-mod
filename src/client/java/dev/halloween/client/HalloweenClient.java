@@ -81,6 +81,19 @@ public class HalloweenClient implements ClientModInitializer {
 			ClientState.impulseStart = now;
 			ClientState.impulseUntil = now + payload.durationTicks();
 		});
+		ClientPlayNetworking.registerGlobalReceiver(HwNet.SkillCheck.TYPE, (payload, ctx) -> ClientState.skill = payload);
+		// Using a townsperson opens the radial talk menu (or, mid-talk, the tick breaks the talk off).
+		net.fabricmc.fabric.api.event.player.UseEntityCallback.EVENT.register((player, level, hand, entity, hit) -> {
+			if (!level.isClientSide() || !ClientState.myRole().survivor() || !ClientState.match.npcs().contains(entity.getId())) {
+				return net.minecraft.world.InteractionResult.PASS;
+			}
+			Minecraft mc = Minecraft.getInstance();
+			if (hand == net.minecraft.world.InteractionHand.MAIN_HAND && !ClientState.talking() && mc.gui.screen() == null) {
+				mc.gui.setScreen(new NpcMenuScreen(entity.getId(), entity.getDisplayName(), ClientState.match.followers().contains(entity.getId())));
+			}
+			return net.minecraft.world.InteractionResult.FAIL;
+		});
+		ClientPlayNetworking.registerGlobalReceiver(HwNet.Notice.TYPE, (payload, ctx) -> ClientState.notice(payload.text()));
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.Alert.TYPE, (payload, ctx) -> {
 			long now = ctx.client().level == null ? 0 : ctx.client().level.getGameTime();
 			ClientState.ALERTS.removeIf(a -> a.until() < now);
@@ -172,7 +185,16 @@ public class HalloweenClient implements ClientModInitializer {
 				sentFocus = false;
 				ClientPlayNetworking.send(new HwNet.SenseInput(false, false));
 			}
-			for (KeyMapping key : new KeyMapping[]{KEY_SHAPE_JUMP, KEY_PUSH, KEY_IMPULSE}) {
+			// Survivors shove the Shape with the push key.
+			while (KEY_PUSH.consumeClick()) {
+				if (role.survivor() && !mc.player.isSpectator()) {
+					ClientPlayNetworking.send(new HwNet.ActionPress(HwNet.Action.PUSH));
+					if (ClientState.pushReadyAt <= mc.level.getGameTime()) {
+						ClientState.pushReadyAt = mc.level.getGameTime() + HwConfig.get().survivorPushCooldownTicks;
+					}
+				}
+			}
+			for (KeyMapping key : new KeyMapping[]{KEY_SHAPE_JUMP, KEY_IMPULSE}) {
 				while (key.consumeClick()) {
 					// Shape-only keys do nothing for other roles.
 				}
@@ -185,7 +207,7 @@ public class HalloweenClient implements ClientModInitializer {
 			mc.getSoundManager().play(theme);
 		}
 
-		if (ClientState.qte.active() && !ClientState.qte.forShape()) {
+		if (ClientState.qte.active() && !ClientState.qte.forShape() || ClientState.skill.active()) {
 			while (mc.options.keyJump.consumeClick()) {
 				ClientPlayNetworking.send(new HwNet.ActionPress(HwNet.Action.QTE_PRESS));
 			}
@@ -214,9 +236,6 @@ public class HalloweenClient implements ClientModInitializer {
 		}
 		while (KEY_SHAPE_JUMP.consumeClick()) {
 			ClientPlayNetworking.send(new HwNet.ActionPress(HwNet.Action.SHAPE_JUMP));
-		}
-		while (KEY_PUSH.consumeClick()) {
-			ClientPlayNetworking.send(new HwNet.ActionPress(HwNet.Action.PUSH));
 		}
 		while (KEY_IMPULSE.consumeClick()) {
 			ClientPlayNetworking.send(new HwNet.ActionPress(HwNet.Action.IMPULSE));

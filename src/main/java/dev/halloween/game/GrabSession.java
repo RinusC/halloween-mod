@@ -58,8 +58,8 @@ public final class GrabSession {
 		this.random = shape.getRandom();
 		victimState.grabbed = true;
 		this.level().playSound(null, victim.getX(), victim.getY(), victim.getZ(), HwSounds.GRAB, SoundSource.HOSTILE, 1.2f, 1f);
-		this.startVictimRound();
-		this.startShapeRound();
+		this.startVictimRound(0);
+		this.startShapeRound(0);
 		this.sendState();
 	}
 
@@ -82,10 +82,11 @@ public final class GrabSession {
 
 	// ---------------------------------------------------------------- reaction checks
 
-	private void startVictimRound() {
+	/** A new check for the victim, {@code delay} ticks from now (a short pause between checks). */
+	private void startVictimRound(int delay) {
 		HwConfig cfg = this.cfg();
 		Track t = this.victimTrack;
-		t.roundStart = this.level().getGameTime();
+		t.roundStart = this.level().getGameTime() + delay;
 		t.zoneWidth = Math.max(0.08f, cfg.victimZoneWidth
 			- HwConfig.at(cfg.victimZoneShrinkByTier, this.state.tier())
 			- HwConfig.at(cfg.victimZoneShrinkByStalk, this.victimState.level()));
@@ -97,10 +98,10 @@ public final class GrabSession {
 		t.simPressTick = 8 + this.random.nextInt(Math.max(1, cfg.victimRoundTicks - 12));
 	}
 
-	private void startShapeRound() {
+	private void startShapeRound(int delay) {
 		HwConfig cfg = this.cfg();
 		Track t = this.shapeTrack;
-		t.roundStart = this.level().getGameTime();
+		t.roundStart = this.level().getGameTime() + delay;
 		t.zoneWidth = Math.min(0.5f, cfg.shapeZoneWidth + HwConfig.at(cfg.shapeZoneGrowByStalk, this.victimState.level()));
 		t.zoneStart = 0.2f + this.random.nextFloat() * (0.7f - t.zoneWidth);
 		t.open = true;
@@ -172,7 +173,7 @@ public final class GrabSession {
 		}
 		this.feedback(this.victim, hit);
 		if (!this.checkEnd()) {
-			this.startVictimRound();
+			this.startVictimRound(this.cfg().qteRoundGapTicks);
 			this.sendState();
 		}
 	}
@@ -186,7 +187,7 @@ public final class GrabSession {
 		}
 		this.feedback(this.shape, hit);
 		if (!this.checkEnd()) {
-			this.startShapeRound();
+			this.startShapeRound(this.cfg().qteRoundGapTicks);
 			this.sendState();
 		}
 	}

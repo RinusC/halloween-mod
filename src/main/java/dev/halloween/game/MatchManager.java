@@ -260,6 +260,7 @@ public final class MatchManager {
 		DoorLocks.tick(server);
 		Windows.tick(server);
 		Lockers.tick(server);
+		Talks.tick(server);
 		Bots.tick(server);
 		Townsfolk.tick(server);
 
@@ -391,6 +392,13 @@ public final class MatchManager {
 			speed += cfg.senseSpeedModifier;
 		} else if (state.dashTicks > 0) {
 			speed += cfg.dashSpeedModifier;
+		}
+		if (state.pushedTicks > 0) {
+			// Shoved by a survivor: staggering for a moment.
+			state.pushedTicks--;
+			if (speed > -1) {
+				speed += cfg.pushedSlowModifier;
+			}
 		}
 		setSpeed(player, speed);
 
@@ -671,39 +679,11 @@ public final class MatchManager {
 		state.dashCooldown = state.dashCooldownMax;
 	}
 
+	/** The push key: survivors shove the Shape away (he no longer pushes anyone). */
 	public static void onPush(ServerPlayer player) {
-		ShapeState state = SHAPES.get(player.getUUID());
-		if (role(player) != Role.SHAPE || state == null || state.busy() || state.pushCooldown > 0) {
-			return;
+		if (role(player).survivor()) {
+			Fight.survivorPush(player);
 		}
-		HwConfig cfg = HwConfig.get();
-		if (state.shadowTicks > 0) {
-			return;
-		}
-		player.swing(InteractionHand.OFF_HAND, true);
-		Vec3 eye = player.getEyePosition();
-		Vec3 aimFrom = aimOrigin(player, state);
-		Vec3 look = aimDirection(player, state);
-		LivingEntity best = null;
-		double bestDist = Double.MAX_VALUE;
-		for (LivingEntity target : player.level().getEntitiesOfClass(LivingEntity.class, player.getBoundingBox().inflate(cfg.pushRange), MatchManager::exposed)) {
-			Vec3 body = FocusPoints.bodyCenter(target);
-			double d = eye.distanceTo(body);
-			if (d <= cfg.pushRange + 0.5 && Sight.angleTo(aimFrom, look, body) <= 50 && d < bestDist) {
-				best = target;
-				bestDist = d;
-			}
-		}
-		if (best == null) {
-			state.pushCooldown = 10;
-			return;
-		}
-		state.pushCooldown = cfg.pushCooldownTicks;
-		Vec3 away = best.position().subtract(player.position()).multiply(1, 0, 1).normalize().scale(cfg.pushStrength);
-		best.setDeltaMovement(away.x, 0.3, away.z);
-		best.hurtMarked = true;
-		victim(best).staggerTicks = cfg.pushStaggerTicks;
-		player.level().playSound(null, best.getX(), best.getY(), best.getZ(), HwSounds.PUSH, SoundSource.HOSTILE, 1f, 1f);
 	}
 
 	public static void onImpulse(ServerPlayer player) {
@@ -826,7 +806,8 @@ public final class MatchManager {
 			return InteractionResult.FAIL;
 		}
 		if (role(player).survivor() && Townsfolk.isNpc(target)) {
-			return hand == InteractionHand.MAIN_HAND ? Townsfolk.command(player, target) : InteractionResult.FAIL;
+			// Talking happens through the radial menu (client) and Talks (server).
+			return InteractionResult.FAIL;
 		}
 		return InteractionResult.PASS;
 	}
@@ -872,6 +853,9 @@ public final class MatchManager {
 	}
 
 	public static void onQtePress(ServerPlayer player) {
+		if (SkillChecks.press(player)) {
+			return;
+		}
 		for (ShapeState state : SHAPES.values()) {
 			if (state.grab != null && (state.grab.victim == player || SHAPES.get(player.getUUID()) == state)) {
 				state.grab.press(player);
@@ -924,7 +908,7 @@ public final class MatchManager {
 		CORPSES.add(new Corpse(level, pos, name, cfg.corpseAdmireTicks));
 		for (ServerPlayer player : level.getServer().getPlayerList().getPlayers()) {
 			if (role(player) != Role.NONE) {
-				player.sendSystemMessage(Component.translatable("halloween.msg.killed", name).withStyle(ChatFormatting.DARK_RED));
+				Notices.send(player, Component.translatable("halloween.msg.killed", name).withStyle(ChatFormatting.DARK_RED));
 			}
 		}
 	}

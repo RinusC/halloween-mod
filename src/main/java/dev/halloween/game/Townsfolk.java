@@ -45,7 +45,7 @@ public final class Townsfolk {
 	private static final String[] SKINS = {"alex", "ari", "efe", "kai", "makena", "noor", "steve", "sunny", "zuri"};
 
 	private enum State {
-		HOME, PANIC, HIDE, CALL, FOLLOW, HIDDEN, LOCKING
+		HOME, PANIC, HIDE, CALL, FOLLOW, HIDDEN, LOCKING, TALK
 	}
 
 	private static final class Npc {
@@ -73,6 +73,10 @@ public final class Townsfolk {
 		int lockTicks;
 		/** Where it stood when it last saw the Shape. */
 		Vec3 seenFrom;
+		State beforeTalk;
+		UUID talkTo;
+		/** Who asked it to call the police (gets the credit). */
+		UUID callFor;
 
 		Npc(Mannequin body, String name) {
 			this.body = body;
@@ -83,8 +87,6 @@ public final class Townsfolk {
 	}
 
 	private static final Map<UUID, Npc> NPCS = new LinkedHashMap<>();
-	/** One click reaches the server as two interactions; only the first counts. */
-	private static final Map<UUID, Integer> LAST_COMMAND = new java.util.HashMap<>();
 
 	private Townsfolk() {
 	}
@@ -175,33 +177,82 @@ public final class Townsfolk {
 
 	// ---------------------------------------------------------------- commands from civilians
 
-	/** A civilian used a townsperson: follow me, or (sneaking) hide here. */
-	public static InteractionResult command(ServerPlayer player, Entity target) {
+	public static final int FOLLOW = 0;
+	public static final int HIDE = 1;
+	public static final int CALL = 2;
+
+	/** Can {@code player} start talking to this townsperson now? */
+	public static boolean canTalk(ServerPlayer player, Entity target) {
+		Npc npc = target == null ? null : NPCS.get(target.getUUID());
+		return npc != null && Match.running() && MatchManager.role(player).survivor() && !player.isSpectator()
+			&& !MatchManager.isHeld(npc.body) && !Lockers.isInside(npc.body) && npc.state != State.PANIC && npc.state != State.TALK
+			&& npc.body.distanceTo(player) <= HwConfig.get().talkRange;
+	}
+
+	/** Is following {@code player} already (then "follow me" just means "stay here", said at once). */
+	public static boolean followsPlayer(Entity target, ServerPlayer player) {
+		return follows(target, player);
+	}
+
+	/** The townsperson stops and listens while someone talks it round. */
+	public static void beginTalk(ServerPlayer player, Entity target) {
 		Npc npc = NPCS.get(target.getUUID());
-		if (npc == null || !Match.running() || !MatchManager.role(player).survivor() || player.isSpectator()) {
-			return InteractionResult.PASS;
+		if (npc == null) {
+			return;
 		}
-		if (MatchManager.isHeld(npc.body)) {
-			return InteractionResult.FAIL;
+		npc.beforeTalk = npc.state;
+		npc.state = State.TALK;
+		npc.talkTo = player.getUUID();
+		npc.walker.stop();
+		npc.body.setPose(Pose.STANDING);
+	}
+
+	/** Still listening to {@code player}? (It stops if it panics.) */
+	public static boolean listensTo(Entity target, ServerPlayer player) {
+		Npc npc = target == null ? null : NPCS.get(target.getUUID());
+		return npc != null && !npc.body.isRemoved() && npc.state == State.TALK && player.getUUID().equals(npc.talkTo);
+	}
+
+	/** The talk broke off: back to whatever it was doing. */
+	public static void endTalk(Entity target) {
+		Npc npc = target == null ? null : NPCS.get(target.getUUID());
+		if (npc != null && npc.state == State.TALK) {
+			npc.state = npc.beforeTalk == null ? State.HOME : npc.beforeTalk;
+			npc.pathSet = false;
+		}
+	}
+
+	/** The talk worked: follow me, hide here, or go call the police. */
+	public static void apply(ServerPlayer player, Entity target, int option) {
+		Npc npc = target == null ? null : NPCS.get(target.getUUID());
+		if (npc == null) {
+			return;
 		}
 		int now = player.level().getServer().getTickCount();
-		Integer last = LAST_COMMAND.put(player.getUUID(), now);
-		if (last != null && now - last < 6) {
-			return InteractionResult.SUCCESS;
-		}
+		ServerLevel level = player.level();
 		npc.walker.stop();
 		npc.pathSet = false;
 		npc.body.setPose(Pose.STANDING);
-		if (player.isShiftKeyDown()) {
-			npc.state = State.HIDDEN;
-			npc.hider = player.getUUID();
-			npc.leader = null;
-			player.sendOverlayMessage(Component.translatable("halloween.npc.hide", npc.name).withStyle(ChatFormatting.GRAY));
-		} else if (npc.state == State.FOLLOW && player.getUUID().equals(npc.leader)) {
+		if (option == FOLLOW && npc.beforeTalk == State.FOLLOW && player.getUUID().equals(npc.leader)) {
 			npc.state = State.HOME;
 			npc.home = npc.body.blockPosition();
 			npc.leader = null;
 			player.sendOverlayMessage(Component.translatable("halloween.npc.stay", npc.name).withStyle(ChatFormatting.GRAY));
+		} else if (option == HIDE) {
+			npc.state = State.HIDDEN;
+			npc.hider = player.getUUID();
+			npc.leader = null;
+			player.sendOverlayMessage(Component.translatable("halloween.npc.hide", npc.name).withStyle(ChatFormatting.GRAY));
+		} else if (option == CALL) {
+			BlockPos phone = nearestPhone(level, npc.body);
+			if (phone == null) {
+				npc.state = npc.beforeTalk == null || npc.beforeTalk == State.TALK ? State.HOME : npc.beforeTalk;
+				player.sendOverlayMessage(Component.translatable("halloween.npc.no_phone", npc.name).withStyle(ChatFormatting.GRAY));
+			} else {
+				startCall(npc, phone);
+				npc.callFor = player.getUUID();
+				player.sendOverlayMessage(Component.translatable("halloween.npc.call", npc.name).withStyle(ChatFormatting.GRAY));
+			}
 		} else {
 			npc.state = State.FOLLOW;
 			npc.leader = player.getUUID();
@@ -209,7 +260,6 @@ public final class Townsfolk {
 			npc.repathAt = now;
 			player.sendOverlayMessage(Component.translatable("halloween.npc.follow", npc.name).withStyle(ChatFormatting.GRAY));
 		}
-		return InteractionResult.SUCCESS;
 	}
 
 	/** End of the match: townsfolk told to hide that are still alive pay out to whoever hid them. */
@@ -279,6 +329,7 @@ public final class Townsfolk {
 							panic(npc, now);
 						}
 					}
+					case TALK -> panic(npc, now);
 					case CALL -> {
 						if (dist < 8) {
 							panic(npc, now);
@@ -307,6 +358,15 @@ public final class Townsfolk {
 			case CALL -> tickCall(npc, now, level);
 			case FOLLOW -> tickFollow(npc, now, level);
 			case LOCKING -> tickLocking(npc, now, level);
+			case TALK -> tickTalk(npc, level);
+		}
+	}
+
+	private static void tickTalk(Npc npc, ServerLevel level) {
+		npc.walker.halt();
+		ServerPlayer talker = npc.talkTo == null ? null : level.getServer().getPlayerList().getPlayer(npc.talkTo);
+		if (talker != null) {
+			npc.walker.face(talker.getEyePosition());
 		}
 	}
 
@@ -377,6 +437,17 @@ public final class Townsfolk {
 			}
 		}
 		return list;
+	}
+
+	/** Townsfolk following {@code player} (for the radial menu's "stay here"). */
+	public static List<Integer> followerIds(ServerPlayer player) {
+		List<Integer> ids = new ArrayList<>();
+		for (Npc npc : NPCS.values()) {
+			if (npc.state == State.FOLLOW && player.getUUID().equals(npc.leader)) {
+				ids.add(npc.body.getId());
+			}
+		}
+		return ids;
 	}
 
 	/** Is this townsperson following {@code leader} right now? */
@@ -590,6 +661,11 @@ public final class Townsfolk {
 		}
 		if (++npc.callTicks >= cfg.callPoliceTicks) {
 			Exits.callPolice(level, Component.translatable("halloween.match.npc_called_police", npc.name));
+			ServerPlayer asked = npc.callFor == null ? null : level.getServer().getPlayerList().getPlayer(npc.callFor);
+			if (asked != null) {
+				Match.score(asked, cfg.scoreCallPolice, Component.translatable("halloween.score.police_called"));
+			}
+			npc.callFor = null;
 			AiStats.add(npc.body, "npc.called_police");
 			npc.state = State.HIDE;
 			npc.pathSet = false;
@@ -608,11 +684,11 @@ public final class Townsfolk {
 			return;
 		}
 		if (now % 10 == 0) {
-			for (HwNet.ExitInfo exit : Exits.infos()) {
-				if (npc.body.position().distanceTo(Vec3.atCenterOf(exit.pos())) <= cfg.npcRescueRadius) {
-					rescue(npc, leader, level);
-					return;
-				}
+			// Out through an open exit (it is used up, like for a civilian).
+			Component exit = Exits.npcEscape(level, npc.body.position(), cfg.npcRescueRadius);
+			if (exit != null) {
+				rescue(npc, leader, level, exit);
+				return;
 			}
 		}
 		double dist = leader.distanceTo(npc.body);
@@ -631,12 +707,12 @@ public final class Townsfolk {
 		npc.walker.tick();
 	}
 
-	private static void rescue(Npc npc, ServerPlayer leader, ServerLevel level) {
+	private static void rescue(Npc npc, ServerPlayer leader, ServerLevel level, Component exit) {
 		HwConfig cfg = HwConfig.get();
 		Mannequin body = npc.body;
 		level.sendParticles(ParticleTypes.HAPPY_VILLAGER, body.getX(), body.getY() + 1, body.getZ(), 15, 0.4, 0.6, 0.4, 0);
 		Match.score(leader, cfg.scoreRescueNpc, Component.translatable("halloween.score.npc_rescued", npc.name));
-		Match.announce(level.getServer(), Component.translatable("halloween.match.npc_rescued", leader.getDisplayName(), npc.name).withStyle(ChatFormatting.GREEN));
+		Match.announce(level.getServer(), Component.translatable("halloween.match.npc_rescued", leader.getDisplayName(), npc.name, exit).withStyle(ChatFormatting.GREEN));
 		AiStats.add(body, "npc.rescued");
 		NPCS.remove(body.getUUID());
 		MatchManager.eliminate(body);

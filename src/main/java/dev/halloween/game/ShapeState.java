@@ -33,6 +33,8 @@ public final class ShapeState {
 	/** Stun meter 0..1 filled by survivors' weapons; stunnedTicks counts down while he is knocked down. */
 	public float stun;
 	public int stunnedTicks;
+	/** Slowed after a survivor shoved him. */
+	public int pushedTicks;
 	/** In a flashlight beam (counts as light), and blinded by it. */
 	public int litTicks;
 	public int blindTicks;

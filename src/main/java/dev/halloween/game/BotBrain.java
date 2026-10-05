@@ -72,6 +72,7 @@ final class BotBrain {
 	private boolean unlocking;
 	private boolean wasVaulting;
 	private boolean lockedIn;
+	private int talkingTo = -1;
 	/** When this bot itself last saw (or heard right behind it) the Shape, as opposed to hearing about him. */
 	private int ownSightTick = -100000;
 	private final Map<BlockPos, Integer> badWindows = new HashMap<>();
@@ -122,12 +123,20 @@ final class BotBrain {
 	}
 
 	boolean isTask(String key) {
+		if (key.equals("warn") && Talks.isTalking(this.bot)) {
+			return true;
+		}
 		return this.task != null && this.task.key.equals(key);
 	}
 
 	/** A townsperson screamed or something loud happened at {@code pos}. */
 	void hear(Vec3 pos, int now) {
 		if (this.bot.position().distanceTo(pos) <= this.cfg().botHearAlertRange) {
+			if (this.threat == null || this.threat.distanceTo(pos) > 4) {
+				// He is somewhere else than we thought: rethink the escape now.
+				this.fleeRepathAt = now;
+				this.shelterDoor = null;
+			}
 			this.threat = pos;
 			this.threatTick = now;
 		}
@@ -201,6 +210,7 @@ final class BotBrain {
 			return;
 		}
 		AiStats.add(this.bot, "mode." + mode.name().toLowerCase(java.util.Locale.ROOT));
+		Talks.cancel(this.bot, true);
 		this.mode = mode;
 		this.walker.stop();
 		this.holdPos = null;
@@ -276,6 +286,13 @@ final class BotBrain {
 			return;
 		}
 		ServerPlayer onUs = Senses.shape(this.level());
+		if (onUs != null && this.bot.distanceTo(onUs) < 2.4 && (this.meleeSlot() < 0 || now < this.nextHit) && Fight.pushCooldown(this.bot) == 0) {
+			// He is right on us and there is nothing to hit him with: shove him away and run.
+			this.walker.face(onUs.getEyePosition().add(0, -0.4, 0));
+			if (Fight.survivorPush(this.bot)) {
+				this.fleeRepathAt = now;
+			}
+		}
 		if (onUs != null && this.bot.distanceTo(onUs) < 2.4 && this.meleeSlot() >= 0 && now >= this.nextHit) {
 			// He is right on us: swing at him; a full stun meter would drop him.
 			this.nextHit = now + cfg.survivorHitCooldownTicks + 4;
@@ -702,6 +719,15 @@ final class BotBrain {
 	// ---------------------------------------------------------------- objectives
 
 	private void tickRoam(int now) {
+		if (Talks.isTalking(this.bot)) {
+			// In the middle of talking a neighbour round: stand and face them.
+			this.walker.halt();
+			net.minecraft.world.entity.Entity npc = this.level().getEntity(this.talkingTo);
+			if (npc != null) {
+				this.walker.face(npc.getEyePosition());
+			}
+			return;
+		}
 		if (this.holdPos != null) {
 			this.tickHold(now);
 			return;
@@ -770,14 +796,14 @@ final class BotBrain {
 				this.warned.add(task.entity);
 				if (npc != null && !npc.isRemoved()) {
 					this.walker.face(npc.getEyePosition());
-					// "Hide here" is said crouched, "follow me" standing, as a person would use the controls.
+					// Talking it round takes a while, like for a person (with the same reaction checks).
 					boolean hide = task.key.equals("warn");
-					this.bot.setShiftKeyDown(hide);
-					Townsfolk.command(this.bot, npc);
-					this.bot.setShiftKeyDown(false);
-					AiStats.add(this.bot, hide ? "npc.told_hide" : "npc.told_follow");
-					if (!hide) {
-						this.escorting = npc.getId();
+					if (Talks.start(this.bot, npc, hide ? Townsfolk.HIDE : Townsfolk.FOLLOW)) {
+						this.talkingTo = npc.getId();
+						AiStats.add(this.bot, hide ? "npc.told_hide" : "npc.told_follow");
+						if (!hide) {
+							this.escorting = npc.getId();
+						}
 					}
 				}
 				this.replanAt = now;
@@ -822,7 +848,9 @@ final class BotBrain {
 		this.replanAt = now + 100;
 		Task best = null;
 		double bestScore = -Double.MAX_VALUE;
-		for (Map.Entry<Task, Double> e : this.candidates(now).entrySet()) {
+		Map<Task, Double> candidates = this.candidates(now);
+		long openExits = candidates.keySet().stream().filter(t -> t.key.equals("exit")).count();
+		for (Map.Entry<Task, Double> e : candidates.entrySet()) {
 			Task t = e.getKey();
 			Integer until = this.failed.get(t.target);
 			if (until != null && now < until) {
@@ -842,7 +870,8 @@ final class BotBrain {
 			return;
 		}
 		// On the way out: take a neighbour along if one is at home nearby (a rescue on top of the escape).
-		if (best.key.equals("exit") && !this.escortingSomeone()) {
+		// (Only with a second way out: the neighbour uses up the exit it leaves by.)
+		if (best.key.equals("exit") && openExits >= 2 && !this.escortingSomeone()) {
 			for (net.minecraft.world.entity.decoration.Mannequin npc : Townsfolk.idleNear(this.bot.position(), this.cfg().botEscortRange)) {
 				if (!this.warned.contains(npc.getId())) {
 					this.warned.add(npc.getId());
@@ -1000,9 +1029,11 @@ final class BotBrain {
 				}
 			}
 			// Neighbours at home don't know what is going on: tell them to hide (they score if they live).
-			for (net.minecraft.world.entity.decoration.Mannequin npc : Townsfolk.idleNear(this.bot.position(), cfg.botWarnRange)) {
+			// Talking takes 15 s, so one bot at a time looks after the neighbours (like a team splits jobs).
+			for (net.minecraft.world.entity.decoration.Mannequin npc : Bots.othersOn("warn", this.bot) ? List.<net.minecraft.world.entity.decoration.Mannequin>of()
+				: Townsfolk.idleNear(this.bot.position(), cfg.botWarnRange)) {
 				if (!this.warned.contains(npc.getId()) && !Bots.claimedByOther(npc.blockPosition(), this.bot)) {
-					out.put(new Task(npc.blockPosition(), 2.2, false, "warn", npc.getId()), 35.0);
+					out.put(new Task(npc.blockPosition(), 2.2, false, "warn", npc.getId()), 25.0);
 				}
 			}
 		}

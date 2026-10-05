@@ -117,9 +117,20 @@ public final class Nav {
 		return !shape.isEmpty() && shape.max(Direction.Axis.Y) >= 0.5 && shape.max(Direction.Axis.Y) <= 1.0;
 	}
 
+	/** The match area (from the map points): bots and townsfolk never path outside it, whatever the fence. */
+	private static net.minecraft.world.level.levelgen.structure.BoundingBox area;
+
+	public static void setArea(net.minecraft.world.level.levelgen.structure.BoundingBox box) {
+		area = box;
+	}
+
+	public static boolean inArea(BlockPos pos) {
+		return area == null || area.isInside(pos.getX(), area.minY(), pos.getZ());
+	}
+
 	/** Can a body stand with its feet in {@code feet}? */
 	public static boolean standable(Level level, BlockPos feet) {
-		return floor(level, feet.below()) && passable(level, feet) != 0 && passable(level, feet.above()) != 0;
+		return inArea(feet) && floor(level, feet.below()) && passable(level, feet) != 0 && passable(level, feet.above()) != 0;
 	}
 
 	/** Snaps a position to a standable node nearby (an entity half inside a slab, on a ledge...). */

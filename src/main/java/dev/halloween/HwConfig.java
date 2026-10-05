@@ -43,6 +43,15 @@ public class HwConfig {
 	public double pushStrength = 0.55;
 	public int pushCooldownTicks = 60;
 	public int pushStaggerTicks = 30;
+	// Survivors shove the Shape (he no longer pushes them).
+	public double survivorPushRange = 2.6;
+	public double survivorPushStrength = 0.9;
+	public int survivorPushCooldownTicks = 200;
+	/** How long a shoved Shape is slowed, and by how much. */
+	public int pushedSlowTicks = 25;
+	public double pushedSlowModifier = -0.5;
+	/** Pause between two reaction checks of a grab (on top of the round itself). */
+	public int qteRoundGapTicks = 20;
 	public double staggerSpeedModifier = -0.6;
 
 	// --- Dash (acceleration): fast burst, loud steps ---
@@ -177,7 +186,7 @@ public class HwConfig {
 	public int repairCarTicks = 100;
 	public int startCarTicks = 30;
 	public int removePartTicks = 40;
-	public int callPoliceTicks = 200;
+	public int callPoliceTicks = 400;
 	public int cutPhoneTicks = 40;
 	public int repairPhoneTicks = 80;
 	public int openGateTicks = 160;
@@ -185,7 +194,7 @@ public class HwConfig {
 
 	// --- Fighting back ---
 	/** Stun meter drains this much per second; a full meter knocks the Shape down. */
-	public float stunDecayPerSecond = 0.05f;
+	public float stunDecayPerSecond = 0.025f;
 	public int stunnedTicks = 80;
 	public int survivorHitCooldownTicks = 15;
 	public float dartSpeed = 1.8f;
@@ -276,6 +285,23 @@ public class HwConfig {
 	public int lockerMaxTicks = 1200;
 	/** Getting in on the run: the Shape sees where for this long. */
 	public int lockerSlamRevealTicks = 60;
+
+	// --- Reaction checks during long actions (police call, talking to townsfolk) ---
+	public int skillCheckPeriodTicks = 30;
+	public float skillCheckZoneWidth = 0.14f;
+	public int skillCheckBonusTicks = 40;
+	public int skillCheckFirstMinTicks = 30;
+	public int skillCheckFirstMaxTicks = 60;
+	public int skillCheckGapMinTicks = 50;
+	public int skillCheckGapMaxTicks = 90;
+	public float botSkillCheckChance = 0.6f;
+	/** Talking a townsperson into something takes this long (reaction checks shorten it). */
+	public int talkTicks = 300;
+	public double talkRange = 4;
+
+	// --- HUD ---
+	/** Size of the match HUD relative to the GUI scale. */
+	public double hudScale = 0.85;
 
 	// --- Lights ---
 	public int breakerRadius = 14;

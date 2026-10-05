@@ -126,6 +126,53 @@ public final class Fight {
 		return InteractionResult.SUCCESS;
 	}
 
+	private static final Map<UUID, Integer> LAST_PUSH = new HashMap<>();
+
+	/** Ticks until this survivor can shove again (0 = ready). */
+	public static int pushCooldown(ServerPlayer player) {
+		Integer last = LAST_PUSH.get(player.getUUID());
+		int now = player.level().getServer().getTickCount();
+		return last == null ? 0 : Math.max(0, HwConfig.get().survivorPushCooldownTicks - (now - last));
+	}
+
+	/**
+	 * A survivor shoves the Shape standing right in front: he is thrown back a couple of blocks and
+	 * staggers for a moment, time to get away. Not while he is in Shape Jump.
+	 */
+	public static boolean survivorPush(ServerPlayer player) {
+		HwConfig cfg = HwConfig.get();
+		if (!MatchManager.role(player).survivor() || player.isSpectator() || MatchManager.isGrabbed(player) || pushCooldown(player) > 0) {
+			return false;
+		}
+		player.swing(net.minecraft.world.InteractionHand.OFF_HAND, true);
+		Vec3 eye = player.getEyePosition();
+		Vec3 look = player.getViewVector(1f);
+		for (ServerPlayer shape : player.level().players()) {
+			ShapeState state = MatchManager.shapeState(shape);
+			if (state == null || state.shadowTicks > 0 || shape.isSpectator()) {
+				continue;
+			}
+			Vec3 body = FocusPoints.bodyCenter(shape);
+			if (eye.distanceTo(body) > cfg.survivorPushRange + 0.5 || Sight.angleTo(eye, look, body) > 60
+				|| !Sight.canSee(player.level(), eye, body, player)) {
+				continue;
+			}
+			LAST_PUSH.put(player.getUUID(), player.level().getServer().getTickCount());
+			Vec3 away = shape.position().subtract(player.position()).multiply(1, 0, 1);
+			away = away.lengthSqr() < 1.0E-4 ? look.multiply(1, 0, 1) : away;
+			away = away.normalize().scale(cfg.survivorPushStrength);
+			shape.setDeltaMovement(away.x, 0.25, away.z);
+			shape.hurtMarked = true;
+			state.pushedTicks = cfg.pushedSlowTicks;
+			player.level().playSound(null, shape.getX(), shape.getY(), shape.getZ(), HwSounds.PUSH, SoundSource.PLAYERS, 1.2f, 0.9f);
+			AiStats.add(player, "push");
+			return true;
+		}
+		// Shoved at thin air: a short pause before trying again.
+		LAST_PUSH.put(player.getUUID(), player.level().getServer().getTickCount() - cfg.survivorPushCooldownTicks + 10);
+		return false;
+	}
+
 	/** Right-click with a lawn dart: throw it. */
 	public static InteractionResult onUseItem(Player player, ItemStack stack) {
 		if (!(player instanceof ServerPlayer sp) || !MatchManager.role(sp).survivor() || !HwItems.is(stack, HwItems.Kind.DART)) {
@@ -267,6 +314,7 @@ public final class Fight {
 		LIGHTS.values().forEach(pos -> removeLight(server.overworld(), pos));
 		LIGHTS.clear();
 		LAST_HIT.clear();
+		LAST_PUSH.clear();
 		SWITCHED_ON.clear();
 	}
 }
