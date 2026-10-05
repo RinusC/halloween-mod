@@ -201,6 +201,53 @@ public class HwConfig {
 	public int scoreCallPolice = 150;
 	public int scoreHitShape = 20;
 	public int scoreStunShape = 150;
+	public int scoreRescueNpc = 200;
+	public int scoreHiddenNpc = 100;
+
+	// --- Bots (fill the civilians' side when people are missing) ---
+	/** Bots are added until there are this many civilians (only when someone plays the Shape). 0 = no bots. */
+	public int botsFillTo = 4;
+	public String[] botNames = {"Laurie", "Tommy", "Lindsey", "Annie", "Lynda", "Bob", "Marion", "Lonnie"};
+	public float botQteSuccessChance = 0.45f;
+	public int botReactionMinTicks = 8;
+	public int botReactionMaxTicks = 24;
+	public double botSightRange = 28;
+	/** How far bots make out the Shape when he stands in the dark. */
+	public double botDarkSightRange = 9;
+	public float botFovDeg = 140f;
+	/** Footsteps this close give the Shape away even unseen (not in Shape Jump). */
+	public double botHearRange = 4;
+	public double botHearAlertRange = 40;
+	public int botMemoryTicks = 160;
+	public double botFleeDistance = 18;
+	/** Out of sight this long after fleeing: hide (with {@link #botHideChance}) or carry on. */
+	public int botCalmTicks = 60;
+	public float botHideChance = 0.6f;
+	public int botHideMinTicks = 200;
+	public int botHideMaxTicks = 500;
+	/** Bots lock a door behind them only when the Shape is at least this far back. */
+	public double botLockMinDistance = 7;
+
+	// --- Townsfolk ---
+	public int npcMax = 8;
+	public String[] npcNames = {"Mrs. Elrod", "Mr. Riddle", "Mrs. Blankenship", "Mr. Garrett", "Mrs. Wallace", "Mr. Doyle",
+		"Mrs. Brackett", "Mr. Sheldon"};
+	public double npcSightRange = 22;
+	public double npcDarkSightRange = 8;
+	public float npcFovDeg = 150f;
+	public double npcWalkSpeed = 0.07;
+	public double npcRunSpeed = 0.115;
+	public int npcScreamCooldownTicks = 200;
+	public float npcCallChance = 0.5f;
+	public double npcPhoneRange = 28;
+	public int npcCalmTicks = 80;
+	public int npcHideMinTicks = 400;
+	public int npcHideMaxTicks = 900;
+	public double npcFollowLoseDistance = 32;
+	/** A townsperson brought this close to any exit counts as rescued. */
+	public double npcRescueRadius = 4;
+	/** How long survivors see where a scream pointed at. */
+	public int alertTicks = 120;
 
 	// --- Lights ---
 	public int breakerRadius = 14;

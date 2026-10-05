@@ -331,11 +331,29 @@ public final class Exits {
 		}
 		return new Holds.Hold(phone, "halloween.hud.progress.call_police", false, cfg.callPoliceTicks,
 			p -> !CUT_PHONES.contains(phone) && policeState == POLICE_IDLE, p -> {
-				policeState = POLICE_COMING;
-				policeTimer = cfg.policeArriveSeconds * 20;
 				Match.score(p, cfg.scoreCallPolice, Component.translatable("halloween.score.police_called"));
-				Match.announce(level.getServer(), Component.translatable("halloween.match.police_called").withStyle(ChatFormatting.BLUE));
+				callPolice(level, Component.translatable("halloween.match.police_called"));
 			});
+	}
+
+	/** The police can still be called (they exist on this map and nobody has called yet). */
+	public static boolean policeCallable() {
+		return police != null && policeState == POLICE_IDLE;
+	}
+
+	public static boolean phoneWorks(BlockPos phone) {
+		return !CUT_PHONES.contains(phone);
+	}
+
+	/** Someone got through on the phone: the van is on its way. */
+	public static void callPolice(ServerLevel level, Component announcement) {
+		if (!policeCallable()) {
+			return;
+		}
+		policeState = POLICE_COMING;
+		policeTimer = HwConfig.get().policeArriveSeconds * 20;
+		Match.announce(level.getServer(), announcement.copy().withStyle(ChatFormatting.BLUE));
+		Match.markDirty();
 	}
 
 	private static Holds.Hold escapeHold(BlockPos pos, String label, Holds.Check valid, Holds.Done done) {

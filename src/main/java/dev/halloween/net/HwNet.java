@@ -317,9 +317,9 @@ public final class HwNet {
 	 * coming back as a deputy (0 = not waiting).
 	 */
 	public record MatchSync(int state, int ticksLeft, int countdown, List<ExitInfo> exits, List<BlockPos> containers,
-		List<BlockPos> searched, List<BlockPos> phones, List<BlockPos> cutPhones, int respawnTicks, int myScore) implements CustomPacketPayload {
+		List<BlockPos> searched, List<BlockPos> phones, List<BlockPos> cutPhones, int respawnTicks, int myScore, List<Integer> npcs) implements CustomPacketPayload {
 		public static final Type<MatchSync> TYPE = payloadType("match_sync");
-		public static final MatchSync IDLE = new MatchSync(0, 0, 0, List.of(), List.of(), List.of(), List.of(), List.of(), 0, 0);
+		public static final MatchSync IDLE = new MatchSync(0, 0, 0, List.of(), List.of(), List.of(), List.of(), List.of(), 0, 0, List.of());
 		private static void writePositions(RegistryFriendlyByteBuf buf, List<BlockPos> list) {
 			buf.writeVarInt(list.size());
 			list.forEach(buf::writeBlockPos);
@@ -351,6 +351,8 @@ public final class HwNet {
 			writePositions(buf, v.cutPhones);
 			buf.writeVarInt(v.respawnTicks);
 			buf.writeVarInt(v.myScore);
+			buf.writeVarInt(v.npcs.size());
+			v.npcs.forEach(buf::writeVarInt);
 		}, buf -> {
 			int state = buf.readVarInt();
 			int ticksLeft = buf.readVarInt();
@@ -360,12 +362,36 @@ public final class HwNet {
 			for (int i = 0; i < n; i++) {
 				exits.add(new ExitInfo(buf.readVarInt(), buf.readBlockPos(), buf.readVarInt(), buf.readVarInt()));
 			}
-			return new MatchSync(state, ticksLeft, countdown, exits, readPositions(buf), readPositions(buf), readPositions(buf), readPositions(buf),
-				buf.readVarInt(), buf.readVarInt());
+			List<BlockPos> containers = readPositions(buf);
+			List<BlockPos> searched = readPositions(buf);
+			List<BlockPos> phones = readPositions(buf);
+			List<BlockPos> cut = readPositions(buf);
+			int respawn = buf.readVarInt();
+			int score = buf.readVarInt();
+			int m = buf.readVarInt();
+			List<Integer> npcs = new ArrayList<>(m);
+			for (int i = 0; i < m; i++) {
+				npcs.add(buf.readVarInt());
+			}
+			return new MatchSync(state, ticksLeft, countdown, exits, containers, searched, phones, cut, respawn, score, npcs);
 		});
 
 		@Override
 		public Type<MatchSync> type() {
+			return TYPE;
+		}
+	}
+
+	/** A townsperson screamed: survivors see for a while where the Shape was spotted. */
+	public record Alert(Vec3 pos, int durationTicks) implements CustomPacketPayload {
+		public static final Type<Alert> TYPE = payloadType("alert");
+		public static final StreamCodec<RegistryFriendlyByteBuf, Alert> CODEC = StreamCodec.of((buf, v) -> {
+			writeVec(buf, v.pos);
+			buf.writeVarInt(v.durationTicks);
+		}, buf -> new Alert(readVec(buf), buf.readVarInt()));
+
+		@Override
+		public Type<Alert> type() {
 			return TYPE;
 		}
 	}
@@ -511,6 +537,7 @@ public final class HwNet {
 		PayloadTypeRegistry.clientboundPlay().register(MatchSync.TYPE, MatchSync.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(MatchEnd.TYPE, MatchEnd.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(Progress.TYPE, Progress.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(Alert.TYPE, Alert.CODEC);
 		PayloadTypeRegistry.serverboundPlay().register(UseAction.TYPE, UseAction.CODEC);
 		PayloadTypeRegistry.serverboundPlay().register(SenseInput.TYPE, SenseInput.CODEC);
 		PayloadTypeRegistry.serverboundPlay().register(ShapeAttack.TYPE, ShapeAttack.CODEC);

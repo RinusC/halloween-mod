@@ -86,6 +86,8 @@ public final class Match {
 		if (center == null || points.list(MapPoints.Type.SPAWN_CIVILIAN).isEmpty()) {
 			return Component.translatable("halloween.cmd.no_points");
 		}
+		stopQuietly(server);
+		Bots.removeAll(server);
 		List<ServerPlayer> players = new ArrayList<>(server.getPlayerList().getPlayers());
 		if (players.isEmpty()) {
 			return Component.translatable("halloween.cmd.no_players");
@@ -93,8 +95,6 @@ public final class Match {
 		if (shape == null && players.size() > 1) {
 			shape = players.get(level.getRandom().nextInt(players.size()));
 		}
-
-		stopQuietly(server);
 		MatchManager.reset(server);
 		DoorLocks.clear(server);
 		Windows.clear(server);
@@ -106,7 +106,9 @@ public final class Match {
 		CommandSourceStack console = server.createCommandSourceStack().withLevel(level).withSuppressedOutput();
 		for (String command : new String[]{"time set midnight", "weather clear", "gamerule advance_time false",
 			"gamerule advance_weather false", "gamerule spawn_mobs false", "gamerule natural_health_regeneration false",
-			"gamerule show_death_messages false", "kill @e[type=item]", "kill @e[type=arrow]"}) {
+			"gamerule show_death_messages false", "kill @e[type=item]", "kill @e[type=arrow]",
+			// The arena's practice mannequins have no place in a match; townsfolk take their role.
+			"kill @e[type=minecraft:mannequin,tag=" + MatchManager.VICTIM_TAG + ",tag=!" + Townsfolk.TAG + "]"}) {
 			server.getCommands().performPrefixedCommand(console, command);
 		}
 
@@ -115,6 +117,16 @@ public final class Match {
 		shapeId = shape == null ? null : shape.getUUID();
 		List<BlockPos> spawns = new ArrayList<>(points.list(MapPoints.Type.SPAWN_CIVILIAN));
 		Collections.shuffle(spawns, new java.util.Random(level.getRandom().nextLong()));
+		// Bots make up the civilians' side when people are missing (only against a real Shape).
+		int civilians = players.size() - (shape == null ? 0 : 1);
+		if (shape != null && cfg.botsFillTo > civilians) {
+			List<String> names = new ArrayList<>(List.of(cfg.botNames));
+			Collections.shuffle(names, new java.util.Random(level.getRandom().nextLong()));
+			for (int b = 0; b < cfg.botsFillTo - civilians && b < names.size(); b++) {
+				players.add(Bots.spawn(server, names.get(b), spawns.get((civilians + b) % spawns.size())));
+			}
+		}
+		Townsfolk.spawnAll(level, level.getRandom());
 		int i = 0;
 		for (ServerPlayer player : players) {
 			Inventory.dropAll(player);
@@ -161,6 +173,8 @@ public final class Match {
 			}
 		}
 		PEOPLE.clear();
+		Townsfolk.clear(server);
+		Bots.removeAll(server);
 	}
 
 	// ---------------------------------------------------------------- tick
@@ -273,6 +287,13 @@ public final class Match {
 
 	private static void scheduleDeputy(ServerPlayer player, Participant p) {
 		HwConfig cfg = HwConfig.get();
+		if (Bots.isBot(player)) {
+			// Bots don't come back as deputies: both places stay for people.
+			p.finalOut = true;
+			Bots.leaveLater(player);
+			dirty = true;
+			return;
+		}
 		if (deputiesUsed >= cfg.maxDeputies || state != State.RUNNING) {
 			p.finalOut = true;
 			player.connection.send(new ClientboundSetSubtitleTextPacket(Component.translatable("halloween.match.no_deputy").withStyle(ChatFormatting.GRAY)));
@@ -310,6 +331,7 @@ public final class Match {
 	// ---------------------------------------------------------------- end
 
 	private static void end(MinecraftServer server) {
+		Townsfolk.payHidden(server);
 		state = State.ENDED;
 		int civilians = 0;
 		int escapes = 0;
@@ -358,11 +380,15 @@ public final class Match {
 		List<BlockPos> searched = Loot.searched();
 		List<BlockPos> phones = MapPoints.get(server.overworld()).list(MapPoints.Type.PHONE);
 		List<BlockPos> cut = Exits.cutPhones();
+		List<Integer> npcs = Townsfolk.ids();
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+			if (Bots.isBot(player)) {
+				continue;
+			}
 			Participant p = PEOPLE.get(player.getUUID());
 			int respawn = p != null && p.respawnAt >= 0 ? Math.max(0, p.respawnAt - tickCounter) : 0;
 			ServerPlayNetworking.send(player, new HwNet.MatchSync(state.ordinal(), ticksLeft, countdown, exits, containers, searched,
-				phones, cut, respawn, p == null ? 0 : p.score));
+				phones, cut, respawn, p == null ? 0 : p.score, npcs));
 		}
 	}
 

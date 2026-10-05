@@ -81,6 +81,11 @@ public class HalloweenClient implements ClientModInitializer {
 			ClientState.impulseStart = now;
 			ClientState.impulseUntil = now + payload.durationTicks();
 		});
+		ClientPlayNetworking.registerGlobalReceiver(HwNet.Alert.TYPE, (payload, ctx) -> {
+			long now = ctx.client().level == null ? 0 : ctx.client().level.getGameTime();
+			ClientState.ALERTS.removeIf(a -> a.until() < now);
+			ClientState.ALERTS.add(new ClientState.AlertMark(payload.pos(), now + payload.durationTicks()));
+		});
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.DoorSync.TYPE, (payload, ctx) -> {
 			ClientState.LOCKED_DOORS.clear();
 			ClientState.LOCKED_DOORS.addAll(payload.locked());

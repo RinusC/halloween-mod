@@ -48,6 +48,12 @@ public final class ClientState {
 	public static long impulseUntil;
 	public static long impulseStart;
 
+	/** Where townsfolk screams pointed at, for survivors: position and the game time it fades. */
+	public record AlertMark(Vec3 pos, long until) {
+	}
+
+	public static final java.util.List<AlertMark> ALERTS = new java.util.ArrayList<>();
+
 	/** XP feed entries, newest first. */
 	public static final Deque<FeedEntry> FEED = new ArrayDeque<>();
 
@@ -155,6 +161,7 @@ public final class ClientState {
 		IMPULSE_IDS.clear();
 		impulseSpots = List.of();
 		impulseUntil = 0;
+		ALERTS.clear();
 		FEED.clear();
 		LOCKED_DOORS.clear();
 		match = HwNet.MatchSync.IDLE;

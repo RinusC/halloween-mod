@@ -20,7 +20,7 @@ import net.minecraft.world.level.saveddata.SavedDataType;
  */
 public final class MapPoints extends SavedData {
 	public enum Type {
-		CENTER, SPAWN_SHAPE, SPAWN_CIVILIAN, SPAWN_DEPUTY, CELLAR, CAR, POLICE, GATE, PHONE;
+		CENTER, SPAWN_SHAPE, SPAWN_CIVILIAN, SPAWN_DEPUTY, CELLAR, CAR, POLICE, GATE, PHONE, NPC;
 
 		public String key() {
 			return this.name().toLowerCase(Locale.ROOT);

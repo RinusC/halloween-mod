@@ -86,7 +86,7 @@ public final class GrabSession {
 			- HwConfig.at(cfg.victimZoneShrinkByStalk, this.victimState.level()));
 		t.zoneStart = 0.1f + this.random.nextFloat() * (0.8f - t.zoneWidth);
 		t.open = true;
-		t.simSuccess = this.random.nextFloat() < cfg.mannequinQteSuccessChance;
+		t.simSuccess = this.random.nextFloat() < (this.victim instanceof BotPlayer ? cfg.botQteSuccessChance : cfg.mannequinQteSuccessChance);
 		t.simPressTick = 8 + this.random.nextInt(Math.max(1, cfg.victimRoundTicks - 12));
 	}
 
@@ -311,7 +311,7 @@ public final class GrabSession {
 		long now = this.level().getGameTime();
 		long victimElapsed = now - this.victimTrack.roundStart;
 		if (this.victimTrack.open) {
-			if (!(this.victim instanceof ServerPlayer) && victimElapsed >= this.victimTrack.simPressTick) {
+			if ((!(this.victim instanceof ServerPlayer) || this.victim instanceof BotPlayer) && victimElapsed >= this.victimTrack.simPressTick) {
 				this.resolveVictim(this.victimTrack.simSuccess);
 			} else if (victimElapsed >= cfg.victimRoundTicks) {
 				this.resolveVictim(false);

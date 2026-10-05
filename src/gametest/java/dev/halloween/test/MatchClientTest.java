@@ -53,6 +53,8 @@ public class MatchClientTest implements FabricClientGameTest {
 				cfg.policeArriveSeconds = 2;
 			});
 
+			// Townsfolk get their own test; here they would only wander into the line of fire.
+			server.runCommand("hw point clear npc");
 			server.runCommand("hw start");
 			ctx.waitTicks(5);
 			check(server.computeOnServer(s -> Match.state()) == Match.State.COUNTDOWN, "the match counts down");

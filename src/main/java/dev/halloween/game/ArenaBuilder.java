@@ -105,6 +105,11 @@ public final class ArenaBuilder {
 			points.add(MapPoints.Type.PHONE, this.at(p[0], 1, p[1]));
 		}
 
+		// Townsfolk: two at home in every house.
+		for (int[] p : new int[][]{{-23, 11}, {-21, 13}, {-1, 11}, {1, 12}, {17, -12}, {19, -10}}) {
+			points.add(MapPoints.Type.NPC, this.at(p[0], 0, p[1]));
+		}
+
 		// Containers: chests and barrels indoors and around the yards.
 		for (int[] c : new int[][]{{-22, 15}, {1, 15}, {18, -15}, {-14, 20}, {24, 12}, {-26, -20}, {6, -24}}) {
 			this.set(c[0], 0, c[1], b("chest"));

@@ -31,6 +31,7 @@ public final class HwSounds {
 	public static final SoundEvent DOOR_HIT = register("door.hit");
 	public static final SoundEvent DOOR_BREAK = register("door.break");
 	public static final SoundEvent SHARDS = register("window.shards");
+	public static final SoundEvent NPC_SCREAM = register("npc.scream");
 
 	private HwSounds() {
 	}

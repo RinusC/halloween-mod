@@ -115,6 +115,12 @@ public final class MatchManager {
 		return vs != null && vs.grabbed;
 	}
 
+	/** Is this victim (player or not) in the Shape's hands right now? */
+	public static boolean isHeld(LivingEntity entity) {
+		VictimState vs = VICTIMS.get(entity.getUUID());
+		return vs != null && vs.grabbed;
+	}
+
 	private static VictimState victim(LivingEntity entity) {
 		return VICTIMS.computeIfAbsent(entity.getUUID(), id -> new VictimState(entity));
 	}
@@ -248,6 +254,8 @@ public final class MatchManager {
 		Fight.tick(server);
 		DoorLocks.tick(server);
 		Windows.tick(server);
+		Bots.tick(server);
+		Townsfolk.tick(server);
 
 		Iterator<VictimState> it = VICTIMS.values().iterator();
 		while (it.hasNext()) {
@@ -805,7 +813,16 @@ public final class MatchManager {
 
 	/** Vanilla right-click on entities: the Shape grabs through {@link #onGrab} along his camera ray instead. */
 	public static InteractionResult onUseEntity(Player user, InteractionHand hand, Entity target) {
-		return user instanceof ServerPlayer player && role(player) == Role.SHAPE ? InteractionResult.FAIL : InteractionResult.PASS;
+		if (!(user instanceof ServerPlayer player)) {
+			return InteractionResult.PASS;
+		}
+		if (role(player) == Role.SHAPE) {
+			return InteractionResult.FAIL;
+		}
+		if (role(player).survivor() && Townsfolk.isNpc(target)) {
+			return hand == InteractionHand.MAIN_HAND ? Townsfolk.command(player, target) : InteractionResult.FAIL;
+		}
+		return InteractionResult.PASS;
 	}
 
 	public static void onGrab(ServerPlayer player, int targetId) {
@@ -953,9 +970,14 @@ public final class MatchManager {
 		List<Vec3> beams = new ArrayList<>();
 		boolean showBeams = state.shadowTicks > 0 && state.level() >= cfg.beamsMinLevel;
 		int alive = 0;
+		int townsfolk = 0;
 		boolean anyUnderThree = false;
 		for (LivingEntity target : level.getEntitiesOfClass(LivingEntity.class, player.getBoundingBox().inflate(256), MatchManager::isVictim)) {
-			alive++;
+			if (Townsfolk.isNpc(target)) {
+				townsfolk++;
+			} else {
+				alive++;
+			}
 			VictimState vs = VICTIMS.get(target.getUUID());
 			float stalk = vs == null ? 0 : vs.stalk;
 			if (stalk < 3f) {
@@ -972,6 +994,9 @@ public final class MatchManager {
 		objectives.add(Component.translatable("halloween.objective.kill", alive));
 		if (anyUnderThree && alive > 0) {
 			objectives.add(Component.translatable("halloween.objective.stalk"));
+		}
+		if (townsfolk > 0) {
+			objectives.add(Component.translatable("halloween.objective.townsfolk", townsfolk));
 		}
 		ServerPlayNetworking.send(player, new HwNet.ShapeHud(
 			state.bloodthirst, state.score, state.fatigue, state.senseActive(), state.focusActive(),

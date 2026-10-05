@@ -73,6 +73,7 @@ public final class HwHud {
 					: Component.translatable("halloween.hud.dead");
 				g.centeredText(mc.font, line, w / 2, h - 40, respawn > 0 ? 0xFF7FA7FF : BLOOD);
 			} else {
+				alerts(g, mc, w, h, partial);
 				healthBar(g, mc, w, h);
 				inventoryBar(g, mc, w, h);
 				prompts(g, mc, w, h);
@@ -262,6 +263,38 @@ public final class HwHud {
 			int color = (alpha << 24) | (ORANGE & 0xFFFFFF);
 			ring(g, p.x(), p.y(), r + (age % 20) * 0.6f, 2, 0f, 1f, color);
 			ring(g, p.x(), p.y(), r * 0.5f, 2, 0f, 1f, color);
+		}
+	}
+
+	/** Survivors: where a townsperson's scream says the Shape was. Off screen, an arrow at the edge. */
+	private static void alerts(GuiGraphicsExtractor g, Minecraft mc, int w, int h, float partial) {
+		long now = mc.level.getGameTime();
+		ClientState.ALERTS.removeIf(a -> a.until() < now);
+		for (ClientState.AlertMark alert : ClientState.ALERTS) {
+			float left = alert.until() - now - partial;
+			int alpha = (int) (255 * Mth.clamp(left / 30f, 0.2f, 1f));
+			int color = (alpha << 24) | (BLOOD & 0xFFFFFF);
+			Vec3 spot = alert.pos().add(0, 1.6, 0);
+			int dist = (int) Math.round(mc.player.position().distanceTo(alert.pos()));
+			Component label = Component.translatable("halloween.hud.alert", dist);
+			Projection.Point p = Projection.toScreen(spot, w, h);
+			if (p != null && p.x() >= 0 && p.x() <= w && p.y() >= 0 && p.y() <= h) {
+				g.pose().pushMatrix();
+				g.pose().translate(p.x(), p.y() - 10);
+				g.pose().scale(2.5f, 2.5f);
+				g.centeredText(mc.font, Component.literal("!"), 0, 0, color);
+				g.pose().popMatrix();
+				g.centeredText(mc.font, label, (int) p.x(), (int) p.y() + 12, color);
+				continue;
+			}
+			// Behind or beside: which way to turn.
+			Vec3 to = alert.pos().subtract(mc.player.getEyePosition(partial));
+			Vec3 look = mc.player.getViewVector(partial);
+			double cross = look.x * to.z - look.z * to.x;
+			boolean right = cross > 0;
+			int x = right ? w - 28 : 28;
+			g.centeredText(mc.font, Component.literal(right ? "! ▶" : "◀ !"), x, h / 2 - 20, color);
+			g.centeredText(mc.font, label, x, h / 2 - 8, color);
 		}
 	}
 
@@ -564,6 +597,12 @@ public final class HwHud {
 			&& dev.halloween.game.HwItems.is(mc.player.getMainHandItem(), dev.halloween.game.HwItems.Kind.FLASHLIGHT)) {
 			Component torch = Component.translatable("halloween.hud.prompt.flashlight");
 			g.textWithBackdrop(mc.font, torch, w / 2 - mc.font.width(torch) / 2, h / 2 + 46, mc.font.width(torch), DIM);
+		}
+		if (ClientState.progress.label().isEmpty() && ClientState.myRole().survivor()
+			&& mc.hitResult instanceof net.minecraft.world.phys.EntityHitResult eh && ClientState.match.npcs().contains(eh.getEntity().getId())) {
+			Component npc = Component.translatable("halloween.hud.prompt.npc");
+			g.textWithBackdrop(mc.font, npc, w / 2 - mc.font.width(npc) / 2, h / 2 + 22, mc.font.width(npc), TEXT);
+			return;
 		}
 		if (!ClientState.progress.label().isEmpty() || !(mc.hitResult instanceof net.minecraft.world.phys.BlockHitResult hit)
 			|| hit.getType() == net.minecraft.world.phys.HitResult.Type.MISS) {
