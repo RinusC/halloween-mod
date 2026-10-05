@@ -60,6 +60,12 @@ final class BotBrain {
 	private int nextHit;
 	private int nextDart;
 	private int pathAt;
+	private BlockPos shelterDoor;
+	private BlockPos locker;
+	private boolean hidLocker;
+	private boolean skipLocker;
+	/** Doors this bot has locked (tests, debugging). */
+	int locks;
 
 	BotBrain(BotPlayer bot) {
 		this.bot = bot;
@@ -113,13 +119,24 @@ final class BotBrain {
 			this.walker.halt();
 			return;
 		}
+		if (Lockers.isInside(this.bot)) {
+			// Sitting tight: only the Shape throwing the door open ends this early.
+			if (this.mode != Mode.HIDE) {
+				Lockers.leave(this.bot, false);
+			} else {
+				this.tickHide(now);
+				return;
+			}
+		}
 		this.perceive(now);
 		HwConfig cfg = this.cfg();
 		ServerPlayer shape = Senses.shape(this.level());
 		ShapeState shapeState = shape == null ? null : MatchManager.shapeState(shape);
 		boolean danger = this.aware(now) && this.bot.position().distanceTo(this.threat) < cfg.botFleeDistance;
 
-		if (danger && this.mode != Mode.FLEE && this.mode != Mode.FIGHT) {
+		// Hiding is only given up for the Shape actually in sight and close, not for an old memory of him.
+		boolean flushedOut = now - this.threatTick < 10 && this.bot.position().distanceTo(this.threat) < 10;
+		if (danger && this.mode != Mode.FLEE && this.mode != Mode.FIGHT && (this.mode != Mode.HIDE || flushedOut)) {
 			if (shape != null && shapeState != null && shapeState.grab != null && shapeState.grab.victim != this.bot
 				&& this.meleeSlot() >= 0 && this.bot.distanceTo(shape) < 16) {
 				this.enter(Mode.FIGHT, now);
@@ -148,6 +165,10 @@ final class BotBrain {
 		this.task = null;
 		this.lockDoor = null;
 		this.hidePathSet = false;
+		this.shelterDoor = null;
+		this.locker = null;
+		this.hidLocker = false;
+		this.skipLocker = false;
 		this.bot.setShiftKeyDown(false);
 		this.bot.setSprinting(mode == Mode.FLEE || mode == Mode.FIGHT);
 		this.fleeRepathAt = now;
@@ -196,22 +217,29 @@ final class BotBrain {
 			this.calmSince = now;
 		} else if (now - this.calmSince > cfg.botCalmTicks) {
 			if (this.random.nextFloat() < cfg.botHideChance) {
-				this.enter(Mode.HIDE, now);
-				this.hideUntil = now + cfg.botHideMinTicks + this.random.nextInt(Math.max(1, cfg.botHideMaxTicks - cfg.botHideMinTicks));
+				this.startHide(now);
 			} else {
 				this.enter(Mode.ROAM, now);
 			}
 			return;
 		}
-		if (now >= this.fleeRepathAt || this.walker.idle()) {
+		if (now >= this.fleeRepathAt || this.walker.idle() && this.shelterDoor == null && now >= this.fleeRepathAt - 25) {
 			this.fleeRepathAt = now + 30;
-			Vec3 from = this.threat;
-			Nav.Options opt = Nav.Options.climber();
-			opt.maxNodes = 2500;
-			opt.windowCost = this.bot.getHealth() > this.bot.getMaxHealth() * cfg.vaultDamageFraction + 1 ? 3 : 6;
-			this.walker.follow(Nav.search(this.level(), this.bot.blockPosition(), 28, opt, (p, cost) -> fleeScore(this.level(), p, cost, from, this.bot)));
+			this.planFlee(now);
 		}
 		Walker.Status status = this.walker.tick();
+		// Made it to the inner side of the shelter door: lock it.
+		if (this.shelterDoor != null && status != Walker.Status.MOVING) {
+			BlockPos shelter = this.shelterDoor;
+			this.shelterDoor = null;
+			if (this.threat != null && this.threat.distanceTo(Vec3.atCenterOf(shelter)) > 2.5
+				&& !DoorLocks.isLocked(this.level(), shelter) && !DoorLocks.isLockBroken(this.level(), shelter)) {
+				this.lockDoor = shelter;
+				this.lockUntil = now + cfg.lockTicks + 12;
+				this.walker.halt();
+				return;
+			}
+		}
 		if (status == Walker.Status.WINDOW) {
 			Nav.Node node = this.walker.current();
 			boolean close = this.threat != null && this.bot.position().distanceTo(this.threat) < 8;
@@ -233,15 +261,36 @@ final class BotBrain {
 	}
 
 	private void tickLock(int now) {
-		this.walker.halt();
-		Vec3 door = Vec3.atCenterOf(this.lockDoor.above());
-		this.walker.face(door);
-		boolean tooClose = this.threat != null && now - this.threatTick < 20 && this.bot.position().distanceTo(this.threat) < 3;
-		if (now > this.lockUntil || tooClose || DoorLocks.isLocked(this.level(), this.lockDoor)) {
+		if (now % 10 == 0) {
+		}
+		if (this.bot.getEyePosition().distanceTo(Vec3.atCenterOf(this.lockDoor.above())) > 3.4) {
+			this.bot.setShiftKeyDown(false);
 			this.lockDoor = null;
 			this.fleeRepathAt = now;
 			return;
 		}
+		if (now % 10 == 0) {
+		}
+		this.walker.halt();
+		Vec3 door = Vec3.atCenterOf(this.lockDoor.above());
+		this.walker.face(door);
+		boolean tooClose = this.threat != null && now - this.threatTick < 20 && this.bot.position().distanceTo(this.threat) < 3;
+		if (DoorLocks.isLocked(this.level(), this.lockDoor)) {
+			// Locked in: now find somewhere to hide in here.
+			this.bot.setShiftKeyDown(false);
+			this.lockDoor = null;
+			this.locks++;
+			this.startHide(now);
+			return;
+		}
+		if (now > this.lockUntil || tooClose) {
+			this.bot.setShiftKeyDown(false);
+			this.lockDoor = null;
+			this.fleeRepathAt = now;
+			return;
+		}
+		// Locking is done crouched by the door, like a person does it.
+		this.bot.setShiftKeyDown(true);
 		if (now % 4 == 0) {
 			DoorLocks.ping(this.bot, this.lockDoor);
 		}
@@ -261,20 +310,182 @@ final class BotBrain {
 		return score;
 	}
 
+	private void startHide(int now) {
+		HwConfig cfg = this.cfg();
+		this.enter(Mode.HIDE, now);
+		this.hideUntil = now + cfg.botHideMinTicks + this.random.nextInt(Math.max(1, cfg.botHideMaxTicks - cfg.botHideMinTicks));
+	}
+
+	/**
+	 * Picks how to get away: a window right at hand when he is close, a door to shut behind when there
+	 * is a little time, otherwise just the best spot out of his sight.
+	 */
+	private void planFlee(int now) {
+		HwConfig cfg = this.cfg();
+		Vec3 from = this.threat;
+		this.shelterDoor = null;
+		if (from != null) {
+			double dist = this.bot.position().distanceTo(from);
+			if (dist < cfg.botWindowEscapeDistance) {
+				List<Nav.Node> path = this.windowEscape(from);
+				if (path != null) {
+					this.walker.follow(path);
+					this.fleeRepathAt = now + 60;
+					return;
+				}
+			}
+			if (dist >= cfg.botShelterMinDistance && this.doorShelter(from)) {
+				this.fleeRepathAt = now + 80;
+				return;
+			}
+		}
+		Nav.Options opt = Nav.Options.climber();
+		opt.maxNodes = 2500;
+		opt.windowCost = this.bot.getHealth() > this.bot.getMaxHealth() * cfg.vaultDamageFraction + 1 ? 3 : 6;
+		this.walker.follow(Nav.search(this.level(), this.bot.blockPosition(), 28, opt, (p, cost) -> fleeScore(this.level(), p, cost, from, this.bot)));
+	}
+
+	/** A window within a few steps that puts a wall between us and the Shape: the path to it and over it. */
+	private List<Nav.Node> windowEscape(Vec3 threat) {
+		ServerLevel level = this.level();
+		BlockPos feet = Nav.snap(level, this.bot.blockPosition());
+		List<Nav.Node> best = null;
+		double bestDist = Double.MAX_VALUE;
+		for (BlockPos glass : BlockPos.betweenClosed(feet.offset(-3, 1, -3), feet.offset(3, 1, 3))) {
+			if (!Windows.isWindow(level.getBlockState(glass)) || Nav.passable(level, glass.below()) != 0) {
+				continue;
+			}
+			BlockPos wall = glass.below();
+			for (net.minecraft.core.Direction d : net.minecraft.core.Direction.Plane.HORIZONTAL) {
+				BlockPos near = wall.relative(d.getOpposite());
+				BlockPos far = wall.relative(d);
+				if (!Nav.standable(level, near) || !Nav.standable(level, far)) {
+					continue;
+				}
+				Vec3 a = Vec3.atBottomCenterOf(near);
+				Vec3 b = Vec3.atBottomCenterOf(far);
+				double toNear = this.bot.position().distanceTo(a);
+				if (toNear > this.bot.position().distanceTo(b) || b.distanceTo(threat) < a.distanceTo(threat) + 0.5 || toNear >= bestDist) {
+					continue;
+				}
+				List<Nav.Node> path = new ArrayList<>(near.equals(feet) ? List.of() : Nav.to(level, feet, near, 0.5, Nav.Options.walker()));
+				if (!near.equals(feet) && (path.isEmpty() || !path.get(path.size() - 1).pos().equals(near))) {
+					continue;
+				}
+				path.add(new Nav.Node(far.immutable(), Nav.Step.WINDOW, glass.immutable()));
+				best = path;
+				bestDist = toNear;
+			}
+		}
+		return best;
+	}
+
+	/**
+	 * A door nearby to get behind: into the house when outside, or just shut it when already in. Sets
+	 * the walk to the inner side; the lock follows on arrival.
+	 */
+	private boolean doorShelter(Vec3 threat) {
+		ServerLevel level = this.level();
+		BlockPos feet = Nav.snap(level, this.bot.blockPosition());
+		BlockPos bestDoor = null;
+		BlockPos bestTarget = null;
+		double bestDist = Double.MAX_VALUE;
+		for (BlockPos pos : BlockPos.betweenClosed(feet.offset(-7, -1, -7), feet.offset(7, 1, 7))) {
+			var state = level.getBlockState(pos);
+			if (!(state.getBlock() instanceof net.minecraft.world.level.block.DoorBlock)
+				|| state.getValue(net.minecraft.world.level.block.DoorBlock.HALF) != net.minecraft.world.level.block.state.properties.DoubleBlockHalf.LOWER
+				|| DoorLocks.isLocked(level, pos) || DoorLocks.isLockBroken(level, pos)) {
+				continue;
+			}
+			net.minecraft.core.Direction f = state.getValue(net.minecraft.world.level.block.DoorBlock.FACING);
+			BlockPos s1 = pos.relative(f);
+			BlockPos s2 = pos.relative(f.getOpposite());
+			if (!Nav.standable(level, s1) || !Nav.standable(level, s2)) {
+				continue;
+			}
+			boolean in1 = !level.canSeeSky(s1);
+			boolean in2 = !level.canSeeSky(s2);
+			BlockPos inside = in1 != in2 ? (in1 ? s1 : s2)
+				: Vec3.atCenterOf(s1).distanceTo(threat) > Vec3.atCenterOf(s2).distanceTo(threat) ? s1 : s2;
+			BlockPos outside = inside.equals(s1) ? s2 : s1;
+			Vec3 door = Vec3.atCenterOf(pos);
+			// The Shape must not be on the inner side already, nor right at the door.
+			if (door.distanceTo(threat) < 3.5 || Vec3.atCenterOf(inside).distanceTo(threat) < Vec3.atCenterOf(outside).distanceTo(threat)) {
+				continue;
+			}
+			double d = this.bot.position().distanceTo(door);
+			if (d >= bestDist) {
+				continue;
+			}
+			BlockPos deeper = inside.relative(f.getAxis() == net.minecraft.core.Direction.Axis.Z
+				? (inside.getZ() > pos.getZ() ? net.minecraft.core.Direction.SOUTH : net.minecraft.core.Direction.NORTH)
+				: (inside.getX() > pos.getX() ? net.minecraft.core.Direction.EAST : net.minecraft.core.Direction.WEST));
+			bestDoor = pos.immutable();
+			bestTarget = Nav.standable(level, deeper) ? deeper : inside;
+			bestDist = d;
+		}
+		if (bestDoor == null) {
+			return false;
+		}
+		List<Nav.Node> path = Nav.to(level, feet, bestTarget, 0.5, Nav.Options.walker());
+		if (!bestTarget.equals(feet) && (path.isEmpty() || !path.get(path.size() - 1).pos().equals(bestTarget))) {
+			return false;
+		}
+		this.walker.follow(path);
+		this.shelterDoor = bestDoor;
+		return true;
+	}
+
 	private void tickHide(int now) {
 		HwConfig cfg = this.cfg();
-		if (now > this.hideUntil) {
+		boolean inLocker = Lockers.isInside(this.bot);
+		if (now > this.hideUntil || this.hidLocker && !inLocker) {
+			if (inLocker) {
+				Lockers.leave(this.bot, false);
+			}
+			this.hidLocker = false;
 			this.enter(Mode.ROAM, now);
+			return;
+		}
+		if (inLocker) {
+			this.walker.halt();
 			return;
 		}
 		if (!this.hidePathSet) {
 			this.hidePathSet = true;
-			Vec3 from = this.threat;
-			Nav.Options opt = Nav.Options.walker();
-			opt.maxNodes = 2500;
-			this.walker.follow(Nav.search(this.level(), this.bot.blockPosition(), 22, opt, (p, cost) -> hideScore(this.level(), p, cost, from, this.bot)));
+			this.locker = this.skipLocker ? null : Lockers.nearestFree(this.level(), this.bot.blockPosition(), cfg.botLockerRange);
+			if (this.locker != null) {
+				BlockPos front = Lockers.front(this.level(), this.locker);
+				List<Nav.Node> path = Nav.to(this.level(), this.bot.blockPosition(), front, 0.6, Nav.Options.walker());
+				if (path.isEmpty() && this.bot.position().distanceTo(Vec3.atBottomCenterOf(front)) > 1.5) {
+					this.locker = null;
+				} else {
+					this.walker.follow(path);
+					this.hideUntil = Math.min(this.hideUntil, now + cfg.lockerMaxTicks - 40);
+				}
+			}
+			if (this.locker == null) {
+				Vec3 from = this.threat;
+				Nav.Options opt = Nav.Options.walker();
+				opt.maxNodes = 2500;
+				this.walker.follow(Nav.search(this.level(), this.bot.blockPosition(), 22, opt, (p, cost) -> hideScore(this.level(), p, cost, from, this.bot)));
+			}
 		}
 		Walker.Status status = this.walker.tick();
+		if (this.locker != null) {
+			if (status != Walker.Status.MOVING) {
+				// Quietly unless he is right behind.
+				this.bot.setSprinting(this.threat != null && now - this.threatTick < 30 && this.bot.position().distanceTo(this.threat) < 6);
+				if (Lockers.enter(this.bot, this.locker)) {
+					this.hidLocker = true;
+				} else {
+					this.locker = null;
+					this.skipLocker = true;
+					this.hidePathSet = false;
+				}
+			}
+			return;
+		}
 		if (status == Walker.Status.ARRIVED || status == Walker.Status.IDLE || status == Walker.Status.STUCK) {
 			this.walker.halt();
 			this.bot.setShiftKeyDown(true);

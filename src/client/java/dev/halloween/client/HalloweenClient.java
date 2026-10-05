@@ -144,6 +144,12 @@ public class HalloweenClient implements ClientModInitializer {
 			ClientPlayNetworking.send(new HwNet.Grab(picked.getId()));
 			return true;
 		}
+		// A locker: throw the door open (and grab whoever hides inside).
+		net.minecraft.core.BlockPos block = CameraAim.pickBlock(HwConfig.get().grabRange);
+		if (block != null && Minecraft.getInstance().level.getBlockState(block).getBlock() instanceof dev.halloween.game.LockerBlock) {
+			ClientPlayNetworking.send(new HwNet.UseAction(HwNet.UseAction.LOCKER, block));
+			return true;
+		}
 		return false;
 	}
 

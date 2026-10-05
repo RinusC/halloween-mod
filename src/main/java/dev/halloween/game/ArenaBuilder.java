@@ -105,6 +105,11 @@ public final class ArenaBuilder {
 			points.add(MapPoints.Type.PHONE, this.at(p[0], 1, p[1]));
 		}
 
+		// A locker to hide in, in a back corner of every house.
+		LockerBlock.place(this.level, this.at(-19, 0, 15), Direction.NORTH, dev.halloween.HwBlocks.LOCKER);
+		LockerBlock.place(this.level, this.at(2, 0, 15), Direction.NORTH, dev.halloween.HwBlocks.LOCKER);
+		LockerBlock.place(this.level, this.at(21, 0, -15), Direction.SOUTH, dev.halloween.HwBlocks.LOCKER);
+
 		// Townsfolk: two at home in every house.
 		for (int[] p : new int[][]{{-23, 11}, {-21, 13}, {-1, 11}, {1, 12}, {17, -12}, {19, -10}}) {
 			points.add(MapPoints.Type.NPC, this.at(p[0], 0, p[1]));
@@ -243,6 +248,8 @@ public final class ArenaBuilder {
 			"gamerule spawn_mobs false",
 			"gamerule natural_health_regeneration false",
 			"gamerule show_death_messages false",
+			// The vanilla locator bar (dots for other players over the XP bar) would give everyone away.
+			"gamerule locator_bar false",
 			"gamerule immediate_respawn true",
 			"time set midnight",
 			"weather clear",

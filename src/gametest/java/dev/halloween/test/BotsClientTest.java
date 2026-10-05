@@ -5,7 +5,9 @@ import dev.halloween.Role;
 import dev.halloween.client.CameraAim;
 import dev.halloween.game.BotPlayer;
 import dev.halloween.game.Bots;
+import dev.halloween.game.DoorLocks;
 import dev.halloween.game.Exits;
+import dev.halloween.game.Lockers;
 import dev.halloween.game.Loot;
 import dev.halloween.game.Match;
 import dev.halloween.game.MatchManager;
@@ -51,7 +53,13 @@ public class BotsClientTest implements FabricClientGameTest {
 			server.runCommand("execute as @p at @p run hw arena");
 			ctx.waitTicks(40);
 			this.origin = server.computeOnServer(s -> player(s).blockPosition());
-			server.runOnServer(s -> HwConfig.get().countdownSeconds = 2);
+			server.runOnServer(s -> {
+				HwConfig cfg = HwConfig.get();
+				cfg.countdownSeconds = 2;
+				// The match test speeds these up; here bots must not get away too early.
+				cfg.policeArriveSeconds = new HwConfig().policeArriveSeconds;
+				cfg.deputyRespawnSeconds = new HwConfig().deputyRespawnSeconds;
+			});
 
 			// ---------------------------------------------------------------- the player is the Shape
 			server.runCommand("hw start @p");
@@ -82,7 +90,7 @@ public class BotsClientTest implements FabricClientGameTest {
 
 			// A bot that sees the Shape runs away.
 			String fled = server.computeOnServer(s -> {
-				BotPlayer bot = Bots.all().stream().filter(b -> !b.isSpectator()).findFirst().orElse(null);
+				BotPlayer bot = Bots.all().stream().filter(b -> !b.isSpectator() && !Lockers.isInside(b)).findFirst().orElse(null);
 				if (bot == null) {
 					return "no bot";
 				}
@@ -99,10 +107,88 @@ public class BotsClientTest implements FabricClientGameTest {
 			check(after > before + 3, "a bot that sees the Shape runs away");
 			ctx.takeScreenshot("b02_bot_flees");
 
+			// The Shape right behind a bot standing by a window: over the sill it goes.
+			UUID climber = server.computeOnServer(s -> {
+				BotPlayer bot = Bots.all().stream().filter(b -> !b.isSpectator()).toList().getFirst();
+				Lockers.leave(bot, false);
+				bot.teleportTo(s.overworld(), this.origin.getX() + 2.5, this.origin.getY(), this.origin.getZ() + 7.5, java.util.Set.of(), 0f, 0f, false);
+				// Right behind it: too close not to notice.
+				player(s).teleportTo(s.overworld(), this.origin.getX() + 2.5, this.origin.getY(), this.origin.getZ() + 5.5, java.util.Set.of(), 0f, 0f, false);
+				return bot.getUUID();
+			});
+			boolean inHouse = false;
+			for (int i = 0; i < 12 && !inHouse; i++) {
+				ctx.waitTicks(10);
+				inHouse = server.computeOnServer(s -> {
+					ServerPlayer bot = s.getPlayerList().getPlayer(climber);
+					return bot != null && bot.getZ() > this.origin.getZ() + 8.6 && Math.abs(bot.getX() - this.origin.getX()) < 4;
+				});
+			}
+			check(inHouse, "a bot with the Shape close behind climbs in through a window");
+			ctx.takeScreenshot("b02a_bot_window");
+
+			// With a few steps' head start next to a house, a bot gets behind the door and locks it.
+			BlockPos door = this.origin.offset(-22, 0, 8);
+			UUID locker = server.computeOnServer(s -> {
+				BotPlayer bot = Bots.all().stream().filter(b -> !b.isSpectator()).toList().getLast();
+				Lockers.leave(bot, false);
+				bot.teleportTo(s.overworld(), this.origin.getX() - 21.5, this.origin.getY(), this.origin.getZ() + 5.5, java.util.Set.of(), 180f, 0f, false);
+				player(s).teleportTo(s.overworld(), this.origin.getX() - 21.5, this.origin.getY(), this.origin.getZ() - 2.5, java.util.Set.of(), 0f, 0f, false);
+				// A scream nearby gives the Shape away to every bot.
+				Bots.alert(player(s).position(), s.getTickCount());
+				return bot.getUUID();
+			});
+			boolean locked = false;
+			for (int i = 0; i < 20 && !locked; i++) {
+				ctx.waitTicks(10);
+				locked = server.computeOnServer(s -> DoorLocks.isLocked(s.overworld(), door));
+			}
+			check(locked, "a fleeing bot locks the door behind it");
+			ctx.takeScreenshot("b02b_bot_locked_door");
+
+			// Locked in, it goes for the locker in the corner; the Shape throws it open and has whoever is inside.
+			BlockPos cupboard = this.origin.offset(-19, 0, 15);
+			boolean hiding = false;
+			for (int i = 0; i < 20 && !hiding; i++) {
+				ctx.waitTicks(10);
+				hiding = server.computeOnServer(s -> Lockers.occupied(cupboard));
+			}
+			check(hiding, "someone hides in the locker");
+			check(server.computeOnServer(s -> Lockers.isInside(s.getPlayerList().getPlayer(locker))), "it is the bot that locked the door");
+			check(server.computeOnServer(s -> !MatchManager.exposed(s.getPlayerList().getPlayer(locker))), "the Shape learns nothing about someone in a locker");
+			String pulled = server.computeOnServer(s -> {
+				ServerPlayer shape = player(s);
+				shape.teleportTo(s.overworld(), cupboard.getX() + 0.5, cupboard.getY(), cupboard.getZ() - 0.8, java.util.Set.of(), 0f, 0f, false);
+				MatchManager.shapeState(shape).attackCooldown = 0;
+				Lockers.shapeOpen(shape, cupboard);
+				ServerPlayer bot = s.getPlayerList().getPlayer(locker);
+				var grab = MatchManager.shapeState(shape).grab;
+				if (bot == null || !MatchManager.isGrabbed(bot) || grab == null) {
+					return "not grabbed";
+				}
+				int stalk = (int) MatchManager.stalkOf(bot);
+				int expected = HwConfig.at(HwConfig.get().shapePointsToKillByStalk, stalk);
+				return grab.shapeNeeded() == expected && HwConfig.get().victimPointsToEscape == 4 ? "ok"
+					: "needs " + grab.shapeNeeded() + " at stalk " + stalk;
+			});
+			check("ok".equals(pulled), "the Shape pulls the bot out into a grab; the kill needs 5/5/4/3 hits by stalk, escape 4 (" + pulled + ")");
+			for (int stalk = 0; stalk <= 3; stalk++) {
+				LOG.info("Kill needs at stalk {}: {}", stalk, HwConfig.at(HwConfig.get().shapePointsToKillByStalk, stalk));
+			}
+			ctx.takeScreenshot("b02c_pulled_out");
+			server.runOnServer(s -> {
+				var grab = MatchManager.shapeState(player(s)).grab;
+				if (grab != null) {
+					MatchManager.reset(s);
+				}
+			});
+
 			// A townsperson that sees the Shape screams.
 			int screamsBefore = server.computeOnServer(s -> Townsfolk.screams);
 			int npcId = server.computeOnServer(s -> {
-				Mannequin npc = npcs(s).get(0);
+				// One quietly at home: not hiding in a locker, not still hoarse from an earlier scream.
+				Mannequin npc = npcs(s).stream().filter(m -> !Lockers.isInside(m) && "home".equals(Townsfolk.stateOf(m))).findFirst()
+					.orElse(npcs(s).stream().filter(m -> !Lockers.isInside(m)).findFirst().orElseThrow());
 				Vec3 front = near(s, npc, 2);
 				player(s).teleportTo(s.overworld(), front.x, front.y, front.z, java.util.Set.of(), 0f, 0f, false);
 				return npc.getId();
@@ -147,12 +233,17 @@ public class BotsClientTest implements FabricClientGameTest {
 			check(server.computeOnServer(s -> MatchManager.role(player(s))) == Role.CIVILIAN, "the player is a civilian");
 
 			// "Follow me": a real right click on a townsperson.
-			int guest = server.computeOnServer(s -> npcs(s).get(0).getId());
+			int guest = server.computeOnServer(s -> npcs(s).stream().filter(m -> !Lockers.isInside(m)).findFirst().orElseThrow().getId());
 			Vec3 guestPos = server.computeOnServer(s -> s.overworld().getEntity(guest).position());
-			this.place(server, server.computeOnServer(s -> near(s, s.overworld().getEntity(guest), 1.8)));
-			this.lookAt(ctx, guestPos.add(0, 1.2, 0));
-			ctx.getInput().pressKey(o -> o.keyUse);
-			ctx.waitTicks(5);
+			// A few tries from different sides: furniture (a locker, a table) can be in the line of the click.
+			for (int attempt = 0; attempt < 4 && !"follow".equals(server.computeOnServer(s -> Townsfolk.stateOf(s.overworld().getEntity(guest)))); attempt++) {
+				int skip = attempt * 4;
+				this.place(server, server.computeOnServer(s -> near(s, s.overworld().getEntity(guest), 1.8, skip)));
+				Vec3 at = server.computeOnServer(s -> s.overworld().getEntity(guest).position());
+				this.lookAt(ctx, at.add(0, 1.2, 0));
+				ctx.getInput().pressKey(o -> o.keyUse);
+				ctx.waitTicks(8);
+			}
 			check("follow".equals(server.computeOnServer(s -> Townsfolk.stateOf(s.overworld().getEntity(guest)))), "a townsperson follows when asked");
 			ctx.takeScreenshot("b04_follow_me");
 
@@ -176,8 +267,29 @@ public class BotsClientTest implements FabricClientGameTest {
 			int scoreAfter = server.computeOnServer(s -> Match.scores().values().stream().mapToInt(Integer::intValue).sum());
 			check(scoreAfter >= scoreBefore + HwConfig.get().scoreRescueNpc, "the rescue scores (" + scoreBefore + " -> " + scoreAfter + ")");
 
+			// A civilian hides in a locker and climbs out again.
+			BlockPos cupboard2 = server.computeOnServer(s -> Lockers.nearestFree(s.overworld(), this.origin, 40));
+			check(cupboard2 != null, "the arena has a free locker");
+			Vec3 front = server.computeOnServer(s -> Vec3.atBottomCenterOf(Lockers.front(s.overworld(), cupboard2)));
+			this.place(server, front);
+			this.lookAt(ctx, Vec3.atCenterOf(cupboard2).add(0, 0.3, 0));
+			ctx.waitTicks(60);
+			ctx.takeScreenshot("b04_locker_front");
+			ctx.getInput().pressKey(o -> o.keyUse);
+			ctx.waitTicks(5);
+			check(server.computeOnServer(s -> Lockers.isInside(player(s))), "a civilian climbs into a locker");
+			check(server.computeOnServer(s -> !MatchManager.exposed(player(s))), "and is hidden from the Shape's senses");
+			ctx.waitTicks(20);
+			ctx.takeScreenshot("b04a_inside_locker");
+			ctx.waitTicks(15);
+			ctx.getInput().holdKey(o -> o.keyShift);
+			ctx.waitTicks(4);
+			ctx.getInput().releaseKey(o -> o.keyShift);
+			ctx.waitTicks(4);
+			check(server.computeOnServer(s -> !Lockers.isInside(player(s)) && player(s).position().distanceTo(front) < 1.0), "sneak climbs back out");
+
 			// "Hide here": sneak + right click; it pays out if it lives to the end.
-			int hider = server.computeOnServer(s -> npcs(s).get(0).getId());
+			int hider = server.computeOnServer(s -> npcs(s).stream().filter(m -> !Lockers.isInside(m)).findFirst().orElseThrow().getId());
 			Vec3 hiderPos = server.computeOnServer(s -> s.overworld().getEntity(hider).position());
 			this.place(server, server.computeOnServer(s -> near(s, s.overworld().getEntity(hider), 1.8)));
 			this.lookAt(ctx, hiderPos.add(0, 1.2, 0));
@@ -210,9 +322,13 @@ public class BotsClientTest implements FabricClientGameTest {
 
 	/** A free spot about {@code dist} from the entity that it can see. */
 	private static Vec3 near(MinecraftServer server, Entity entity, double dist) {
+		return near(server, entity, dist, 0);
+	}
+
+	private static Vec3 near(MinecraftServer server, Entity entity, double dist, int skip) {
 		var level = server.overworld();
 		for (int i = 0; i < 16; i++) {
-			double a = Math.toRadians(entity.getYRot() + 90 + i * 22.5);
+			double a = Math.toRadians(entity.getYRot() + 90 + (i + skip) * 22.5);
 			Vec3 p = entity.position().add(Math.cos(a) * dist, 0, Math.sin(a) * dist);
 			BlockPos feet = BlockPos.containing(p);
 			if (Nav.standable(level, feet) && Sight.canSee(level, entity.getEyePosition(), Vec3.atBottomCenterOf(feet).add(0, 1.5, 0), entity)) {

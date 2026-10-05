@@ -19,7 +19,7 @@ import net.minecraft.world.phys.Vec3;
  * The Shape holding a victim. Both sides play reaction checks at once:
  * the victim scores with its own hits and with the Shape's misses and escapes at
  * {@link HwConfig#victimPointsToEscape}; the Shape scores only with his own hits and executes at
- * {@link HwConfig#shapePointsToKill}. Executions go through a window when the victim is fully stalked
+ * {@link HwConfig#shapePointsToKillByStalk} (fewer for a well-stalked victim). Executions go through a window when the victim is fully stalked
  * and glass is in front, and turn bloody at a high Bloodthirst level.
  */
 public final class GrabSession {
@@ -71,6 +71,11 @@ public final class GrabSession {
 		return HwConfig.get();
 	}
 
+	/** Hits the Shape still needs in total: the more the victim was stalked, the fewer. */
+	public int shapeNeeded() {
+		return HwConfig.at(this.cfg().shapePointsToKillByStalk, this.victimState.level());
+	}
+
 	boolean isDone() {
 		return this.done;
 	}
@@ -106,12 +111,12 @@ public final class GrabSession {
 		if (this.victim instanceof ServerPlayer player) {
 			Track t = this.victimTrack;
 			ServerPlayNetworking.send(player, new HwNet.Qte(true, false, t.zoneStart, t.zoneWidth, cfg.victimCursorPeriodTicks,
-				t.roundStart, cfg.victimRoundTicks, this.victimPoints, cfg.victimPointsToEscape, this.shapePoints, cfg.shapePointsToKill,
+				t.roundStart, cfg.victimRoundTicks, this.victimPoints, cfg.victimPointsToEscape, this.shapePoints, this.shapeNeeded(),
 				false, false));
 		}
 		Track s = this.shapeTrack;
 		ServerPlayNetworking.send(this.shape, new HwNet.Qte(true, true, s.zoneStart, s.zoneWidth, cfg.shapeNeedlePeriodTicks,
-			s.roundStart, cfg.shapeRoundTicks, this.shapePoints, cfg.shapePointsToKill, this.victimPoints, cfg.victimPointsToEscape,
+			s.roundStart, cfg.shapeRoundTicks, this.shapePoints, this.shapeNeeded(), this.victimPoints, cfg.victimPointsToEscape,
 			windowReady, this.bloody));
 	}
 
@@ -179,7 +184,7 @@ public final class GrabSession {
 			this.escape();
 			return true;
 		}
-		if (this.shapePoints >= cfg.shapePointsToKill) {
+		if (this.shapePoints >= this.shapeNeeded()) {
 			this.startFinisher();
 			return true;
 		}

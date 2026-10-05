@@ -429,6 +429,8 @@ public final class HwNet {
 		public static final int VAULT_FAST = 2;
 		/** Hold use on a match object: container, exit, phone. The server works out what it means. */
 		public static final int INTERACT = 3;
+		/** A locker: survivors climb in or out, the Shape throws it open. */
+		public static final int LOCKER = 4;
 		public static final Type<UseAction> TYPE = payloadType("use_action");
 		public static final StreamCodec<RegistryFriendlyByteBuf, UseAction> CODEC = StreamCodec.of(
 			(buf, v) -> {

@@ -105,6 +105,11 @@ public final class MatchManager {
 		return !(living instanceof Player) && living.entityTags().contains(VICTIM_TAG);
 	}
 
+	/** A victim the Shape can learn about and reach: not hiding in a locker. */
+	public static boolean exposed(Entity entity) {
+		return isVictim(entity) && !Lockers.isInside(entity);
+	}
+
 	public static boolean isStunned(ServerPlayer player) {
 		ShapeState state = SHAPES.get(player.getUUID());
 		return state != null && state.stunnedTicks > 0;
@@ -254,6 +259,7 @@ public final class MatchManager {
 		Fight.tick(server);
 		DoorLocks.tick(server);
 		Windows.tick(server);
+		Lockers.tick(server);
 		Bots.tick(server);
 		Townsfolk.tick(server);
 
@@ -286,7 +292,7 @@ public final class MatchManager {
 			} else {
 				VictimState vs = VICTIMS.get(player.getUUID());
 				double speed = 0;
-				if (Windows.isVaulting(player) || Match.frozen()) {
+				if (Windows.isVaulting(player) || Match.frozen() || Lockers.isInside(player)) {
 					speed = -1;
 				} else if (vs != null) {
 					if (vs.grabbed) {
@@ -402,7 +408,7 @@ public final class MatchManager {
 		// Aim angles come from the camera ray (what the reticle shows); sight is still checked from the eyes.
 		Vec3 aimFrom = aimOrigin(player, state);
 		Vec3 look = aimDirection(player, state);
-		for (LivingEntity target : level.getEntitiesOfClass(LivingEntity.class, player.getBoundingBox().inflate(range), MatchManager::isVictim)) {
+		for (LivingEntity target : level.getEntitiesOfClass(LivingEntity.class, player.getBoundingBox().inflate(range), MatchManager::exposed)) {
 			VictimState vs = victim(target);
 			float cap = sense ? 3f : cfg.passiveStalkCap;
 			if (vs.stalk >= cap || vs.grabbed) {
@@ -680,7 +686,7 @@ public final class MatchManager {
 		Vec3 look = aimDirection(player, state);
 		LivingEntity best = null;
 		double bestDist = Double.MAX_VALUE;
-		for (LivingEntity target : player.level().getEntitiesOfClass(LivingEntity.class, player.getBoundingBox().inflate(cfg.pushRange), MatchManager::isVictim)) {
+		for (LivingEntity target : player.level().getEntitiesOfClass(LivingEntity.class, player.getBoundingBox().inflate(cfg.pushRange), MatchManager::exposed)) {
 			Vec3 body = FocusPoints.bodyCenter(target);
 			double d = eye.distanceTo(body);
 			if (d <= cfg.pushRange + 0.5 && Sight.angleTo(aimFrom, look, body) <= 50 && d < bestDist) {
@@ -709,7 +715,7 @@ public final class MatchManager {
 		ServerLevel level = player.level();
 		List<Integer> outdoor = new ArrayList<>();
 		List<Vec3> indoor = new ArrayList<>();
-		for (LivingEntity target : level.getEntitiesOfClass(LivingEntity.class, player.getBoundingBox().inflate(cfg.impulseRange), MatchManager::isVictim)) {
+		for (LivingEntity target : level.getEntitiesOfClass(LivingEntity.class, player.getBoundingBox().inflate(cfg.impulseRange), MatchManager::exposed)) {
 			if (level.canSeeSky(BlockPos.containing(target.getEyePosition()).above())) {
 				outdoor.add(target.getId());
 			} else {
@@ -778,7 +784,7 @@ public final class MatchManager {
 		state.attackCooldown = heavy ? cfg.heavyCooldownTicks : cfg.lightCooldownTicks;
 		Entity entity = targetId >= 0 ? level.getEntity(targetId) : null;
 		Vec3 eye = player.getEyePosition();
-		if (!(entity instanceof LivingEntity victim) || !isVictim(victim)
+		if (!(entity instanceof LivingEntity victim) || !exposed(victim)
 			|| eye.distanceTo(FocusPoints.bodyCenter(victim)) > cfg.attackReach + 0.6
 			|| !Sight.canSee(level, eye, FocusPoints.bodyCenter(victim), player)) {
 			state.comboCount = 0;
@@ -832,19 +838,33 @@ public final class MatchManager {
 			return;
 		}
 		Entity target = player.level().getEntity(targetId);
-		if (!isVictim(target) || player.distanceTo(target) > cfg.grabRange
+		if (!exposed(target) || player.distanceTo(target) > cfg.grabRange
 			|| !Sight.canSee(player.level(), player.getEyePosition(), FocusPoints.bodyCenter((LivingEntity) target), player)) {
 			return;
 		}
-		LivingEntity victim = (LivingEntity) target;
+		startGrab(player, state, (LivingEntity) target);
+	}
+
+	/** The Shape pulls someone out of a locker he threw open: straight into a grab. */
+	public static boolean grabOut(ServerPlayer player, LivingEntity victim) {
+		ShapeState state = SHAPES.get(player.getUUID());
+		if (role(player) != Role.SHAPE || state == null || state.grab != null || state.stunnedTicks > 0 || !isVictim(victim)) {
+			return false;
+		}
+		return startGrab(player, state, victim);
+	}
+
+	private static boolean startGrab(ServerPlayer player, ShapeState state, LivingEntity victim) {
+		HwConfig cfg = HwConfig.get();
 		VictimState vs = victim(victim);
 		if (vs.grabbed) {
-			return;
+			return false;
 		}
 		state.dashTicks = 0;
 		gainBloodthirst(player, state, cfg.bloodthirstPerGrab);
 		score(player, state, cfg.scoreGrab, Component.translatable("halloween.score.grab", victim.getDisplayName(), vs.level()));
 		state.grab = new GrabSession(player, state, victim, vs);
+		return true;
 	}
 
 	public static void onQtePress(ServerPlayer player) {
@@ -977,6 +997,10 @@ public final class MatchManager {
 				townsfolk++;
 			} else {
 				alive++;
+			}
+			if (Lockers.isInside(target)) {
+				// Counted, but nothing gives away where they hide.
+				continue;
 			}
 			VictimState vs = VICTIMS.get(target.getUUID());
 			float stalk = vs == null ? 0 : vs.stalk;

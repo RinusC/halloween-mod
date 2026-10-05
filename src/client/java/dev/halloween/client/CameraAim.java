@@ -31,6 +31,23 @@ public final class CameraAim {
 		return new Vec3(f.x(), f.y(), f.z());
 	}
 
+	/** The block under the screen centre within reach of the Shape's eyes, or null. */
+	public static net.minecraft.core.BlockPos pickBlock(double reach) {
+		Minecraft mc = Minecraft.getInstance();
+		if (mc.player == null || mc.level == null) {
+			return null;
+		}
+		Vec3 camera = origin();
+		Vec3 dir = direction();
+		Vec3 eye = mc.player.getEyePosition();
+		Vec3 from = camera.add(dir.scale(Math.max(0, eye.subtract(camera).dot(dir))));
+		BlockHitResult block = mc.level.clip(new ClipContext(from, from.add(dir.scale(reach + 1)), ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, mc.player));
+		if (block.getType() == HitResult.Type.MISS || eye.distanceTo(block.getLocation()) > reach + 0.6) {
+			return null;
+		}
+		return block.getBlockPos();
+	}
+
 	/**
 	 * The living entity under the screen centre, if the Shape can reach it from his eyes.
 	 * Returns null when a block is in the way or the target is out of reach.

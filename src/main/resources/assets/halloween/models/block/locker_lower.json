@@ -1,0 +1,15 @@
+{
+  "parent": "minecraft:block/block",
+  "textures": {
+    "side": "halloween:block/locker_side",
+    "door_bottom": "halloween:block/locker_door_bottom",
+    "door_top": "halloween:block/locker_door_top",
+    "particle": "halloween:block/locker_side"
+  },
+  "elements": [
+    { "from": [0, 0, 0], "to": [16, 16, 1], "faces": { "north": {"texture": "#door_bottom"}, "south": {"texture": "#door_bottom"}, "east": {"texture": "#side"}, "west": {"texture": "#side"}, "up": {"texture": "#side"}, "down": {"texture": "#side"} } },
+    { "from": [0, 0, 15], "to": [16, 16, 16], "faces": { "north": {"texture": "#side"}, "south": {"texture": "#side"}, "east": {"texture": "#side"}, "west": {"texture": "#side"}, "up": {"texture": "#side"}, "down": {"texture": "#side"} } },
+    { "from": [0, 0, 0], "to": [1, 16, 16], "faces": { "north": {"texture": "#side"}, "south": {"texture": "#side"}, "east": {"texture": "#side"}, "west": {"texture": "#side"}, "up": {"texture": "#side"}, "down": {"texture": "#side"} } },
+    { "from": [15, 0, 0], "to": [16, 16, 16], "faces": { "north": {"texture": "#side"}, "south": {"texture": "#side"}, "east": {"texture": "#side"}, "west": {"texture": "#side"}, "up": {"texture": "#side"}, "down": {"texture": "#side"} } }
+  ]
+}

@@ -101,12 +101,13 @@ public final class Match {
 		Holds.clear();
 		Fight.clear(server);
 		Exits.setup(level, level.getRandom());
+		Lockers.clear(server);
 		Loot.setup(level, center, level.getRandom());
 
 		CommandSourceStack console = server.createCommandSourceStack().withLevel(level).withSuppressedOutput();
 		for (String command : new String[]{"time set midnight", "weather clear", "gamerule advance_time false",
 			"gamerule advance_weather false", "gamerule spawn_mobs false", "gamerule natural_health_regeneration false",
-			"gamerule show_death_messages false", "kill @e[type=item]", "kill @e[type=arrow]",
+			"gamerule show_death_messages false", "gamerule locator_bar false", "kill @e[type=item]", "kill @e[type=arrow]",
 			// The arena's practice mannequins have no place in a match; townsfolk take their role.
 			"kill @e[type=minecraft:mannequin,tag=" + MatchManager.VICTIM_TAG + ",tag=!" + Townsfolk.TAG + "]"}) {
 			server.getCommands().performPrefixedCommand(console, command);
@@ -172,6 +173,7 @@ public final class Match {
 				MatchManager.applyRole(player, Role.NONE);
 			}
 		}
+		Lockers.clear(server);
 		PEOPLE.clear();
 		Townsfolk.clear(server);
 		Bots.removeAll(server);

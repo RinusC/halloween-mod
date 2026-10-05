@@ -45,6 +45,7 @@ public class Halloween implements ModInitializer {
 				case HwNet.UseAction.VAULT_SLOW -> Windows.request(ctx.player(), payload.pos(), false);
 				case HwNet.UseAction.VAULT_FAST -> Windows.request(ctx.player(), payload.pos(), true);
 				case HwNet.UseAction.INTERACT -> dev.halloween.game.Holds.ping(ctx.player(), payload.pos());
+				case HwNet.UseAction.LOCKER -> dev.halloween.game.Lockers.use(ctx.player(), payload.pos());
 				default -> {
 				}
 			}

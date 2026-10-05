@@ -63,7 +63,7 @@ public final class ClientInteractions {
 			return false;
 		}
 		BlockState state = mc.level.getBlockState(hit.getBlockPos());
-		return state.getBlock() instanceof DoorBlock || Sight.isGlass(state) || matchObject(mc.level, hit.getBlockPos()) != 0;
+		return state.getBlock() instanceof DoorBlock || state.getBlock() instanceof dev.halloween.game.LockerBlock || Sight.isGlass(state) || matchObject(mc.level, hit.getBlockPos()) != 0;
 	}
 
 	public static InteractionResult onUseBlock(Player player, Level level, InteractionHand hand, BlockHitResult hit) {
@@ -78,6 +78,10 @@ public final class ClientInteractions {
 		BlockState state = level.getBlockState(pos);
 		boolean door = state.getBlock() instanceof DoorBlock;
 		if (role.survivor()) {
+			if (state.getBlock() instanceof dev.halloween.game.LockerBlock) {
+				ClientPlayNetworking.send(new HwNet.UseAction(HwNet.UseAction.LOCKER, pos));
+				return InteractionResult.SUCCESS;
+			}
 			if (door) {
 				if (player.isShiftKeyDown()) {
 					ClientPlayNetworking.send(new HwNet.UseAction(HwNet.UseAction.DOOR_LOCK, pos));

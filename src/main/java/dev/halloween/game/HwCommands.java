@@ -32,6 +32,13 @@ public final class HwCommands {
 			.then(Commands.literal("role").then(role))
 			.then(Commands.literal("arena").executes(HwCommands::arena))
 			.then(Commands.literal("mannequin").executes(HwCommands::mannequin))
+			.then(Commands.literal("locker").executes(ctx -> {
+				CommandSourceStack src = ctx.getSource();
+				// In front of whoever places it, door facing them.
+				net.minecraft.core.Direction facing = net.minecraft.core.Direction.fromYRot(src.getRotation().y).getOpposite();
+				LockerBlock.place(src.getLevel(), BlockPos.containing(src.getPosition()).relative(facing.getOpposite()), facing, dev.halloween.HwBlocks.LOCKER);
+				return 1;
+			}))
 			.then(Commands.literal("bloodthirst")
 				.then(Commands.argument("value", FloatArgumentType.floatArg(0, ShapeState.BLOODTHIRST_MAX)).executes(HwCommands::bloodthirst)))
 			.then(Commands.literal("reset").executes(ctx -> {

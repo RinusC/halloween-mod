@@ -16,6 +16,11 @@ public final class HwBlocks {
 	public static final Block PHONE = Registry.register(BuiltInRegistries.BLOCK, key("phone"),
 		new dev.halloween.game.PhoneBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.STONE).strength(-1f, 3600000f).noOcclusion().setId(key("phone"))));
 
+	/** A wardrobe to hide in (two blocks tall). */
+	public static final Block LOCKER = Registry.register(BuiltInRegistries.BLOCK, key("locker"),
+		new dev.halloween.game.LockerBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.SPRUCE_PLANKS).strength(-1f, 3600000f).noOcclusion()
+			.isSuffocating((s, l, p) -> false).isViewBlocking((s, l, p) -> false).setId(key("locker"))));
+
 	private HwBlocks() {
 	}
 

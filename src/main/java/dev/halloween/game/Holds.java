@@ -105,6 +105,11 @@ public final class Holds {
 		}
 	}
 
+	/** Drops whatever this player was holding use on. */
+	public static void clear(UUID player) {
+		WORK.remove(player);
+	}
+
 	/** Is this player in the middle of a hold action? */
 	public static boolean working(ServerPlayer player) {
 		return WORK.containsKey(player.getUUID());

@@ -67,6 +67,8 @@ public final class Townsfolk {
 		UUID leader;
 		UUID hider;
 		boolean wasGrabbed;
+		BlockPos locker;
+		boolean noLocker;
 
 		Npc(Mannequin body, String name) {
 			this.body = body;
@@ -380,11 +382,36 @@ public final class Townsfolk {
 
 	private static void tickHide(Npc npc, int now, ServerLevel level) {
 		if (npc.state == State.HIDE && now > npc.hideUntil) {
+			if (Lockers.isInside(npc.body)) {
+				Lockers.leave(npc.body, false);
+			}
+			npc.locker = null;
 			npc.state = State.HOME;
 			npc.body.setPose(Pose.STANDING);
 			npc.walker.speed = 0.6f;
 			setSpeed(npc, HwConfig.get().npcWalkSpeed);
 			npc.walker.follow(Nav.to(level, npc.body.blockPosition(), npc.home, 1.0, Nav.Options.walker()));
+			return;
+		}
+		if (Lockers.isInside(npc.body)) {
+			npc.walker.halt();
+			return;
+		}
+		if (!npc.pathSet) {
+			npc.pathSet = true;
+			npc.locker = npc.noLocker ? null : Lockers.nearestFree(level, npc.body.blockPosition(), 12);
+			if (npc.locker != null) {
+				npc.walker.speed = 1f;
+				npc.walker.follow(Nav.to(level, npc.body.blockPosition(), Lockers.front(level, npc.locker), 0.6, Nav.Options.walker()));
+			}
+		}
+		if (npc.locker != null) {
+			if (npc.walker.tick() != Walker.Status.MOVING && !Lockers.enter(npc.body, npc.locker)) {
+				// Taken or out of reach: a dark corner will do.
+				npc.locker = null;
+				npc.pathSet = false;
+				npc.noLocker = true;
+			}
 			return;
 		}
 		if (!npc.pathSet) {

@@ -99,8 +99,9 @@ public class HwConfig {
 	// --- Grab: race of reaction checks ---
 	public double grabRange = 2.8;
 	public int[] grabCooldownByTier = {160, 120, 80};
-	public int victimPointsToEscape = 3;
-	public int shapePointsToKill = 2;
+	public int victimPointsToEscape = 4;
+	/** Hits the Shape needs for the kill, by the victim's stalk level 0..3: stalking makes the kill easier. */
+	public int[] shapePointsToKillByStalk = {5, 5, 4, 3};
 	/** If true, a victim's miss also gives the Shape a point. */
 	public boolean victimMissGivesShapePoint = false;
 	public int victimRoundTicks = 50;
@@ -226,7 +227,12 @@ public class HwConfig {
 	public int botHideMinTicks = 200;
 	public int botHideMaxTicks = 500;
 	/** Bots lock a door behind them only when the Shape is at least this far back. */
-	public double botLockMinDistance = 7;
+	public double botLockMinDistance = 4;
+	/** Closer than this, a fleeing bot first looks for a window right at hand. */
+	public double botWindowEscapeDistance = 7;
+	/** At least this far ahead of the Shape, a fleeing bot runs behind a nearby door and locks it. */
+	public double botShelterMinDistance = 4;
+	public int botLockerRange = 14;
 
 	// --- Townsfolk ---
 	public int npcMax = 8;
@@ -248,6 +254,12 @@ public class HwConfig {
 	public double npcRescueRadius = 4;
 	/** How long survivors see where a scream pointed at. */
 	public int alertTicks = 120;
+
+	// --- Lockers ---
+	/** How long you can stay in a locker before you have to come out for air. */
+	public int lockerMaxTicks = 1200;
+	/** Getting in on the run: the Shape sees where for this long. */
+	public int lockerSlamRevealTicks = 60;
 
 	// --- Lights ---
 	public int breakerRadius = 14;

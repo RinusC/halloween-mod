@@ -38,6 +38,7 @@ public final class Walker {
 
 	public void follow(List<Nav.Node> path) {
 		this.path = path;
+		this.passedDoor = null;
 		this.index = 0;
 		this.stuckTicks = 0;
 	}
