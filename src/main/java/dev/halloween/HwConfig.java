@@ -295,6 +295,10 @@ public class HwConfig {
 	public int lootRadius = 96;
 
 	// --- Items from the original: what the containers hide, throwing, first aid, flares, relics ---
+	/** On top of one of each escape item, this many more picked at random. */
+	public int extraEscapeItems = 1;
+	/** Storm cellars open for escape in a match (each takes one survivor). */
+	public int cellarsPerMatch = 2;
 	/** Share of the containers left after the escape items that hide something. */
 	public float lootFillShare = 0.6f;
 	/** How likely each find is, as draw weights (common 10, uncommon 5, rare 2, very rare 1). */

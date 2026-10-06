@@ -282,7 +282,17 @@ public final class Match {
 		}
 	}
 
+	/**
+	 * Is nobody left on the civilians' side? A survivor still in play, someone about to come back, or a
+	 * deputy still about (they can still bring townsfolk out) keeps the match going; police officers
+	 * (townsfolk-like helpers, not players) don't.
+	 */
 	private static boolean nobodyLeft(MinecraftServer server) {
+		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+			if (MatchManager.role(player).survivor() && !player.isSpectator() && player.isAlive()) {
+				return false;
+			}
+		}
 		for (Map.Entry<UUID, Participant> e : PEOPLE.entrySet()) {
 			Participant p = e.getValue();
 			if (p.respawnAt >= 0) {

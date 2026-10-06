@@ -310,5 +310,7 @@
 	"halloween.hud.prompt.item.med_kit": "ПКМ — перевязаться (3 с не двигаться)",
 	"halloween.hud.prompt.item.melee_throw": "ЛКМ — удар  •  ПКМ — метнуть",
 	"halloween.hud.prompt.item.spray": "ПКМ — пшикнуть: на раненого рядом или на себя",
-	"halloween.hud.prompt.item.throw": "ПКМ — бросить"
+	"halloween.hud.prompt.item.throw": "ПКМ — бросить",
+	"halloween.hud.meters": "%s м",
+	"halloween.hud.van_here": "Фургон полиции · %s м"
 }

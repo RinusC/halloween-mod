@@ -70,6 +70,7 @@ public final class MatchManager {
 
 	/** A body left after a kill; the Shape gains Bloodthirst by admiring it for a while. */
 	private static final class Corpse {
+		boolean police;
 		final ServerLevel level;
 		final Vec3 pos;
 		final Component name;
@@ -501,7 +502,7 @@ public final class MatchManager {
 			}
 			if (after > before) {
 				gainBloodthirst(player, state, cfg.bloodthirstPerStalkLevel);
-				score(player, state, cfg.scoreStalkLevel * after,
+				score(player, state, policeHalf(target, cfg.scoreStalkLevel * after),
 					Component.translatable("halloween.score.stalk", target.getDisplayName(), after));
 			}
 		}
@@ -526,7 +527,7 @@ public final class MatchManager {
 			corpse.admireLeft--;
 			gainBloodthirst(player, state, cfg.bloodthirstPerCorpseSecond / 20f);
 			if (corpse.admireLeft == 0) {
-				score(player, state, cfg.scoreCorpse, Component.translatable("halloween.score.corpse", corpse.name));
+				score(player, state, corpse.police ? cfg.scoreCorpse / 2 : cfg.scoreCorpse, Component.translatable("halloween.score.corpse", corpse.name));
 			}
 		}
 	}
@@ -535,6 +536,11 @@ public final class MatchManager {
 		if (state.addBloodthirst(amount)) {
 			player.sendOverlayMessage(Component.translatable("halloween.msg.tier_up", state.level()).withStyle(ChatFormatting.DARK_RED));
 		}
+	}
+
+	/** Officers are worth half: they came looking for him. */
+	private static int policeHalf(LivingEntity victim, int points) {
+		return Police.isOfficer(victim) ? points / 2 : points;
 	}
 
 	private static void score(ServerPlayer player, ShapeState state, int points, Component... lines) {
@@ -905,7 +911,7 @@ public final class MatchManager {
 		}
 		state.dashTicks = 0;
 		gainBloodthirst(player, state, cfg.bloodthirstPerGrab);
-		score(player, state, cfg.scoreGrab, Component.translatable("halloween.score.grab", victim.getDisplayName(), vs.level()));
+		score(player, state, policeHalf(victim, cfg.scoreGrab), Component.translatable("halloween.score.grab", victim.getDisplayName(), vs.level()));
 		AiStats.add(victim, "grabbed");
 		if (victim instanceof ServerPlayer vp) {
 			AiStats.add(victim, "grabbed.while." + Bots.modeOf(vp));
@@ -975,11 +981,13 @@ public final class MatchManager {
 			points += cfg.scoreBloody;
 			lines.add(Component.translatable("halloween.score.bloody"));
 		}
-		score(shape, state, points, lines.toArray(Component[]::new));
+		score(shape, state, policeHalf(victim, points), lines.toArray(Component[]::new));
 
 		eliminate(victim);
 		spawnCorpse(level, pos, yaw);
-		CORPSES.add(new Corpse(level, pos, name, cfg.corpseAdmireTicks));
+		Corpse corpse = new Corpse(level, pos, name, cfg.corpseAdmireTicks);
+		corpse.police = Police.isOfficer(victim);
+		CORPSES.add(corpse);
 		// Somebody has to find the body before the police can be called about it.
 		Police.addBody(pos, name);
 		// Survivors only learn about a death when they find the body (or hear the scream).
@@ -1078,7 +1086,7 @@ public final class MatchManager {
 		for (LivingEntity target : level.getEntitiesOfClass(LivingEntity.class, player.getBoundingBox().inflate(256), MatchManager::isVictim)) {
 			if (Townsfolk.isNpc(target)) {
 				townsfolk++;
-			} else {
+			} else if (!Police.isOfficer(target)) {
 				alive++;
 			}
 			if (Lockers.isInside(target)) {

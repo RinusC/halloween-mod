@@ -134,6 +134,16 @@ public final class Nav {
 	}
 
 	/** Snaps a position to a standable node nearby (an entity half inside a slab, on a ledge...). */
+	/** Standing at {@code stand}, is {@code target} in plain view at arm's length (nothing in between: no searching through walls)? */
+	public static boolean reaches(Level level, BlockPos stand, BlockPos target) {
+		net.minecraft.world.phys.Vec3 eye = net.minecraft.world.phys.Vec3.atBottomCenterOf(stand).add(0, 1.55, 0);
+		net.minecraft.world.phys.Vec3 to = net.minecraft.world.phys.Vec3.atCenterOf(target);
+		var hit = level.clip(new net.minecraft.world.level.ClipContext(eye, to, net.minecraft.world.level.ClipContext.Block.OUTLINE,
+			net.minecraft.world.level.ClipContext.Fluid.NONE, net.minecraft.world.phys.shapes.CollisionContext.empty()));
+		return hit.getType() == net.minecraft.world.phys.HitResult.Type.MISS || hit.getBlockPos().equals(target)
+			|| hit.getBlockPos().distSqr(target) <= 1 && !level.getBlockState(hit.getBlockPos()).isSolidRender();
+	}
+
 	public static BlockPos snap(Level level, BlockPos pos) {
 		if (standable(level, pos)) {
 			return pos;

@@ -277,7 +277,7 @@ public class HaddonfieldClientTest implements FabricClientGameTest {
 			check(server.computeOnServer(s -> MatchManager.role(player(s))) == Role.SHAPE, "the player is the Shape at the Myers house");
 			int containers = server.computeOnServer(s -> Loot.containers().size());
 			check(containers >= 50, "the town's chests and barrels are searchable (" + containers + ")");
-			check(server.computeOnServer(s -> Exits.infos().size()) == 4, "all four kinds of exit are set up");
+			check(server.computeOnServer(s -> Exits.infos().size()) == 5, "all four kinds of exit are set up, two storm cellars");
 			check(server.computeOnServer(s -> {
 				Map<HwItems.Kind, Long> hidden = Loot.hidden().values().stream()
 					.collect(java.util.stream.Collectors.groupingBy(k -> k, java.util.stream.Collectors.counting()));

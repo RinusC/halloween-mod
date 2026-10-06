@@ -67,7 +67,7 @@ public class MatchClientTest implements FabricClientGameTest {
 			ctx.waitTicks(50);
 			check(server.computeOnServer(s -> Match.running()), "the match runs");
 			check(server.computeOnServer(s -> MatchManager.role(player(s))) == Role.CIVILIAN, "a lone player is a civilian");
-			check(ctx.computeOnClient(mc -> ClientState.match.exits().size()) == 4, "four exits are active");
+			check(ctx.computeOnClient(mc -> ClientState.match.exits().size()) == 5, "five exits are active (two storm cellars)");
 			int containers = server.computeOnServer(s -> Loot.containers().size());
 			LOG.info("Containers: {}", containers);
 			check(containers >= 12, "the arena's chests and barrels are containers (" + containers + ")");
@@ -86,6 +86,8 @@ public class MatchClientTest implements FabricClientGameTest {
 
 			// Search a chest that hides bolt cutters.
 			BlockPos chest = this.origin.offset(1, 0, 15);
+			check(server.computeOnServer(s -> dev.halloween.game.Nav.reaches(s.overworld(), chest.offset(0, 0, -2), chest)
+				&& !dev.halloween.game.Nav.reaches(s.overworld(), chest.offset(0, 0, 2), chest)), "a bot searches a chest from where it sees it, never through the wall");
 			server.runOnServer(s -> Loot.hide(chest, HwItems.Kind.BOLT_CUTTERS));
 			server.runOnServer(s -> HwConfig.get().revolverFindChance = 1f);
 			this.tp(server, 1.5, 0, 13.4);
@@ -106,11 +108,11 @@ public class MatchClientTest implements FabricClientGameTest {
 				var level = s.overworld();
 				for (MapPoints.Type type : new MapPoints.Type[]{MapPoints.Type.CELLAR, MapPoints.Type.CAR, MapPoints.Type.GATE}) {
 					int exitType = type == MapPoints.Type.CELLAR ? Exits.CELLAR : type == MapPoints.Type.CAR ? Exits.CAR : Exits.GATE;
-					BlockPos used = Exits.infos().stream().filter(e -> e.type() == exitType).findFirst().orElseThrow().pos();
+					java.util.Set<BlockPos> used = Exits.infos().stream().filter(e -> e.type() == exitType).map(HwNet.ExitInfo::pos).collect(java.util.stream.Collectors.toSet());
 					for (BlockPos p : MapPoints.get(level).list(type)) {
 						BlockPos probe = type == MapPoints.Type.CELLAR ? p.below() : p;
 						boolean built = Exits.isProp(probe);
-						if (built != p.equals(used)) {
+						if (built != used.contains(p)) {
 							return type.key() + " at " + p.toShortString() + (built ? " has a prop but is unused" : " has no prop but is used");
 						}
 					}
@@ -268,6 +270,11 @@ public class MatchClientTest implements FabricClientGameTest {
 			this.holdUse(ctx, HwConfig.get().refuelTicks + 12);
 			check((this.exit(ctx, Exits.CAR).state() & 1) != 0, "the gas goes into the tank");
 			ctx.takeScreenshot("m04_car_fixed");
+			// The sedan from a few steps back.
+			server.runCommand(String.format(Locale.ROOT, "tp @p %.1f %d %.1f", cp.getX() + 4.5, cp.getY(), cp.getZ() - 5.5));
+			this.lookAt(ctx, new Vec3(cp.getX() + 0.5, cp.getY() + 0.8, cp.getZ() + 0.5));
+			ctx.waitTicks(10);
+			ctx.takeScreenshot("m04_car_view");
 
 			// The police: call from a phone, the van arrives.
 			BlockPos phone = this.origin.offset(3, 1, 14);

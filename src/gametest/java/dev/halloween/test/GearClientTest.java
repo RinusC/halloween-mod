@@ -73,6 +73,7 @@ public class GearClientTest implements FabricClientGameTest {
 			this.lookOfGuns(ctx, server);
 			this.policeHelp(ctx, server);
 			this.policeLockedDoor(ctx, server);
+			this.policeHalfScore(ctx, server);
 			this.stabAndAmulet(ctx, server);
 			this.throwing(ctx, server);
 			this.shotgun(ctx, server);
@@ -140,6 +141,12 @@ public class GearClientTest implements FabricClientGameTest {
 			return officer.getId();
 		});
 		check(officerId >= 0, "the Shape gets hold of a bot");
+		ctx.waitTicks(6);
+		int people = server.computeOnServer(s -> (int) s.getPlayerList().getPlayers().stream()
+			.filter(p -> MatchManager.role(p) == Role.CIVILIAN && !p.isSpectator()).count());
+		String objective = ctx.computeOnClient(mc -> dev.halloween.client.ClientState.hud.objectives().getFirst().getString());
+		check(objective.contains(String.valueOf(people)) && !objective.contains(String.valueOf(people + 1)),
+			"the Shape's HUD counts the people left, not the police (" + objective + ", " + people + " civilians)");
 		boolean stunned = false;
 		for (int i = 0; i < 80 && !stunned; i++) {
 			ctx.waitTicks(5);
@@ -158,6 +165,29 @@ public class GearClientTest implements FabricClientGameTest {
 			HwConfig.get().victimPointsToEscape = new HwConfig().victimPointsToEscape;
 		});
 		this.tp(server, 30.5, 0, -30.5);
+	}
+
+	/** Holding an officer is worth half a civilian. */
+	private void policeHalfScore(ClientGameTestContext ctx, TestServerContext server) {
+		String half = server.computeOnServer(s -> {
+			ServerPlayer shape = player(s);
+			ShapeState st = MatchManager.shapeState(shape);
+			st.grabCooldown = 0;
+			st.recoverTicks = 0;
+			var officer = Police.spawnOfficer(s.overworld(), shape.position().add(0, 0, -1.2));
+			int before = st.score;
+			boolean held = MatchManager.grabOut(shape, officer);
+			int gained = st.score - before;
+			Police.clear(s);
+			return held && gained == HwConfig.get().scoreGrab / 2 ? "ok" : "held " + held + ", +" + gained;
+		});
+		check("ok".equals(half), "grabbing a police officer scores half (" + half + ")");
+		ctx.waitTicks(5);
+		server.runOnServer(s -> {
+			ShapeState st = MatchManager.shapeState(player(s));
+			st.recoverTicks = 0;
+			st.grabCooldown = 0;
+		});
 	}
 
 	/** An officer inside a house with the front door locked gets out to the one it guards. */

@@ -34,7 +34,7 @@ import net.minecraft.world.phys.Vec3;
 /**
  * The four ways out, one of each in a random spot of its kind. Each lets exactly one civilian escape.
  * <ul>
- * <li>Cellar: bolt cutters or the padlock key open it; the Shape can slam it shut again.</li>
+ * <li>Cellars (two a match): bolt cutters or the padlock key open one; the Shape can slam it shut again.</li>
  * <li>Car (the sedan): repair the engine with a kit, pour in the gas can, start it with the sedan keys. The
  * Shape can drain the tank (the can drops by the car).</li>
  * <li>Police: call from a phone, the van comes after a while and waits. The Shape cuts phone lines; a kit fixes them.</li>
@@ -63,8 +63,17 @@ public final class Exits {
 	public static final int POLICE_USED = 4;
 	public static final int POLICE_NEED_BODY = 5;
 
-	private static BlockPos cellar;
-	private static int cellarState;
+	/** A storm cellar of this match and its state. */
+	private static final class Cellar {
+		final BlockPos pos;
+		int state = CLOSED;
+
+		Cellar(BlockPos pos) {
+			this.pos = pos;
+		}
+	}
+
+	private static final List<Cellar> CELLARS = new ArrayList<>();
 	private static BlockPos car;
 	private static int carFlags;
 	private static BlockPos police;
@@ -94,12 +103,15 @@ public final class Exits {
 	public static void setup(ServerLevel level, RandomSource random) {
 		clear(level);
 		MapPoints points = MapPoints.get(level);
-		cellar = pick(points.list(MapPoints.Type.CELLAR), random);
+		List<BlockPos> cellarSpots = new ArrayList<>(points.list(MapPoints.Type.CELLAR));
+		for (int i = 0; i < HwConfig.get().cellarsPerMatch && !cellarSpots.isEmpty(); i++) {
+			CELLARS.add(new Cellar(cellarSpots.remove(random.nextInt(cellarSpots.size()))));
+		}
 		car = pick(points.list(MapPoints.Type.CAR), random);
 		police = pick(points.list(MapPoints.Type.POLICE), random);
 		gate = pick(points.list(MapPoints.Type.GATE), random);
-		if (cellar != null) {
-			buildCellar(level, cellar);
+		for (Cellar c : CELLARS) {
+			buildCellar(level, c.pos);
 		}
 		if (car != null) {
 			buildCar(level, car);
@@ -117,8 +129,9 @@ public final class Exits {
 		removeVan(level);
 		PROPS.forEach((pos, old) -> level.setBlock(pos, old, Block.UPDATE_ALL));
 		PROPS.clear();
-		cellar = car = police = gate = null;
-		cellarState = gateState = CLOSED;
+		CELLARS.clear();
+		car = police = gate = null;
+		gateState = CLOSED;
 		gateFuse = false;
 		carFlags = 0;
 		vanSeats = 0;
@@ -173,16 +186,28 @@ public final class Exits {
 		if (isPhone(level, pos)) {
 			return phone(player, pos, role);
 		}
-		if (near(cellar, pos, 2.5)) {
+		for (Cellar c : CELLARS) {
+			if (near(c.pos, pos, 2.5)) {
+				return cellar(player, pos, c, role, civilian);
+			}
+		}
+		return resolveOthers(player, pos, role, civilian);
+	}
+
+	private static Holds.Hold cellar(ServerPlayer player, BlockPos pos, Cellar c, Role role, boolean civilian) {
+		HwConfig cfg = HwConfig.get();
+		ServerLevel level = player.level();
+		BlockPos cellar = c.pos;
+		{
 			if (role == Role.SHAPE) {
-				return cellarState == OPEN ? new Holds.Hold(pos, "halloween.hud.progress.close_cellar", true, cfg.closeCellarTicks,
-					p -> cellarState == OPEN, p -> {
-						cellarState = CLOSED;
+				return c.state == OPEN ? new Holds.Hold(pos, "halloween.hud.progress.close_cellar", true, cfg.closeCellarTicks,
+					p -> c.state == OPEN, p -> {
+						c.state = CLOSED;
 						setNearby(level, cellar, false);
 						level.playSound(null, cellar, SoundEvents.WOODEN_TRAPDOOR_CLOSE, SoundSource.BLOCKS, 2f, 0.6f);
 					}) : null;
 			}
-			if (cellarState == CLOSED) {
+			if (c.state == CLOSED) {
 				HwItems.Kind tool = Inventory.has(player, HwItems.Kind.PADLOCK_KEY) ? HwItems.Kind.PADLOCK_KEY
 					: Inventory.has(player, HwItems.Kind.BOLT_CUTTERS) ? HwItems.Kind.BOLT_CUTTERS : null;
 				if (tool == null) {
@@ -191,26 +216,31 @@ public final class Exits {
 				}
 				int ticks = tool == HwItems.Kind.PADLOCK_KEY ? cfg.padlockKeyTicks : cfg.boltCuttersTicks;
 				return new Holds.Hold(pos, "halloween.hud.progress.open_cellar", false, ticks,
-					p -> cellarState == CLOSED && Inventory.has(p, tool), p -> {
+					p -> c.state == CLOSED && Inventory.has(p, tool), p -> {
 						Inventory.consume(p, tool);
-						cellarState = OPEN;
+						c.state = OPEN;
 						setNearby(level, cellar, true);
 						level.playSound(null, cellar, SoundEvents.CHAIN_BREAK, SoundSource.BLOCKS, 1.5f, 0.8f);
 						Match.score(p, cfg.scoreExitProgress, Component.translatable("halloween.score.cellar_open"));
 					}, true);
 			}
-			if (cellarState == OPEN && civilian) {
-				return escapeHold(pos, "halloween.hud.progress.escape_cellar", p -> cellarState == OPEN, p -> {
-					cellarState = USED;
+			if (c.state == OPEN && civilian) {
+				return escapeHold(pos, "halloween.hud.progress.escape_cellar", p -> c.state == OPEN, p -> {
+					c.state = USED;
 					setNearby(level, cellar, false);
 					Match.escape(p, Component.translatable("halloween.exit.cellar"));
 				});
 			}
-			if (cellarState == OPEN) {
+			if (c.state == OPEN) {
 				hint(player, "halloween.hint.deputy_no_escape");
 			}
 			return null;
 		}
+	}
+
+	private static Holds.Hold resolveOthers(ServerPlayer player, BlockPos pos, Role role, boolean civilian) {
+		HwConfig cfg = HwConfig.get();
+		ServerLevel level = player.level();
 		if (near(car, pos, 3.2)) {
 			if ((carFlags & CAR_GONE) != 0) {
 				return null;
@@ -386,11 +416,13 @@ public final class Exits {
 	 * police van waiting, gates open. Returns the exit's name, or null if there is no open exit here.
 	 */
 	public static Component npcEscape(ServerLevel level, Vec3 at, double radius) {
-		if (cellar != null && cellarState == OPEN && Vec3.atCenterOf(cellar).distanceTo(at) <= radius) {
-			cellarState = USED;
-			setNearby(level, cellar, false);
-			Match.markDirty();
-			return Component.translatable("halloween.exit.cellar");
+		for (Cellar c : CELLARS) {
+			if (c.state == OPEN && Vec3.atCenterOf(c.pos).distanceTo(at) <= radius) {
+				c.state = USED;
+				setNearby(level, c.pos, false);
+				Match.markDirty();
+				return Component.translatable("halloween.exit.cellar");
+			}
 		}
 		if (police != null && vanSeats > 0 && Vec3.atCenterOf(police).distanceTo(at) <= radius + 1) {
 			takeSeat(level);
@@ -408,7 +440,7 @@ public final class Exits {
 
 	/** Is there an exit a townsperson could leave through near {@code at} (without using it up)? */
 	public static boolean openExitNear(Vec3 at, double radius) {
-		return cellar != null && cellarState == OPEN && Vec3.atCenterOf(cellar).distanceTo(at) <= radius
+		return CELLARS.stream().anyMatch(c -> c.state == OPEN && Vec3.atCenterOf(c.pos).distanceTo(at) <= radius)
 			|| police != null && vanSeats > 0 && Vec3.atCenterOf(police).distanceTo(at) <= radius + 1
 			|| gate != null && gateState == OPEN && Vec3.atCenterOf(gate).distanceTo(at) <= radius;
 	}
@@ -417,9 +449,9 @@ public final class Exits {
 	public static void forceOpen(ServerLevel level, int type) {
 		switch (type) {
 			case CELLAR -> {
-				if (cellar != null) {
-					cellarState = OPEN;
-					setNearby(level, cellar, true);
+				for (Cellar c : CELLARS) {
+					c.state = OPEN;
+					setNearby(level, c.pos, true);
 				}
 			}
 			case GATE -> {
@@ -571,17 +603,38 @@ public final class Exits {
 	}
 
 	/** A boxy car five blocks long along X, standing on the ground at {@code at}. */
+	/**
+	 * A 1970s sedan, seven long and three wide: copper-brown body, black wheels showing at the sides,
+	 * chrome bumpers, headlights and tail lights, a low hood and trunk, dark windows (not glass: nobody
+	 * climbs through a car) and a vinyl roof.
+	 */
 	private static void buildCar(ServerLevel level, BlockPos at) {
-		BlockState body = block("red_concrete");
+		BlockState body = block("waxed_cut_copper");
+		BlockState low = block("waxed_cut_copper_slab");
+		BlockState roof = block("polished_blackstone_slab");
+		BlockState window = block("cyan_terracotta");
 		BlockState wheel = block("black_concrete");
-		// Not real glass: car windows must not count as windows to climb through.
-		BlockState glass = block("black_terracotta");
-		for (int dx = -2; dx <= 2; dx++) {
-			for (int dz = 0; dz <= 1; dz++) {
-				place(level, at.offset(dx, 0, dz), Math.abs(dx) == 2 ? wheel : body, PROPS);
-				place(level, at.offset(dx, 1, dz), Math.abs(dx) == 2 ? body : glass, PROPS);
-				if (Math.abs(dx) <= 1) {
-					place(level, at.offset(dx, 2, dz), body, PROPS);
+		BlockState chrome = block("light_gray_concrete");
+		for (int u = -3; u <= 3; u++) {
+			for (int w = -1; w <= 1; w++) {
+				BlockPos p = at.offset(u, 0, w);
+				boolean side = Math.abs(w) == 1;
+				BlockState bottom;
+				if (Math.abs(u) == 3) {
+					// Bumpers, with headlights at the front and tail lights at the back.
+					bottom = side ? block(u > 0 ? "white_concrete" : "red_concrete") : chrome;
+				} else if (Math.abs(u) == 2 && side) {
+					bottom = wheel;
+				} else {
+					bottom = body;
+				}
+				place(level, p, bottom, PROPS);
+				if (u >= 2 || u == -3) {
+					// Hood and trunk, low.
+					place(level, p.above(), low, PROPS);
+				} else {
+					place(level, p.above(), side || u == 1 || u == -2 ? window : body, PROPS);
+					place(level, p.above(2), roof, PROPS);
 				}
 			}
 		}
@@ -660,8 +713,8 @@ public final class Exits {
 
 	public static List<HwNet.ExitInfo> infos() {
 		List<HwNet.ExitInfo> list = new ArrayList<>();
-		if (cellar != null) {
-			list.add(new HwNet.ExitInfo(CELLAR, cellar, cellarState, 0));
+		for (Cellar c : CELLARS) {
+			list.add(new HwNet.ExitInfo(CELLAR, c.pos, c.state, 0));
 		}
 		if (car != null) {
 			list.add(new HwNet.ExitInfo(CAR, car, carFlags, 0));
@@ -697,7 +750,7 @@ public final class Exits {
 
 	/** Exits still able to take someone (for the end-of-match check). */
 	public static boolean anyLeft() {
-		return cellar != null && cellarState != USED || car != null && (carFlags & CAR_GONE) == 0
+		return CELLARS.stream().anyMatch(c -> c.state != USED) || car != null && (carFlags & CAR_GONE) == 0
 			|| police != null && (vanSeats > 0 || Police.vanStillPossible()) || gate != null && gateState != USED;
 	}
 }

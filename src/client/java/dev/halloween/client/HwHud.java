@@ -85,6 +85,7 @@ public final class HwHud {
 				g.centeredText(mc.font, line, w / 2, h - 40, respawn > 0 ? 0xFF7FA7FF : BLOOD);
 			} else {
 				alerts(g, mc, w, h, partial);
+				vanMarker(g, mc, w, h, partial);
 				healthBar(g, mc, w, h);
 				int pushLeft = (int) Math.max(0, ClientState.pushReadyAt - mc.level.getGameTime());
 				smallAction(g, mc.font, w - 12, h - 84, Component.translatable("halloween.hud.shove"), mc.options.keyAttack.getTranslatedKeyMessage(), pushLeft);
@@ -193,6 +194,10 @@ public final class HwHud {
 				}
 			}
 			diamond(g, x + 4, y + 3, 2, color);
+			if (e.type() != 2 || e.state() == 2) {
+				// Where it is: how far, and which way from where you look.
+				line = line.copy().append(Component.literal("  " + whereTo(e.pos())).withStyle(net.minecraft.ChatFormatting.GRAY));
+			}
 			g.text(font, line, x + 12, y, color, true);
 			y += 11;
 		}
@@ -231,6 +236,52 @@ public final class HwHud {
 			g.blit(net.minecraft.client.renderer.RenderPipelines.GUI_TEXTURED, BADGE, x, y, 0, 0, size, size, 16, 16, 16, 16, on ? 0xFFFFFFFF : 0x80484848);
 		}
 		return y + size + 10;
+	}
+
+	/** Distance and an arrow towards a spot, as seen from where the player looks: "45 m ↗". */
+	private static String whereTo(net.minecraft.core.BlockPos pos) {
+		Minecraft mc = Minecraft.getInstance();
+		Vec3 to = Vec3.atCenterOf(pos).subtract(mc.player.position());
+		int dist = (int) Math.round(Math.sqrt(to.x * to.x + to.z * to.z));
+		double angle = Math.toDegrees(Math.atan2(to.z, to.x)) - 90 - mc.player.getYRot();
+		angle = Mth.wrapDegrees(angle);
+		String[] arrows = {"↑", "↗", "→", "↘", "↓", "↙", "←", "↖"};
+		int sector = (int) Math.floorMod(Math.round(angle / 45.0), 8);
+		return Component.translatable("halloween.hud.meters", dist).getString() + " " + arrows[sector];
+	}
+
+	/** The police van, when it waits: a flashing badge over it, or at the screen edge which way to turn. */
+	private static void vanMarker(GuiGraphicsExtractor g, Minecraft mc, int w, int h, float partial) {
+		HwNet.MatchSync m = ClientState.match;
+		if (m.state() != 2) {
+			return;
+		}
+		for (HwNet.ExitInfo e : m.exits()) {
+			if (e.type() != 2 || e.state() != 2) {
+				continue;
+			}
+			long t = mc.level.getGameTime();
+			int glow = (t / 6) % 2 == 0 ? 0x90D03A3A : 0x903A6AD8;
+			int dist = (int) Math.round(mc.player.position().distanceTo(Vec3.atCenterOf(e.pos())));
+			Component label = Component.translatable("halloween.hud.van_here", dist);
+			Projection.Point p = Projection.toScreen(Vec3.atCenterOf(e.pos()).add(0, 3.5, 0), w, h);
+			if (p != null && p.x() >= 0 && p.x() <= w && p.y() >= 0 && p.y() <= h) {
+				int x = (int) p.x();
+				int y = (int) p.y();
+				g.fill(x - 10, y - 10, x + 10, y + 10, glow);
+				g.blit(net.minecraft.client.renderer.RenderPipelines.GUI_TEXTURED, BADGE, x - 8, y - 8, 0, 0, 16, 16, 16, 16, 16, 16);
+				g.centeredText(mc.font, label, x, y + 13, 0xFF9FC4FF);
+				continue;
+			}
+			Vec3 to = Vec3.atCenterOf(e.pos()).subtract(mc.player.getEyePosition(partial));
+			Vec3 look = mc.player.getViewVector(partial);
+			boolean right = look.x * to.z - look.z * to.x > 0;
+			int x = right ? w - 16 - mc.font.width(label) / 2 : 16 + mc.font.width(label) / 2;
+			g.fill(x - 10, h / 2 - 40, x + 10, h / 2 - 20, glow);
+			g.blit(net.minecraft.client.renderer.RenderPipelines.GUI_TEXTURED, BADGE, x - 8, h / 2 - 38, 0, 0, 16, 16, 16, 16, 16, 16);
+			g.centeredText(mc.font, Component.literal(right ? "▶" : "◀"), x, h / 2 - 16, 0xFF9FC4FF);
+			g.centeredText(mc.font, label, x, h / 2 - 6, 0xFF9FC4FF);
+		}
 	}
 
 	/** A hand and three pockets, bottom centre. */

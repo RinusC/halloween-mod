@@ -986,6 +986,14 @@ final class BotBrain {
 
 	private void tickHold(int now) {
 		this.walker.face(Vec3.atCenterOf(this.holdPos));
+		if (!this.holdBegan && this.task != null && this.task.key.equals("search") && !Nav.reaches(this.level(), this.bot.blockPosition(), this.holdPos)) {
+			// A wall between us and it after all: no searching through it.
+			this.failed.put(this.holdPos, now + 200);
+			AiStats.add(this.bot, "hold.no_reach");
+			this.holdPos = null;
+			this.task = null;
+			return;
+		}
 		if (now % 4 == 0) {
 			Holds.ping(this.bot, this.holdPos);
 		}
@@ -1051,9 +1059,18 @@ final class BotBrain {
 				// Keep away from where he was last seen.
 				opt.avoiding(this.threat, 12);
 			}
-			this.walker.follow(Nav.to(this.level(), this.bot.blockPosition(), best.target, best.within, opt));
+			if (best.key.equals("search")) {
+				// Somewhere it can actually reach from: within arm's length and in plain view, not through a wall.
+				Task goal = best;
+				double sq = (goal.within + 0.5) * (goal.within + 0.5);
+				this.walker.follow(Nav.find(this.level(), this.bot.blockPosition(), goal.target,
+					p -> p.distToCenterSqr(Vec3.atCenterOf(goal.target)) <= sq && Nav.reaches(this.level(), p, goal.target), opt));
+			} else {
+				this.walker.follow(Nav.to(this.level(), this.bot.blockPosition(), best.target, best.within, opt));
+			}
 		}
 	}
+
 
 	/**
 	 * How far the Shape is, as the proximity music tells a person: only within its range and never while

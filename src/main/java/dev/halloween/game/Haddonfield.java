@@ -495,7 +495,7 @@ public final class Haddonfield extends MapPlan {
 		}
 	}
 
-	/** A concrete drive along the house, often with the family car on it. Returns whether there is one. */
+	/** A concrete drive along the house (no parked cars: the only car in town is the one that drives). */
 	private boolean driveway(Frame f, int w, Lot lot, boolean abandoned) {
 		if (f.x(w + 3) > lot.x1 - 1) {
 			return false;
@@ -504,17 +504,6 @@ public final class Haddonfield extends MapPlan {
 			for (int u = w + 1; u <= w + 3; u++) {
 				f.set(u, -1, v, b(abandoned ? "coarse_dirt" : "light_gray_concrete"));
 			}
-		}
-		if (!abandoned && this.random.nextInt(5) < 3) {
-			String paint = this.pick("blue_concrete", "green_concrete", "brown_concrete", "white_concrete", "cyan_concrete", "orange_concrete");
-			for (int v = -5; v <= -1; v++) {
-				for (int u = w + 1; u <= w + 2; u++) {
-					boolean end = v == -5 || v == -1;
-					f.set(u, 0, v, b(end ? "black_concrete" : paint));
-					f.set(u, 1, v, b(end ? paint : "black_terracotta"));
-				}
-			}
-			f.fill(w + 1, 2, -4, w + 2, 2, -2, b(paint));
 		}
 		return true;
 	}

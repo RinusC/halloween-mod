@@ -67,6 +67,9 @@ public class BotsClientTest implements FabricClientGameTest {
 				// The match test speeds these up; here bots must not get away too early.
 				cfg.policeArriveSeconds = new HwConfig().policeArriveSeconds;
 				cfg.deputyRespawnSeconds = new HwConfig().deputyRespawnSeconds;
+				// Bots must stay around for the checks: one way out through a cellar, no spare escape item.
+				cfg.cellarsPerMatch = 1;
+				cfg.extraEscapeItems = 0;
 			});
 
 			// ---------------------------------------------------------------- the player is the Shape
@@ -565,6 +568,8 @@ public class BotsClientTest implements FabricClientGameTest {
 			LOG.info("Final board: {}", board);
 			check(board.contains(String.valueOf(expected)), "a hidden townsperson that lives pays out at the end (" + expected + ")");
 		}
+		HwConfig.get().cellarsPerMatch = new HwConfig().cellarsPerMatch;
+		HwConfig.get().extraEscapeItems = new HwConfig().extraEscapeItems;
 		HwConfig.get().botsFillTo = new HwConfig().botsFillTo;
 		LOG.info("Bots client test finished OK");
 	}

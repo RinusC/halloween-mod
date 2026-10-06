@@ -310,5 +310,7 @@
 	"halloween.hud.prompt.item.med_kit": "Right click: patch up (stand still 3 s)",
 	"halloween.hud.prompt.item.melee_throw": "Left click: hit  •  right click: throw",
 	"halloween.hud.prompt.item.spray": "Right click: spray a hurt person nearby, or yourself",
-	"halloween.hud.prompt.item.throw": "Right click: throw"
+	"halloween.hud.prompt.item.throw": "Right click: throw",
+	"halloween.hud.meters": "%s m",
+	"halloween.hud.van_here": "Police van · %s m"
 }
