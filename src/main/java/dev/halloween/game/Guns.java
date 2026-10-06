@@ -459,9 +459,11 @@ public final class Guns {
 	private static void wound(LivingEntity target, float damage) {
 		ServerLevel level = (ServerLevel) target.level();
 		if (target.getHealth() - damage <= 0) {
+			Voices.play(target, Voices.Kind.DEATH);
 			MatchManager.shotDead(target);
 			return;
 		}
+		Voices.play(target, Voices.Kind.HURT);
 		target.invulnerableTime = 0;
 		target.hurtServer(level, level.damageSources().generic(), damage);
 		target.setDeltaMovement(Vec3.ZERO);

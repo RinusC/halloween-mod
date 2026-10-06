@@ -382,7 +382,7 @@ public final class Townsfolk {
 		npc.screamReadyAt = now + cfg.npcScreamCooldownTicks;
 		screams++;
 		AiStats.add(body, "npc.scream");
-		level.playSound(null, body.getX(), body.getEyeY(), body.getZ(), HwSounds.NPC_SCREAM, SoundSource.NEUTRAL, 3f, 0.9f + level.getRandom().nextFloat() * 0.3f);
+		Voices.play(body, Voices.Kind.SCREAM);
 		Vec3 where = shape != null ? shape.position() : body.position();
 		// The neighbours hear it too.
 		hearNoise(level, where, now, npc);

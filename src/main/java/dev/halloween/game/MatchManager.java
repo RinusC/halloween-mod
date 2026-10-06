@@ -881,6 +881,7 @@ public final class MatchManager {
 			kill(player, state, victim, KillKind.STRIKE, false);
 		} else {
 			victim.hurtServer(level, player.damageSources().playerAttack(player), damage);
+			Voices.play(victim, Voices.Kind.HURT);
 			// Strikes don't throw victims around; only the push does.
 			victim.setDeltaMovement(Vec3.ZERO);
 			victim.hurtMarked = true;
@@ -986,8 +987,9 @@ public final class MatchManager {
 	/** Kills a victim on behalf of the Shape, leaves a corpse and pays out Bloodthirst and score. */
 	static void kill(ServerPlayer shape, ShapeState state, LivingEntity victim, KillKind kind, boolean bloody) {
 		HwConfig cfg = HwConfig.get();
-		// The music falls silent for the kill.
+		// The music falls silent for the kill; the victim's last scream.
 		Music.killing(shape.level().getServer(), 70);
+		Voices.play(victim, Voices.Kind.DEATH);
 		ServerLevel level = (ServerLevel) victim.level();
 		VictimState vs = VICTIMS.get(victim.getUUID());
 		int stalkLevel = vs == null ? 0 : vs.level();

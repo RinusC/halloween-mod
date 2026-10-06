@@ -1,0 +1,12 @@
+People's voices (sounds/voice/*.ogg are 16-bit mono WAV clips, trimmed and levelled; loaded by WavSounds).
+
+f_scream_1..4, f_death_2..3 - "Female screams", opengameart.org/content/female-screams (congusbongus), from freesound.org:
+  Girl_Two_Screams, Girl_Scream (tcrocker68), pandoramachine...screams_03 (pushkin), WomanScream (Archeos) - CC0
+f_death_1 - "Death/Dying Female Fighter/Warrior Voice Over", opengameart.org - CC-BY 3.0
+f_hurt_1..9 - "Female RPG Voice Starter Pack", opengameart.org/content/female-rpg-voice-starter-pack - CC0
+m_scream_1 - "Helmut Scream" by creativeheroes (freesound.org/people/creativeheroes/sounds/84353) - CC-BY 3.0
+m_scream_2..3 - "Male_Thijs_loud_scream" by thanvannispen (freesound.org/people/thanvannispen/sounds/9432) - CC-BY 3.0
+m_scream_4..8 - "human male scream multi" by JohnsonBrandEditing (freesound.org) - CC0
+  (1..8 via "Aargh!", opengameart.org/content/aargh-male-screams)
+m_scream_9..25, m_death_7..9, m_hurt_1..12 - "Male Grunt/Yelling sounds" by HaelDB, opengameart.org/content/male-gruntyelling-sounds - CC0
+m_death_1..6, m_hurt_13..15 - "Death sounds" by Exewin, opengameart.org/content/death-sounds-0 - CC0

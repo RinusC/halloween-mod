@@ -63,6 +63,7 @@ public final class GrabSession {
 		this.random = shape.getRandom();
 		victimState.grabbed = true;
 		this.level().playSound(null, victim.getX(), victim.getY(), victim.getZ(), HwSounds.GRAB, SoundSource.HOSTILE, 1.2f, 1f);
+		Voices.play(victim, Voices.Kind.SCREAM);
 		this.startVictimRound(0);
 		this.startShapeRound(0);
 		this.sendState();

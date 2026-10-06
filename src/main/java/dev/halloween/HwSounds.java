@@ -36,6 +36,13 @@ public final class HwSounds {
 	public static final SoundEvent DOOR_BREAK = register("door.break");
 	public static final SoundEvent SHARDS = register("window.shards");
 	public static final SoundEvent NPC_SCREAM = register("npc.scream");
+	/** People's voices (recordings under sounds/voice/, see game.Voices). */
+	public static final SoundEvent VOICE_FEMALE_SCREAM = register("voice.female.scream");
+	public static final SoundEvent VOICE_FEMALE_HURT = register("voice.female.hurt");
+	public static final SoundEvent VOICE_FEMALE_DEATH = register("voice.female.death");
+	public static final SoundEvent VOICE_MALE_SCREAM = register("voice.male.scream");
+	public static final SoundEvent VOICE_MALE_HURT = register("voice.male.hurt");
+	public static final SoundEvent VOICE_MALE_DEATH = register("voice.male.death");
 	public static final SoundEvent LOCKER_SLAM = register("locker.slam");
 	public static final SoundEvent LOCKER_CLOSE = register("locker.close");
 	public static final SoundEvent GUN_REVOLVER = register("gun.revolver");
