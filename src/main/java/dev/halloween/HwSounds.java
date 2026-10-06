@@ -16,7 +16,11 @@ public final class HwSounds {
 	public static final SoundEvent STAB = register("shape.stab");
 	public static final SoundEvent GRAB = register("shape.grab");
 	public static final SoundEvent WINDOW_SMASH = register("shape.window_smash");
-	public static final SoundEvent THEME = register("theme.proximity");
+	/** Match music, cut from the soundtrack of Halloween: The Game (see game.Music). */
+	public static final SoundEvent[] MUSIC_AMBIENCE = music("ambience", 4);
+	public static final SoundEvent[] MUSIC_BEING_STALKED = music("being_stalked", 3);
+	public static final SoundEvent[] MUSIC_PROXIMITY = music("proximity", 4);
+	public static final SoundEvent[] MUSIC_STALKING = music("stalking", 3);
 	public static final SoundEvent QTE_HIT = register("qte.hit");
 	public static final SoundEvent QTE_MISS = register("qte.miss");
 	public static final SoundEvent ESCAPE = register("qte.escape");
@@ -46,6 +50,14 @@ public final class HwSounds {
 	public static final SoundEvent CASE_OPEN = register("case.open");
 
 	private HwSounds() {
+	}
+
+	private static SoundEvent[] music(String name, int parts) {
+		SoundEvent[] events = new SoundEvent[parts];
+		for (int i = 0; i < parts; i++) {
+			events[i] = register("music." + name + "_" + (i + 1));
+		}
+		return events;
 	}
 
 	private static SoundEvent register(String path) {

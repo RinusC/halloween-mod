@@ -260,6 +260,7 @@ public final class GrabSession {
 
 	private void startFinisher() {
 		this.finishing = true;
+		Music.killing(this.level().getServer(), this.cfg().finisherTicks + 70);
 		this.finisherTick = 0;
 		this.bloody = this.state.level() >= this.cfg().bloodyExecutionLevel;
 		if (this.victimState.level() >= this.cfg().windowFinisherStalkLevel) {

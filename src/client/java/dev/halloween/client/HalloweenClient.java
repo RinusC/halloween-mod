@@ -49,7 +49,6 @@ public class HalloweenClient implements ClientModInitializer {
 	private static boolean lastShadow;
 	private static Identifier ourEffect;
 	private static LoopSound breath;
-	private static LoopSound theme;
 
 	@Override
 	public void onInitializeClient() {
@@ -120,6 +119,7 @@ public class HalloweenClient implements ClientModInitializer {
 			ClientState.ALERTS.add(new ClientState.AlertMark(payload.pos(), now + payload.durationTicks()));
 		});
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.Skins.TYPE, (payload, ctx) -> ClientSkins.apply(payload));
+		ClientPlayNetworking.registerGlobalReceiver(HwNet.MusicMood.TYPE, (payload, ctx) -> ClientMusic.set(payload.mood(), payload.variant()));
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.DoorSync.TYPE, (payload, ctx) -> {
 			ClientState.LOCKED_DOORS.clear();
 			ClientState.LOCKED_DOORS.addAll(payload.locked());
@@ -219,10 +219,7 @@ public class HalloweenClient implements ClientModInitializer {
 		}
 		updatePostEffect(mc);
 
-		if (role.survivor() && themeVolume(mc) > 0 && (theme == null || !mc.getSoundManager().isActive(theme))) {
-			theme = new LoopSound(HwSounds.THEME, SoundSource.HOSTILE, 1f, () -> themeVolume(mc));
-			mc.getSoundManager().play(theme);
-		}
+		ClientMusic.tick(mc);
 	}
 
 	/**
@@ -344,17 +341,4 @@ public class HalloweenClient implements ClientModInitializer {
 		}
 	}
 
-	/** Proximity theme for civilians: rises as the Shape gets closer, silent while he is in Shape Jump. */
-	private static double themeVolume(Minecraft mc) {
-		if (mc.player == null || mc.level == null || !ClientState.myRole().survivor() || mc.player.isSpectator() || ClientState.shapeShadow) {
-			return 0;
-		}
-		Entity shape = mc.level.getEntity(ClientState.shapeEntityId);
-		if (shape == null) {
-			return 0;
-		}
-		double range = HwConfig.get().themeRange;
-		double t = 1 - mc.player.distanceTo(shape) / range;
-		return t <= 0 ? 0 : t * t * (3 - 2 * t);
-	}
 }

@@ -260,6 +260,20 @@ public final class HwNet {
 	}
 
 	/** Locked doors (lower halves) and doors whose lock the Shape has broken. */
+	/** The music this player should hear now: a mood of game.Music and which part of it (1-based). */
+	public record MusicMood(int mood, int variant) implements CustomPacketPayload {
+		public static final Type<MusicMood> TYPE = payloadType("music");
+		public static final StreamCodec<RegistryFriendlyByteBuf, MusicMood> CODEC = StreamCodec.of((buf, v) -> {
+			buf.writeVarInt(v.mood + 1);
+			buf.writeVarInt(v.variant);
+		}, buf -> new MusicMood(buf.readVarInt() - 1, buf.readVarInt()));
+
+		@Override
+		public Type<MusicMood> type() {
+			return TYPE;
+		}
+	}
+
 	/** Match skins: these player entities wear these skins (Michael, a survivor, the police uniform). */
 	public record Skins(List<Integer> ids, List<String> keys) implements CustomPacketPayload {
 		public static final Type<Skins> TYPE = payloadType("skins");
@@ -697,6 +711,7 @@ public final class HwNet {
 		PayloadTypeRegistry.clientboundPlay().register(Impulse.TYPE, Impulse.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(DoorSync.TYPE, DoorSync.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(Skins.TYPE, Skins.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(MusicMood.TYPE, MusicMood.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(MatchSync.TYPE, MatchSync.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(MatchEnd.TYPE, MatchEnd.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(Progress.TYPE, Progress.CODEC);

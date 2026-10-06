@@ -141,6 +141,7 @@ public final class Match {
 
 		PEOPLE.clear();
 		Skins.clear();
+		Music.clear();
 		deputiesUsed = 0;
 		shapeId = shape == null ? null : shape.getUUID();
 		List<BlockPos> spawns = new ArrayList<>(points.list(MapPoints.Type.SPAWN_CIVILIAN));

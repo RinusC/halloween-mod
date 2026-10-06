@@ -268,6 +268,7 @@ public final class MatchManager {
 		Holds.tick(server);
 		Fight.tick(server);
 		Gear.tick(server);
+		Music.tick(server);
 		DoorLocks.tick(server);
 		Windows.tick(server);
 		Lockers.tick(server);
@@ -951,6 +952,8 @@ public final class MatchManager {
 	/** Kills a victim on behalf of the Shape, leaves a corpse and pays out Bloodthirst and score. */
 	static void kill(ServerPlayer shape, ShapeState state, LivingEntity victim, KillKind kind, boolean bloody) {
 		HwConfig cfg = HwConfig.get();
+		// The music falls silent for the kill.
+		Music.killing(shape.level().getServer(), 70);
 		ServerLevel level = (ServerLevel) victim.level();
 		VictimState vs = VICTIMS.get(victim.getUUID());
 		int stalkLevel = vs == null ? 0 : vs.level();

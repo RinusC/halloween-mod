@@ -517,6 +517,15 @@ public class HwConfig {
 
 	// --- Audio ---
 	public double themeRange = 28;
+	/** Music: the Shape within this of a survivor who has seen him (in the last musicNoticeTicks) and coming on is a chase. */
+	public double musicChaseRange = 16;
+	public int musicNoticeTicks = 100;
+	/** A chase's music holds on this long after he stops closing in. */
+	public int musicChaseLingerTicks = 80;
+	/** How far a survivor can have seen him for the music. */
+	public double musicSightRange = 32;
+	/** Closer than this but not after you: Being Stalked. */
+	public double musicStalkedRange = 24;
 
 	public static HwConfig get() {
 		return instance;
