@@ -240,6 +240,18 @@ public final class GrabSession {
 		this.end();
 	}
 
+	/** The victim stabbed him (a knife, an ice pick, a lawn dart): he lets go at once. */
+	void stabbed() {
+		ServerLevel level = this.level();
+		level.playSound(null, this.shape.getX(), this.shape.getEyeY(), this.shape.getZ(), HwSounds.STAB, SoundSource.PLAYERS, 1.2f, 1.3f);
+		MatchManager.bleed(level, this.shape, 10);
+		this.escape();
+		this.shape.sendOverlayMessage(Component.translatable("halloween.msg.stabbed_shape").withStyle(net.minecraft.ChatFormatting.DARK_RED));
+		if (this.victim instanceof ServerPlayer player) {
+			player.sendOverlayMessage(Component.translatable("halloween.msg.stabbed_free").withStyle(net.minecraft.ChatFormatting.GREEN));
+		}
+	}
+
 	// ---------------------------------------------------------------- finisher
 
 	private boolean windowAvailable() {

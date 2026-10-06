@@ -639,7 +639,11 @@ public final class HwNet {
 
 	/** Single-press abilities of the Shape. */
 	public enum Action {
-		SHAPE_JUMP, DASH, PUSH, IMPULSE, QTE_PRESS, FLASHLIGHT, RELOAD;
+		SHAPE_JUMP, DASH, PUSH, IMPULSE, QTE_PRESS, FLASHLIGHT, RELOAD,
+		/** Right click with an item in hand (throw it, spray, med kit, flare gun). */
+		ITEM_USE,
+		/** Held by the Shape: stab him with a knife and break free. */
+		STAB;
 
 		static Action byId(int id) {
 			Action[] values = values();

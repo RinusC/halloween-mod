@@ -12,7 +12,7 @@ public final class AiStats {
 	}
 
 	public static void add(Entity who, String event) {
-		add(who.getPlainTextName(), event);
+		add(who == null ? "?" : who.getPlainTextName(), event);
 	}
 
 	public static void add(String who, String event) {

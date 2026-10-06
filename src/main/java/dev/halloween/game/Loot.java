@@ -22,8 +22,11 @@ import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.minecraft.world.level.chunk.LevelChunk;
 
 /**
- * Chests and barrels around the map centre are containers. At the start the items the exits need,
- * spare repair kits and weapons are hidden in random ones; survivors search them by holding use.
+ * Chests and barrels around the map centre are containers. At the start the items the exits need are
+ * hidden in random ones, every match (fuse, gate key, gas can, sedan keys, padlock key, bolt cutters, two
+ * repair kits); then ammunition, the relics that turned up this match, and for a share of the rest a find
+ * drawn by how common it is in the original (see {@link HwConfig#lootWeights}). Survivors search them by
+ * holding use.
  */
 public final class Loot {
 	private static final List<BlockPos> CONTAINERS = new ArrayList<>();
@@ -70,9 +73,10 @@ public final class Loot {
 		}
 		// What the exits need comes first: if a map has few containers, the extras are what gets left out.
 		List<HwItems.Kind> items = new ArrayList<>(List.of(
-			HwItems.Kind.BOLT_CUTTERS, HwItems.Kind.PADLOCK_KEY,
-			HwItems.Kind.CAR_KEYS, HwItems.Kind.CAR_PART, HwItems.Kind.REPAIR_KIT, HwItems.Kind.REPAIR_KIT));
+			HwItems.Kind.BOLT_CUTTERS, HwItems.Kind.PADLOCK_KEY, HwItems.Kind.FUSE, HwItems.Kind.GATE_KEY,
+			HwItems.Kind.SEDAN_KEYS, HwItems.Kind.GAS_CAN, HwItems.Kind.REPAIR_KIT, HwItems.Kind.REPAIR_KIT));
 		HwConfig cfg = HwConfig.get();
+		java.util.Random rng = new java.util.Random(random.nextLong());
 		if (GunCase.present()) {
 			items.add(HwItems.Kind.SAFE_CODE);
 			for (int i = 0; i < cfg.rifleAmmoFinds; i++) {
@@ -82,15 +86,64 @@ public final class Loot {
 		for (int i = 0; i < cfg.revolverAmmoFinds; i++) {
 			items.add(HwItems.Kind.REVOLVER_AMMO);
 		}
-		items.addAll(List.of(
-			HwItems.Kind.BAT, HwItems.Kind.BAT, HwItems.Kind.KNIFE,
-			HwItems.Kind.DART, HwItems.Kind.DART, HwItems.Kind.DART,
-			HwItems.Kind.BATTERY, HwItems.Kind.BATTERY));
+		// Relics don't turn up every match.
+		for (HwItems.Kind relic : new HwItems.Kind[]{HwItems.Kind.AMULET, HwItems.Kind.HOURGLASS, HwItems.Kind.BRASS_LANTERN}) {
+			if (rng.nextFloat() < cfg.relicChance) {
+				items.add(relic);
+			}
+		}
+		// The rest: a share of the containers left hide something, drawn by how common it is.
+		int extra = Math.round(Math.max(0, CONTAINERS.size() - items.size()) * cfg.lootFillShare);
+		for (int i = 0; i < extra; i++) {
+			HwItems.Kind find = draw(cfg.lootWeights, rng);
+			if (find != null) {
+				items.add(find);
+			}
+		}
 		List<BlockPos> shuffled = new ArrayList<>(CONTAINERS);
-		Collections.shuffle(shuffled, new java.util.Random(random.nextLong()));
+		Collections.shuffle(shuffled, rng);
 		for (int i = 0; i < Math.min(items.size(), shuffled.size()); i++) {
 			HIDDEN.put(shuffled.get(i), items.get(i));
 		}
+	}
+
+	/** One find, drawn by weight from {@code weights} (keys are item names). */
+	static HwItems.Kind draw(Map<String, Integer> weights, java.util.Random rng) {
+		int total = 0;
+		for (Map.Entry<String, Integer> e : weights.entrySet()) {
+			if (kindByKey(e.getKey()) != null) {
+				total += Math.max(0, e.getValue());
+			}
+		}
+		if (total <= 0) {
+			return null;
+		}
+		int roll = rng.nextInt(total);
+		for (Map.Entry<String, Integer> e : weights.entrySet()) {
+			HwItems.Kind kind = kindByKey(e.getKey());
+			if (kind == null) {
+				continue;
+			}
+			roll -= Math.max(0, e.getValue());
+			if (roll < 0) {
+				return kind;
+			}
+		}
+		return null;
+	}
+
+	private static HwItems.Kind kindByKey(String key) {
+		for (HwItems.Kind kind : HwItems.Kind.values()) {
+			if (kind.key().equals(key)) {
+				return kind;
+			}
+		}
+		return null;
+	}
+
+	/** What this match hides where (tests, debugging). */
+	public static Map<BlockPos, HwItems.Kind> hidden() {
+		return new HashMap<>(HIDDEN);
 	}
 
 	public static void clear() {
@@ -143,6 +196,8 @@ public final class Loot {
 			stack.setCount(cfg.revolverAmmoPerFind);
 		} else if (kind == HwItems.Kind.RIFLE_AMMO) {
 			stack.setCount(cfg.rifleAmmoPerFind);
+		} else if (kind == HwItems.Kind.SHOTGUN_SHELLS) {
+			stack.setCount(cfg.shotgunShellsPerFind);
 		} else if (kind == HwItems.Kind.SAFE_CODE) {
 			stack.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME, Component.translatable("halloween.item.safe_code_with", GunCase.code()));
 		}

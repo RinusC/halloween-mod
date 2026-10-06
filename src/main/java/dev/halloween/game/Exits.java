@@ -35,9 +35,10 @@ import net.minecraft.world.phys.Vec3;
  * The four ways out, one of each in a random spot of its kind. Each lets exactly one civilian escape.
  * <ul>
  * <li>Cellar: bolt cutters or the padlock key open it; the Shape can slam it shut again.</li>
- * <li>Car: install the part, repair it with a kit, start it with the keys. The Shape can pull the part out.</li>
+ * <li>Car (the sedan): repair the engine with a kit, pour in the gas can, start it with the sedan keys. The
+ * Shape can drain the tank (the can drops by the car).</li>
  * <li>Police: call from a phone, the van comes after a while and waits. The Shape cuts phone lines; a kit fixes them.</li>
- * <li>Gate: can be opened only near the end of the match.</li>
+ * <li>Gate: a fuse brings its keypad to life, then the gate key opens the chain.</li>
  * </ul>
  */
 public final class Exits {
@@ -51,7 +52,7 @@ public final class Exits {
 	static final int OPEN = 1;
 	static final int USED = 2;
 	// Car flags.
-	static final int CAR_PART = 1;
+	static final int CAR_FUEL = 1;
 	static final int CAR_REPAIRED = 2;
 	static final int CAR_GONE = 4;
 	// Police exit as shown to players: can call now, on the way, van waiting, van gone, van used, find a body first.
@@ -74,6 +75,8 @@ public final class Exits {
 	private static int vanOutcome;
 	private static BlockPos gate;
 	private static int gateState;
+	/** A fuse is in the gate's keypad. */
+	private static boolean gateFuse;
 	private static final Set<BlockPos> CUT_PHONES = new HashSet<>();
 	/** Blocks replaced by the police van, to restore when it leaves. */
 	private static final Map<BlockPos, BlockState> VAN = new LinkedHashMap<>();
@@ -116,6 +119,7 @@ public final class Exits {
 		PROPS.clear();
 		cellar = car = police = gate = null;
 		cellarState = gateState = CLOSED;
+		gateFuse = false;
 		carFlags = 0;
 		vanSeats = 0;
 		vanTimer = 0;
@@ -145,9 +149,9 @@ public final class Exits {
 		return level.getBlockState(pos).is(HwBlocks.PHONE);
 	}
 
-	/** The car has its part in, isn't fixed yet, and this player carries a repair kit. */
+	/** The car isn't fixed yet, and this player carries a repair kit. */
 	public static boolean canRepairCar(ServerPlayer player) {
-		return car != null && (carFlags & CAR_PART) != 0 && (carFlags & CAR_REPAIRED) == 0 && (carFlags & CAR_GONE) == 0
+		return car != null && (carFlags & CAR_REPAIRED) == 0 && (carFlags & CAR_GONE) == 0
 			&& Inventory.has(player, HwItems.Kind.REPAIR_KIT);
 	}
 
@@ -212,32 +216,19 @@ public final class Exits {
 				return null;
 			}
 			if (role == Role.SHAPE) {
-				return (carFlags & CAR_PART) != 0 ? new Holds.Hold(pos, "halloween.hud.progress.remove_part", true, cfg.removePartTicks,
-					p -> (carFlags & CAR_PART) != 0 && (carFlags & CAR_GONE) == 0, p -> {
-						carFlags &= ~(CAR_PART | CAR_REPAIRED);
+				// He drains the tank: the can is thrown down by the car, to be poured in again.
+				return (carFlags & CAR_FUEL) != 0 ? new Holds.Hold(pos, "halloween.hud.progress.drain_fuel", true, cfg.removePartTicks,
+					p -> (carFlags & CAR_FUEL) != 0 && (carFlags & CAR_GONE) == 0, p -> {
+						carFlags &= ~CAR_FUEL;
 						Vec3 c = Vec3.atCenterOf(car).add(0, 1, 0);
-						level.addFreshEntity(new ItemEntity(level, c.x, c.y, c.z, HwItems.create(HwItems.Kind.CAR_PART)));
-						level.playSound(null, car, SoundEvents.ANVIL_LAND, SoundSource.BLOCKS, 0.7f, 1.4f);
+						level.addFreshEntity(new ItemEntity(level, c.x, c.y, c.z, HwItems.create(HwItems.Kind.GAS_CAN)));
+						level.playSound(null, car, SoundEvents.BUCKET_EMPTY, SoundSource.BLOCKS, 1f, 0.7f);
 					}) : null;
 			}
-			if ((carFlags & CAR_PART) == 0) {
-				if (!Inventory.has(player, HwItems.Kind.CAR_PART)) {
-					hint(player, "halloween.hint.car_part");
-					return null;
-				}
-				return new Holds.Hold(pos, "halloween.hud.progress.install_part", false, cfg.installPartTicks,
-					p -> (carFlags & CAR_PART) == 0 && Inventory.has(p, HwItems.Kind.CAR_PART), p -> {
-						Inventory.consume(p, HwItems.Kind.CAR_PART);
-						carFlags |= CAR_PART;
-						level.playSound(null, car, SoundEvents.ANVIL_USE, SoundSource.BLOCKS, 0.6f, 1.3f);
-						Match.score(p, cfg.scoreExitProgress, Component.translatable("halloween.score.car_part"));
-					});
-			}
-			if ((carFlags & CAR_REPAIRED) == 0) {
-				if (!Inventory.has(player, HwItems.Kind.REPAIR_KIT)) {
-					hint(player, "halloween.hint.car_repair");
-					return null;
-				}
+			boolean repaired = (carFlags & CAR_REPAIRED) != 0;
+			boolean fuelled = (carFlags & CAR_FUEL) != 0;
+			// The engine first if we can, else the tank; either order works.
+			if (!repaired && Inventory.has(player, HwItems.Kind.REPAIR_KIT)) {
 				if (!Bots.isBot(player)) {
 					// People do it by hand on the panel; bots just take their time.
 					Minigames.open(player, HwNet.Minigame.CURVE, car);
@@ -245,17 +236,34 @@ public final class Exits {
 				}
 				return new Holds.Hold(pos, "halloween.hud.progress.repair_car", false, cfg.repairCarTicks, Exits::canRepairCar, Exits::repairCar);
 			}
+			if (!fuelled && Inventory.has(player, HwItems.Kind.GAS_CAN)) {
+				return new Holds.Hold(pos, "halloween.hud.progress.refuel", false, cfg.refuelTicks,
+					p -> (carFlags & CAR_FUEL) == 0 && (carFlags & CAR_GONE) == 0 && Inventory.has(p, HwItems.Kind.GAS_CAN), p -> {
+						Inventory.consume(p, HwItems.Kind.GAS_CAN);
+						carFlags |= CAR_FUEL;
+						level.playSound(null, car, SoundEvents.BUCKET_FILL, SoundSource.BLOCKS, 1f, 0.8f);
+						Match.score(p, cfg.scoreExitProgress, Component.translatable("halloween.score.car_fuel"));
+					});
+			}
+			if (!repaired) {
+				hint(player, "halloween.hint.car_repair");
+				return null;
+			}
+			if (!fuelled) {
+				hint(player, "halloween.hint.car_fuel");
+				return null;
+			}
 			if (!civilian) {
 				hint(player, "halloween.hint.deputy_no_escape");
 				return null;
 			}
-			if (!Inventory.has(player, HwItems.Kind.CAR_KEYS)) {
+			if (!Inventory.has(player, HwItems.Kind.SEDAN_KEYS)) {
 				hint(player, "halloween.hint.car_keys");
 				return null;
 			}
 			return new Holds.Hold(pos, "halloween.hud.progress.start_car", true, cfg.startCarTicks,
-				p -> (carFlags & CAR_REPAIRED) != 0 && (carFlags & CAR_GONE) == 0 && Inventory.has(p, HwItems.Kind.CAR_KEYS), p -> {
-					Inventory.consume(p, HwItems.Kind.CAR_KEYS);
+				p -> (carFlags & CAR_REPAIRED) != 0 && (carFlags & CAR_FUEL) != 0 && (carFlags & CAR_GONE) == 0 && Inventory.has(p, HwItems.Kind.SEDAN_KEYS), p -> {
+					Inventory.consume(p, HwItems.Kind.SEDAN_KEYS);
 					carFlags |= CAR_GONE;
 					level.playSound(null, car, SoundEvents.MINECART_RIDING, SoundSource.BLOCKS, 3f, 0.6f);
 					level.playSound(null, car, SoundEvents.GOAT_HORN_SOUND_VARIANTS.get(0).value(), SoundSource.BLOCKS, 2f, 1.4f);
@@ -279,11 +287,33 @@ public final class Exits {
 				return null;
 			}
 			if (gateState == CLOSED) {
-				if (Match.ticksLeft() > cfg.gateOpenLastSeconds * 20) {
+				if (cfg.gateOpenLastSeconds > 0 && Match.ticksLeft() > cfg.gateOpenLastSeconds * 20) {
 					hint(player, "halloween.hint.gate_later");
 					return null;
 				}
-				return new Holds.Hold(pos, "halloween.hud.progress.open_gate", true, cfg.openGateTicks, p -> gateState == CLOSED, p -> {
+				if (!gateFuse) {
+					// The keypad is dead: a fuse brings it to life.
+					if (!Inventory.has(player, HwItems.Kind.FUSE)) {
+						hint(player, "halloween.hint.gate_fuse");
+						return null;
+					}
+					return new Holds.Hold(pos, "halloween.hud.progress.install_fuse", false, cfg.installFuseTicks,
+						p -> !gateFuse && gateState == CLOSED && Inventory.has(p, HwItems.Kind.FUSE), p -> {
+							Inventory.consume(p, HwItems.Kind.FUSE);
+							gateFuse = true;
+							level.playSound(null, gate, SoundEvents.COPPER_BULB_TURN_ON, SoundSource.BLOCKS, 1.5f, 0.8f);
+							level.playSound(null, gate, SoundEvents.NOTE_BLOCK_BIT.value(), SoundSource.BLOCKS, 1f, 1.6f);
+							Match.score(p, cfg.scoreExitProgress, Component.translatable("halloween.score.gate_fuse"));
+							Match.markDirty();
+						});
+				}
+				if (!Inventory.has(player, HwItems.Kind.GATE_KEY)) {
+					hint(player, "halloween.hint.gate_key");
+					return null;
+				}
+				return new Holds.Hold(pos, "halloween.hud.progress.open_gate", true, cfg.openGateTicks,
+					p -> gateState == CLOSED && gateFuse && Inventory.has(p, HwItems.Kind.GATE_KEY), p -> {
+					Inventory.consume(p, HwItems.Kind.GATE_KEY);
 					gateState = OPEN;
 					setNearby(level, gate, true);
 					level.playSound(null, gate, SoundEvents.IRON_DOOR_OPEN, SoundSource.BLOCKS, 3f, 0.5f);
@@ -394,6 +424,7 @@ public final class Exits {
 			}
 			case GATE -> {
 				if (gate != null) {
+					gateFuse = true;
 					gateState = OPEN;
 					setNearby(level, gate, true);
 				}
@@ -401,7 +432,7 @@ public final class Exits {
 			case POLICE -> {
 				vanArrives(level);
 			}
-			case CAR -> carFlags = CAR_PART | CAR_REPAIRED;
+			case CAR -> carFlags = CAR_FUEL | CAR_REPAIRED;
 			default -> {
 			}
 		}
@@ -557,14 +588,67 @@ public final class Exits {
 	}
 
 	/** A double fence gate at {@code at}, set across the line that faces the middle of the map. */
+	/**
+	 * A gate out of town big enough that nobody mistakes it: stone pillars with lanterns on top, a beam
+	 * across with an EXIT sign facing town, iron bars over a double row of gates five wide. It faces the
+	 * centre and replaces whatever closed the way there (fence, barricade, invisible wall) until the match ends.
+	 */
 	private static void buildGate(ServerLevel level, BlockPos at, BlockPos center) {
 		int dx = center == null ? 0 : center.getX() - at.getX();
 		int dz = center == null ? 1 : center.getZ() - at.getZ();
 		boolean alongX = Math.abs(dz) >= Math.abs(dx);
 		Direction facing = alongX ? (dz < 0 ? Direction.NORTH : Direction.SOUTH) : (dx < 0 ? Direction.WEST : Direction.EAST);
-		BlockState state = block("spruce_fence_gate").setValue(BlockStateProperties.HORIZONTAL_FACING, facing);
-		place(level, at, state, PROPS);
-		place(level, alongX ? at.east() : at.south(), state, PROPS);
+		Direction along = alongX ? Direction.EAST : Direction.SOUTH;
+		BlockState leaf = block("dark_oak_fence_gate").setValue(BlockStateProperties.HORIZONTAL_FACING, facing);
+		BlockState pillar = block("stone_bricks");
+		BlockState beam = block("dark_oak_log").setValue(BlockStateProperties.AXIS, alongX ? Direction.Axis.X : Direction.Axis.Z);
+		for (int u = -3; u <= 3; u++) {
+			BlockPos column = at.relative(along, u);
+			if (Math.abs(u) == 3) {
+				for (int y = 0; y <= 4; y++) {
+					place(level, column.above(y), pillar, PROPS);
+				}
+				place(level, column.above(5), block("stone_brick_wall"), PROPS);
+				place(level, column.above(6), block("lantern"), PROPS);
+			} else {
+				place(level, column, leaf, PROPS);
+				place(level, column.above(), leaf, PROPS);
+				place(level, column.above(4), beam, PROPS);
+			}
+		}
+		// Bars between the gates and the beam, joined up to each other and the pillars.
+		for (int u = -2; u <= 2; u++) {
+			for (int y = 2; y <= 3; y++) {
+				BlockPos pos = at.relative(along, u).above(y);
+				place(level, pos, block("iron_bars"), PROPS);
+			}
+		}
+		for (int u = -2; u <= 2; u++) {
+			for (int y = 2; y <= 3; y++) {
+				BlockPos pos = at.relative(along, u).above(y);
+				level.setBlock(pos, Block.updateFromNeighbourShapes(level.getBlockState(pos), level, pos), Block.UPDATE_CLIENTS);
+			}
+		}
+		// EXIT, on the beam, towards town; red banners on the pillars.
+		BlockPos signPos = at.above(4).relative(facing);
+		place(level, signPos, block("dark_oak_wall_sign").setValue(BlockStateProperties.HORIZONTAL_FACING, facing), PROPS);
+		if (level.getBlockEntity(signPos) instanceof net.minecraft.world.level.block.entity.SignBlockEntity sign) {
+			net.minecraft.world.level.block.entity.SignText text = new net.minecraft.world.level.block.entity.SignText()
+				.setMessage(1, Component.translatable("halloween.sign.exit"))
+				.setMessage(2, Component.translatable("halloween.sign.exit_town"))
+				.setColor(net.minecraft.world.item.DyeColor.WHITE)
+				.setHasGlowingText(true);
+			sign.setText(text, true);
+			sign.setText(text, false);
+			sign.setChanged();
+			level.sendBlockUpdated(signPos, level.getBlockState(signPos), level.getBlockState(signPos), Block.UPDATE_CLIENTS);
+		}
+		for (int u : new int[]{-3, 3}) {
+			BlockPos banner = at.relative(along, u).above(3).relative(facing);
+			if (level.getBlockState(banner).isAir()) {
+				place(level, banner, block("red_wall_banner").setValue(BlockStateProperties.HORIZONTAL_FACING, facing), PROPS);
+			}
+		}
 	}
 
 	private static void removeVan(ServerLevel level) {
@@ -586,7 +670,7 @@ public final class Exits {
 			list.add(policeInfo());
 		}
 		if (gate != null) {
-			list.add(new HwNet.ExitInfo(GATE, gate, gateState, 0));
+			list.add(new HwNet.ExitInfo(GATE, gate, gateState, gateFuse ? 1 : 0));
 		}
 		return list;
 	}

@@ -5,6 +5,7 @@ import dev.halloween.Role;
 import dev.halloween.game.BotPlayer;
 import dev.halloween.game.Bots;
 import dev.halloween.game.Exits;
+import dev.halloween.game.HwItems;
 import dev.halloween.game.LightSystem;
 import dev.halloween.game.Loot;
 import dev.halloween.game.MapJob;
@@ -132,6 +133,34 @@ public class HaddonfieldClientTest implements FabricClientGameTest {
 			});
 			check(unreachable.isEmpty(), "every exit spot, spawn, gun case, a sample of townsfolk and an upstairs bedroom can be walked to (" + unreachable + ")");
 
+			// The edge of town is woods nobody walks through: something solid two high all along the edge
+			// (hedge, trunks, or the barricade across a gate lane), and nothing in the woods can be walked to.
+			String edge = server.computeOnServer(s -> {
+				ServerLevel level = s.overworld();
+				int f = 148;
+				List<String> bad = new ArrayList<>();
+				for (int t = -147; t <= 147; t += 3) {
+					for (int[] p : new int[][]{{t, -f}, {t, f}, {-f, t}, {f, t}}) {
+						for (int y = 0; y <= 1; y++) {
+							BlockPos pos = this.origin.offset(p[0], y, p[1]);
+							if (level.getBlockState(pos).getCollisionShape(level, pos).isEmpty()) {
+								bad.add(p[0] + "," + y + "," + p[1]);
+							}
+						}
+					}
+				}
+				BlockPos from = MapPoints.get(level).list(MapPoints.Type.SPAWN_CIVILIAN).getFirst();
+				for (int[] p : new int[][]{{-153, 30}, {153, -30}, {30, 153}, {-30, -153}, {-153, 0}, {153, -64}, {-64, 153}, {64, -153}}) {
+					BlockPos target = this.origin.offset(p[0], 0, p[1]);
+					List<Nav.Node> path = Nav.to(level, from, target, 1.5, Nav.Options.walker().nodes(80000));
+					if (!path.isEmpty() && path.getLast().pos().distSqr(target) <= 4) {
+						bad.add("walked to " + p[0] + "," + p[1]);
+					}
+				}
+				return String.join("; ", bad);
+			});
+			check(edge.isEmpty(), "the town ends in woods nobody gets through (" + edge + ")");
+
 			// A house has its doors, stairs up, a breaker that works the lights.
 			String house = server.computeOnServer(s -> {
 				ServerLevel level = s.overworld();
@@ -236,6 +265,8 @@ public class HaddonfieldClientTest implements FabricClientGameTest {
 			ctx.takeScreenshot("h15_park_fair");
 			this.view(ctx, server, new Vec3(40, 4, -20), 30, 20);
 			ctx.takeScreenshot("h16_backyards");
+			this.view(ctx, server, new Vec3(-122, 2, 64), 90, 4);
+			ctx.takeScreenshot("h17_forest_edge");
 			server.runCommand("gamemode survival @p");
 
 			// A match on the map: the player is the Shape, four bots, townsfolk, the exits come up.
@@ -247,6 +278,29 @@ public class HaddonfieldClientTest implements FabricClientGameTest {
 			int containers = server.computeOnServer(s -> Loot.containers().size());
 			check(containers >= 50, "the town's chests and barrels are searchable (" + containers + ")");
 			check(server.computeOnServer(s -> Exits.infos().size()) == 4, "all four kinds of exit are set up");
+			check(server.computeOnServer(s -> {
+				Map<HwItems.Kind, Long> hidden = Loot.hidden().values().stream()
+					.collect(java.util.stream.Collectors.groupingBy(k -> k, java.util.stream.Collectors.counting()));
+				LOG.info("Hidden in Haddonfield: {}", hidden);
+				for (HwItems.Kind kind : HwItems.Kind.values()) {
+					if (kind.escape() && hidden.getOrDefault(kind, 0L) < (kind == HwItems.Kind.REPAIR_KIT ? 2 : 1)) {
+						return false;
+					}
+				}
+				return hidden.values().stream().mapToLong(Long::longValue).sum() > 30;
+			}), "every escape item is hidden in town, and plenty besides");
+			// The match's gate is a big one, out on the edge, facing town.
+			BlockPos gate = server.computeOnServer(s -> Exits.infos().stream().filter(e -> e.type() == Exits.GATE).findFirst().orElseThrow().pos());
+			BlockPos inward = new BlockPos(-Integer.signum(Math.abs(gate.getX() - this.origin.getX()) >= 148 ? gate.getX() - this.origin.getX() : 0), 0,
+				-Integer.signum(Math.abs(gate.getZ() - this.origin.getZ()) >= 148 ? gate.getZ() - this.origin.getZ() : 0));
+			check(server.computeOnServer(s -> s.overworld().getBlockState(gate.above(4)).is(net.minecraft.world.level.block.Blocks.DARK_OAK_LOG)
+				&& s.overworld().getBlockState(gate.above(6).offset(inward.getZ() != 0 ? 3 : 0, 0, inward.getX() != 0 ? 3 : 0)).is(net.minecraft.world.level.block.Blocks.LANTERN)),
+				"the gate out of town is a big lit one (" + gate.subtract(this.origin).toShortString() + ")");
+			Vec3 gateView = Vec3.atBottomCenterOf(gate.offset(inward.multiply(9))).add(0, 1, 0);
+			float gateYaw = inward.getX() > 0 ? 90f : inward.getX() < 0 ? -90f : inward.getZ() > 0 ? 180f : 0f;
+			server.runOnServer(s -> player(s).teleportTo(s.overworld(), gateView.x, gateView.y, gateView.z, java.util.Set.of(), gateYaw, -8f, false));
+			ctx.waitTicks(40);
+			ctx.takeScreenshot("h18_big_gate");
 			check(server.computeOnServer(s -> Townsfolk.count()) >= 6, "townsfolk are at home");
 			Map<UUID, Vec3> start = server.computeOnServer(s -> {
 				Map<UUID, Vec3> m = new HashMap<>();

@@ -180,8 +180,8 @@ public class HwConfig {
 	// --- Match ---
 	public int matchSeconds = 1200;
 	public int countdownSeconds = 10;
-	/** Back gates can be opened only during the last this many seconds. */
-	public int gateOpenLastSeconds = 300;
+	/** Back gates can be opened only during the last this many seconds (0: any time, as in the original). */
+	public int gateOpenLastSeconds = 0;
 	public int policeArriveSeconds = 120;
 	public int policeStaySeconds = 90;
 
@@ -228,6 +228,21 @@ public class HwConfig {
 	/** Chance that a searched container also holds a revolver (loaded). */
 	public float revolverFindChance = 0.01f;
 	public int rifleAmmoFinds = 2;
+	/** Shotgun: shells in the tube, pellets per shot, their cone, reach and what each pellet does up close. */
+	public int shotgunCapacity = 4;
+	public int shotgunPellets = 8;
+	public float shotgunHipSpread = 6f;
+	public float shotgunAimSpread = 4f;
+	public double shotgunRange = 26;
+	/** Within this distance pellets hit with full force, then fade out to nothing at the range. */
+	public double shotgunFullForce = 6;
+	public float shotgunPelletStun = 0.12f;
+	public float shotgunPelletDamage = 2.5f;
+	public int shotgunPumpTicks = 16;
+	public int shotgunShellTicks = 18;
+	public float shotgunRecoil = 9f;
+	public float shotgunAimZoom = 0.85f;
+	public int shotgunShellsPerFind = 4;
 	/** Gun case: cutting the lock with bolt cutters takes this long. */
 	public int caseCutTicks = 200;
 	/** Police revolvers: spare rounds, how long they take to aim, how far they shoot, how steady they are. */
@@ -278,6 +293,85 @@ public class HwConfig {
 	public int maxDeputies = 2;
 	/** Containers are looked for this far around the map centre. */
 	public int lootRadius = 96;
+
+	// --- Items from the original: what the containers hide, throwing, first aid, flares, relics ---
+	/** Share of the containers left after the escape items that hide something. */
+	public float lootFillShare = 0.6f;
+	/** How likely each find is, as draw weights (common 10, uncommon 5, rare 2, very rare 1). */
+	public java.util.Map<String, Integer> lootWeights = defaultLootWeights();
+	/** Each relic (amulet, hourglass, brass lantern) turns up in a match with this chance. */
+	public float relicChance = 0.35f;
+	public float throwSpeed = 1.4f;
+	/** A thrown brick, rock or ball that hits the Shape also staggers him this long. */
+	public int throwStaggerTicks = 15;
+	public int firecrackerFuseTicks = 30;
+	public double firecrackerRange = 6;
+	public float firecrackerStun = 0.35f;
+	public int firecrackerBlindTicks = 40;
+	/** The bang is heard far off: the Shape sees where for this long. */
+	public int firecrackerRevealTicks = 80;
+	public int roadFlareTicks = 600;
+	/** A burning flare blinds the Shape this close if he looks at it. */
+	public double flareBlindRange = 7;
+	public float flareGunStun = 0.6f;
+	public int flareGunBlindTicks = 60;
+	public int flareGunBurnTicks = 200;
+	/** The flare gun fired at least this steeply up is a distress signal: a police call (a body must be found). */
+	public float flareSkyPitch = 45f;
+	public float sprayHeal = 6f;
+	public double sprayRange = 3.5;
+	public int sprayCooldownTicks = 20;
+	/** The med kit heals fully, standing still this long. */
+	public int medKitTicks = 60;
+	public int amuletBlindTicks = 60;
+	public int hourglassExtraTicks = 100;
+	public int lanternLightLevel = 13;
+	public double lanternBlindRange = 6;
+	/** The Shape this close to someone carrying the brass lantern shows up on their screen, even in Shape Jump. */
+	public double lanternRevealRange = 16;
+	/** Bots stab their way out of a grab this long after it starts. */
+	public int botStabTicks = 25;
+	/** Bots patch themselves up below this share of their health when nothing is after them. */
+	public float botHealBelow = 0.6f;
+	/** Pouring the gas can into the car takes this long. */
+	public int refuelTicks = 80;
+	public int installFuseTicks = 60;
+
+	public static java.util.Map<String, Integer> defaultLootWeights() {
+		java.util.Map<String, Integer> w = new java.util.LinkedHashMap<>();
+		// Common.
+		w.put("rock", 10);
+		w.put("brick", 10);
+		w.put("baseball", 8);
+		w.put("kitchen_knife", 10);
+		w.put("bat", 8);
+		w.put("battery", 8);
+		// Uncommon.
+		w.put("dart", 5);
+		w.put("pocket_knife", 5);
+		w.put("firecrackers", 5);
+		w.put("road_flare", 5);
+		w.put("healing_spray", 5);
+		w.put("flashlight", 5);
+		w.put("hatchet", 5);
+		w.put("cleaver", 5);
+		w.put("pipe_wrench", 5);
+		w.put("fire_poker", 5);
+		w.put("revolver_ammo", 4);
+		w.put("shotgun_shells", 3);
+		w.put("repair_kit", 3);
+		// Rare.
+		w.put("butterfly_knife", 2);
+		w.put("ice_pick", 2);
+		w.put("axe", 2);
+		w.put("pickaxe", 2);
+		w.put("pitchfork", 2);
+		w.put("med_kit", 2);
+		w.put("flare_gun", 2);
+		// Very rare.
+		w.put("shotgun", 1);
+		return w;
+	}
 
 	// --- Hold-to-interact durations (ticks) ---
 	public int searchTicks = 30;

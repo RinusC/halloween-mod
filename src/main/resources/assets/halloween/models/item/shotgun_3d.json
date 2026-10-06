@@ -1,0 +1,22 @@
+{
+	"textures": {"p": "halloween:item/gun_palette", "particle": "halloween:item/gun_palette"},
+	"elements": [
+		{"from": [7.4, 9.5, -8], "to": [8.6, 10.7, 6], "faces": {"north": {"uv": [13, 1, 15, 3], "texture": "#p"}, "east": {"uv": [9, 1, 11, 3], "texture": "#p"}, "south": {"uv": [9, 1, 11, 3], "texture": "#p"}, "west": {"uv": [9, 1, 11, 3], "texture": "#p"}, "up": {"uv": [9, 1, 11, 3], "texture": "#p"}, "down": {"uv": [9, 1, 11, 3], "texture": "#p"}}},
+		{"from": [7.5, 8.4, -6], "to": [8.5, 9.4, 6], "faces": {"north": {"uv": [1, 1, 3, 3], "texture": "#p"}, "east": {"uv": [1, 1, 3, 3], "texture": "#p"}, "south": {"uv": [1, 1, 3, 3], "texture": "#p"}, "west": {"uv": [1, 1, 3, 3], "texture": "#p"}, "up": {"uv": [1, 1, 3, 3], "texture": "#p"}, "down": {"uv": [1, 1, 3, 3], "texture": "#p"}}},
+		{"from": [7, 7.9, -3], "to": [9, 9.6, 3], "faces": {"north": {"uv": [5, 5, 7, 7], "texture": "#p"}, "east": {"uv": [5, 5, 7, 7], "texture": "#p"}, "south": {"uv": [5, 5, 7, 7], "texture": "#p"}, "west": {"uv": [5, 5, 7, 7], "texture": "#p"}, "up": {"uv": [5, 5, 7, 7], "texture": "#p"}, "down": {"uv": [5, 5, 7, 7], "texture": "#p"}}},
+		{"from": [7.2, 8, 6], "to": [8.8, 10.8, 12], "faces": {"north": {"uv": [13, 1, 15, 3], "texture": "#p"}, "east": {"uv": [13, 1, 15, 3], "texture": "#p"}, "south": {"uv": [13, 1, 15, 3], "texture": "#p"}, "west": {"uv": [13, 1, 15, 3], "texture": "#p"}, "up": {"uv": [13, 1, 15, 3], "texture": "#p"}, "down": {"uv": [13, 1, 15, 3], "texture": "#p"}}},
+		{"from": [7.85, 10.7, -7.5], "to": [8.15, 11, -7], "faces": {"north": {"uv": [13, 5, 15, 7], "texture": "#p"}, "east": {"uv": [13, 5, 15, 7], "texture": "#p"}, "south": {"uv": [13, 5, 15, 7], "texture": "#p"}, "west": {"uv": [13, 5, 15, 7], "texture": "#p"}, "up": {"uv": [13, 5, 15, 7], "texture": "#p"}, "down": {"uv": [13, 5, 15, 7], "texture": "#p"}}},
+		{"from": [7.5, 7.3, 8.5], "to": [8.5, 7.8, 11], "faces": {"north": {"uv": [9, 1, 11, 3], "texture": "#p"}, "east": {"uv": [9, 1, 11, 3], "texture": "#p"}, "south": {"uv": [9, 1, 11, 3], "texture": "#p"}, "west": {"uv": [9, 1, 11, 3], "texture": "#p"}, "up": {"uv": [9, 1, 11, 3], "texture": "#p"}, "down": {"uv": [9, 1, 11, 3], "texture": "#p"}}},
+		{"from": [7.75, 7.8, 9.5], "to": [8.25, 8.6, 10], "faces": {"north": {"uv": [13, 1, 15, 3], "texture": "#p"}, "east": {"uv": [13, 1, 15, 3], "texture": "#p"}, "south": {"uv": [13, 1, 15, 3], "texture": "#p"}, "west": {"uv": [13, 1, 15, 3], "texture": "#p"}, "up": {"uv": [13, 1, 15, 3], "texture": "#p"}, "down": {"uv": [13, 1, 15, 3], "texture": "#p"}}},
+		{"from": [7.25, 7.2, 12], "to": [8.75, 9.8, 14.5], "faces": {"north": {"uv": [1, 5, 3, 7], "texture": "#p"}, "east": {"uv": [1, 5, 3, 7], "texture": "#p"}, "south": {"uv": [1, 5, 3, 7], "texture": "#p"}, "west": {"uv": [1, 5, 3, 7], "texture": "#p"}, "up": {"uv": [1, 5, 3, 7], "texture": "#p"}, "down": {"uv": [1, 5, 3, 7], "texture": "#p"}}},
+		{"from": [7, 5.8, 14.5], "to": [9, 9.8, 19], "faces": {"north": {"uv": [1, 5, 3, 7], "texture": "#p"}, "east": {"uv": [1, 5, 3, 7], "texture": "#p"}, "south": {"uv": [1, 5, 3, 7], "texture": "#p"}, "west": {"uv": [1, 5, 3, 7], "texture": "#p"}, "up": {"uv": [1, 5, 3, 7], "texture": "#p"}, "down": {"uv": [1, 5, 3, 7], "texture": "#p"}}},
+		{"from": [7, 5.8, 19], "to": [9, 9.8, 19.8], "faces": {"north": {"uv": [1, 9, 3, 11], "texture": "#p"}, "east": {"uv": [1, 9, 3, 11], "texture": "#p"}, "south": {"uv": [1, 9, 3, 11], "texture": "#p"}, "west": {"uv": [1, 9, 3, 11], "texture": "#p"}, "up": {"uv": [1, 9, 3, 11], "texture": "#p"}, "down": {"uv": [1, 9, 3, 11], "texture": "#p"}}}
+	],
+	"gui_light": "front",
+	"display": {
+		"firstperson_righthand": {"rotation": [0, 0, 0], "translation": [1, 1.5, 0], "scale": [0.65, 0.65, 0.65]},
+		"firstperson_lefthand": {"rotation": [0, 0, 0], "translation": [1, 1.5, 0], "scale": [0.65, 0.65, 0.65]},
+		"thirdperson_righthand": {"rotation": [90, 0, 0], "translation": [0, 4, 1], "scale": [0.55, 0.55, 0.55]},
+		"thirdperson_lefthand": {"rotation": [90, 0, 0], "translation": [0, 4, 1], "scale": [0.55, 0.55, 0.55]}
+	}
+}

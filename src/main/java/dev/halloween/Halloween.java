@@ -66,6 +66,8 @@ public class Halloween implements ModInitializer {
 				case QTE_PRESS -> MatchManager.onQtePress(ctx.player());
 				case FLASHLIGHT -> dev.halloween.game.Fight.toggleFlashlight(ctx.player());
 				case RELOAD -> dev.halloween.game.Guns.reload(ctx.player());
+				case ITEM_USE -> dev.halloween.game.Gear.use(ctx.player());
+				case STAB -> dev.halloween.game.Gear.stab(ctx.player());
 			}
 		});
 
@@ -79,8 +81,9 @@ public class Halloween implements ModInitializer {
 		ServerLifecycleEvents.SERVER_STOPPED.register(server -> MatchManager.clearAll());
 
 		AttackEntityCallback.EVENT.register((player, level, hand, entity, hit) -> MatchManager.onVanillaAttack(player, entity));
-		net.fabricmc.fabric.api.event.player.UseItemCallback.EVENT.register((player, level, hand) -> level.isClientSide()
-			? net.minecraft.world.InteractionResult.PASS : dev.halloween.game.Fight.onUseItem(player, player.getItemInHand(hand)));
+		// Match items do nothing the vanilla way: right click goes through Gear (the client sends ITEM_USE).
+		net.fabricmc.fabric.api.event.player.UseItemCallback.EVENT.register((player, level, hand) -> !level.isClientSide()
+			&& dev.halloween.game.HwItems.kindOf(player.getItemInHand(hand)) != null ? net.minecraft.world.InteractionResult.FAIL : net.minecraft.world.InteractionResult.PASS);
 		UseEntityCallback.EVENT.register((player, level, hand, entity, hit) -> MatchManager.onUseEntity(player, hand, entity));
 		// In Shape Jump the Shape is a shadow: he slips through doors but can't work them, nor the breakers.
 		UseBlockCallback.EVENT.register((player, level, hand, hit) -> !level.isClientSide()

@@ -103,7 +103,8 @@ public final class ClientInteractions {
 					boolean fast = mc.options.keySprint.isDown() || player.isSprinting();
 					ClientPlayNetworking.send(new HwNet.UseAction(fast ? HwNet.UseAction.VAULT_FAST : HwNet.UseAction.VAULT_SLOW, pos));
 				}
-				return InteractionResult.SUCCESS;
+				// FAIL: no vanilla click goes out, which the server would refuse mid-climb with a build-limit message.
+				return InteractionResult.FAIL;
 			}
 		} else if (role == Role.SHAPE && door && ClientState.LOCKED_DOORS.contains(doorBase(level, pos))) {
 			return InteractionResult.SUCCESS;
@@ -114,6 +115,18 @@ public final class ClientInteractions {
 			return InteractionResult.SUCCESS;
 		}
 		return InteractionResult.PASS;
+	}
+
+	/** A knife, an ice pick or a lawn dart in the pockets: something to break a grab with. */
+	public static boolean hasStab(Minecraft mc) {
+		var inv = mc.player.getInventory();
+		for (int i = 0; i < dev.halloween.game.Inventory.SLOTS; i++) {
+			dev.halloween.game.HwItems.Kind kind = dev.halloween.game.HwItems.kindOf(inv.getItem(i));
+			if (kind != null && kind.stab()) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	public static void tick(Minecraft mc) {
@@ -129,6 +142,19 @@ public final class ClientInteractions {
 		if (useDown && !useWasDown && mc.player != null && mc.level != null && ClientState.myRole().survivor()
 			&& dev.halloween.game.HwItems.is(mc.player.getMainHandItem(), dev.halloween.game.HwItems.Kind.FLASHLIGHT) && !aimsAtUsable(mc)) {
 			ClientPlayNetworking.send(new HwNet.ActionPress(HwNet.Action.FLASHLIGHT));
+		}
+		if (useDown && !useWasDown && mc.player != null && mc.level != null && ClientState.myRole().survivor() && mc.gui.screen() == null) {
+			dev.halloween.game.HwItems.Kind held = dev.halloween.game.HwItems.kindOf(mc.player.getMainHandItem());
+			if (ClientState.qte.active() && !ClientState.qte.forShape()) {
+				// Caught: right click stabs him with a knife from the pockets, if there is one.
+				if (hasStab(mc)) {
+					ClientPlayNetworking.send(new HwNet.ActionPress(HwNet.Action.STAB));
+				}
+			} else if (held != null && held.usable() && !aimsAtUsable(mc)
+				&& !(mc.hitResult instanceof net.minecraft.world.phys.EntityHitResult eh && ClientState.match.npcs().contains(eh.getEntity().getId()))) {
+				// Throw it, spray, open the med kit, fire the flare gun.
+				ClientPlayNetworking.send(new HwNet.ActionPress(HwNet.Action.ITEM_USE));
+			}
 		}
 		useWasDown = useDown;
 		// Survivors have a hand and three pockets: the selection wraps around slots 0-3.

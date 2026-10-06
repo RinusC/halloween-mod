@@ -51,10 +51,10 @@ public final class ClientGuns {
 		HwConfig cfg = HwConfig.get();
 		ItemStack gun = mc.player.getMainHandItem();
 		ClientPlayNetworking.send(new HwNet.GunFire(mc.player.getYRot(), mc.player.getXRot()));
-		nextShotAt = now + (kind == HwItems.Kind.REVOLVER ? cfg.revolverShotTicks : 12);
+		nextShotAt = now + Guns.shotTicks(kind);
 		if (Guns.loaded(gun) > 0 && ClientState.progress.label().isEmpty()) {
 			// The muzzle climbs; aimed, the hands hold it down a little better.
-			float kick = (kind == HwItems.Kind.RIFLE ? cfg.rifleRecoil : cfg.revolverRecoil) * (sentAim ? 0.7f : 1f);
+			float kick = (kind == HwItems.Kind.RIFLE ? cfg.rifleRecoil : kind == HwItems.Kind.SHOTGUN ? cfg.shotgunRecoil : cfg.revolverRecoil) * (sentAim ? 0.7f : 1f);
 			mc.player.setXRot(Mth.clamp(mc.player.getXRot() - kick, -90f, 90f));
 			mc.player.setYRot(mc.player.getYRot() + (mc.level.getRandom().nextFloat() - 0.5f) * kick * 0.35f);
 			bloom = 1f;
@@ -86,7 +86,7 @@ public final class ClientGuns {
 			return 1f;
 		}
 		HwConfig cfg = HwConfig.get();
-		return kind == HwItems.Kind.RIFLE ? cfg.rifleAimZoom : cfg.revolverAimZoom;
+		return kind == HwItems.Kind.RIFLE ? cfg.rifleAimZoom : kind == HwItems.Kind.SHOTGUN ? cfg.shotgunAimZoom : cfg.revolverAimZoom;
 	}
 
 	/** The cone of fire right now as the server will see it (for the reticle), in degrees. */

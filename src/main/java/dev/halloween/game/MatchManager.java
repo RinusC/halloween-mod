@@ -265,6 +265,7 @@ public final class MatchManager {
 		Match.tick(server);
 		Holds.tick(server);
 		Fight.tick(server);
+		Gear.tick(server);
 		DoorLocks.tick(server);
 		Windows.tick(server);
 		Lockers.tick(server);
@@ -824,6 +825,10 @@ public final class MatchManager {
 			}
 			return;
 		}
+		if (Gear.amuletSaves(victim, player)) {
+			// The amulet takes the blow.
+			return;
+		}
 		VictimState vs = victim(victim);
 		state.comboCount = state.comboTimer > 0 ? Math.min(state.comboCount + 1, cfg.comboMultiplier.length - 1) : 0;
 		state.comboTimer = cfg.comboWindowTicks;
@@ -890,6 +895,11 @@ public final class MatchManager {
 		if (vs.grabbed) {
 			return false;
 		}
+		if (Gear.amuletSaves(victim, player)) {
+			// The amulet breaks his hold before it closes.
+			state.grabCooldown = HwConfig.at(cfg.grabCooldownByTier, state.tier());
+			return false;
+		}
 		state.dashTicks = 0;
 		gainBloodthirst(player, state, cfg.bloodthirstPerGrab);
 		score(player, state, cfg.scoreGrab, Component.translatable("halloween.score.grab", victim.getDisplayName(), vs.level()));
@@ -899,6 +909,16 @@ public final class MatchManager {
 		}
 		state.grab = new GrabSession(player, state, victim, vs);
 		return true;
+	}
+
+	/** The grab this victim is caught in, if any. */
+	public static GrabSession grabHolding(LivingEntity victim) {
+		for (ShapeState state : SHAPES.values()) {
+			if (state.grab != null && state.grab.victim == victim) {
+				return state.grab;
+			}
+		}
+		return null;
 	}
 
 	public static void onQtePress(ServerPlayer player) {

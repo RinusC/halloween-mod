@@ -70,11 +70,32 @@ public final class Guns {
 
 	public static int capacity(HwItems.Kind kind) {
 		HwConfig cfg = HwConfig.get();
-		return kind == HwItems.Kind.RIFLE ? cfg.rifleCapacity : kind == HwItems.Kind.REVOLVER ? cfg.revolverCapacity : 0;
+		return switch (kind) {
+			case RIFLE -> cfg.rifleCapacity;
+			case REVOLVER -> cfg.revolverCapacity;
+			case SHOTGUN -> cfg.shotgunCapacity;
+			default -> 0;
+		};
 	}
 
 	public static HwItems.Kind ammoFor(HwItems.Kind gun) {
-		return gun == HwItems.Kind.RIFLE ? HwItems.Kind.RIFLE_AMMO : HwItems.Kind.REVOLVER_AMMO;
+		return gun == HwItems.Kind.RIFLE ? HwItems.Kind.RIFLE_AMMO : gun == HwItems.Kind.SHOTGUN ? HwItems.Kind.SHOTGUN_SHELLS : HwItems.Kind.REVOLVER_AMMO;
+	}
+
+	/** Ticks before the next shot: the revolver's heavy trigger, the shotgun's pump, the rifle's bolt. */
+	public static int shotTicks(HwItems.Kind kind) {
+		HwConfig cfg = HwConfig.get();
+		return kind == HwItems.Kind.REVOLVER ? cfg.revolverShotTicks : kind == HwItems.Kind.SHOTGUN ? cfg.shotgunPumpTicks : 12;
+	}
+
+	/** Revolver and shotgun load a round at a time (and can stop to fire); the rifle all at once. */
+	private static boolean roundByRound(HwItems.Kind kind) {
+		return kind != HwItems.Kind.RIFLE;
+	}
+
+	private static int roundTicks(HwItems.Kind kind) {
+		HwConfig cfg = HwConfig.get();
+		return kind == HwItems.Kind.SHOTGUN ? cfg.shotgunShellTicks : cfg.revolverRoundTicks;
 	}
 
 	public static int loaded(ItemStack stack) {
@@ -131,7 +152,7 @@ public final class Guns {
 		Reload reload = RELOADS.get(player.getUUID());
 		if (reload != null) {
 			// A revolver can stop loading and fire what is in it; a rifle halfway through its reload can't.
-			if (kind == HwItems.Kind.REVOLVER && loaded(gun) > 0) {
+			if (roundByRound(kind) && loaded(gun) > 0) {
 				stopReload(player);
 			} else {
 				return;
@@ -145,7 +166,7 @@ public final class Guns {
 		}
 		setLoaded(gun, rounds - 1);
 		HwConfig cfg = HwConfig.get();
-		NEXT_SHOT.put(player.getUUID(), now + (kind == HwItems.Kind.REVOLVER ? cfg.revolverShotTicks : 12));
+		NEXT_SHOT.put(player.getUUID(), now + shotTicks(kind));
 		// Trust the client's aim if it is close to where the server thinks the player looks (it is the newer of the two).
 		Vec3 look = Vec3.directionFromRotation(pitch, yaw);
 		if (Math.toDegrees(Math.acos(Mth.clamp(look.dot(player.getViewVector(1f)), -1, 1))) > 25) {
@@ -203,8 +224,8 @@ public final class Guns {
 			int cap = capacity(r.kind);
 			r.ticks++;
 			boolean done = false;
-			if (r.kind == HwItems.Kind.REVOLVER) {
-				if (r.ticks >= cfg.revolverRoundTicks) {
+			if (roundByRound(r.kind)) {
+				if (r.ticks >= roundTicks(r.kind)) {
 					r.ticks = 0;
 					if (Inventory.count(player, ammo) > 0 && loaded(gun) < cap) {
 						Inventory.consume(player, ammo);
@@ -226,8 +247,8 @@ public final class Guns {
 				it.remove();
 				ServerPlayNetworking.send(player, HwNet.Progress.NONE);
 			} else if (r.ticks % 2 == 0) {
-				float frac = r.kind == HwItems.Kind.REVOLVER
-					? (loaded(gun) + r.ticks / (float) cfg.revolverRoundTicks) / cap
+				float frac = roundByRound(r.kind)
+					? (loaded(gun) + r.ticks / (float) roundTicks(r.kind)) / cap
 					: r.ticks / (float) cfg.rifleReloadTicks;
 				ServerPlayNetworking.send(player, new HwNet.Progress("halloween.hud.progress.reload", frac, false));
 			}
@@ -245,7 +266,11 @@ public final class Guns {
 	/** Cone of fire in degrees for this shooter right now. */
 	public static float spread(LivingEntity shooter, HwItems.Kind kind, boolean aimed) {
 		HwConfig cfg = HwConfig.get();
-		float spread = kind == HwItems.Kind.RIFLE ? (aimed ? cfg.rifleAimSpread : cfg.rifleHipSpread) : (aimed ? cfg.revolverAimSpread : cfg.revolverHipSpread);
+		float spread = switch (kind) {
+			case RIFLE -> aimed ? cfg.rifleAimSpread : cfg.rifleHipSpread;
+			case SHOTGUN -> aimed ? cfg.shotgunAimSpread : cfg.shotgunHipSpread;
+			default -> aimed ? cfg.revolverAimSpread : cfg.revolverHipSpread;
+		};
 		double speed = shooter.getKnownMovement().horizontalDistance();
 		if (shooter.isSprinting()) {
 			spread += cfg.runSpread;
@@ -308,8 +333,78 @@ public final class Guns {
 	public static LivingEntity shoot(LivingEntity shooter, HwItems.Kind kind, Vec3 eye, Vec3 look, float spreadDeg, ServerPlayer credit) {
 		HwConfig cfg = HwConfig.get();
 		ServerLevel level = (ServerLevel) shooter.level();
-		Vec3 dir = cone(look.normalize(), spreadDeg, level.getRandom());
-		double range = kind == HwItems.Kind.RIFLE ? cfg.rifleRange : cfg.revolverRange;
+		LivingEntity first = null;
+		if (kind == HwItems.Kind.SHOTGUN) {
+			// A spread of pellets: up close nearly all of them land, each worth a little; far off they fade to nothing.
+			float stun = 0f;
+			ServerPlayer shapeHit = null;
+			for (int i = 0; i < cfg.shotgunPellets; i++) {
+				Hit hit = bullet(shooter, kind, eye, cone(look.normalize(), spreadDeg, level.getRandom()), i == 0);
+				if (hit == null) {
+					continue;
+				}
+				first = first == null ? hit.entity : first;
+				double force = 1 - Mth.clamp((hit.distance - cfg.shotgunFullForce) / Math.max(1, cfg.shotgunRange - cfg.shotgunFullForce), 0, 1);
+				if (hit.entity instanceof ServerPlayer shape && MatchManager.role(shape) == Role.SHAPE) {
+					shapeHit = shape;
+					stun += (float) (cfg.shotgunPelletStun * force);
+				} else if (force > 0 && hit.entity.isAlive()) {
+					wound(hit.entity, (float) (cfg.shotgunPelletDamage * force));
+				}
+			}
+			if (shapeHit != null && stun > 0) {
+				AiStats.add(shooter, "shot.hit_shape");
+				Fight.stun(shapeHit, stun, credit);
+				Bots.alert(shapeHit.position(), level.getServer().getTickCount());
+			} else if (first != null) {
+				AiStats.add(shooter, "shot.hit_friend");
+			}
+		} else {
+			Hit hit = bullet(shooter, kind, eye, cone(look.normalize(), spreadDeg, level.getRandom()), true);
+			if (hit != null) {
+				first = hit.entity;
+				if (hit.entity instanceof ServerPlayer shape && MatchManager.role(shape) == Role.SHAPE) {
+					AiStats.add(shooter, "shot.hit_shape");
+					Fight.stun(shape, kind == HwItems.Kind.RIFLE ? cfg.rifleStun : cfg.revolverStun, credit);
+					Bots.alert(shape.position(), level.getServer().getTickCount());
+				} else {
+					AiStats.add(shooter, "shot.hit_friend");
+					wound(hit.entity, kind == HwItems.Kind.RIFLE ? cfg.rifleDamage : cfg.revolverDamage);
+				}
+			}
+		}
+
+		// Bang: the shot, the crack, the flash and smoke at the muzzle.
+		Vec3 muzzle = eye.add(look.scale(0.9)).add(0, -0.15, 0);
+		level.playSound(null, muzzle.x, muzzle.y, muzzle.z, kind == HwItems.Kind.REVOLVER ? HwSounds.GUN_REVOLVER : HwSounds.GUN_RIFLE,
+			SoundSource.PLAYERS, cfg.gunshotVolume, (kind == HwItems.Kind.SHOTGUN ? 0.75f : 0.95f) + level.getRandom().nextFloat() * 0.1f);
+		level.playSound(null, muzzle.x, muzzle.y, muzzle.z, HwSounds.GUN_CRACK, SoundSource.PLAYERS, cfg.gunshotVolume * 0.6f, kind == HwItems.Kind.SHOTGUN ? 0.7f : 1f);
+		if (kind == HwItems.Kind.SHOTGUN) {
+			// The pump racked for the next shell.
+			level.playSound(null, muzzle.x, muzzle.y, muzzle.z, HwSounds.GUN_BOLT, SoundSource.PLAYERS, 0.8f, 1.5f);
+		}
+		level.sendParticles(ColorParticleOption.create(ParticleTypes.FLASH, 0xFFFFE0A0), true, false, muzzle.x, muzzle.y, muzzle.z, 1, 0, 0, 0, 0);
+		level.sendParticles(ParticleTypes.SMOKE, true, false, muzzle.x, muzzle.y, muzzle.z, kind == HwItems.Kind.SHOTGUN ? 12 : 6, 0.04, 0.04, 0.04, 0.01);
+
+		// Everyone hears it: the Shape sees where it came from, townsfolk around take fright.
+		int now = level.getServer().getTickCount();
+		for (ServerPlayer p : level.players()) {
+			if (MatchManager.role(p) == Role.SHAPE && p != shooter) {
+				ServerPlayNetworking.send(p, new HwNet.Impulse(List.of(), List.of(shooter.position()), cfg.gunshotRevealTicks));
+			}
+		}
+		Townsfolk.hearNoise(level, shooter.position(), now);
+		return first;
+	}
+
+	private record Hit(LivingEntity entity, double distance) {
+	}
+
+	/** One bullet or pellet along {@code dir}: through glass, into the first body or wall. */
+	private static Hit bullet(LivingEntity shooter, HwItems.Kind kind, Vec3 eye, Vec3 dir, boolean loud) {
+		HwConfig cfg = HwConfig.get();
+		ServerLevel level = (ServerLevel) shooter.level();
+		double range = kind == HwItems.Kind.RIFLE ? cfg.rifleRange : kind == HwItems.Kind.SHOTGUN ? cfg.shotgunRange : cfg.revolverRange;
 		Vec3 end = eye.add(dir.scale(range));
 		// A window doesn't stop a bullet: the glass shatters and it flies on.
 		Vec3 from = eye;
@@ -343,43 +438,21 @@ public final class Guns {
 			}
 		}
 
-		// Bang: the shot, the crack, the flash and smoke at the muzzle.
-		Vec3 muzzle = eye.add(look.scale(0.9)).add(0, -0.15, 0);
-		level.playSound(null, muzzle.x, muzzle.y, muzzle.z, kind == HwItems.Kind.RIFLE ? HwSounds.GUN_RIFLE : HwSounds.GUN_REVOLVER,
-			SoundSource.PLAYERS, cfg.gunshotVolume, 0.95f + level.getRandom().nextFloat() * 0.1f);
-		level.playSound(null, muzzle.x, muzzle.y, muzzle.z, HwSounds.GUN_CRACK, SoundSource.PLAYERS, cfg.gunshotVolume * 0.6f, 1f);
-		level.sendParticles(ColorParticleOption.create(ParticleTypes.FLASH, 0xFFFFE0A0), true, false, muzzle.x, muzzle.y, muzzle.z, 1, 0, 0, 0, 0);
-		level.sendParticles(ParticleTypes.SMOKE, true, false, muzzle.x, muzzle.y, muzzle.z, 6, 0.04, 0.04, 0.04, 0.01);
-
 		if (hit != null) {
 			level.sendParticles(ParticleTypes.CRIT, hitAt.x, hitAt.y, hitAt.z, 6, 0.05, 0.05, 0.05, 0.2);
-			MatchManager.bleed(level, hit, kind == HwItems.Kind.RIFLE ? 30 : 16);
-			if (hit instanceof ServerPlayer shape && MatchManager.role(shape) == Role.SHAPE) {
-				AiStats.add(shooter, "shot.hit_shape");
-				Fight.stun(shape, kind == HwItems.Kind.RIFLE ? cfg.rifleStun : cfg.revolverStun, credit);
-				Bots.alert(shape.position(), level.getServer().getTickCount());
-			} else {
-				AiStats.add(shooter, "shot.hit_friend");
-				wound(hit, kind == HwItems.Kind.RIFLE ? cfg.rifleDamage : cfg.revolverDamage);
-			}
+			MatchManager.bleed(level, hit, kind == HwItems.Kind.RIFLE ? 30 : kind == HwItems.Kind.SHOTGUN ? 6 : 16);
+			return new Hit(hit, hitAt.distanceTo(eye));
 		} else if (block.getType() != HitResult.Type.MISS) {
 			// Splinters and dust where it struck.
 			BlockState state = level.getBlockState(block.getBlockPos());
 			Vec3 at = block.getLocation();
 			level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, state), at.x, at.y, at.z, 10, 0.05, 0.05, 0.05, 0.15);
 			level.sendParticles(ParticleTypes.SMOKE, at.x, at.y, at.z, 2, 0.02, 0.02, 0.02, 0.01);
-			level.playSound(null, at.x, at.y, at.z, HwSounds.GUN_RICOCHET, SoundSource.BLOCKS, 0.7f, 1f);
-		}
-
-		// Everyone hears it: the Shape sees where it came from, townsfolk around take fright.
-		int now = level.getServer().getTickCount();
-		for (ServerPlayer p : level.players()) {
-			if (MatchManager.role(p) == Role.SHAPE && p != shooter) {
-				ServerPlayNetworking.send(p, new HwNet.Impulse(List.of(), List.of(shooter.position()), cfg.gunshotRevealTicks));
+			if (loud) {
+				level.playSound(null, at.x, at.y, at.z, HwSounds.GUN_RICOCHET, SoundSource.BLOCKS, 0.7f, 1f);
 			}
 		}
-		Townsfolk.hearNoise(level, shooter.position(), now);
-		return hit;
+		return null;
 	}
 
 	/** A bullet in someone who isn't the Shape: it hurts, and can kill (leaving a body like any death). */

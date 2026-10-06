@@ -109,6 +109,17 @@ public final class Match {
 		Windows.clear(server);
 		Holds.clear();
 		Fight.clear(server);
+		Gear.clear(server);
+		Gear.clear(server);
+		Gear.clear(server);
+		Gear.clear(server);
+		Gear.clear(server);
+		Gear.clear(server);
+		Gear.clear(server);
+		Gear.clear(server);
+		Gear.clear(server);
+		Gear.clear(server);
+		Gear.clear(server);
 		Exits.setup(level, level.getRandom());
 		Lockers.clear(server);
 		Talks.clear();
@@ -241,7 +252,7 @@ public final class Match {
 		} else if (state == State.RUNNING) {
 			ticksLeft--;
 			Exits.tick(level);
-			if (ticksLeft == HwConfig.get().gateOpenLastSeconds * 20) {
+			if (HwConfig.get().gateOpenLastSeconds > 0 && ticksLeft == HwConfig.get().gateOpenLastSeconds * 20) {
 				announce(server, Component.translatable("halloween.match.gates").withStyle(ChatFormatting.GOLD));
 			}
 			for (Map.Entry<UUID, Participant> e : PEOPLE.entrySet()) {

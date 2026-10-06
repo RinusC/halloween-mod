@@ -170,8 +170,8 @@ public final class HwHud {
 					if ((e.state() & 4) != 0) {
 						line = Component.translatable("halloween.hud.exit.car.gone");
 					} else {
-						line = Component.translatable("halloween.hud.exit.car", (e.state() & 1) != 0 ? "✔" : "✘", (e.state() & 2) != 0 ? "✔" : "✘");
-						color = (e.state() & 2) != 0 ? 0xFF7FE07F : color;
+						line = Component.translatable("halloween.hud.exit.car", (e.state() & 2) != 0 ? "✔" : "✘", (e.state() & 1) != 0 ? "✔" : "✘");
+						color = (e.state() & 3) == 3 ? 0xFF7FE07F : color;
 					}
 				}
 				case 2 -> {
@@ -182,8 +182,10 @@ public final class HwHud {
 				}
 				default -> {
 					if (e.state() == 0) {
-						int wait = m.ticksLeft() - gateSeconds;
-						line = wait > 0 ? Component.translatable("halloween.hud.exit.gate.0", clock(wait)) : Component.translatable("halloween.hud.exit.gate.ready");
+						int wait = gateSeconds > 0 ? m.ticksLeft() - gateSeconds : 0;
+						line = wait > 0 ? Component.translatable("halloween.hud.exit.gate.0", clock(wait))
+							: Component.translatable(e.extra() == 0 ? "halloween.hud.exit.gate.fuse" : "halloween.hud.exit.gate.key");
+						color = e.extra() != 0 ? 0xFFE8C95A : color;
 					} else {
 						line = Component.translatable("halloween.hud.exit.gate." + e.state());
 						color = e.state() == 1 ? 0xFF7FE07F : color;
@@ -572,6 +574,9 @@ public final class HwHud {
 			bar(g, x, y + 13, barW, 2, timeLeft, 0xFF8A847A);
 		}
 
+		if (ClientInteractions.hasStab(mc)) {
+			g.centeredText(mc.font, Component.translatable("halloween.hud.stab", mc.options.keyUse.getTranslatedKeyMessage()), w / 2, y + 38, YELLOW);
+		}
 		pips(g, w / 2, y + 20, qte.points(), qte.needed(), 0xFF3FA34D);
 		pips(g, w / 2, y + 28, qte.enemyPoints(), qte.enemyNeeded(), BLOOD);
 	}
@@ -732,12 +737,38 @@ public final class HwHud {
 
 	// ---------------------------------------------------------------- Civilian
 
+	/** What right click does with this in hand (or what it does by itself), if anything worth saying. */
+	private static String itemPrompt(dev.halloween.game.HwItems.Kind kind) {
+		if (kind == null) {
+			return null;
+		}
+		return switch (kind) {
+			case HEALING_SPRAY -> "halloween.hud.prompt.item.spray";
+			case MED_KIT -> "halloween.hud.prompt.item.med_kit";
+			case FLARE_GUN -> "halloween.hud.prompt.item.flare_gun";
+			case HOURGLASS -> "halloween.hud.prompt.item.hourglass";
+			case AMULET -> "halloween.hud.prompt.item.amulet";
+			case BRASS_LANTERN -> "halloween.hud.prompt.item.lantern";
+			case FIRECRACKERS, ROAD_FLARE, BRICK, ROCK, BASEBALL -> "halloween.hud.prompt.item.throw";
+			case CLEAVER, HATCHET, PITCHFORK -> "halloween.hud.prompt.item.melee_throw";
+			case POCKET_KNIFE, BUTTERFLY_KNIFE -> "halloween.hud.prompt.item.knife";
+			case ICE_PICK -> "halloween.hud.prompt.item.ice_pick";
+			case DART -> "halloween.hud.prompt.item.dart";
+			default -> null;
+		};
+	}
+
 	/** Hints for the door or window under the crosshair. */
 	private static void prompts(GuiGraphicsExtractor g, Minecraft mc, int w, int h) {
 		if (ClientState.progress.label().isEmpty() && ClientState.myRole().survivor()
 			&& dev.halloween.game.HwItems.is(mc.player.getMainHandItem(), dev.halloween.game.HwItems.Kind.FLASHLIGHT)) {
 			Component torch = Component.translatable("halloween.hud.prompt.flashlight");
 			g.textWithBackdrop(mc.font, torch, w / 2 - mc.font.width(torch) / 2, h / 2 + 46, mc.font.width(torch), DIM);
+		}
+		String itemHint = itemPrompt(dev.halloween.game.HwItems.kindOf(mc.player.getMainHandItem()));
+		if (ClientState.progress.label().isEmpty() && ClientState.myRole().survivor() && itemHint != null && !ClientState.qte.active()) {
+			Component hint = Component.translatable(itemHint);
+			g.textWithBackdrop(mc.font, hint, w / 2 - mc.font.width(hint) / 2, h / 2 + 46, mc.font.width(hint), DIM);
 		}
 		if (ClientState.progress.label().isEmpty() && ClientState.myRole().survivor()
 			&& mc.hitResult instanceof net.minecraft.world.phys.EntityHitResult eh && ClientState.match.npcs().contains(eh.getEntity().getId())) {

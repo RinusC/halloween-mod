@@ -605,6 +605,15 @@ public final class Police {
 		return best;
 	}
 
+	/** Makes an officer look after this one for good (tests). */
+	public static void guard(Entity officer, LivingEntity ward) {
+		Officer o = officer == null ? null : OFFICERS.get(officer.getUUID());
+		if (o != null) {
+			o.ward = ward.getUUID();
+			o.wardCheckAt = Integer.MAX_VALUE;
+		}
+	}
+
 	/** Whom each officer guards (tests, debugging). */
 	public static List<String> wards(ServerLevel level) {
 		List<String> list = new ArrayList<>();

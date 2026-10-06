@@ -124,7 +124,9 @@ public final class Fight {
 		}
 		int now = attacker.level().getServer().getTickCount();
 		Integer last = LAST_HIT.get(attacker.getUUID());
-		if (last != null && now - last < HwConfig.get().survivorHitCooldownTicks) {
+		// Heavy two-handed tools swing slower than a knife.
+		int pause = kind.hitTicks > 0 ? kind.hitTicks : HwConfig.get().survivorHitCooldownTicks;
+		if (last != null && now - last < pause) {
 			return InteractionResult.FAIL;
 		}
 		LAST_HIT.put(attacker.getUUID(), now);

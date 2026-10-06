@@ -62,6 +62,8 @@ final class BotBrain {
 	private int fightUntil;
 	private int nextHit;
 	private int nextDart;
+	/** When the Shape caught us (a knife comes out after a moment). */
+	private int grabbedSince = -1;
 	private int gunAim;
 	private int nextGunShot;
 	private int pathAt;
@@ -164,9 +166,24 @@ final class BotBrain {
 			this.bot.setSprinting(false);
 			return;
 		}
-		if (MatchManager.isGrabbed(this.bot) || Windows.isVaulting(this.bot)) {
+		if (MatchManager.isGrabbed(this.bot)) {
+			// Caught: a knife (an ice pick, a lawn dart) in the pockets gets us out after a moment.
 			this.walker.halt();
-			this.wasVaulting |= Windows.isVaulting(this.bot);
+			this.grabbedSince = this.grabbedSince < 0 ? now : this.grabbedSince;
+			if (now - this.grabbedSince >= this.cfg().botStabTicks && Gear.stabSlot(this.bot) >= 0) {
+				Gear.stab(this.bot);
+			}
+			return;
+		}
+		this.grabbedSince = -1;
+		if (Windows.isVaulting(this.bot)) {
+			this.walker.halt();
+			this.wasVaulting = true;
+			return;
+		}
+		if (Gear.healing(this.bot)) {
+			// Patching up with the med kit: standing still.
+			this.walker.halt();
 			return;
 		}
 		if (this.wasVaulting) {
@@ -201,6 +218,8 @@ final class BotBrain {
 			}
 		}
 		this.tryDart(now, shape, shapeState);
+		this.tryThrow(now, shape, shapeState);
+		this.tryHeal(now);
 		if (this.tryShoot(now, shape, shapeState)) {
 			// Standing to take the shot: no running about this tick.
 			return;
@@ -803,6 +822,69 @@ final class BotBrain {
 		this.bot.getInventory().setSelectedSlot(previous);
 	}
 
+	/**
+	 * Throws what the pockets offer at the Shape when he is in throwing range: bricks, rocks and balls when
+	 * he comes at us or holds someone; firecrackers a little further off; a road flare at our feet when he is
+	 * close in the dark; the hourglass only while he is down.
+	 */
+	private void tryThrow(int now, ServerPlayer shape, ShapeState state) {
+		if (shape == null || state == null || now < this.nextDart || state.shadowTicks > 0 || now - this.threatTick > 4) {
+			return;
+		}
+		double dist = this.bot.distanceTo(shape);
+		boolean helping = state.grab != null && state.grab.victim != this.bot;
+		int slot = -1;
+		HwItems.Kind pick = null;
+		for (int i = 0; i < Inventory.SLOTS && pick == null; i++) {
+			HwItems.Kind kind = HwItems.kindOf(this.bot.getInventory().getItem(i));
+			if (kind == null || !kind.thrown() || kind == HwItems.Kind.DART) {
+				continue;
+			}
+			boolean good = switch (kind) {
+				case HOURGLASS -> state.stunnedTicks > 20 && dist < 12;
+				case FIRECRACKERS -> dist > 4 && dist < 12 && state.stunnedTicks == 0;
+				case ROAD_FLARE -> dist < 7 && state.stunnedTicks == 0;
+				// Weapons are kept to fight with; thrown only to help someone he holds.
+				case CLEAVER, HATCHET, PITCHFORK -> helping && dist > 3 && dist < 12;
+				default -> dist > 2.5 && dist < 12 && state.stunnedTicks == 0 && (helping || dist < 7);
+			};
+			if (good) {
+				slot = i;
+				pick = kind;
+			}
+		}
+		if (pick == null) {
+			return;
+		}
+		this.nextDart = now + 30 + this.random.nextInt(30);
+		int previous = this.bot.getInventory().getSelectedSlot();
+		this.bot.getInventory().setSelectedSlot(slot);
+		// A flare goes down at our feet, the rest at him (lobbed a little higher the further he is).
+		Vec3 aim = pick == HwItems.Kind.ROAD_FLARE ? this.bot.position().add(this.bot.getLookAngle().scale(1.5))
+			: shape.position().add(0, 1.0 + dist * 0.06, 0);
+		this.walker.face(aim);
+		Gear.throwItem(this.bot, this.bot.getInventory().getItem(slot), pick);
+		this.bot.getInventory().setSelectedSlot(previous);
+	}
+
+	/** Hurt and nothing after us: the med kit (standing still) or a spray. */
+	private void tryHeal(int now) {
+		if (this.bot.getHealth() >= this.bot.getMaxHealth() * this.cfg().botHealBelow || this.aware(now) && now - this.threatTick < 100
+			|| now % 20 != 0) {
+			return;
+		}
+		for (HwItems.Kind kind : new HwItems.Kind[]{HwItems.Kind.MED_KIT, HwItems.Kind.HEALING_SPRAY}) {
+			int slot = Inventory.slotOf(this.bot, kind);
+			if (slot >= 0) {
+				this.bot.getInventory().setSelectedSlot(slot);
+				this.walker.halt();
+				this.bot.setXRot(80f);
+				Gear.use(this.bot);
+				return;
+			}
+		}
+	}
+
 	// ---------------------------------------------------------------- objectives
 
 	private void tickRoam(int now) {
@@ -1001,13 +1083,17 @@ final class BotBrain {
 		}
 		return switch (kind) {
 			case BOLT_CUTTERS, PADLOCK_KEY -> Exits.infos().stream().anyMatch(e -> e.type() == Exits.CELLAR && e.state() == Exits.CLOSED);
-			case CAR_PART, CAR_KEYS -> Exits.infos().stream().anyMatch(e -> e.type() == Exits.CAR && (e.state() & Exits.CAR_GONE) == 0);
-			case REPAIR_KIT -> true;
-			case BAT, KNIFE -> this.meleeSlot() < 0;
-			case DART -> true;
-			case REVOLVER, RIFLE -> !Inventory.has(this.bot, HwItems.Kind.REVOLVER) && !Inventory.has(this.bot, HwItems.Kind.RIFLE);
+			case GAS_CAN, SEDAN_KEYS -> Exits.infos().stream().anyMatch(e -> e.type() == Exits.CAR && (e.state() & Exits.CAR_GONE) == 0);
+			case FUSE -> Exits.infos().stream().anyMatch(e -> e.type() == Exits.GATE && e.state() == Exits.CLOSED && e.extra() == 0);
+			case GATE_KEY -> Exits.infos().stream().anyMatch(e -> e.type() == Exits.GATE && e.state() == Exits.CLOSED);
+			case REPAIR_KIT, DART, POCKET_KNIFE, BUTTERFLY_KNIFE, MED_KIT, HEALING_SPRAY, AMULET, HOURGLASS, BRICK, ROCK, BASEBALL,
+				FIRECRACKERS, ROAD_FLARE -> true;
+			case ICE_PICK, KITCHEN_KNIFE, CLEAVER, HATCHET, PIPE_WRENCH, BAT, FIRE_POKER, AXE, PICKAXE, PITCHFORK -> this.meleeSlot() < 0;
+			case REVOLVER, RIFLE, SHOTGUN -> !Inventory.has(this.bot, HwItems.Kind.REVOLVER) && !Inventory.has(this.bot, HwItems.Kind.RIFLE)
+				&& !Inventory.has(this.bot, HwItems.Kind.SHOTGUN);
 			case REVOLVER_AMMO -> Inventory.has(this.bot, HwItems.Kind.REVOLVER);
 			case RIFLE_AMMO -> Inventory.has(this.bot, HwItems.Kind.RIFLE);
+			case SHOTGUN_SHELLS -> Inventory.has(this.bot, HwItems.Kind.SHOTGUN);
 			default -> false;
 		};
 	}
@@ -1056,15 +1142,11 @@ final class BotBrain {
 					if ((flags & Exits.CAR_GONE) != 0) {
 						break;
 					}
-					if ((flags & Exits.CAR_PART) == 0) {
-						if (Inventory.has(this.bot, HwItems.Kind.CAR_PART)) {
-							out.put(new Task(pos, 2.4, true, "car"), 70.0);
-						}
-					} else if ((flags & Exits.CAR_REPAIRED) == 0) {
-						if (Inventory.has(this.bot, HwItems.Kind.REPAIR_KIT)) {
-							out.put(new Task(pos, 2.4, true, "car"), 70.0);
-						}
-					} else if (Inventory.has(this.bot, HwItems.Kind.CAR_KEYS)) {
+					boolean repaired = (flags & Exits.CAR_REPAIRED) != 0;
+					boolean fuelled = (flags & Exits.CAR_FUEL) != 0;
+					if (!repaired && Inventory.has(this.bot, HwItems.Kind.REPAIR_KIT) || !fuelled && Inventory.has(this.bot, HwItems.Kind.GAS_CAN)) {
+						out.put(new Task(pos, 2.4, true, "car"), 70.0);
+					} else if (repaired && fuelled && Inventory.has(this.bot, HwItems.Kind.SEDAN_KEYS)) {
 						out.put(new Task(pos, 2.4, true, "exit"), 100.0);
 					}
 				}
@@ -1079,7 +1161,9 @@ final class BotBrain {
 				case Exits.GATE -> {
 					if (exit.state() == Exits.OPEN) {
 						out.put(new Task(pos, 1.8, true, "exit"), 95.0);
-					} else if (exit.state() == Exits.CLOSED && Match.ticksLeft() <= cfg.gateOpenLastSeconds * 20) {
+					} else if (exit.state() == Exits.CLOSED && (cfg.gateOpenLastSeconds <= 0 || Match.ticksLeft() <= cfg.gateOpenLastSeconds * 20)
+						&& (exit.extra() == 0 ? Inventory.has(this.bot, HwItems.Kind.FUSE) : Inventory.has(this.bot, HwItems.Kind.GATE_KEY))) {
+						// The fuse into the keypad first, then the key to the chain.
 						out.put(new Task(pos, 1.8, true, "gate"), 60.0);
 					}
 				}

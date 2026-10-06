@@ -13,6 +13,7 @@ import dev.halloween.game.Match;
 import dev.halloween.game.MatchManager;
 import dev.halloween.net.HwNet;
 import java.util.Locale;
+import java.util.Map;
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestServerContext;
@@ -30,7 +31,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  * A solo match on the test arena (a lone player is a civilian, no Shape): search, open the cellar and
- * escape, come back as a deputy, use the flashlight, fix the car, call the police, open the gates,
+ * escape, come back as a deputy, use the flashlight, fix and fuel the car, call the police, open the gates with a fuse and the key,
  * throw a dart, and let the match end.
  */
 public class MatchClientTest implements FabricClientGameTest {
@@ -70,6 +71,17 @@ public class MatchClientTest implements FabricClientGameTest {
 			int containers = server.computeOnServer(s -> Loot.containers().size());
 			LOG.info("Containers: {}", containers);
 			check(containers >= 12, "the arena's chests and barrels are containers (" + containers + ")");
+			// Every escape item is in some container, every match; the rest is luck.
+			Map<HwItems.Kind, Long> hidden = server.computeOnServer(s -> Loot.hidden().values().stream()
+				.collect(java.util.stream.Collectors.groupingBy(k -> k, java.util.stream.Collectors.counting())));
+			LOG.info("Hidden this match: {}", hidden);
+			boolean allEscape = true;
+			for (HwItems.Kind kind : HwItems.Kind.values()) {
+				if (kind.escape()) {
+					allEscape &= hidden.getOrDefault(kind, 0L) >= (kind == HwItems.Kind.REPAIR_KIT ? 2 : 1);
+				}
+			}
+			check(allEscape, "every escape item is hidden somewhere: fuse, gate key, gas can, sedan keys, padlock key, bolt cutters, two repair kits");
 			ctx.takeScreenshot("m01_match_hud");
 
 			// Search a chest that hides bolt cutters.
@@ -204,7 +216,8 @@ public class MatchClientTest implements FabricClientGameTest {
 
 			// The car: a deputy can fix it but not drive off.
 			server.runOnServer(s -> {
-				Inventory.give(player(s), HwItems.create(HwItems.Kind.CAR_PART));
+				player(s).getInventory().clearContent();
+				Inventory.give(player(s), HwItems.create(HwItems.Kind.GAS_CAN));
 				Inventory.give(player(s), HwItems.create(HwItems.Kind.REPAIR_KIT));
 			});
 			ctx.waitTicks(2);
@@ -212,8 +225,6 @@ public class MatchClientTest implements FabricClientGameTest {
 			BlockPos cp = car.pos();
 			server.runCommand(String.format(Locale.ROOT, "tp @p %.1f %d %.1f", cp.getX() + 0.5, cp.getY(), cp.getZ() - 1.6));
 			this.lookAt(ctx, new Vec3(cp.getX() + 0.5, cp.getY() + 0.6, cp.getZ() + 0.5));
-			this.holdUse(ctx, HwConfig.get().installPartTicks + 12);
-			check((this.exit(ctx, Exits.CAR).state() & 1) != 0, "the engine part goes in");
 			// The repair kit is a minigame: follow the wavy line, three times.
 			this.holdUse(ctx, 6);
 			check(ctx.computeOnClient(mc -> mc.gui.screen() instanceof dev.halloween.client.CurveScreen), "the repair kit opens the line minigame");
@@ -253,6 +264,9 @@ public class MatchClientTest implements FabricClientGameTest {
 			ctx.waitTicks(4);
 			check(ctx.computeOnClient(mc -> mc.gui.screen() == null), "the panel closes when the job is done");
 			check((this.exit(ctx, Exits.CAR).state() & 2) != 0, "the car gets repaired");
+			// Then the gas can goes into the tank.
+			this.holdUse(ctx, HwConfig.get().refuelTicks + 12);
+			check((this.exit(ctx, Exits.CAR).state() & 1) != 0, "the gas goes into the tank");
 			ctx.takeScreenshot("m04_car_fixed");
 
 			// The police: call from a phone, the van arrives.
@@ -263,6 +277,20 @@ public class MatchClientTest implements FabricClientGameTest {
 			this.holdUse(ctx, 40);
 			check(this.exit(ctx, Exits.POLICE).state() == Exits.POLICE_NEED_BODY && server.computeOnServer(s -> dev.halloween.game.Police.wanted()) == 0,
 				"without a body found nobody can call the police");
+			// Nor with a flare: fired into the sky with nothing to report, it isn't even fired.
+			server.runOnServer(s -> {
+				player(s).getInventory().clearContent();
+				Inventory.give(player(s), HwItems.create(HwItems.Kind.FLARE_GUN));
+			});
+			ctx.runOnClient(mc -> mc.player.getInventory().setSelectedSlot(0));
+			float yawNow = ctx.computeOnClient(mc -> mc.player.getYRot());
+			ctx.getInput().lookAt(yawNow, -80f);
+			ctx.waitTicks(3);
+			this.holdUse(ctx, 3);
+			ctx.waitTicks(5);
+			check(server.computeOnServer(s -> dev.halloween.game.Police.wanted() == 0 && Inventory.has(player(s), HwItems.Kind.FLARE_GUN)),
+				"a distress flare with no body found is not fired");
+			this.lookAt(ctx, new Vec3(phone.getX() + 0.5, phone.getY() + 0.15, phone.getZ() + 0.5));
 			// A body at the player's feet (as if the Shape had killed someone here): found at once.
 			server.runOnServer(s -> dev.halloween.game.Police.addBody(player(s).position().add(0, 0, 1.0), net.minecraft.network.chat.Component.literal("Annie")));
 			ctx.waitTicks(25);
@@ -302,7 +330,16 @@ public class MatchClientTest implements FabricClientGameTest {
 			});
 			ctx.waitTicks(HwConfig.get().policeArriveSeconds * 20 + 20);
 			check(server.computeOnServer(s -> dev.halloween.game.Police.officers()) == 4, "level 2 brings two more officers");
-			server.runOnServer(s -> dev.halloween.game.Police.reportCall(s.overworld(), net.minecraft.network.chat.Component.literal("test call")));
+			// The third call by flare: up into the sky, as good as a phone call.
+			int flareSlot = server.computeOnServer(s -> Inventory.slotOf(player(s), HwItems.Kind.FLARE_GUN));
+			ctx.runOnClient(mc -> mc.player.getInventory().setSelectedSlot(flareSlot));
+			ctx.getInput().lookAt(ctx.computeOnClient(mc -> mc.player.getYRot()), -80f);
+			ctx.waitTicks(3);
+			this.holdUse(ctx, 3);
+			ctx.waitTicks(5);
+			check(server.computeOnServer(s -> dev.halloween.game.Police.wanted() == 3 && !Inventory.has(player(s), HwItems.Kind.FLARE_GUN)),
+				"the flare gun fired into the sky calls the police (wanted level 3)");
+			ctx.takeScreenshot("m04c_distress_flare");
 			ctx.waitTicks(HwConfig.get().policeArriveSeconds * 20 + 20);
 			check(server.computeOnServer(s -> dev.halloween.game.Police.officers()) == 6 && dev.halloween.game.Police.wanted() == 3,
 				"level 3 brings two more");
@@ -311,18 +348,28 @@ public class MatchClientTest implements FabricClientGameTest {
 			// Out of the way of the rest of the test.
 			server.runOnServer(s -> dev.halloween.game.Police.clear(s));
 
-			// The gates open only near the end.
+			// The gate: a fuse brings its keypad to life, then the gate key opens the chain.
 			HwNet.ExitInfo gate = this.exit(ctx, Exits.GATE);
 			BlockPos gp = gate.pos();
 			double inward = Math.signum(this.origin.getZ() - gp.getZ());
-			server.runCommand(String.format(Locale.ROOT, "tp @p %.1f %d %.1f", gp.getX() + 1.0, gp.getY(), gp.getZ() + 0.5 + inward * 1.6));
+			check(server.computeOnServer(s -> s.overworld().getBlockState(gp.above(4)).is(net.minecraft.world.level.block.Blocks.DARK_OAK_LOG)
+				&& s.overworld().getBlockState(gp.east(3).above(2)).is(net.minecraft.world.level.block.Blocks.STONE_BRICKS)), "the gate is a big one, pillars and a beam");
+			server.runCommand(String.format(Locale.ROOT, "tp @p %.1f %d %.1f", gp.getX() + 1.0, gp.getY(), gp.getZ() + 0.5 + inward * 2.2));
+			this.lookAt(ctx, new Vec3(gp.getX() + 0.5, gp.getY() + 2.5, gp.getZ() + 0.5));
+			ctx.waitTicks(10);
+			ctx.takeScreenshot("m05a_big_gate");
 			this.lookAt(ctx, new Vec3(gp.getX() + 1.0, gp.getY() + 0.5, gp.getZ() + 0.5));
+			server.runOnServer(s -> player(s).getInventory().clearContent());
 			this.holdUse(ctx, 20);
-			check(this.exit(ctx, Exits.GATE).state() == 0, "the gates stay shut early in the match");
-			server.runCommand("hw timer 200");
-			ctx.waitTicks(5);
+			check(this.exit(ctx, Exits.GATE).state() == 0 && this.exit(ctx, Exits.GATE).extra() == 0, "without a fuse the gate stays shut");
+			server.runOnServer(s -> Inventory.give(player(s), HwItems.create(HwItems.Kind.FUSE)));
+			this.holdUse(ctx, HwConfig.get().installFuseTicks + 12);
+			check(this.exit(ctx, Exits.GATE).extra() == 1, "a fuse brings the gate keypad to life");
+			this.holdUse(ctx, 20);
+			check(this.exit(ctx, Exits.GATE).state() == 0, "the chain still needs the gate key");
+			server.runOnServer(s -> Inventory.give(player(s), HwItems.create(HwItems.Kind.GATE_KEY)));
 			this.holdUse(ctx, HwConfig.get().openGateTicks + 12);
-			check(this.exit(ctx, Exits.GATE).state() == 1, "the gates open in the last minutes");
+			check(this.exit(ctx, Exits.GATE).state() == 1, "the gate key opens the gates");
 			ctx.takeScreenshot("m05_gates_open");
 
 			// A thrown lawn dart.
@@ -334,10 +381,42 @@ public class MatchClientTest implements FabricClientGameTest {
 			this.tp(server, 0.5, 0, 0.5);
 			ctx.getInput().lookAt(0f, -20f);
 			ctx.waitTicks(3);
-			ctx.getInput().pressKey(o -> o.keyUse);
+			this.holdUse(ctx, 3);
 			ctx.waitTicks(3);
 			check(server.computeOnServer(s -> !s.overworld().getEntitiesOfClass(Arrow.class, new AABB(this.origin).inflate(60),
 				a -> a.entityTags().contains(dev.halloween.game.Fight.DART_TAG)).isEmpty()), "the lawn dart is thrown");
+
+			// First aid: a spray patches up a little, the med kit all the way, standing still.
+			server.runOnServer(s -> {
+				ServerPlayer p = player(s);
+				p.getInventory().clearContent();
+				p.setHealth(6f);
+				Inventory.give(p, HwItems.create(HwItems.Kind.HEALING_SPRAY));
+				Inventory.give(p, HwItems.create(HwItems.Kind.MED_KIT));
+				Inventory.give(p, HwItems.create(HwItems.Kind.BRASS_LANTERN));
+			});
+			ctx.runOnClient(mc -> mc.player.getInventory().setSelectedSlot(0));
+			ctx.getInput().lookAt(0f, 70f);
+			ctx.waitTicks(3);
+			this.holdUse(ctx, 3);
+			ctx.waitTicks(5);
+			float sprayed = server.computeOnServer(s -> player(s).getHealth());
+			check(sprayed >= 6 + HwConfig.get().sprayHeal - 0.01f, "the healing spray patches you up a little (" + sprayed + ")");
+			ctx.runOnClient(mc -> mc.player.getInventory().setSelectedSlot(1));
+			ctx.waitTicks(3);
+			this.holdUse(ctx, 3);
+			ctx.waitTicks(HwConfig.get().medKitTicks / 2);
+			check(ctx.computeOnClient(mc -> ClientState.progress.label()).equals("halloween.hud.progress.med_kit"), "the med kit takes a moment");
+			ctx.waitTicks(HwConfig.get().medKitTicks / 2 + 10);
+			check(server.computeOnServer(s -> player(s).getHealth() >= player(s).getMaxHealth()), "the med kit heals all the way");
+			// The brass lantern lights up whoever carries it.
+			ctx.runOnClient(mc -> mc.player.getInventory().setSelectedSlot(2));
+			ctx.waitTicks(6);
+			check(server.computeOnServer(s -> s.overworld().getBlockState(player(s).blockPosition().above()).is(net.minecraft.world.level.block.Blocks.LIGHT)),
+				"the brass lantern gives light all round whoever carries it");
+			ctx.getInput().lookAt(0f, 10f);
+			ctx.waitTicks(4);
+			ctx.takeScreenshot("m05c_lantern");
 
 			// The Shape's side, checked within one server tick (a lone player can't really be both sides:
 			// with no civilian left the match would end).
@@ -354,10 +433,10 @@ public class MatchClientTest implements FabricClientGameTest {
 				MatchManager.applyRole(p, Role.DEPUTY);
 				return stunned ? "ok" : "not stunned";
 			});
-			check("ok".equals(sabotage), "the Shape can pull the car part and gets knocked down by a full stun meter (" + sabotage + ")");
-			check((this.exit(ctx, Exits.CAR).state() & 3) == 0, "the car lost its part");
+			check("ok".equals(sabotage), "the Shape can drain the tank and gets knocked down by a full stun meter (" + sabotage + ")");
+			check((this.exit(ctx, Exits.CAR).state() & 1) == 0 && (this.exit(ctx, Exits.CAR).state() & 2) != 0, "the tank is empty again, the engine still fixed");
 			check(server.computeOnServer(s -> !s.overworld().getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class,
-				new AABB(cp).inflate(4), e -> HwItems.is(e.getItem(), HwItems.Kind.CAR_PART)).isEmpty()), "the part falls on the ground");
+				new AABB(cp).inflate(4), e -> HwItems.is(e.getItem(), HwItems.Kind.GAS_CAN)).isEmpty()), "the gas can falls by the car");
 
 			// Let the clock run out.
 			server.runCommand("hw timer 2");
@@ -387,6 +466,7 @@ public class MatchClientTest implements FabricClientGameTest {
 		this.tp(server, 0.5, 0, 0.5);
 		this.lookAt(ctx, new Vec3(this.origin.getX() + 0.5, this.origin.getY() + 1.5, this.origin.getZ() + 9.0));
 		ctx.waitTicks(5);
+		ctx.takeScreenshot("m03a_revolver_hand");
 		java.util.function.Supplier<Integer> loaded = () -> server.computeOnServer(s -> dev.halloween.game.Guns.loaded(player(s).getMainHandItem()));
 		// Aiming: the gun goes up, the view zooms in.
 		ctx.getInput().holdKey(o -> o.keyUse);
@@ -494,6 +574,35 @@ public class MatchClientTest implements FabricClientGameTest {
 		ctx.waitTicks(HwConfig.get().rifleReloadTicks / 2 + 8);
 		check(loaded.get() == 1 && server.computeOnServer(s -> Inventory.count(player(s), HwItems.Kind.RIFLE_AMMO)) == HwConfig.get().rifleAmmoPerFind - 1,
 			"a new round is in after the reload");
+		ctx.takeScreenshot("m03d_rifle_hand");
+		// The shotgun and how the guns look held: first person, aimed, from the front.
+		server.runOnServer(s -> {
+			Inventory.dropAll(player(s));
+			Inventory.give(player(s), HwItems.create(HwItems.Kind.SHOTGUN));
+			Inventory.give(player(s), HwItems.create(HwItems.Kind.REVOLVER));
+		});
+		server.runCommand("kill @e[type=item]");
+		ctx.runOnClient(mc -> mc.player.getInventory().setSelectedSlot(0));
+		// Out in the open, aiming at nothing close (a window would be climbed, a door used).
+		this.tp(server, 0.5, 0, 0.5);
+		this.lookAt(ctx, new Vec3(this.origin.getX() + 0.5, this.origin.getY() + 1.5, this.origin.getZ() + 9.0));
+		ctx.waitTicks(5);
+		check(loaded.get() == HwConfig.get().shotgunCapacity, "the shotgun comes with " + HwConfig.get().shotgunCapacity + " shells in the tube");
+		ctx.takeScreenshot("m03e_shotgun_hand");
+		ctx.getInput().holdKey(o -> o.keyUse);
+		ctx.waitTicks(6);
+		ctx.takeScreenshot("m03f_shotgun_aim");
+		ctx.getInput().pressKey(o -> o.keyAttack);
+		ctx.waitTicks(4);
+		ctx.getInput().releaseKey(o -> o.keyUse);
+		check(loaded.get() == HwConfig.get().shotgunCapacity - 1, "a shotgun blast uses one shell");
+		ctx.runOnClient(mc -> mc.options.setCameraType(net.minecraft.client.CameraType.THIRD_PERSON_FRONT));
+		ctx.waitTicks(5);
+		ctx.takeScreenshot("m03g_shotgun_front");
+		ctx.runOnClient(mc -> mc.player.getInventory().setSelectedSlot(1));
+		ctx.waitTicks(5);
+		ctx.takeScreenshot("m03h_revolver_front");
+		ctx.runOnClient(mc -> mc.options.setCameraType(net.minecraft.client.CameraType.FIRST_PERSON));
 		server.runOnServer(s -> {
 			Inventory.dropAll(player(s));
 			Inventory.give(player(s), HwItems.create(HwItems.Kind.BATON));

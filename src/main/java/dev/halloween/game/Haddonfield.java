@@ -1510,23 +1510,83 @@ public final class Haddonfield extends MapPlan {
 	}
 
 	/** The town fence: a low fence with barriers over it; outside, woods to the horizon of the map. */
+	/** Where a gate can stand: on the edge where Lampkin Lane, Orange Grove, Elm and Hackberry leave town. */
+	private static final int[][] GATES = {{-FENCE, LAMPKIN}, {FENCE, ORANGE_GROVE}, {ELM, FENCE}, {HACKBERRY, -FENCE}};
+	/** A gate lane runs this deep into the trees (and is this many blocks to either side of the gate). */
+	private static final int LANE_DEPTH = 6;
+	private static final int LANE_HALF = 3;
+
+	/**
+	 * The edge of town is a forest nobody gets through: right at the edge a hedge of undergrowth two blocks
+	 * high (nobody jumps) with an invisible wall above it, behind that dense woods out to the rim. Where a
+	 * gate can stand, a lane runs a few blocks into the trees, closed by a barricade unless the match builds
+	 * its gate there; the other streets just end in the trees.
+	 */
 	private void boundary() {
-		BlockState fence = b("spruce_fence");
 		BlockState barrier = b("barrier");
-		for (int i = -FENCE; i <= FENCE; i++) {
-			for (int[] p : new int[][]{{i, -FENCE}, {i, FENCE}, {-FENCE, i}, {FENCE, i}}) {
-				this.fill(p[0], 0, p[1], p[0], 3, p[1], AIR);
-				this.set(p[0], 0, p[1], fence);
-				this.fill(p[0], 1, p[1], p[0], 4, p[1], barrier);
+		BlockState[] bushes = {leaves("oak_leaves"), leaves("dark_oak_leaves"), leaves("spruce_leaves"), leaves("azalea_leaves")};
+		for (int x = -RIM; x <= RIM; x++) {
+			for (int z = -RIM; z <= RIM; z++) {
+				int d = Math.max(Math.abs(x), Math.abs(z)) - FENCE;
+				if (d < 0) {
+					continue;
+				}
+				if (inGateLane(x, z) && d <= LANE_DEPTH) {
+					this.set(x, -1, z, b("coarse_dirt"));
+					this.fill(x, 0, z, x, 6, z, AIR);
+					if (d == 0) {
+						// The barricade the match's gate replaces.
+						this.set(x, 0, z, b("spruce_fence"));
+						this.fill(x, 1, z, x, 4, z, barrier);
+					}
+					continue;
+				}
+				this.set(x, -1, z, this.random.nextInt(5) == 0 ? b("coarse_dirt") : b("podzol"));
+				BlockState bush = bushes[this.random.nextInt(bushes.length)];
+				if (d <= 1) {
+					// The hedge: two high, no gaps; above it an invisible wall.
+					this.set(x, 0, z, bush);
+					this.set(x, 1, z, bush);
+					if (d == 1) {
+						this.fill(x, 2, z, x, 6, z, barrier);
+					}
+				} else if (this.random.nextInt(100) < 60) {
+					this.set(x, 0, z, bush);
+					if (this.random.nextBoolean()) {
+						this.set(x, 1, z, bush);
+					}
+				} else if (this.random.nextInt(4) == 0) {
+					this.set(x, 0, z, b(this.random.nextBoolean() ? "fern" : "dead_bush"));
+				}
 			}
 		}
-		for (int i = 0; i < 260; i++) {
-			int x = -RIM + this.random.nextInt(2 * RIM + 1);
-			int z = -RIM + this.random.nextInt(2 * RIM + 1);
-			if ((Math.abs(x) > FENCE + 2 || Math.abs(z) > FENCE + 2) && this.freeArea(x - 1, z - 1, x + 1, z + 1)) {
-				this.tree(x, z, 2);
+		// Trunks all through it, close together, crowns meeting overhead.
+		for (int gx = -RIM; gx <= RIM; gx += 3) {
+			for (int gz = -RIM; gz <= RIM; gz += 3) {
+				int x = gx + this.random.nextInt(2);
+				int z = gz + this.random.nextInt(2);
+				int d = Math.max(Math.abs(x), Math.abs(z)) - FENCE;
+				if (d < 1 || Math.abs(x) > RIM || Math.abs(z) > RIM || inGateLane(x, z) && d <= LANE_DEPTH + 1) {
+					continue;
+				}
+				int kind = this.random.nextInt(3);
+				this.tree(x, z, kind);
+				this.set(x, -1, z, b("podzol"));
 			}
 		}
+	}
+
+	/** Is this column in one of the lanes leading to a gate spot (from the edge outwards)? */
+	private static boolean inGateLane(int x, int z) {
+		for (int[] g : GATES) {
+			if (Math.abs(g[0]) == FENCE && Integer.signum(x) == Integer.signum(g[0]) && Math.abs(x) >= FENCE && Math.abs(z - g[1]) <= LANE_HALF) {
+				return true;
+			}
+			if (Math.abs(g[1]) == FENCE && Integer.signum(z) == Integer.signum(g[1]) && Math.abs(z) >= FENCE && Math.abs(x - g[0]) <= LANE_HALF) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	// ---------------------------------------------------------------- nature
