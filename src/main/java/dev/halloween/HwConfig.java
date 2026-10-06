@@ -50,6 +50,8 @@ public class HwConfig {
 	/** How long a shoved Shape is slowed, and by how much. */
 	public int pushedSlowTicks = 25;
 	public double pushedSlowModifier = -0.5;
+	/** The Shape holding someone in a grab still shuffles along, this much slower. */
+	public double grabSpeedModifier = -0.85;
 	/** Jumping during a match (off: everyone stays on foot, bots and townsfolk too). */
 	public boolean jumping = false;
 	/** Pause between two reaction checks of a grab (on top of the round itself). */
@@ -217,6 +219,8 @@ public class HwConfig {
 	public int revolverAmmoPerFind = 3;
 	public int rifleAmmoPerFind = 2;
 	public int revolverAmmoFinds = 2;
+	/** Chance that a searched container also holds a revolver (loaded). */
+	public float revolverFindChance = 0.01f;
 	public int rifleAmmoFinds = 2;
 	/** Gun case: cutting the lock with bolt cutters takes this long. */
 	public int caseCutTicks = 200;

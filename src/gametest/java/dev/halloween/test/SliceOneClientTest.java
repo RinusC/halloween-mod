@@ -198,6 +198,11 @@ public class SliceOneClientTest implements FabricClientGameTest {
 		ctx.getInput().pressKey(o -> o.keyUse);
 		ctx.waitTicks(5);
 		check(server.computeOnServer(s -> shape(s).grab != null), "right click grabs the victim");
+		String shuffle = server.computeOnServer(s -> {
+			var speed = player(s).getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED);
+			return speed.getValue() > 0.001 && speed.getValue() < speed.getBaseValue() * 0.3 ? "ok" : speed.getValue() + " of " + speed.getBaseValue();
+		});
+		check("ok".equals(shuffle), "holding someone the Shape can only shuffle along very slowly (" + shuffle + ")");
 		check(ctx.computeOnClient(mc -> ClientState.qte.active() && ClientState.qte.forShape()), "the Shape gets his reaction ring");
 		check(ctx.computeOnClient(mc -> ClientState.qte.window() && ClientState.qte.bloody()), "ring shows window and bloody execution hints");
 		ctx.takeScreenshot("06_grab_ring");

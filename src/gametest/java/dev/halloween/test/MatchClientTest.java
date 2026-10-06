@@ -73,10 +73,16 @@ public class MatchClientTest implements FabricClientGameTest {
 			// Search a chest that hides bolt cutters.
 			BlockPos chest = this.origin.offset(1, 0, 15);
 			server.runOnServer(s -> Loot.hide(chest, HwItems.Kind.BOLT_CUTTERS));
+			server.runOnServer(s -> HwConfig.get().revolverFindChance = 1f);
 			this.tp(server, 1.5, 0, 13.4);
 			this.lookAt(ctx, Vec3.atCenterOf(chest));
 			this.holdUse(ctx, HwConfig.get().searchTicks + 12);
 			check(server.computeOnServer(s -> Inventory.has(player(s), HwItems.Kind.BOLT_CUTTERS)), "searching finds the bolt cutters");
+			check(server.computeOnServer(s -> Inventory.has(player(s), HwItems.Kind.REVOLVER)), "now and then a container holds a revolver too");
+			server.runOnServer(s -> {
+				HwConfig.get().revolverFindChance = new HwConfig().revolverFindChance;
+				player(s).getInventory().setItem(Inventory.slotOf(player(s), HwItems.Kind.REVOLVER), net.minecraft.world.item.ItemStack.EMPTY);
+			});
 			ctx.takeScreenshot("m02_found_item");
 
 			// Open the cellar and escape through it.

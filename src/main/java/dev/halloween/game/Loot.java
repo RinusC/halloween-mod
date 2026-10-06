@@ -97,6 +97,14 @@ public final class Loot {
 		return new Holds.Hold(at, "halloween.hud.progress.search", false, HwConfig.get().searchTicks, p -> !SEARCHED.contains(at), p -> {
 			SEARCHED.add(at);
 			HwItems.Kind kind = HIDDEN.remove(at);
+			// Now and then somebody kept an old revolver in there.
+			if (p.level().getRandom().nextFloat() < HwConfig.get().revolverFindChance) {
+				Component gun = Component.translatable("halloween.item.revolver");
+				Inventory.give(p, HwItems.create(HwItems.Kind.REVOLVER));
+				p.level().playSound(null, at, SoundEvents.BARREL_OPEN, SoundSource.BLOCKS, 0.8f, 1.1f);
+				Notices.send(p, Component.translatable("halloween.hint.found", gun).withStyle(ChatFormatting.GOLD));
+				AiStats.add(p, "found.revolver");
+			}
 			p.level().playSound(null, at, SoundEvents.BARREL_OPEN, SoundSource.BLOCKS, 0.8f, 1.1f);
 			if (kind == null) {
 				p.sendOverlayMessage(Component.translatable("halloween.hint.empty").withStyle(ChatFormatting.GRAY));

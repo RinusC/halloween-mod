@@ -396,7 +396,10 @@ public final class MatchManager {
 		}
 
 		double speed = cfg.shapeSpeedModifier;
-		if (state.busy() || Match.frozen()) {
+		if (state.grab != null && state.grab.struggling() && state.stunnedTicks == 0 && !Match.frozen()) {
+			// Holding someone: he can still shuffle along, very slowly, dragging them.
+			speed = cfg.grabSpeedModifier;
+		} else if (state.busy() || Match.frozen()) {
 			speed = -1;
 		} else if (state.shadowTicks > 0) {
 			speed += HwConfig.at(cfg.shapeJumpSpeedByTier, state.tier());

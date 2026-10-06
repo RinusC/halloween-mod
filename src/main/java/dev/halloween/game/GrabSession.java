@@ -13,6 +13,7 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Relative;
 import net.minecraft.world.phys.Vec3;
 
 /**
@@ -35,6 +36,8 @@ public final class GrabSession {
 	private final Track shapeTrack = new Track();
 
 	private boolean finishing;
+	/** Where the Shape last stood with room for the victim in front: he is held back there at walls. */
+	private Vec3 lastGood;
 	private int finisherTick;
 	private BlockPos windowPos;
 	private boolean bloody;
@@ -348,6 +351,11 @@ public final class GrabSession {
 		}
 	}
 
+	/** Is the Shape still carrying out the struggle (he may shuffle along), not finishing the kill? */
+	boolean struggling() {
+		return !this.finishing && !this.done;
+	}
+
 	private void pinVictim() {
 		float yaw = this.shape.getYRot() * Mth.DEG_TO_RAD;
 		double x = this.shape.getX() - Mth.sin(yaw) * 0.9;
@@ -355,7 +363,17 @@ public final class GrabSession {
 		// Face the Shape.
 		float victimYaw = this.shape.getYRot() + 180f;
 		if (this.victim.distanceToSqr(x, this.shape.getY(), z) > 0.04) {
-			this.placeVictim(x, this.shape.getY(), z, victimYaw);
+			// He drags the victim along in front of him, but not through walls: there he can't go on.
+			Vec3 move = new Vec3(x, this.shape.getY(), z).subtract(this.victim.position());
+			boolean room = this.level().noCollision(this.victim, this.victim.getBoundingBox().move(move));
+			if (room) {
+				this.placeVictim(x, this.shape.getY(), z, victimYaw);
+				this.lastGood = this.shape.position();
+			} else if (this.lastGood != null && this.shape.position().distanceTo(this.lastGood) > 0.05) {
+				this.shape.teleportTo(this.level(), this.lastGood.x, this.lastGood.y, this.lastGood.z, Set.of(Relative.X_ROT, Relative.Y_ROT), 0f, 0f, false);
+			}
+		} else {
+			this.lastGood = this.shape.position();
 		}
 		this.victim.setDeltaMovement(Vec3.ZERO);
 	}
