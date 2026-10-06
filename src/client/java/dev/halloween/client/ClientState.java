@@ -188,6 +188,7 @@ public final class ClientState {
 		ROLES.clear();
 		ClientSkins.clear();
 		ClientMusic.reset();
+		ClientMinimap.clear();
 		shapeEntityId = -1;
 		shapeShadow = false;
 		hud = null;

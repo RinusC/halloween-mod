@@ -102,7 +102,7 @@ public final class HwHud {
 			feed(g, mc.font, h);
 		}
 		matchTimer(g, mc, w);
-		int noticesTop = wantedMeter(g, mc, w);
+		int noticesTop = minimapAndWanted(g, mc, w, partialTicks(delta));
 		notices(g, mc.font, w, noticesTop);
 		endScreen(g, mc, w, h);
 	}
@@ -214,19 +214,43 @@ public final class HwHud {
 	 * Michael's wanted level, top right: a police badge for each call that got through, dim ones for the
 	 * calls still to come. Returns where the corner notices can start below it.
 	 */
-	private static int wantedMeter(GuiGraphicsExtractor g, Minecraft mc, int w) {
+	private static float partialTicks(DeltaTracker delta) {
+		return delta.getGameTimeDeltaPartialTick(false);
+	}
+
+	/** The minimap in the top right corner (if the match has one) with the wanted badges under it. */
+	private static int minimapAndWanted(GuiGraphicsExtractor g, Minecraft mc, int w, float partial) {
 		HwNet.MatchSync m = ClientState.match;
 		if (m.state() != 2) {
 			return 34;
 		}
+		// Below the survivor's score; the Shape has the corner to himself.
+		int y = ClientState.myRole().survivor() ? 22 : 8;
+		if (ClientMinimap.active() && !mc.player.isSpectator()) {
+			int size = 86;
+			int x = w - 10 - size;
+			ClientMinimap.render(g, mc, x, y, size, partial);
+			return wantedMeter(g, mc, x + size / 2, y + size + 3);
+		}
+		return wantedMeter(g, mc, -w, y);
+	}
+
+	/** The badges centred on {@code centerX} (under the minimap), or right-aligned with a label when -w is passed. */
+	private static int wantedMeter(GuiGraphicsExtractor g, Minecraft mc, int centerX, int y) {
+		HwNet.MatchSync m = ClientState.match;
 		int max = HwConfig.get().policeMaxCalls;
 		int size = 18;
 		int gap = 3;
-		// Below the survivor's score; the Shape has the corner to himself.
-		int y = ClientState.myRole().survivor() ? 24 : 10;
-		int x0 = w - 10 - max * size - (max - 1) * gap;
-		Component label = Component.translatable("halloween.hud.wanted");
-		g.text(mc.font, label, x0 - 6 - mc.font.width(label), y + (size - 8) / 2, m.wanted() > 0 ? TEXT : 0xFFB8C2DA, true);
+		int span = max * size + (max - 1) * gap;
+		int x0;
+		if (centerX < 0) {
+			int w = -centerX;
+			x0 = w - 10 - span;
+			Component label = Component.translatable("halloween.hud.wanted");
+			g.text(mc.font, label, x0 - 6 - mc.font.width(label), y + (size - 8) / 2, m.wanted() > 0 ? TEXT : 0xFFB8C2DA, true);
+		} else {
+			x0 = centerX - span / 2;
+		}
 		long t = mc.level.getGameTime();
 		for (int i = 0; i < max; i++) {
 			int x = x0 + i * (size + gap);

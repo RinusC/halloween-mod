@@ -129,6 +129,7 @@ public final class Match {
 		Nav.setArea(area(points));
 		GunCase.setup(level, level.getRandom());
 		Loot.setup(level, center, level.getRandom());
+		Minimap.bake(level, area(points), center);
 
 		CommandSourceStack console = server.createCommandSourceStack().withLevel(level).withSuppressedOutput();
 		for (String command : new String[]{"time set midnight", "weather clear", "gamerule advance_time false",
@@ -211,6 +212,7 @@ public final class Match {
 		}
 		state = State.IDLE;
 		Exits.clear(server.overworld());
+		Minimap.clear(server.overworld());
 		Loot.clear();
 		Holds.clear();
 		Fight.clear(server);

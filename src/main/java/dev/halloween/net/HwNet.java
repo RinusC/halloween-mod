@@ -260,6 +260,24 @@ public final class HwNet {
 	}
 
 	/** Locked doors (lower halves) and doors whose lock the Shape has broken. */
+	/** The town's plan for the minimap: one byte per column (game.Minimap kinds), row by row from (x0, z0). */
+	public record MinimapSync(int x0, int z0, int width, int height, byte[] plan) implements CustomPacketPayload {
+		public static final MinimapSync NONE = new MinimapSync(0, 0, 0, 0, new byte[0]);
+		public static final Type<MinimapSync> TYPE = payloadType("minimap");
+		public static final StreamCodec<RegistryFriendlyByteBuf, MinimapSync> CODEC = StreamCodec.of((buf, v) -> {
+			buf.writeVarInt(v.x0);
+			buf.writeVarInt(v.z0);
+			buf.writeVarInt(v.width);
+			buf.writeVarInt(v.height);
+			buf.writeByteArray(v.plan);
+		}, buf -> new MinimapSync(buf.readVarInt(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt(), buf.readByteArray()));
+
+		@Override
+		public Type<MinimapSync> type() {
+			return TYPE;
+		}
+	}
+
 	/** The music this player should hear now: a mood of game.Music and which part of it (1-based). */
 	public record MusicMood(int mood, int variant) implements CustomPacketPayload {
 		public static final Type<MusicMood> TYPE = payloadType("music");
@@ -712,6 +730,7 @@ public final class HwNet {
 		PayloadTypeRegistry.clientboundPlay().register(DoorSync.TYPE, DoorSync.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(Skins.TYPE, Skins.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(MusicMood.TYPE, MusicMood.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(MinimapSync.TYPE, MinimapSync.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(MatchSync.TYPE, MatchSync.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(MatchEnd.TYPE, MatchEnd.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(Progress.TYPE, Progress.CODEC);
