@@ -150,6 +150,51 @@ public class HaddonfieldClientTest implements FabricClientGameTest {
 			});
 			check("ok".equals(house), "the Doyle house has a front door, stairs up and a breaker box (" + house + ")");
 
+			// Wiring: every light in town hangs on some breaker; the Doyles' breaker puts out their whole house and
+			// nobody else's.
+			String wiring = server.computeOnServer(s -> {
+				ServerLevel level = s.overworld();
+				int r = HwConfig.get().breakerRadius;
+				List<BlockPos> breakers = LightSystem.breakers(level, this.origin, 156);
+				int bulbs = 0;
+				List<String> orphans = new ArrayList<>();
+				for (BlockPos p : BlockPos.betweenClosed(this.origin.offset(-156, 0, -156), this.origin.offset(156, 12, 156))) {
+					if (level.getBlockState(p).getBlock() instanceof net.minecraft.world.level.block.CopperBulbBlock) {
+						bulbs++;
+						BlockPos at = p.immutable();
+						if (breakers.stream().noneMatch(b -> Math.abs(b.getX() - at.getX()) <= r && Math.abs(b.getY() - at.getY()) <= r
+							&& Math.abs(b.getZ() - at.getZ()) <= r)) {
+							orphans.add(at.subtract(this.origin).toShortString());
+						}
+					}
+				}
+				java.util.function.BiFunction<BlockPos, BlockPos, Integer> lit = (a, b) -> {
+					int n = 0;
+					for (BlockPos p : BlockPos.betweenClosed(a, b)) {
+						var st = level.getBlockState(p);
+						n += st.getBlock() instanceof net.minecraft.world.level.block.CopperBulbBlock && st.getValue(net.minecraft.world.level.block.CopperBulbBlock.LIT) ? 1 : 0;
+					}
+					return n;
+				};
+				BlockPos doyleA = this.origin.offset(75, 0, -52);
+				BlockPos doyleB = this.origin.offset(89, 10, -39);
+				BlockPos nextA = this.origin.offset(97, 0, -52);
+				BlockPos nextB = this.origin.offset(121, 10, -39);
+				int doyleOn = lit.apply(doyleA, doyleB);
+				int nextOn = lit.apply(nextA, nextB);
+				LightSystem.flip(level, this.origin.offset(89, 1, -45), false);
+				int doyleOff = lit.apply(doyleA, doyleB);
+				int nextAfter = lit.apply(nextA, nextB);
+				LightSystem.flip(level, this.origin.offset(89, 1, -45), true);
+				LOG.info("Bulbs in town: {}, orphans: {}; Doyle lit {} -> {}, next door {} -> {}", bulbs, orphans, doyleOn, doyleOff, nextOn, nextAfter);
+				if (!orphans.isEmpty()) {
+					return "lights on no breaker: " + orphans;
+				}
+				return doyleOn >= 8 && doyleOff == 0 && nextAfter == nextOn && nextOn > 0 ? "ok"
+					: "Doyle " + doyleOn + " -> " + doyleOff + ", next door " + nextOn + " -> " + nextAfter;
+			});
+			check("ok".equals(wiring), "every light hangs on a breaker; a house's breaker puts out just that house (" + wiring + ")");
+
 			// Pictures: the town from above by day, Lampkin Lane and the Myers house at night, inside a house.
 			server.runCommand("gamemode spectator @p");
 			server.runCommand("time set noon");

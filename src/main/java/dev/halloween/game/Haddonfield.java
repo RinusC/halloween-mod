@@ -303,7 +303,11 @@ public final class Haddonfield extends MapPlan {
 		// An armchair by the side windows, a floor lamp by the sofa, a side table on the other end.
 		f.set(w - 3, 0, 3, stairs(abandoned ? "cobblestone_stairs" : "spruce_stairs", Direction.EAST));
 		f.set(3, 0, mid - 1, b("dark_oak_fence"));
-		f.set(3, 1, mid - 1, b(abandoned ? "cobweb" : "white_carpet"));
+		if (abandoned) {
+			f.set(3, 1, mid - 1, b("cobweb"));
+		} else {
+			this.bulb(f.x(3), 1, f.z(mid - 1));
+		}
 		if (w >= 13) {
 			f.set(7, 0, mid - 1, b("dark_oak_planks"));
 			f.set(7, 1, mid - 1, b(abandoned ? "skeleton_skull" : this.pick("flower_pot", "candle", "potted_fern")));
@@ -343,8 +347,14 @@ public final class Haddonfield extends MapPlan {
 
 		// Lights in the ceilings (none in the abandoned house).
 		if (!abandoned) {
-			this.bulb(f.x(w / 2), 4, f.z(mid / 2));
-			this.bulb(f.x(w / 2), 4, f.z(mid + (d - 1 - mid) / 2));
+			// Two ceiling lights in each room, a light under the hood over the stove, a porch light by the front
+			// door: all on the house's wiring, so they go out with the breaker.
+			this.bulb(f.x(w / 2 - 2), 4, f.z(3));
+			this.bulb(f.x(w / 2 + 2), 4, f.z(3));
+			this.bulb(f.x(w / 2 - 2), 4, f.z(d - 3));
+			this.bulb(f.x(w / 2 + 2), 4, f.z(mid + 3));
+			this.bulb(f.x(4), 2, f.z(d - 2));
+			this.bulb(f.x(w / 2 + 1), 2, f.z(0));
 		}
 
 		if (two) {
@@ -371,9 +381,7 @@ public final class Haddonfield extends MapPlan {
 			String bed = abandoned ? "white" : this.pick("red", "blue", "green", "yellow", "light_blue", "brown");
 			this.bed(f, w - 2, 5, 3, f.front(), bed);
 			f.set(w - 2, 5, 1, b("spruce_planks"));
-			if (!abandoned) {
-				f.set(w - 2, 6, 1, b("candle"));
-			}
+
 			f.set(w / 2, 5, 1, slab("spruce_slab", SlabType.TOP));
 			f.set(w / 2, 5, 2, stairs("spruce_stairs", f.back()));
 			f.set(3, 5, 1, b("chiseled_bookshelf").setValue(BlockStateProperties.HORIZONTAL_FACING, f.back()));
@@ -390,6 +398,9 @@ public final class Haddonfield extends MapPlan {
 			if (!abandoned) {
 				this.bulb(f.x(w / 2), 9, f.z(3));
 				this.bulb(f.x(w / 2), 9, f.z(d - 3));
+				// Bedside and desk lamps.
+				this.bulb(f.x(w - 2), 6, f.z(1));
+				this.bulb(f.x(w / 2), 6, f.z(d - 2));
 			}
 		}
 		this.roof(f, w, d, top, s, wall);
@@ -710,6 +721,7 @@ public final class Haddonfield extends MapPlan {
 		for (int x = x0 + 6; x <= x1 - 6; x += 9) {
 			this.bulb(x, 4, zFront - 8);
 			this.bulb(x, 4, zBack + 3);
+			this.bulb(x, 4, zFront - 4);
 		}
 		this.breaker(x0, 1, zFront - 8, Direction.WEST);
 		this.breaker(x1, 1, zFront - 8, Direction.EAST);
@@ -776,6 +788,11 @@ public final class Haddonfield extends MapPlan {
 		this.door(x1 - 2, 0, zBack, Direction.SOUTH, "birch_door");
 		this.bulb(x0 + 6, 4, zFront - 6);
 		this.bulb(x1 - 6, 4, zFront - 6);
+		this.bulb((x0 + x1) / 2, 4, zFront - 6);
+		this.bulb(x0 + 6, 4, zFront - 2);
+		this.bulb(x1 - 6, 4, zFront - 2);
+		this.bulb(x0 + 6, 4, zBack + 2);
+		this.bulb(x1 - 6, 4, zBack + 2);
 		this.breaker(x0, 1, zFront - 6, Direction.WEST);
 		this.breaker(x1, 1, zFront - 6, Direction.EAST);
 		this.sign(x0 + 2, 0, zFront + 3, 0, "", "DINER", "open late", "");
@@ -857,6 +874,8 @@ public final class Haddonfield extends MapPlan {
 		this.set(sx1 - 1, 0, zb + 2, b("barrel"));
 		this.locker(sx0 + 1, 0, zb + 1, Direction.SOUTH);
 		this.bulb((sx0 + sx1) / 2, 4, zb + 4);
+		this.bulb(sx0 + 4, 4, zf - 2);
+		this.bulb(sx1 - 4, 4, zf - 2);
 		this.breaker(sx1, 1, zb + 4, Direction.EAST);
 		this.sign(x0 + 1, 0, zRoad - 1, 0, "", "GAS", "29.9c", "");
 		int shopMid = (sx0 + sx1) / 2;
@@ -991,7 +1010,8 @@ public final class Haddonfield extends MapPlan {
 		}
 		this.set(3, 0, zc + 2, b("cauldron"));
 		// Breakers along the corridor (each reaches 14 blocks).
-		for (int x = x0 + 14; x <= x1 - 10; x += 26) {
+		// (The middle one beside the entrance hall, which takes the corridor wall at -2..1.)
+		for (int x : new int[]{x0 + 14, -5, x1 - 18}) {
 			this.breaker(x, 1, zc + 3, Direction.NORTH);
 		}
 		// Main entrance in the middle of the front, side doors at both ends of the corridor.
@@ -1283,7 +1303,12 @@ public final class Haddonfield extends MapPlan {
 		this.locker(x0 + 1, 0, z1 - 2, Direction.EAST);
 		this.bulb(0, 6, z0 + 8);
 		this.bulb(0, 6, z1 - 8);
+		for (int z = z0 + 5; z <= z1 - 5; z += 7) {
+			this.bulb(-6, 6, z);
+			this.bulb(6, 6, z);
+		}
 		this.breaker(x0, 1, (z0 + z1) / 2, Direction.WEST);
+		this.breaker(x1, 1, (z0 + z1) / 2, Direction.EAST);
 		this.point(MapPoints.Type.NPC, 0, 0, z1 - 6);
 		// A gravel path up from Main Street through the empty lot.
 		for (int z = MAIN + 6; z < z0 - 3; z++) {
