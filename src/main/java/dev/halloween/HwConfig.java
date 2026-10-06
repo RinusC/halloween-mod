@@ -392,7 +392,7 @@ public class HwConfig {
 	public int carSeats = 2;
 	public int carWaitTicks = 160;
 	/** The Shape in Shape Jump passes through a window this slowly (no glass broken). */
-	public int shapeWindowTicks = 70;
+	public int shapeWindowTicks = 50;
 	public int removePartTicks = 40;
 	public int callPoliceTicks = 400;
 	public int cutPhoneTicks = 40;

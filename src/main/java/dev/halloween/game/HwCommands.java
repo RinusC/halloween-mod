@@ -52,6 +52,11 @@ public final class HwCommands {
 					Exits.forceOpen(ctx.getSource().getLevel(), type);
 					return 1;
 				}))))
+			// /hw give <item> [count]: any match item into your pockets (rounds and darts by the handful).
+			.then(Commands.literal("give").then(Commands.argument("item", StringArgumentType.word())
+				.suggests((c, b) -> SharedSuggestionProvider.suggest(java.util.Arrays.stream(HwItems.Kind.values()).map(HwItems.Kind::key), b))
+				.executes(ctx -> give(ctx, 1))
+				.then(Commands.argument("count", IntegerArgumentType.integer(1, 64)).executes(ctx -> give(ctx, IntegerArgumentType.getInteger(ctx, "count"))))))
 			.then(Commands.literal("locker").executes(ctx -> {
 				CommandSourceStack src = ctx.getSource();
 				// In front of whoever places it, door facing them.
@@ -156,6 +161,22 @@ public final class HwCommands {
 		ArenaBuilder.summonMannequin(source.getServer().createCommandSourceStack().withLevel(source.getLevel()).withSuppressedOutput(),
 			pos.x, pos.y, pos.z, source.getRotation().y);
 		return 1;
+	}
+
+	private static int give(CommandContext<CommandSourceStack> ctx, int count) throws CommandSyntaxException {
+		ServerPlayer player = ctx.getSource().getPlayerOrException();
+		String key = StringArgumentType.getString(ctx, "item");
+		for (HwItems.Kind kind : HwItems.Kind.values()) {
+			if (kind.key().equals(key)) {
+				for (int i = 0; i < count; i++) {
+					player.getInventory().add(kind == HwItems.Kind.SAFE_CODE || kind.ammo() ? Loot.found(kind) : HwItems.create(kind));
+				}
+				ctx.getSource().sendSuccess(() -> Component.translatable("halloween.item." + key), false);
+				return 1;
+			}
+		}
+		ctx.getSource().sendFailure(Component.literal("? " + key));
+		return 0;
 	}
 
 	private static int bloodthirst(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
