@@ -377,8 +377,10 @@ public final class Police {
 		LivingEntity ward = ward(level, officer, now);
 		Vec3 home = ward != null ? ward.position() : Exits.policePoint() == null ? body.position() : Vec3.atBottomCenterOf(Exits.policePoint());
 		boolean fresh = officer.lastSeen != null && now - officer.lastSeenTick < 60;
-		boolean engage = fresh && officer.lastSeen.distanceTo(home) <= cfg.policeLeash
-			&& (officer.lastSeen.distanceTo(body.position()) <= cfg.policeEngageRange || officer.lastSeen.distanceTo(home) <= cfg.policeGuardAlarm);
+		// The Shape close to the officer itself: it stands its ground. Close to the one it guards: it goes for him,
+		// but not further than the leash from them.
+		boolean engage = fresh && (officer.lastSeen.distanceTo(body.position()) <= cfg.policeEngageRange
+			|| officer.lastSeen.distanceTo(home) <= cfg.policeGuardAlarm && officer.lastSeen.distanceTo(home) <= cfg.policeLeash);
 		tickReload(level, officer);
 		if (engage) {
 			ServerPlayer shape = Senses.shape(level);

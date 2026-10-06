@@ -78,6 +78,9 @@ final class BotBrain {
 	/** When this bot itself last saw (or heard right behind it) the Shape, as opposed to hearing about him. */
 	private int ownSightTick = -100000;
 	private final Map<BlockPos, Integer> badWindows = new HashMap<>();
+	/** The window the current flight is aimed at, and since when: one we never got over is dropped. */
+	private BlockPos windowPlanGlass;
+	private int windowPlanAt;
 	private String fleePlan = "open";
 	private int lastNow;
 	/** Where we stood when we last saw him: he will look for us around there. */
@@ -352,6 +355,9 @@ final class BotBrain {
 			Windows.request(this.bot, node.glass(), close && canFast);
 			boolean going = Windows.isVaulting(this.bot);
 			AiStats.add(this.bot, going ? "window" : "window.refused");
+			if (going) {
+				this.windowPlanGlass = null;
+			}
 			this.walker.skip();
 			if (!going) {
 				// That window won't do (blocked, too hurt for a fast jump): forget it and run on.
@@ -442,8 +448,16 @@ final class BotBrain {
 		if (from != null) {
 			double dist = this.bot.position().distanceTo(from);
 			if (dist < cfg.botWindowEscapeDistance) {
+				if (this.windowPlanGlass != null && now - this.windowPlanAt < 50) {
+					// Aimed at this window a moment ago and still not over it (he is in the way?): another way.
+					this.badWindows.put(this.windowPlanGlass, now + 200);
+					AiStats.add(this.bot, "window.given_up");
+				}
+				this.windowPlanGlass = null;
 				List<Nav.Node> path = this.windowEscape(from);
 				if (path != null) {
+					this.windowPlanGlass = path.getLast().glass();
+					this.windowPlanAt = now;
 					this.fleePlan = "window";
 					this.walker.follow(path);
 					this.fleeRepathAt = now + 60;
@@ -496,6 +510,10 @@ final class BotBrain {
 				}
 				Vec3 a = Vec3.atBottomCenterOf(near);
 				Vec3 b = Vec3.atBottomCenterOf(far);
+				if (a.distanceTo(threat) < 1.6) {
+					// He stands right at it.
+					continue;
+				}
 				double toNear = this.bot.position().distanceTo(a);
 				if (toNear > this.bot.position().distanceTo(b) || b.distanceTo(threat) < a.distanceTo(threat) + 0.5 || toNear >= bestDist) {
 					continue;

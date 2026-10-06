@@ -172,10 +172,25 @@ public class HaddonfieldClientTest implements FabricClientGameTest {
 			server.runCommand("time set midnight");
 			this.view(ctx, server, new Vec3(-95, 3, 4), 140, 8);
 			ctx.takeScreenshot("h07_lampkin_lane_night");
-			this.view(ctx, server, new Vec3(80.5, 0, -48.5), 90, 5);
-			ctx.takeScreenshot("h08_inside_doyle_house");
-			this.view(ctx, server, new Vec3(80.5, 5, -46.5), 0, 10);
-			ctx.takeScreenshot("h09_upstairs");
+			server.runCommand("time set noon");
+			this.view(ctx, server, new Vec3(86.5, 0.2, -46.5), 135, 12);
+			ctx.takeScreenshot("h08_doyle_living_room");
+			this.view(ctx, server, new Vec3(86.5, 0.2, -43.5), 50, 15);
+			ctx.takeScreenshot("h09_doyle_kitchen");
+			this.view(ctx, server, new Vec3(80.5, 5.2, -46.5), -130, 15);
+			ctx.takeScreenshot("h10_doyle_bedroom");
+			this.view(ctx, server, new Vec3(14.5, 0.2, 49.5), 180, 10);
+			ctx.takeScreenshot("h11_diner");
+			this.view(ctx, server, new Vec3(-48.5, 0.2, 50.5), -150, 10);
+			ctx.takeScreenshot("h12_hardware");
+			this.view(ctx, server, new Vec3(-21.5, 0.2, -108.5), 180, 10);
+			ctx.takeScreenshot("h13_classroom");
+			this.view(ctx, server, new Vec3(0.5, 0.2, 111.5), 0, 5);
+			ctx.takeScreenshot("h14_church");
+			this.view(ctx, server, new Vec3(-90, 4, 84), 20, 20);
+			ctx.takeScreenshot("h15_park_fair");
+			this.view(ctx, server, new Vec3(40, 4, -20), 30, 20);
+			ctx.takeScreenshot("h16_backyards");
 			server.runCommand("gamemode survival @p");
 
 			// A match on the map: the player is the Shape, four bots, townsfolk, the exits come up.
@@ -194,6 +209,26 @@ public class HaddonfieldClientTest implements FabricClientGameTest {
 				return m;
 			});
 			check(start.size() == 4, "four bots play the civilians");
+			// The furniture is scenery in a match: no sleeping in the Doyles' bed, no cooking on their stove.
+			String scenery = server.computeOnServer(s -> {
+				ServerPlayer p = player(s);
+				ServerLevel level = s.overworld();
+				List<String> bad = new ArrayList<>();
+				for (BlockPos at : new BlockPos[]{this.origin.offset(87, 5, -48), this.origin.offset(80, 0, -41)}) {
+					var hit = new net.minecraft.world.phys.BlockHitResult(Vec3.atCenterOf(at), net.minecraft.core.Direction.UP, at, false);
+					p.teleportTo(level, at.getX() + 0.5, at.getY() + 1, at.getZ() + 1.5, java.util.Set.of(), 0f, 0f, false);
+					var result = p.gameMode.useItemOn(p, level, p.getMainHandItem(), net.minecraft.world.InteractionHand.MAIN_HAND, hit);
+					String what = level.getBlockState(at).getBlock().getDescriptionId();
+					if (result.consumesAction() || p.isSleeping() || p.containerMenu != p.inventoryMenu) {
+						bad.add(what + " -> " + result);
+					}
+					if (!what.contains("bed") && !what.contains("smoker")) {
+						bad.add("expected a bed and a stove, found " + what);
+					}
+				}
+				return String.join(", ", bad);
+			});
+			check(scenery.isEmpty(), "beds and stoves are scenery during a match (" + scenery + ")");
 			// The Shape keeps out of the way while the bots go about their business.
 			server.runOnServer(s -> player(s).teleportTo(s.overworld(), this.origin.getX() + 140.5, this.origin.getY(), this.origin.getZ() + 140.5,
 				java.util.Set.of(), 0f, 0f, false));

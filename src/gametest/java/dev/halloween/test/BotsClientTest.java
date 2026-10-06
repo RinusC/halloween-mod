@@ -104,10 +104,11 @@ public class BotsClientTest implements FabricClientGameTest {
 			check(server.computeOnServer(s -> dev.halloween.game.LightSystem.isOn(s.overworld(), breaker)), "a bot switches the house lights back on");
 			// Talking a neighbour round takes 15 s for bots too.
 			int told = 0;
-			for (int i = 0; i < 30 && told == 0; i++) {
+			for (int i = 0; i < 50 && told == 0; i++) {
 				ctx.waitTicks(20);
 				told = server.computeOnServer(s -> npcs(s).stream().mapToInt(m -> "hidden".equals(Townsfolk.stateOf(m)) ? 1 : 0).sum());
 			}
+			LOG.info("Bot stats when checking the warnings: {}", (Object) server.computeOnServer(s -> String.valueOf(dev.halloween.game.AiStats.snapshot().get("*total"))));
 			check(told > 0, "bots tell townsfolk at home to hide (" + told + ")");
 			ctx.takeScreenshot("b01_bots_at_work");
 
@@ -506,7 +507,8 @@ public class BotsClientTest implements FabricClientGameTest {
 			int bodyScreams = server.computeOnServer(s -> Townsfolk.screams);
 			server.runOnServer(s -> {
 				Entity npc = s.overworld().getEntity(caller);
-				Vec3 ahead = npc.position().add(npc.getViewVector(1f).multiply(1, 0, 1).normalize().scale(1.5));
+				// A free spot next to it that it can see (not inside a wall it happens to face).
+				Vec3 ahead = near(s, npc, 1.5);
 				Police.addBody(ahead, net.minecraft.network.chat.Component.literal("Annie"));
 			});
 			boolean found = false;

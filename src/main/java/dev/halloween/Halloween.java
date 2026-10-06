@@ -101,6 +101,16 @@ public class Halloween implements ModInitializer {
 				&& (dev.halloween.game.Loot.isContainer(hit.getBlockPos()) || dev.halloween.game.GunCase.isCase(hit.getBlockPos()) || level.getBlockState(hit.getBlockPos()).is(HwBlocks.PHONE))) {
 				return net.minecraft.world.InteractionResult.FAIL;
 			}
+			// In a match the furniture is scenery: beds, stoves, jukeboxes, cakes, pots and the like do nothing.
+			// Doors, trapdoors, gates, levers and buttons work as usual.
+			if (player instanceof net.minecraft.server.level.ServerPlayer sp3 && MatchManager.role(sp3) != Role.NONE) {
+				net.minecraft.world.level.block.Block block = level.getBlockState(hit.getBlockPos()).getBlock();
+				if (!(block instanceof net.minecraft.world.level.block.DoorBlock || block instanceof net.minecraft.world.level.block.TrapDoorBlock
+					|| block instanceof net.minecraft.world.level.block.FenceGateBlock || block instanceof net.minecraft.world.level.block.LeverBlock
+					|| block instanceof net.minecraft.world.level.block.ButtonBlock)) {
+					return net.minecraft.world.InteractionResult.FAIL;
+				}
+			}
 			return DoorLocks.onUseBlock(player, level, hit.getBlockPos());
 		});
 		ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) -> MatchManager.allowDamage(entity, source));

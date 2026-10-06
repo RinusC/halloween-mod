@@ -169,6 +169,11 @@ public class MapPlan {
 		this.signs.put(new BlockPos(x, y, z), lines);
 	}
 
+	void wallSign(int x, int y, int z, Direction facing, String... lines) {
+		this.set(x, y, z, b("dark_oak_wall_sign").setValue(BlockStateProperties.HORIZONTAL_FACING, facing));
+		this.signs.put(new BlockPos(x, y, z), lines);
+	}
+
 	int count(MapPoints.Type type) {
 		int n = 0;
 		for (Object[] p : this.points) {
