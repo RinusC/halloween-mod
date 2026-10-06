@@ -75,6 +75,7 @@ public class Halloween implements ModInitializer {
 		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
 			MatchManager.markDirty();
 			DoorLocks.syncTo(handler.player);
+			dev.halloween.game.Skins.syncTo(handler.player);
 			dev.halloween.game.Match.markDirty();
 		});
 		ServerLifecycleEvents.SERVER_STOPPING.register(dev.halloween.game.Match::stop);

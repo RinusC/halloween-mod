@@ -417,7 +417,8 @@ public class HwConfig {
 	// --- Bots (fill the civilians' side when people are missing) ---
 	/** Bots are added until there are this many civilians (with or without a Shape). 0 = no bots. */
 	public int botsFillTo = 4;
-	public String[] botNames = {"Laurie", "Tommy", "Lindsey", "Annie", "Lynda", "Bob", "Marion", "Lonnie"};
+	/** The survivors of Halloween: The Game (each bot wears that survivor's skin). */
+	public String[] botNames = {"Laurie", "Annie", "Lynda", "Bob", "Eric", "Rachel", "Marcus", "Tanya", "Jennifer", "Thomas", "Richard", "Alexis"};
 	public float botQteSuccessChance = 0.55f;
 	public int botReactionMinTicks = 8;
 	public int botReactionMaxTicks = 24;

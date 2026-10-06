@@ -209,6 +209,8 @@ public final class MatchManager {
 		}
 		ServerPlayNetworking.send(player, HwNet.Qte.INACTIVE);
 		dirty = true;
+		// Michael, a survivor of the game, the police uniform, or their own skin again.
+		Skins.sync(player.level().getServer());
 	}
 
 	/** Clears match progress but keeps roles. */

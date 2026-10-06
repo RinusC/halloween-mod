@@ -3,6 +3,7 @@
 	"package": "dev.halloween.client.mixin",
 	"compatibilityLevel": "JAVA_25",
 	"client": [
+		"AbstractClientPlayerMixin",
 		"CameraMixin",
 		"EntityMixin",
 		"EntityRenderDispatcherMixin",

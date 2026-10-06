@@ -260,6 +260,32 @@ public final class HwNet {
 	}
 
 	/** Locked doors (lower halves) and doors whose lock the Shape has broken. */
+	/** Match skins: these player entities wear these skins (Michael, a survivor, the police uniform). */
+	public record Skins(List<Integer> ids, List<String> keys) implements CustomPacketPayload {
+		public static final Type<Skins> TYPE = payloadType("skins");
+		public static final StreamCodec<RegistryFriendlyByteBuf, Skins> CODEC = StreamCodec.of((buf, v) -> {
+			buf.writeVarInt(v.ids.size());
+			for (int i = 0; i < v.ids.size(); i++) {
+				buf.writeVarInt(v.ids.get(i));
+				buf.writeUtf(v.keys.get(i));
+			}
+		}, buf -> {
+			int n = buf.readVarInt();
+			List<Integer> ids = new ArrayList<>(n);
+			List<String> keys = new ArrayList<>(n);
+			for (int i = 0; i < n; i++) {
+				ids.add(buf.readVarInt());
+				keys.add(buf.readUtf());
+			}
+			return new Skins(ids, keys);
+		});
+
+		@Override
+		public Type<Skins> type() {
+			return TYPE;
+		}
+	}
+
 	public record DoorSync(List<BlockPos> locked, List<BlockPos> broken) implements CustomPacketPayload {
 		public static final Type<DoorSync> TYPE = payloadType("door_sync");
 		public static final StreamCodec<RegistryFriendlyByteBuf, DoorSync> CODEC = StreamCodec.of((buf, v) -> {
@@ -670,6 +696,7 @@ public final class HwNet {
 		PayloadTypeRegistry.clientboundPlay().register(ScoreEvent.TYPE, ScoreEvent.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(Impulse.TYPE, Impulse.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(DoorSync.TYPE, DoorSync.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(Skins.TYPE, Skins.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(MatchSync.TYPE, MatchSync.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(MatchEnd.TYPE, MatchEnd.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(Progress.TYPE, Progress.CODEC);

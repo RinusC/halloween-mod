@@ -186,6 +186,7 @@ public final class ClientState {
 
 	public static void reset() {
 		ROLES.clear();
+		ClientSkins.clear();
 		shapeEntityId = -1;
 		shapeShadow = false;
 		hud = null;
