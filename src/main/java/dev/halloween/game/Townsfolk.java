@@ -511,15 +511,45 @@ public final class Townsfolk {
 		npc.nextStroll = now + 60 + random.nextInt(140);
 		setSpeed(npc, HwConfig.get().npcWalkSpeed);
 		boolean indoors = !level.canSeeSky(npc.home);
+		// Indoors they potter about the whole house: now and then up the stairs, or back down.
+		boolean upstairs = npc.body.getY() > npc.home.getY() + 2;
+		int floor = upstairs ? UPSTAIRS : 0;
+		if (indoors && random.nextInt(3) == 0) {
+			floor = UPSTAIRS - floor;
+		}
 		for (int tries = 0; tries < 8; tries++) {
-			BlockPos spot = npc.home.offset(random.nextInt(9) - 4, 0, random.nextInt(9) - 4);
+			BlockPos spot = npc.home.offset(random.nextInt(11) - 5, floor, random.nextInt(11) - 5);
 			spot = Nav.snap(level, spot);
-			if (Nav.standable(level, spot) && level.canSeeSky(spot) != indoors) {
+			if (!Nav.standable(level, spot) || level.canSeeSky(spot) == indoors) {
+				continue;
+			}
+			List<Nav.Node> path = Nav.to(level, npc.body.blockPosition(), spot, 0.8, Nav.Options.walker().nodes(2500));
+			if (!path.isEmpty() && path.getLast().pos().distSqr(spot) <= 2) {
 				npc.walker.speed = 0.6f;
-				npc.walker.follow(Nav.to(level, npc.body.blockPosition(), spot, 0.8, Nav.Options.walker()));
+				npc.walker.follow(path);
 				return;
 			}
 		}
+	}
+
+	/** How far above the ground floor a house's upper floor is walked on. */
+	private static final int UPSTAIRS = 5;
+
+	/**
+	 * Where a townsperson hides: indoors, away from the windows, out of his sight. A dark yard is no place
+	 * to hide for someone who lives here: a room with walls all round is.
+	 */
+	private static double hideHere(ServerLevel level, BlockPos p, double cost, Vec3 from, LivingEntity body) {
+		double score = BotBrain.hideScore(level, p, cost, from, body);
+		if (level.canSeeSky(p)) {
+			return score - 12;
+		}
+		boolean enclosed = true;
+		for (net.minecraft.core.Direction d : net.minecraft.core.Direction.Plane.HORIZONTAL) {
+			enclosed &= !level.canSeeSky(p.relative(d, 2));
+		}
+		// Under a porch roof is still outside.
+		return score + (enclosed ? 12 : -4);
 	}
 
 	private static void tickPanic(Npc npc, int now, ServerLevel level) {
@@ -625,10 +655,10 @@ public final class Townsfolk {
 			npc.pathSet = true;
 			Vec3 from = npc.state == State.HIDE ? npc.threat : null;
 			Nav.Options opt = Nav.Options.walker();
-			opt.maxNodes = 2000;
+			opt.maxNodes = 5000;
 			npc.walker.speed = 1f;
-			npc.walker.follow(Nav.search(level, npc.body.blockPosition(), npc.state == State.HIDE ? 18 : 12, opt,
-				(p, cost) -> BotBrain.hideScore(level, p, cost, from, npc.body)));
+			npc.walker.follow(Nav.search(level, npc.body.blockPosition(), npc.state == State.HIDE ? 26 : 16, opt,
+				(p, cost) -> hideHere(level, p, cost, from, npc.body)));
 		}
 		Walker.Status status = npc.walker.tick();
 		if (status != Walker.Status.MOVING) {
