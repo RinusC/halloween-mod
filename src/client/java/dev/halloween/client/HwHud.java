@@ -194,8 +194,8 @@ public final class HwHud {
 				}
 			}
 			diamond(g, x + 4, y + 3, 2, color);
-			if (e.type() != 2 || e.state() == 2) {
-				// Where it is: how far, and which way from where you look.
+			if (e.type() == 2 && e.state() == 2) {
+				// The waiting police van: how far, and which way from where you look.
 				line = line.copy().append(Component.literal("  " + whereTo(e.pos())).withStyle(net.minecraft.ChatFormatting.GRAY));
 			}
 			g.text(font, line, x + 12, y, color, true);
