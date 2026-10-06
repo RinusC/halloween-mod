@@ -105,6 +105,23 @@ public class BotsClientTest implements FabricClientGameTest {
 			// Talking a neighbour round takes 15 s for bots too.
 			int told = 0;
 			for (int i = 0; i < 50 && told == 0; i++) {
+				if (i == 20) {
+					// Most bots may have found a way out by now: walk one that is still here over to a neighbour.
+					LOG.info("No warning yet, bringing a bot to a neighbour: {}", (Object) server.computeOnServer(s -> {
+						BotPlayer bot = Bots.all().stream().filter(b -> !b.isSpectator() && !Lockers.isInside(b)
+							&& MatchManager.role(b) == Role.CIVILIAN).findFirst().orElse(null);
+						if (bot == null) {
+							return "no bot left";
+						}
+						var npc = Townsfolk.idleNear(bot.position(), 300).stream().findFirst().orElse(null);
+						if (npc == null) {
+							return "no neighbour at home";
+						}
+						Vec3 at = near(s, npc, 3);
+						bot.teleportTo(s.overworld(), at.x, at.y, at.z, java.util.Set.of(), 0f, 0f, false);
+						return bot.getPlainTextName() + " -> " + npc.getPlainTextName() + " (" + Bots.modeOf(bot) + ")";
+					}));
+				}
 				ctx.waitTicks(20);
 				told = server.computeOnServer(s -> npcs(s).stream().mapToInt(m -> "hidden".equals(Townsfolk.stateOf(m)) ? 1 : 0).sum());
 			}
@@ -189,7 +206,7 @@ public class BotsClientTest implements FabricClientGameTest {
 				return Math.abs(revolver - HwConfig.get().revolverStun) < 0.01 && down && ghost != shape ? "ok"
 					: String.format(Locale.ROOT, "revolver %.2f, rifle down %s, in Shape Jump hit %s", revolver, down, ghost == shape);
 			});
-			check("ok".equals(guns) || "no bot".equals(guns), "a revolver bullet fills 30% of the stun meter, a rifle bullet stuns at once, Shape Jump is bulletproof (" + guns + ")");
+			check("ok".equals(guns) || "no bot".equals(guns), "a revolver bullet fills 35% of the stun meter, a rifle bullet stuns at once, Shape Jump is bulletproof (" + guns + ")");
 
 			// An officer with a revolver near someone it guards fires at the Shape coming at them.
 			int officerId = server.computeOnServer(s -> {
@@ -205,8 +222,17 @@ public class BotsClientTest implements FabricClientGameTest {
 				return officer.getId();
 			});
 			int fullRounds = dev.halloween.game.Guns.capacity(dev.halloween.game.HwItems.Kind.REVOLVER) + HwConfig.get().policeSpareRounds;
+			// Knocked down, he isn't shot at: the officer keeps him covered.
+			server.runOnServer(s -> MatchManager.shapeState(player(s)).stunnedTicks = 60);
+			ctx.waitTicks(40);
+			check(server.computeOnServer(s -> Police.rounds(s.overworld().getEntity(officerId))) == fullRounds, "no shots at the Shape while he is stunned");
 			boolean fired = false;
 			for (int i = 0; i < 12 && !fired; i++) {
+				// Bots shooting at him too could knock him down again: keep him on his feet for this.
+				server.runOnServer(s -> {
+					MatchManager.shapeState(player(s)).stunnedTicks = 0;
+					MatchManager.shapeState(player(s)).stun = 0;
+				});
 				ctx.waitTicks(10);
 				fired = server.computeOnServer(s -> Police.rounds(s.overworld().getEntity(officerId))) < fullRounds;
 			}
@@ -401,8 +427,16 @@ public class BotsClientTest implements FabricClientGameTest {
 			// ---------------------------------------------------------------- the player is a civilian
 			server.runCommand("hw start");
 			ctx.waitTicks(60);
-			check(server.computeOnServer(s -> s.getPlayerList().getPlayers().size()) == 1, "no bots without a Shape");
+			int company = server.computeOnServer(s -> (int) s.getPlayerList().getPlayers().stream()
+				.filter(p -> p instanceof BotPlayer && MatchManager.role(p) == Role.CIVILIAN).count());
+			check(company == 3, "a lone civilian gets three bot civilians for company (" + company + ")");
 			check(server.computeOnServer(s -> MatchManager.role(player(s))) == Role.CIVILIAN, "the player is a civilian");
+			// The rest is about townsfolk: played alone, so no bot walks into it.
+			server.runCommand("hw stop");
+			server.runOnServer(s -> HwConfig.get().botsFillTo = 0);
+			server.runCommand("hw start");
+			ctx.waitTicks(60);
+			check(server.computeOnServer(s -> s.getPlayerList().getPlayers().size()) == 1, "with filling off nobody joins");
 
 			// Breaking a talk off: open the menu, start asking, use again.
 			int guest = server.computeOnServer(s -> npcs(s).stream().filter(m -> !Lockers.isInside(m)).findFirst().orElseThrow().getId());
@@ -531,6 +565,7 @@ public class BotsClientTest implements FabricClientGameTest {
 			LOG.info("Final board: {}", board);
 			check(board.contains(String.valueOf(expected)), "a hidden townsperson that lives pays out at the end (" + expected + ")");
 		}
+		HwConfig.get().botsFillTo = new HwConfig().botsFillTo;
 		LOG.info("Bots client test finished OK");
 	}
 

@@ -42,6 +42,8 @@ public final class GrabSession {
 	private BlockPos windowPos;
 	private boolean bloody;
 	private boolean done;
+	/** Whether the Shape's HUD was last told a window is at hand (he may walk up to one mid-grab). */
+	private boolean windowShown;
 
 	/** One side's current reaction check. */
 	private static final class Track {
@@ -97,7 +99,12 @@ public final class GrabSession {
 		t.open = true;
 		// Simulated victims (bots, townsfolk) find a narrower zone harder to hit, like a person does.
 		float base = this.victim instanceof BotPlayer ? cfg.botQteSuccessChance : cfg.mannequinQteSuccessChance;
-		t.simSuccess = this.random.nextFloat() < base * Mth.clamp(t.zoneWidth / cfg.victimZoneWidth, 0.35f, 1f);
+		float chance = base * Mth.clamp(t.zoneWidth / cfg.victimZoneWidth, 0.35f, 1f);
+		if (Police.isOfficer(this.victim)) {
+			// Officers keep their heads: they hit their checks this often however narrow the zone.
+			chance = cfg.policeQteSuccessChance;
+		}
+		t.simSuccess = this.random.nextFloat() < chance;
 		t.simPressTick = 8 + this.random.nextInt(Math.max(1, cfg.victimRoundTicks - 12));
 	}
 
@@ -113,6 +120,7 @@ public final class GrabSession {
 	private void sendState() {
 		HwConfig cfg = this.cfg();
 		boolean windowReady = this.windowAvailable();
+		this.windowShown = windowReady;
 		this.bloody = this.state.level() >= cfg.bloodyExecutionLevel;
 		if (this.victim instanceof ServerPlayer player) {
 			Track t = this.victimTrack;
@@ -338,6 +346,10 @@ public final class GrabSession {
 		}
 		HwConfig cfg = this.cfg();
 		long now = this.level().getGameTime();
+		if (now % 5 == 0 && this.windowAvailable() != this.windowShown) {
+			// He shuffled up to a window (or away from one): the throw is on offer (or not) right away.
+			this.sendState();
+		}
 		long victimElapsed = now - this.victimTrack.roundStart;
 		if (this.victimTrack.open) {
 			if ((!(this.victim instanceof ServerPlayer) || this.victim instanceof BotPlayer) && victimElapsed >= this.victimTrack.simPressTick) {

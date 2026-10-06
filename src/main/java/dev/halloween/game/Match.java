@@ -133,9 +133,9 @@ public final class Match {
 		shapeId = shape == null ? null : shape.getUUID();
 		List<BlockPos> spawns = new ArrayList<>(points.list(MapPoints.Type.SPAWN_CIVILIAN));
 		Collections.shuffle(spawns, new java.util.Random(level.getRandom().nextLong()));
-		// Bots make up the civilians' side when people are missing (only against a real Shape).
+		// Bots make up the civilians' side when people are missing (a lone civilian gets company too).
 		int civilians = players.size() - (shape == null ? 0 : 1);
-		if (shape != null && cfg.botsFillTo > civilians) {
+		if (cfg.botsFillTo > civilians) {
 			List<String> names = new ArrayList<>(List.of(cfg.botNames));
 			Collections.shuffle(names, new java.util.Random(level.getRandom().nextLong()));
 			for (int b = 0; b < cfg.botsFillTo - civilians && b < names.size(); b++) {

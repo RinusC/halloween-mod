@@ -54,6 +54,8 @@ public class MatchClientTest implements FabricClientGameTest {
 				cfg.countdownSeconds = 2;
 				cfg.deputyRespawnSeconds = 2;
 				cfg.policeArriveSeconds = 2;
+				// The lone civilian plays this one alone: bots would take the exits it is testing.
+				cfg.botsFillTo = 0;
 			});
 
 			// Townsfolk get their own test; here they would only wander into the line of fire.
@@ -366,6 +368,7 @@ public class MatchClientTest implements FabricClientGameTest {
 			String scores = server.computeOnServer(s -> Match.scores().toString());
 			LOG.info("Scores: {}", scores);
 		}
+		HwConfig.get().botsFillTo = new HwConfig().botsFillTo;
 		LOG.info("Match client test finished OK");
 	}
 

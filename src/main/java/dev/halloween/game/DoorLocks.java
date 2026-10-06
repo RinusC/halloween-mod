@@ -255,6 +255,16 @@ public final class DoorLocks {
 		sync(level.getServer());
 	}
 
+	/** Unlocks a door outright (officers do the waiting themselves). */
+	public static void forceUnlock(ServerLevel level, BlockPos pos) {
+		BlockPos door = base(level, pos);
+		if (!LOCKED.remove(door)) {
+			return;
+		}
+		level.playSound(null, door, HwSounds.UNLOCK, SoundSource.BLOCKS, 1f, 1f);
+		sync(level.getServer());
+	}
+
 	public static void sync(MinecraftServer server) {
 		HwNet.DoorSync sync = new HwNet.DoorSync(new ArrayList<>(LOCKED), new ArrayList<>(BROKEN));
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {

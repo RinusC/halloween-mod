@@ -169,6 +169,9 @@ public final class MatchManager {
 				ShapeState state = new ShapeState();
 				state.lastX = player.getX();
 				state.lastZ = player.getZ();
+				// The Detection Impulse isn't ready at the start: he has to earn the first one.
+				state.impulseCooldownMax = HwConfig.at(cfg.impulseCooldownByTier, 0);
+				state.impulseCooldown = state.impulseCooldownMax;
 				SHAPES.put(player.getUUID(), state);
 				player.setGameMode(GameType.ADVENTURE);
 				player.getInventory().clearContent();
@@ -216,6 +219,8 @@ public final class MatchManager {
 				state.grab.end();
 			}
 			ShapeState fresh = new ShapeState();
+			fresh.impulseCooldownMax = HwConfig.at(HwConfig.get().impulseCooldownByTier, 0);
+			fresh.impulseCooldown = fresh.impulseCooldownMax;
 			SHAPES.put(entry.getKey(), fresh);
 			ServerPlayer player = server.getPlayerList().getPlayer(entry.getKey());
 			if (player != null) {
@@ -1039,7 +1044,9 @@ public final class MatchManager {
 		ServerLevel level = player.level();
 		Map<Integer, HwNet.VictimInfo> infos = new LinkedHashMap<>();
 		List<Vec3> beams = new ArrayList<>();
-		boolean showBeams = state.shadowTicks > 0 && state.level() >= cfg.beamsMinLevel;
+		// The beams flash up now and then (from the moment he slips into Shape Jump), not all the time.
+		boolean showBeams = state.shadowTicks > 0 && state.level() >= cfg.beamsMinLevel
+			&& (state.shadowTicks - 1) % Math.max(1, cfg.beamsPeriodTicks) < cfg.beamsShowTicks;
 		int alive = 0;
 		int townsfolk = 0;
 		boolean anyUnderThree = false;

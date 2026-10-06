@@ -69,6 +69,9 @@ public final class Police {
 		int spare;
 		int aimTicks;
 		int reloadTicks = -1;
+		/** Last tick it heard the Shape struggling with someone close by, and its work on a locked door. */
+		int helpTick = -100000;
+		int unlockTicks;
 
 		Officer(Mannequin body) {
 			this.body = body;
@@ -374,17 +377,30 @@ public final class Police {
 				officer.lastSeenTick = now;
 			}
 		}
+		ServerPlayer holder = Senses.shape(level);
+		ShapeState holderState = holder == null ? null : MatchManager.shapeState(holder);
+		if (holderState != null && holderState.grab != null && holderState.grab.struggling()
+			&& holder.distanceTo(body) <= cfg.policeHelpRange) {
+			// He has someone in his hands: whoever it is, the officer runs to pull them out (it hears the struggle).
+			officer.lastSeen = holder.position();
+			officer.lastSeenTick = Math.max(officer.lastSeenTick, now - 7);
+			if (now - officer.helpTick > 100) {
+				AiStats.add(body, "police.help");
+			}
+			officer.helpTick = now;
+		}
+		boolean helping = now - officer.helpTick < 10;
 		LivingEntity ward = ward(level, officer, now);
 		Vec3 home = ward != null ? ward.position() : Exits.policePoint() == null ? body.position() : Vec3.atBottomCenterOf(Exits.policePoint());
 		boolean fresh = officer.lastSeen != null && now - officer.lastSeenTick < 60;
 		// The Shape close to the officer itself: it stands its ground. Close to the one it guards: it goes for him,
 		// but not further than the leash from them.
-		boolean engage = fresh && (officer.lastSeen.distanceTo(body.position()) <= cfg.policeEngageRange
+		boolean engage = helping || fresh && (officer.lastSeen.distanceTo(body.position()) <= cfg.policeEngageRange
 			|| officer.lastSeen.distanceTo(home) <= cfg.policeGuardAlarm && officer.lastSeen.distanceTo(home) <= cfg.policeLeash);
 		tickReload(level, officer);
 		if (engage) {
 			ServerPlayer shape = Senses.shape(level);
-			boolean inSight = shape != null && now - officer.lastSeenTick < 8;
+			boolean inSight = shape != null && (now - officer.lastSeenTick < 8 || helping);
 			Vec3 target = inSight ? shape.position() : officer.lastSeen;
 			body.getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(cfg.policeRunSpeed);
 			if (inSight && shootAt(level, officer, shape, now)) {
@@ -394,7 +410,8 @@ public final class Police {
 			if (inSight && body.distanceTo(shape) <= cfg.policeHitRange) {
 				officer.walker.stop();
 				officer.walker.face(shape.getEyePosition());
-				if (now >= officer.nextHit) {
+				// A man already knocked down isn't beaten while he lies there.
+				if (now >= officer.nextHit && !stunned(shape)) {
 					officer.nextHit = now + cfg.policeHitCooldownTicks;
 					body.swing(InteractionHand.MAIN_HAND, true);
 					level.playSound(null, shape.getX(), shape.getY(), shape.getZ(), SoundEvents.PLAYER_ATTACK_STRONG, SoundSource.NEUTRAL, 1.2f, 0.8f);
@@ -406,9 +423,9 @@ public final class Police {
 			if (now >= officer.repathAt || officer.walker.idle()) {
 				officer.repathAt = now + 10;
 				officer.walker.speed = 1f;
-				officer.walker.follow(Nav.to(level, body.blockPosition(), BlockPos.containing(target), 1.5, Nav.Options.walker()));
+				officer.walker.follow(Nav.to(level, body.blockPosition(), BlockPos.containing(target), 1.5, doors()));
 			}
-			officer.walker.tick();
+			walk(level, officer);
 			return;
 		}
 		officer.aimTicks = 0;
@@ -427,9 +444,34 @@ public final class Police {
 		if (now >= officer.repathAt || officer.walker.idle()) {
 			officer.repathAt = now + 20;
 			officer.walker.speed = 1f;
-			officer.walker.follow(Nav.to(level, body.blockPosition(), BlockPos.containing(home), cfg.policeGuardDistance - 1, Nav.Options.walker()));
+			officer.walker.follow(Nav.to(level, body.blockPosition(), BlockPos.containing(home), cfg.policeGuardDistance - 1, doors()));
 		}
-		officer.walker.tick();
+		walk(level, officer);
+	}
+
+	/** Officers walk through doors, locked ones too: they get them open (they don't break them). */
+	private static Nav.Options doors() {
+		return Nav.Options.walker().lockedDoors(6);
+	}
+
+	private static void walk(ServerLevel level, Officer officer) {
+		Walker.Status status = officer.walker.tick();
+		if (status != Walker.Status.LOCKED) {
+			officer.unlockTicks = 0;
+			return;
+		}
+		Nav.Node node = officer.walker.current();
+		BlockPos door = node == null ? null : DoorLocks.base(level, node.pos());
+		if (door != null && ++officer.unlockTicks >= HwConfig.get().policeUnlockTicks) {
+			officer.unlockTicks = 0;
+			DoorLocks.forceUnlock(level, door);
+			AiStats.add(officer.body, "police.unlocked");
+		}
+	}
+
+	private static boolean stunned(ServerPlayer shape) {
+		ShapeState state = MatchManager.shapeState(shape);
+		return state != null && state.stunnedTicks > 0;
 	}
 
 	/**
@@ -442,6 +484,13 @@ public final class Police {
 		double dist = body.distanceTo(shape);
 		if (officer.cylinder <= 0 || officer.reloadTicks >= 0 || dist <= cfg.policeHitRange || dist > cfg.policeShootRange) {
 			return false;
+		}
+		if (stunned(shape)) {
+			// He is down: no shots at a man on the ground; keep him covered until he gets up.
+			officer.walker.stop();
+			officer.walker.face(FocusPoints.bodyCenter(shape));
+			officer.aimTicks = 0;
+			return true;
 		}
 		Vec3 eye = body.getEyePosition();
 		Vec3 target = FocusPoints.bodyCenter(shape);

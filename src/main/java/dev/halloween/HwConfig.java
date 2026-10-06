@@ -30,8 +30,8 @@ public class HwConfig {
 	// --- Melee: light/heavy attacks with combos ---
 	public float lightDamage = 4f;
 	public float heavyDamage = 8f;
-	public int lightCooldownTicks = 12;
-	public int heavyCooldownTicks = 30;
+	public int lightCooldownTicks = 18;
+	public int heavyCooldownTicks = 45;
 	public int heavyChargeTicks = 8;
 	public double attackReach = 3.2;
 	public int comboWindowTicks = 30;
@@ -61,16 +61,16 @@ public class HwConfig {
 	// --- Dash (acceleration): fast burst, loud steps ---
 	public int dashTicks = 30;
 	public double dashSpeedModifier = 0.9;
-	public int[] dashCooldownByTier = {140, 120, 100};
+	public int[] dashCooldownByTier = {180, 160, 140};
 	public float dashStepVolume = 2.2f;
 
 	// --- Stalk ---
 	/** Passive stalking (just watching) can raise a victim to this level at most. */
 	public float passiveStalkCap = 1f;
-	public double passiveStalkRange = 20;
+	public double passiveStalkRange = 25;
 	public float passiveStalkAngleDeg = 25f;
 	public float passiveStalkPerSecond = 0.056f;
-	public double senseRange = 32;
+	public double senseRange = 37;
 	public double senseSpeedModifier = -0.45;
 	public float senseStalkPerSecond = 0.154f;
 	/** Reticle on a focus point counts fully; anywhere else on the body only partly. */
@@ -107,7 +107,10 @@ public class HwConfig {
 	/** Bloodthirst level (1-3) that unlocks bloody weapon executions. */
 	public int bloodyExecutionLevel = 3;
 	/** Bloodthirst level (1-3) from which Shape Jump shows light beams over victims. */
-	public int beamsMinLevel = 2;
+	public int beamsMinLevel = 3;
+	/** The beams flash up for this long once every period, from the moment he enters Shape Jump. */
+	public int beamsShowTicks = 40;
+	public int beamsPeriodTicks = 200;
 
 	// --- Grab: race of reaction checks ---
 	public double grabRange = 2.8;
@@ -127,6 +130,8 @@ public class HwConfig {
 	public float shapeZoneWidth = 0.16f;
 	public float[] shapeZoneGrowByStalk = {0f, 0.02f, 0.04f, 0.06f};
 	public float mannequinQteSuccessChance = 0.35f;
+	/** Police officers are trained: they hit their reaction checks in a grab this often. */
+	public float policeQteSuccessChance = 0.9f;
 	public int escapeShapeRecoverTicks = 30;
 	public int finisherTicks = 40;
 	public int windowSearchRadius = 3;
@@ -136,8 +141,9 @@ public class HwConfig {
 	public int[] shapeJumpCooldownByTier = {600, 480, 360};
 	/** Shape Jump can't be left closer than this to a survivor or townsperson. */
 	public double shapeJumpExitMinDistance = 2.0;
-	public double[] shapeJumpSpeedByTier = {0.6, 0.9, 1.2};
-	public int lightThreshold = 7;
+	public double[] shapeJumpSpeedByTier = {0.7, 1.0, 1.35};
+	/** Block light above this counts as light: Shape Jump can't be left there. */
+	public int lightThreshold = 6;
 	public double civilianSightRange = 40;
 	public float civilianSightFovDeg = 55f;
 	public float stingerVolume = 2.5f;
@@ -184,7 +190,7 @@ public class HwConfig {
 	public int revolverCapacity = 3;
 	public int rifleCapacity = 1;
 	/** Stun meter one hit fills: the rifle knocks him down at once. */
-	public float revolverStun = 0.30f;
+	public float revolverStun = 0.35f;
 	public float rifleStun = 1.0f;
 	/** Damage to anyone else the bullet finds (survivors have 20). */
 	public float revolverDamage = 7f;
@@ -255,6 +261,10 @@ public class HwConfig {
 	public double policeEngageRange = 12;
 	/** An officer doesn't chase him further than this from the one it guards. */
 	public double policeLeash = 20;
+	/** The Shape holding someone this close to an officer: it drops everything and runs to help. */
+	public double policeHelpRange = 20;
+	/** Officers get a locked door open in this long (they don't break it). */
+	public int policeUnlockTicks = 30;
 	public double policeHitRange = 2.6;
 	public int policeHitCooldownTicks = 30;
 	/** Stun meter a baton blow fills (a full meter knocks the Shape down). */
@@ -311,7 +321,7 @@ public class HwConfig {
 	public int scoreHiddenNpc = 100;
 
 	// --- Bots (fill the civilians' side when people are missing) ---
-	/** Bots are added until there are this many civilians (only when someone plays the Shape). 0 = no bots. */
+	/** Bots are added until there are this many civilians (with or without a Shape). 0 = no bots. */
 	public int botsFillTo = 4;
 	public String[] botNames = {"Laurie", "Tommy", "Lindsey", "Annie", "Lynda", "Bob", "Marion", "Lonnie"};
 	public float botQteSuccessChance = 0.55f;

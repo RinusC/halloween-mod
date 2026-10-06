@@ -58,6 +58,7 @@ public class SliceOneClientTest implements FabricClientGameTest {
 			ctx.waitTicks(20);
 			check(ctx.computeOnClient(mc -> ClientState.myRole()) == Role.SHAPE, "client knows it is the Shape");
 			check(ctx.computeOnClient(mc -> mc.options.getCameraType()) == CameraType.THIRD_PERSON_BACK, "the Shape gets the over-the-shoulder camera");
+			check(server.computeOnServer(s -> shape(s).impulseCooldown > 0), "the detection impulse is on cooldown at the start");
 
 			this.tp(server, 2.5, 0, 4.5);
 			this.lookAt(ctx, this.at(2.5, 1.5, 9.5));
@@ -141,8 +142,8 @@ public class SliceOneClientTest implements FabricClientGameTest {
 		ctx.waitTicks(5);
 		check(server.computeOnServer(s -> shape(s).shadowTicks == 0), "Shape Jump is refused in light");
 
-		// Bloodthirst level 2 shows beams over the victims.
-		server.runCommand("execute as @p run hw bloodthirst 150");
+		// Bloodthirst level 3 shows beams over the victims, for 2 s out of every 10.
+		server.runCommand("execute as @p run hw bloodthirst 250");
 		this.tp(server, -10.5, 0, 26.5);
 		this.lookAt(ctx, this.at(0, 1, 0));
 		ctx.waitTicks(10);
@@ -157,6 +158,18 @@ public class SliceOneClientTest implements FabricClientGameTest {
 		// No time limit.
 		ctx.waitTicks(160);
 		check(server.computeOnServer(s -> shape(s).shadowTicks > 150), "Shape Jump lasts as long as the Shape wants");
+		check(ctx.computeOnClient(mc -> ClientState.hud != null && ClientState.hud.beams().isEmpty()), "the beams flash up only now and then");
+
+		// A shadow can't work a breaker (nor a door).
+		BlockPos bulb = this.origin.offset(-2, 4, 12);
+		BlockPos lever = this.origin.offset(5, 1, 15);
+		this.tp(server, 6.5, 0, 15.5);
+		ctx.waitTicks(5);
+		ctx.getInput().lookAt(lever);
+		ctx.waitTicks(2);
+		ctx.getInput().pressKey(o -> o.keyUse);
+		ctx.waitTicks(5);
+		check(server.computeOnServer(s -> s.overworld().getBlockState(bulb).getValue(CopperBulbBlock.LIT)), "in Shape Jump the breaker can't be switched");
 
 		// Leaving under the lamp is refused.
 		this.tp(server, 6.5, 0, -3.5);
@@ -206,6 +219,13 @@ public class SliceOneClientTest implements FabricClientGameTest {
 		check(ctx.computeOnClient(mc -> ClientState.qte.active() && ClientState.qte.forShape()), "the Shape gets his reaction ring");
 		check(ctx.computeOnClient(mc -> ClientState.qte.window() && ClientState.qte.bloody()), "ring shows window and bloody execution hints");
 		ctx.takeScreenshot("06_grab_ring");
+		// Turned away from the window the throw is off; back to it, on again (he may shuffle up to one mid-grab).
+		this.lookAt(ctx, this.at(-3.5, 1.2, 11.6));
+		ctx.waitTicks(12);
+		check(ctx.computeOnClient(mc -> !ClientState.qte.window()), "turned away from the window, the throw is off");
+		this.lookAt(ctx, this.at(2.5, 1.2, 9.5));
+		ctx.waitTicks(12);
+		check(ctx.computeOnClient(mc -> ClientState.qte.window()), "facing a window again mid-grab, the throw is back on at once");
 
 		// Hit the needle inside the zone twice.
 		int presses = 0;
@@ -290,6 +310,7 @@ public class SliceOneClientTest implements FabricClientGameTest {
 		ctx.getInput().releaseKey(o -> o.keyUp);
 		ctx.waitTicks(40);
 
+		server.runOnServer(s -> shape(s).impulseCooldown = 0);
 		ctx.getInput().pressKey(HalloweenClient.KEY_IMPULSE);
 		ctx.waitTicks(5);
 		check(ctx.computeOnClient(mc -> ClientState.impulseActive() && (!ClientState.IMPULSE_IDS.isEmpty() || !ClientState.impulseSpots.isEmpty())),

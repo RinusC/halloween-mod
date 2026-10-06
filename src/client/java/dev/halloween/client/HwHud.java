@@ -30,6 +30,7 @@ public final class HwHud {
 	private static final int GREEN = 0xFF3FE0A0;
 	private static final int YELLOW = 0xFFFFD24A;
 	private static final int ORANGE = 0xFFFF9A2E;
+	private static final net.minecraft.resources.Identifier BADGE = net.minecraft.resources.Identifier.fromNamespaceAndPath("halloween", "textures/gui/wanted_badge.png");
 
 	private HwHud() {
 	}
@@ -100,15 +101,16 @@ public final class HwHud {
 			feed(g, mc.font, h);
 		}
 		matchTimer(g, mc, w);
-		notices(g, mc.font, w);
+		int noticesTop = wantedMeter(g, mc, w);
+		notices(g, mc.font, w, noticesTop);
 		endScreen(g, mc, w, h);
 	}
 
 	/** Corner notices (match news, callouts, deaths), newest on top, fading after a few seconds. */
-	private static void notices(GuiGraphicsExtractor g, Font font, int w) {
+	private static void notices(GuiGraphicsExtractor g, Font font, int w, int top) {
 		long now = System.currentTimeMillis();
 		ClientState.NOTICES.removeIf(n -> now - n.time() > 7000);
-		int y = 34;
+		int y = top;
 		for (ClientState.Notice notice : ClientState.NOTICES) {
 			long age = now - notice.time();
 			int alpha = (int) (255 * Mth.clamp((7000 - age) / 1000f, 0, 1) * Mth.clamp(age / 150f, 0, 1));
@@ -196,23 +198,37 @@ public final class HwHud {
 			g.text(font, Component.translatable("halloween.hud.phones_cut", m.cutPhones().size()), x + 12, y, 0xFFE07070, true);
 			y += 11;
 		}
-		wantedMeter(g, font, x, y + 3, m.wanted());
 	}
 
-	/** Michael's wanted level: three boxes, filled one per call that got through. */
-	private static void wantedMeter(GuiGraphicsExtractor g, Font font, int x, int y, int wanted) {
-		Component label = Component.translatable("halloween.hud.wanted");
-		g.text(font, label, x, y, 0xFFB8C2DA, true);
-		int bx = x + font.width(label) + 4;
-		int max = dev.halloween.HwConfig.get().policeMaxCalls;
-		for (int i = 0; i < max; i++) {
-			int left = bx + i * 12;
-			g.fill(left, y, left + 10, y + 8, 0xFF2A3550);
-			if (i < wanted) {
-				// Red and blue like the lights on a patrol car.
-				g.fill(left + 1, y + 1, left + 9, y + 7, i % 2 == 0 ? 0xFFD03A3A : 0xFF3A6AD8);
-			}
+	/**
+	 * Michael's wanted level, top right: a police badge for each call that got through, dim ones for the
+	 * calls still to come. Returns where the corner notices can start below it.
+	 */
+	private static int wantedMeter(GuiGraphicsExtractor g, Minecraft mc, int w) {
+		HwNet.MatchSync m = ClientState.match;
+		if (m.state() != 2) {
+			return 34;
 		}
+		int max = HwConfig.get().policeMaxCalls;
+		int size = 18;
+		int gap = 3;
+		// Below the survivor's score; the Shape has the corner to himself.
+		int y = ClientState.myRole().survivor() ? 24 : 10;
+		int x0 = w - 10 - max * size - (max - 1) * gap;
+		Component label = Component.translatable("halloween.hud.wanted");
+		g.text(mc.font, label, x0 - 6 - mc.font.width(label), y + (size - 8) / 2, m.wanted() > 0 ? TEXT : 0xFFB8C2DA, true);
+		long t = mc.level.getGameTime();
+		for (int i = 0; i < max; i++) {
+			int x = x0 + i * (size + gap);
+			boolean on = i < m.wanted();
+			if (on) {
+				// Red and blue like the lights on a patrol car, flashing behind the badge.
+				int glow = (t / 8 + i) % 2 == 0 ? 0x70D03A3A : 0x703A6AD8;
+				g.fill(x - 2, y - 2, x + size + 2, y + size + 2, glow);
+			}
+			g.blit(net.minecraft.client.renderer.RenderPipelines.GUI_TEXTURED, BADGE, x, y, 0, 0, size, size, 16, 16, 16, 16, on ? 0xFFFFFFFF : 0x80484848);
+		}
+		return y + size + 10;
 	}
 
 	/** A hand and three pockets, bottom centre. */

@@ -116,10 +116,20 @@ public final class ClientState {
 		return myRole() == Role.SHAPE && gameTime() < impulseUntil;
 	}
 
-	/** True for the Shape's entity while he is hidden in Shape Jump, as seen by anyone but himself. */
+	/**
+	 * True for the Shape's entity while he is hidden in Shape Jump, and for anyone hiding in a locker
+	 * (vanilla would still draw what an invisible body holds), as seen by anyone but themselves.
+	 */
 	public static boolean hideEntity(Entity entity) {
 		Minecraft mc = Minecraft.getInstance();
-		return shapeShadow && entity.getId() == shapeEntityId && entity != mc.player;
+		if (entity == mc.player) {
+			return false;
+		}
+		if (shapeShadow && entity.getId() == shapeEntityId) {
+			return true;
+		}
+		boolean inMatch = myRole() != Role.NONE || match.state() == 2;
+		return inMatch && entity instanceof LivingEntity && entity.isInvisible();
 	}
 
 	/** Outline colour the Shape sees for an entity, or -1 for none. */

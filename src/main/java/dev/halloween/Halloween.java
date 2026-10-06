@@ -82,6 +82,11 @@ public class Halloween implements ModInitializer {
 		net.fabricmc.fabric.api.event.player.UseItemCallback.EVENT.register((player, level, hand) -> level.isClientSide()
 			? net.minecraft.world.InteractionResult.PASS : dev.halloween.game.Fight.onUseItem(player, player.getItemInHand(hand)));
 		UseEntityCallback.EVENT.register((player, level, hand, entity, hit) -> MatchManager.onUseEntity(player, hand, entity));
+		// In Shape Jump the Shape is a shadow: he slips through doors but can't work them, nor the breakers.
+		UseBlockCallback.EVENT.register((player, level, hand, hit) -> !level.isClientSide()
+			&& player instanceof net.minecraft.server.level.ServerPlayer sp && MatchManager.role(sp) == Role.SHAPE
+			&& MatchManager.shapeState(sp) != null && MatchManager.shapeState(sp).shadowTicks > 0
+			? net.minecraft.world.InteractionResult.FAIL : net.minecraft.world.InteractionResult.PASS);
 		UseBlockCallback.EVENT.register(LightSystem::onUseBlock);
 		UseBlockCallback.EVENT.register((player, level, hand, hit) -> {
 			if (level.isClientSide()) {
