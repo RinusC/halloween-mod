@@ -108,6 +108,13 @@ public final class ClientInteractions {
 			}
 		} else if (role == Role.SHAPE && door && ClientState.LOCKED_DOORS.contains(doorBase(level, pos))) {
 			return InteractionResult.SUCCESS;
+		} else if (role == Role.SHAPE && ClientState.shadowActive() && Sight.isGlass(state)) {
+			// A shadow slips through the window, slowly.
+			if (vaultArmed) {
+				vaultArmed = false;
+				ClientPlayNetworking.send(new HwNet.UseAction(HwNet.UseAction.VAULT_SLOW, pos));
+			}
+			return InteractionResult.FAIL;
 		}
 		if (!door && matchObject(level, pos) != 0) {
 			// Held: the server keeps the action going while these pings keep arriving.

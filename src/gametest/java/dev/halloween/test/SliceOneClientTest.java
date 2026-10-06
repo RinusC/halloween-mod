@@ -71,6 +71,7 @@ public class SliceOneClientTest implements FabricClientGameTest {
 			this.breakerTest(ctx, server);
 			this.grabAndWindowTest(ctx, server);
 			this.corpseTest(ctx, server);
+			this.walkToWindowTest(ctx, server);
 			this.strikeAndPushTest(ctx, server);
 			this.dashAndImpulseTest(ctx, server);
 			this.doorsAndWindowsTest(ctx, server);
@@ -258,6 +259,59 @@ public class SliceOneClientTest implements FabricClientGameTest {
 		check(glassLeft == 0, "the window was smashed (shards left in the frame)");
 		check(server.computeOnServer(s -> !this.corpses(s).isEmpty()), "a corpse is left behind");
 		check(after > before, "the kill feeds Bloodthirst (" + before + " -> " + after + ")");
+		server.runOnServer(s -> HwConfig.get().mannequinQteSuccessChance = 0.35f);
+	}
+
+	/** Grabbed in the middle of a room, then walked up to a window: he throws them out through it. */
+	private void walkToWindowTest(ClientGameTestContext ctx, TestServerContext server) {
+		server.runOnServer(s -> {
+			HwConfig.get().mannequinQteSuccessChance = 0f;
+			shape(s).grabCooldown = 0;
+			shape(s).recoverTicks = 0;
+		});
+		server.runCommand(String.format(Locale.ROOT, "summon minecraft:mannequin %.1f %d %.1f {Tags:[\"%s\"],hide_description:1b}",
+			this.origin.getX() + 0.5, this.origin.getY(), this.origin.getZ() + 13.0, MatchManager.VICTIM_TAG));
+		this.tp(server, 0.5, 0, 11.3);
+		this.lookAt(ctx, this.at(0.5, 1.2, 13.0));
+		ctx.waitTicks(5);
+		ctx.getInput().pressKey(o -> o.keyUse);
+		ctx.waitTicks(5);
+		check(server.computeOnServer(s -> shape(s).grab != null), "grabbed in the middle of a room");
+		check(ctx.computeOnClient(mc -> !ClientState.qte.window()), "no window at hand there");
+		int before = server.computeOnServer(s -> dev.halloween.game.AiStats.snapshot().getOrDefault("*total", java.util.Map.of()).getOrDefault("killed.window", 0));
+		// Shuffle up to the front window, dragging them along.
+		this.lookAt(ctx, this.at(0.5, 1.5, 16.5));
+		ctx.getInput().holdKey(o -> o.keyUp);
+		boolean offered = false;
+		for (int i = 0; i < 60 && !offered; i++) {
+			ctx.waitTicks(5);
+			offered = ctx.computeOnClient(mc -> ClientState.qte.active() && ClientState.qte.window());
+		}
+		ctx.getInput().releaseKey(o -> o.keyUp);
+		LOG.info("Shape at {} when the window was offered", (Object) server.computeOnServer(s -> player(s).position().subtract(Vec3.atLowerCornerOf(this.origin))));
+		check(offered, "walked up to a window mid-grab, the throw is on offer");
+		for (int t = 0; t < 600 && server.computeOnServer(s -> shape(s).grab != null); t++) {
+			boolean inZone = ctx.computeOnClient(mc -> {
+				HwNet.Qte q = ClientState.qte;
+				if (!q.active() || !q.forShape()) {
+					return false;
+				}
+				float needle = HwNet.needle(mc.level.getGameTime() - q.roundStart(), q.period());
+				return needle >= q.zoneStart() + 0.02f && needle <= q.zoneStart() + q.zoneWidth() - 0.02f;
+			});
+			if (inZone) {
+				ctx.getInput().holdKey(o -> o.keyAttack);
+				ctx.waitTicks(1);
+				ctx.getInput().releaseKey(o -> o.keyAttack);
+				ctx.waitTicks(4);
+			} else {
+				ctx.waitTicks(1);
+			}
+		}
+		ctx.waitTicks(40);
+		int after = server.computeOnServer(s -> dev.halloween.game.AiStats.snapshot().getOrDefault("*total", java.util.Map.of()).getOrDefault("killed.window", 0));
+		check(after > before, "and he throws them out through it");
+		ctx.takeScreenshot("07b_walked_window_kill");
 		server.runOnServer(s -> HwConfig.get().mannequinQteSuccessChance = 0.35f);
 	}
 

@@ -1159,6 +1159,11 @@ final class BotBrain {
 					if ((flags & Exits.CAR_GONE) != 0) {
 						break;
 					}
+					if ((flags & Exits.CAR_RUNNING) != 0) {
+						// Someone started it: jump in before it goes.
+						out.put(new Task(pos, 2.4, true, "exit"), 110.0);
+						break;
+					}
 					boolean repaired = (flags & Exits.CAR_REPAIRED) != 0;
 					boolean fuelled = (flags & Exits.CAR_FUEL) != 0;
 					if (!repaired && Inventory.has(this.bot, HwItems.Kind.REPAIR_KIT) || !fuelled && Inventory.has(this.bot, HwItems.Kind.GAS_CAN)) {

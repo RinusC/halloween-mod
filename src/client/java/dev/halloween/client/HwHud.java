@@ -168,7 +168,10 @@ public final class HwHud {
 					color = e.state() == 1 ? 0xFF7FE07F : color;
 				}
 				case 1 -> {
-					if ((e.state() & 4) != 0) {
+					if ((e.state() & 8) != 0 && (e.state() & 4) == 0) {
+						line = Component.translatable("halloween.hud.exit.car.running", clock(e.extra()));
+						color = 0xFF7FE07F;
+					} else if ((e.state() & 4) != 0) {
 						line = Component.translatable("halloween.hud.exit.car.gone");
 					} else {
 						line = Component.translatable("halloween.hud.exit.car", (e.state() & 2) != 0 ? "✔" : "✘", (e.state() & 1) != 0 ? "✔" : "✘");
@@ -897,6 +900,9 @@ public final class HwHud {
 		if (mc.level.getBlockState(pos).getBlock() instanceof net.minecraft.world.level.block.DoorBlock
 			&& ClientState.LOCKED_DOORS.contains(ClientInteractions.doorBase(mc.level, pos))) {
 			Component line = Component.translatable("halloween.hud.prompt.door_shape");
+			g.textWithBackdrop(mc.font, line, w / 2 - mc.font.width(line) / 2, h / 2 + 30, mc.font.width(line), TEXT);
+		} else if (dev.halloween.game.Sight.isGlass(mc.level.getBlockState(pos)) && mc.player.getEyePosition().distanceTo(hit.getLocation()) <= 3.2) {
+			Component line = Component.translatable(ClientState.shadowActive() ? "halloween.hud.prompt.window_shadow" : "halloween.hud.prompt.window_smash");
 			g.textWithBackdrop(mc.font, line, w / 2 - mc.font.width(line) / 2, h / 2 + 30, mc.font.width(line), TEXT);
 		}
 	}

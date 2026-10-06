@@ -135,7 +135,8 @@ public class HwConfig {
 	public int escapeShapeRecoverTicks = 30;
 	public int finisherTicks = 40;
 	public int windowSearchRadius = 3;
-	public int windowFinisherStalkLevel = 3;
+	/** Victim stalk level a window throw needs (0: any victim, wherever he grabbed them). */
+	public int windowFinisherStalkLevel = 0;
 
 	// --- Shape Jump (Поступь Призрака) ---
 	public int[] shapeJumpCooldownByTier = {600, 480, 360};
@@ -386,7 +387,12 @@ public class HwConfig {
 	public int closeCellarTicks = 40;
 	public int installPartTicks = 60;
 	public int repairCarTicks = 300;
-	public int startCarTicks = 30;
+	public int startCarTicks = 60;
+	/** Survivors the car takes, and how long it waits with the engine running before it drives off. */
+	public int carSeats = 2;
+	public int carWaitTicks = 160;
+	/** The Shape in Shape Jump passes through a window this slowly (no glass broken). */
+	public int shapeWindowTicks = 70;
 	public int removePartTicks = 40;
 	public int callPoliceTicks = 400;
 	public int cutPhoneTicks = 40;

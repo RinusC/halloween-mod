@@ -688,6 +688,10 @@ public final class MatchManager {
 		if (role(player) != Role.SHAPE || state == null) {
 			return;
 		}
+		if (Windows.isVaulting(player)) {
+			// Halfway through a window: finish slipping through first.
+			return;
+		}
 		int reason = jumpBlockReason(player, state);
 		// Pressing again leaves the jump, but never in light or in a civilian's view.
 		if (state.shadowTicks > 0) {
@@ -792,6 +796,22 @@ public final class MatchManager {
 		return InteractionResult.PASS;
 	}
 
+	/** Unbroken window glass under the reticle within striking reach, if any. */
+	private static BlockPos windowInReach(ServerPlayer player, ShapeState state) {
+		Vec3 camera = aimOrigin(player, state);
+		Vec3 dir = aimDirection(player, state);
+		Vec3 eye = player.getEyePosition();
+		Vec3 from = camera.add(dir.scale(Math.max(0, eye.subtract(camera).dot(dir))));
+		Vec3 to = from.add(dir.scale(HwConfig.get().attackReach + 0.5));
+		var hit = player.level().clip(new net.minecraft.world.level.ClipContext(from, to,
+			net.minecraft.world.level.ClipContext.Block.OUTLINE, net.minecraft.world.level.ClipContext.Fluid.NONE, player));
+		if (hit.getType() == net.minecraft.world.phys.HitResult.Type.MISS) {
+			return null;
+		}
+		var glass = player.level().getBlockState(hit.getBlockPos());
+		return Windows.isWindow(glass) && !Windows.isBrokenPane(glass) ? hit.getBlockPos() : null;
+	}
+
 	/** Door block under the reticle within striking reach, if any. */
 	private static BlockPos doorInReach(ServerPlayer player, ShapeState state) {
 		Vec3 camera = aimOrigin(player, state);
@@ -828,6 +848,14 @@ public final class MatchManager {
 			|| !Sight.canSee(level, eye, FocusPoints.bodyCenter(victim), player)) {
 			state.comboCount = 0;
 			state.comboTimer = 0;
+			BlockPos glass = windowInReach(player, state);
+			if (glass != null) {
+				// One blow and the window is in pieces; everyone around hears it.
+				Windows.breakColumn(level, glass);
+				Bots.alert(Vec3.atCenterOf(glass), level.getServer().getTickCount());
+				Townsfolk.hearNoise(level, Vec3.atCenterOf(glass), level.getServer().getTickCount());
+				return;
+			}
 			BlockPos door = doorInReach(player, state);
 			if (door == null || !DoorLocks.hit(player, door, heavy)) {
 				level.playSound(null, player.getX(), player.getY(), player.getZ(), HwSounds.SWING, SoundSource.HOSTILE, 0.8f, heavy ? 0.7f : 1f);

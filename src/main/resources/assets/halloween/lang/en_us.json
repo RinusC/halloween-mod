@@ -312,5 +312,10 @@
 	"halloween.hud.prompt.item.spray": "Right click: spray a hurt person nearby, or yourself",
 	"halloween.hud.prompt.item.throw": "Right click: throw",
 	"halloween.hud.meters": "%s m",
-	"halloween.hud.van_here": "Police van · %s m"
+	"halloween.hud.van_here": "Police van · %s m",
+	"halloween.hud.exit.car.running": "Car: engine running, leaves in %s",
+	"halloween.hud.progress.escape_car": "Jumping into the car…",
+	"halloween.hud.prompt.window_shadow": "Right click: slip through the window",
+	"halloween.hud.prompt.window_smash": "Strike: smash the window",
+	"halloween.match.car_running": "The car is running! It leaves in %s s: get in"
 }

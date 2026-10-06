@@ -55,6 +55,8 @@ public final class Exits {
 	static final int CAR_FUEL = 1;
 	static final int CAR_REPAIRED = 2;
 	static final int CAR_GONE = 4;
+	/** Started: the engine runs and the car waits a moment for a second survivor and for townsfolk. */
+	static final int CAR_RUNNING = 8;
 	// Police exit as shown to players: can call now, on the way, van waiting, van gone, van used, find a body first.
 	public static final int POLICE_IDLE = 0;
 	public static final int POLICE_COMING = 1;
@@ -76,6 +78,10 @@ public final class Exits {
 	private static final List<Cellar> CELLARS = new ArrayList<>();
 	private static BlockPos car;
 	private static int carFlags;
+	/** Seats left in the running car, how long it still waits, and the blocks it stands on (it drives off). */
+	private static int carSeats;
+	private static int carTimer;
+	private static final List<BlockPos> CAR_BLOCKS = new ArrayList<>();
 	private static BlockPos police;
 	/** Survivors the waiting van can still take (levels 1 and 3 each bring one seat), and how long it waits. */
 	private static int vanSeats;
@@ -134,6 +140,9 @@ public final class Exits {
 		gateState = CLOSED;
 		gateFuse = false;
 		carFlags = 0;
+		carSeats = 0;
+		carTimer = 0;
+		CAR_BLOCKS.clear();
 		vanSeats = 0;
 		vanTimer = 0;
 		vanOutcome = 0;
@@ -144,6 +153,13 @@ public final class Exits {
 
 	public static void tick(ServerLevel level) {
 		HwConfig cfg = HwConfig.get();
+		if ((carFlags & CAR_RUNNING) != 0 && (carFlags & CAR_GONE) == 0) {
+			if (--carTimer <= 0 || carSeats <= 0) {
+				driveOff(level);
+			} else if (carTimer % 20 == 0) {
+				level.playSound(null, car, SoundEvents.MINECART_RIDING, SoundSource.BLOCKS, 1.2f, 0.5f);
+			}
+		}
 		if (vanSeats > 0 && --vanTimer <= 0) {
 			vanSeats = 0;
 			vanOutcome = POLICE_GONE;
@@ -247,13 +263,27 @@ public final class Exits {
 			}
 			if (role == Role.SHAPE) {
 				// He drains the tank: the can is thrown down by the car, to be poured in again.
-				return (carFlags & CAR_FUEL) != 0 ? new Holds.Hold(pos, "halloween.hud.progress.drain_fuel", true, cfg.removePartTicks,
-					p -> (carFlags & CAR_FUEL) != 0 && (carFlags & CAR_GONE) == 0, p -> {
+				return (carFlags & CAR_FUEL) != 0 && (carFlags & CAR_RUNNING) == 0 ? new Holds.Hold(pos, "halloween.hud.progress.drain_fuel", true, cfg.removePartTicks,
+					p -> (carFlags & CAR_FUEL) != 0 && (carFlags & (CAR_GONE | CAR_RUNNING)) == 0, p -> {
 						carFlags &= ~CAR_FUEL;
 						Vec3 c = Vec3.atCenterOf(car).add(0, 1, 0);
 						level.addFreshEntity(new ItemEntity(level, c.x, c.y, c.z, HwItems.create(HwItems.Kind.GAS_CAN)));
 						level.playSound(null, car, SoundEvents.BUCKET_EMPTY, SoundSource.BLOCKS, 1f, 0.7f);
 					}) : null;
+			}
+			if ((carFlags & CAR_RUNNING) != 0) {
+				// The engine runs: a second survivor can still jump in.
+				if (civilian && carSeats > 0) {
+					return escapeHold(pos, "halloween.hud.progress.escape_car", p -> carSeats > 0 && (carFlags & CAR_GONE) == 0, p -> {
+						carSeats--;
+						Match.escape(p, Component.translatable("halloween.exit.car"));
+						Match.markDirty();
+					});
+				}
+				if (!civilian) {
+					hint(player, "halloween.hint.deputy_no_escape");
+				}
+				return null;
 			}
 			boolean repaired = (carFlags & CAR_REPAIRED) != 0;
 			boolean fuelled = (carFlags & CAR_FUEL) != 0;
@@ -292,12 +322,18 @@ public final class Exits {
 				return null;
 			}
 			return new Holds.Hold(pos, "halloween.hud.progress.start_car", true, cfg.startCarTicks,
-				p -> (carFlags & CAR_REPAIRED) != 0 && (carFlags & CAR_FUEL) != 0 && (carFlags & CAR_GONE) == 0 && Inventory.has(p, HwItems.Kind.SEDAN_KEYS), p -> {
+				p -> (carFlags & CAR_REPAIRED) != 0 && (carFlags & CAR_FUEL) != 0 && (carFlags & (CAR_GONE | CAR_RUNNING)) == 0
+					&& Inventory.has(p, HwItems.Kind.SEDAN_KEYS), p -> {
+					// The engine starts: the driver is in, the car waits a moment for one more and for townsfolk.
 					Inventory.consume(p, HwItems.Kind.SEDAN_KEYS);
-					carFlags |= CAR_GONE;
+					carFlags |= CAR_RUNNING;
+					carSeats = Math.max(0, cfg.carSeats - 1);
+					carTimer = cfg.carWaitTicks;
 					level.playSound(null, car, SoundEvents.MINECART_RIDING, SoundSource.BLOCKS, 3f, 0.6f);
-					level.playSound(null, car, SoundEvents.GOAT_HORN_SOUND_VARIANTS.get(0).value(), SoundSource.BLOCKS, 2f, 1.4f);
 					Match.escape(p, Component.translatable("halloween.exit.car"));
+					Match.announce(level.getServer(), Component.translatable("halloween.match.car_running", cfg.carWaitTicks / 20)
+						.withStyle(net.minecraft.ChatFormatting.GREEN));
+					Match.markDirty();
 				});
 		}
 		if (vanSeats > 0 && near(police, pos, 3.5)) {
@@ -362,6 +398,24 @@ public final class Exits {
 			}
 		}
 		return null;
+	}
+
+	/** The car drives off: horn, engine, and it is gone from where it stood. */
+	private static void driveOff(ServerLevel level) {
+		carFlags |= CAR_GONE;
+		carSeats = 0;
+		level.playSound(null, car, SoundEvents.GOAT_HORN_SOUND_VARIANTS.get(0).value(), SoundSource.BLOCKS, 2f, 1.4f);
+		level.playSound(null, car, SoundEvents.MINECART_RIDING, SoundSource.BLOCKS, 3f, 0.8f);
+		for (BlockPos p : CAR_BLOCKS) {
+			BlockState old = PROPS.remove(p);
+			if (old != null) {
+				level.setBlock(p, old, Block.UPDATE_ALL);
+			}
+		}
+		CAR_BLOCKS.clear();
+		Vec3 c = Vec3.atCenterOf(car);
+		level.sendParticles(net.minecraft.core.particles.ParticleTypes.LARGE_SMOKE, c.x, c.y, c.z, 30, 1.5, 0.5, 1.0, 0.02);
+		Match.markDirty();
 	}
 
 	private static Holds.Hold phone(ServerPlayer player, BlockPos pos, Role role) {
@@ -429,6 +483,9 @@ public final class Exits {
 			Match.markDirty();
 			return Component.translatable("halloween.exit.police");
 		}
+		if (carWaiting() && Vec3.atCenterOf(car).distanceTo(at) <= radius + 2) {
+			return Component.translatable("halloween.exit.car");
+		}
 		if (gate != null && gateState == OPEN && Vec3.atCenterOf(gate).distanceTo(at) <= radius) {
 			gateState = USED;
 			setNearby(level, gate, false);
@@ -442,7 +499,13 @@ public final class Exits {
 	public static boolean openExitNear(Vec3 at, double radius) {
 		return CELLARS.stream().anyMatch(c -> c.state == OPEN && Vec3.atCenterOf(c.pos).distanceTo(at) <= radius)
 			|| police != null && vanSeats > 0 && Vec3.atCenterOf(police).distanceTo(at) <= radius + 1
+			|| carWaiting() && Vec3.atCenterOf(car).distanceTo(at) <= radius + 2
 			|| gate != null && gateState == OPEN && Vec3.atCenterOf(gate).distanceTo(at) <= radius;
+	}
+
+	/** The car's engine runs and it hasn't left yet. */
+	public static boolean carWaiting() {
+		return car != null && (carFlags & CAR_RUNNING) != 0 && (carFlags & CAR_GONE) == 0;
 	}
 
 	/** Opens an exit straight away (map testing: /hw exit open, and tests). */
@@ -629,6 +692,9 @@ public final class Exits {
 					bottom = body;
 				}
 				place(level, p, bottom, PROPS);
+				CAR_BLOCKS.add(p.immutable());
+				CAR_BLOCKS.add(p.above().immutable());
+				CAR_BLOCKS.add(p.above(2).immutable());
 				if (u >= 2 || u == -3) {
 					// Hood and trunk, low.
 					place(level, p.above(), low, PROPS);
@@ -717,7 +783,7 @@ public final class Exits {
 			list.add(new HwNet.ExitInfo(CELLAR, c.pos, c.state, 0));
 		}
 		if (car != null) {
-			list.add(new HwNet.ExitInfo(CAR, car, carFlags, 0));
+			list.add(new HwNet.ExitInfo(CAR, car, carFlags, carWaiting() ? carTimer : 0));
 		}
 		if (police != null) {
 			list.add(policeInfo());

@@ -312,5 +312,10 @@
 	"halloween.hud.prompt.item.spray": "ПКМ — пшикнуть: на раненого рядом или на себя",
 	"halloween.hud.prompt.item.throw": "ПКМ — бросить",
 	"halloween.hud.meters": "%s м",
-	"halloween.hud.van_here": "Фургон полиции · %s м"
+	"halloween.hud.van_here": "Фургон полиции · %s м",
+	"halloween.hud.exit.car.running": "Машина: мотор заведён, уезжает через %s",
+	"halloween.hud.progress.escape_car": "Запрыгиваю в машину…",
+	"halloween.hud.prompt.window_shadow": "ПКМ — пройти сквозь окно",
+	"halloween.hud.prompt.window_smash": "Удар — выбить окно",
+	"halloween.match.car_running": "Машина заведена! Через %s с она уедет — успейте сесть"
 }

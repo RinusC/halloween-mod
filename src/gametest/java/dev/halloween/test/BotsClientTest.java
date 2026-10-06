@@ -214,9 +214,10 @@ public class BotsClientTest implements FabricClientGameTest {
 			// An officer with a revolver near someone it guards fires at the Shape coming at them.
 			int officerId = server.computeOnServer(s -> {
 				BotPlayer bot = Bots.all().stream().filter(b -> !b.isSpectator() && !Lockers.isInside(b)).findFirst().orElseThrow();
-				Vec3 at = bot.position().add(2, 0, 0);
-				var officer = Police.spawnOfficer(s.overworld(), at);
 				ServerPlayer shape = player(s);
+				// In the open, clear of the bots (one running across would block the shot).
+				Vec3 at = shape.position().add(-6, 0, 0);
+				var officer = Police.spawnOfficer(s.overworld(), at);
 				Vec3 d = shape.position().subtract(at);
 				float yaw = (float) (Mth.atan2(d.z, d.x) * Mth.RAD_TO_DEG) - 90f;
 				officer.setYRot(yaw);

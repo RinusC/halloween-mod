@@ -33,7 +33,8 @@ import net.minecraft.world.phys.Vec3;
  * Civilians climbing through windows. Slow: ~3 s and harmless through intact glass. Fast: ~1 s, smashes
  * the glass and costs a fifth of max health (refused when that much health isn't left). Once a window is
  * broken, its shards cut on every pass, slow or fast (a slow pass through shards never kills).
- * The Shape can't climb windows. Broken panes are remembered so a reset can restore them.
+ * The Shape climbs no windows, but in Shape Jump he slips through one slowly (the glass stays whole).
+ * Broken panes are remembered so a reset can restore them.
  */
 public final class Windows {
 	private static final Map<UUID, Vault> VAULTS = new HashMap<>();
@@ -93,14 +94,16 @@ public final class Windows {
 	public static void request(ServerPlayer player, BlockPos clicked, boolean fast) {
 		ServerLevel level = player.level();
 		HwConfig cfg = HwConfig.get();
-		if (!MatchManager.role(player).survivor() || player.isSpectator() || isVaulting(player)
+		boolean shadow = shadow(player);
+		if (!MatchManager.role(player).survivor() && !shadow || player.isSpectator() || isVaulting(player)
 			|| MatchManager.isGrabbed(player) || !isWindow(level.getBlockState(clicked))) {
 			return;
 		}
+		fast &= !shadow;
 		if (player.getEyePosition().distanceTo(Vec3.atCenterOf(clicked)) > 3.2) {
 			return;
 		}
-		if (fast && player.getHealth() <= cutDamage(player)) {
+		if (fast && !shadow && player.getHealth() <= cutDamage(player)) {
 			player.sendOverlayMessage(Component.translatable("halloween.msg.vault_fast_low_hp").withStyle(ChatFormatting.GRAY));
 			return;
 		}
@@ -127,9 +130,15 @@ public final class Windows {
 			return;
 		}
 		boolean broken = isBrokenPane(level.getBlockState(bottom));
-		int duration = fast ? cfg.vaultFastTicks : cfg.vaultSlowTicks;
-		VAULTS.put(player.getUUID(), new Vault(bottom, bottomY, fast, fast || broken, duration, player.position(), approach, exit, landing, sill));
+		int duration = shadow ? cfg.shapeWindowTicks : fast ? cfg.vaultFastTicks : cfg.vaultSlowTicks;
+		VAULTS.put(player.getUUID(), new Vault(bottom, bottomY, fast, !shadow && (fast || broken), duration, player.position(), approach, exit, landing, sill));
 		player.setSprinting(false);
+	}
+
+	/** The Shape in Shape Jump: a shadow that slips through glass. */
+	private static boolean shadow(ServerPlayer player) {
+		ShapeState state = MatchManager.shapeState(player);
+		return MatchManager.role(player) == Role.SHAPE && state != null && state.shadowTicks > 0;
 	}
 
 	/** Unit vector across the wall, pointing away from the player's side. */
@@ -159,7 +168,7 @@ public final class Windows {
 			Map.Entry<UUID, Vault> entry = it.next();
 			Vault v = entry.getValue();
 			ServerPlayer player = server.getPlayerList().getPlayer(entry.getKey());
-			if (player == null || player.isSpectator() || !MatchManager.role(player).survivor() || MatchManager.isGrabbed(player)) {
+			if (player == null || player.isSpectator() || !MatchManager.role(player).survivor() && !shadow(player) || MatchManager.isGrabbed(player)) {
 				it.remove();
 				if (player != null) {
 					ServerPlayNetworking.send(player, HwNet.Progress.NONE);
