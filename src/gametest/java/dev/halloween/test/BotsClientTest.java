@@ -52,7 +52,7 @@ public class BotsClientTest implements FabricClientGameTest {
 
 	@Override
 	public void runTest(ClientGameTestContext ctx) {
-		if (System.getenv("HW_SIM") != null) {
+		if (System.getenv("HW_SIM") != null || TestFilter.skip("bots")) {
 			return;
 		}
 		try (TestSingleplayerContext sp = ctx.worldBuilder().create()) {

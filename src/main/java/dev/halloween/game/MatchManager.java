@@ -256,6 +256,7 @@ public final class MatchManager {
 
 	public static void tick(MinecraftServer server) {
 		HwConfig cfg = HwConfig.get();
+		MapJob.tick(server);
 		Match.tick(server);
 		Holds.tick(server);
 		Fight.tick(server);

@@ -1013,7 +1013,7 @@ final class BotBrain {
 		if (breakers == null || breakersForMatch != Match.startTick()) {
 			breakersForMatch = Match.startTick();
 			BlockPos center = MapPoints.get(this.level()).first(MapPoints.Type.CENTER);
-			breakers = center == null ? List.of() : LightSystem.breakers(this.level(), center, (int) this.cfg().lootRadius);
+			breakers = center == null ? List.of() : LightSystem.breakers(this.level(), center, Loot.radius());
 		}
 		return breakers;
 	}

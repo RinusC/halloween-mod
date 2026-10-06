@@ -440,7 +440,8 @@ public final class Townsfolk {
 		if (now >= npc.screamReadyAt) {
 			scream(npc, now, null);
 		}
-		if (npc.state != State.HOME && npc.state != State.HIDE && npc.state != State.HIDDEN) {
+		// Someone told to stay hidden screams but stays put.
+		if (npc.state != State.HOME && npc.state != State.HIDE) {
 			return;
 		}
 		npc.threat = pos;

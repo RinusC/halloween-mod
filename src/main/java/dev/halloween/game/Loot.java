@@ -29,13 +29,30 @@ public final class Loot {
 	private static final List<BlockPos> CONTAINERS = new ArrayList<>();
 	private static final Set<BlockPos> SEARCHED = new HashSet<>();
 	private static final Map<BlockPos, HwItems.Kind> HIDDEN = new HashMap<>();
+	/** How far around the centre this match's containers (and breakers) are looked for. */
+	private static int radius = 96;
+
+	public static int radius() {
+		return radius;
+	}
 
 	private Loot() {
 	}
 
 	public static void setup(ServerLevel level, BlockPos center, RandomSource random) {
 		clear();
-		int r = HwConfig.get().lootRadius;
+		// Containers count within the usual radius of the centre, and anywhere in the square the map points
+		// span (a big town reaches into its corners).
+		int circle = HwConfig.get().lootRadius;
+		int square = 0;
+		for (List<BlockPos> list : MapPoints.get(level).all().values()) {
+			for (BlockPos p : list) {
+				square = Math.max(square, Math.max(Math.abs(p.getX() - center.getX()), Math.abs(p.getZ() - center.getZ())) + 8);
+			}
+		}
+		int r = Math.max(circle, square);
+		radius = r;
+		int sq = square;
 		int cx = center.getX() >> 4;
 		int cz = center.getZ() >> 4;
 		int cr = (r >> 4) + 1;
@@ -43,7 +60,8 @@ public final class Loot {
 			for (int z = cz - cr; z <= cz + cr; z++) {
 				LevelChunk chunk = level.getChunk(x, z);
 				for (BlockEntity be : chunk.getBlockEntities().values()) {
-					if ((be instanceof ChestBlockEntity || be instanceof BarrelBlockEntity) && be.getBlockPos().closerThan(center, r)
+					if ((be instanceof ChestBlockEntity || be instanceof BarrelBlockEntity) && (be.getBlockPos().closerThan(center, circle)
+						|| Math.abs(be.getBlockPos().getX() - center.getX()) <= sq && Math.abs(be.getBlockPos().getZ() - center.getZ()) <= sq)
 						&& !GunCase.isCase(be.getBlockPos())) {
 						CONTAINERS.add(be.getBlockPos().immutable());
 					}

@@ -1,0 +1,236 @@
+package dev.halloween.test;
+
+import dev.halloween.HwConfig;
+import dev.halloween.Role;
+import dev.halloween.game.BotPlayer;
+import dev.halloween.game.Bots;
+import dev.halloween.game.Exits;
+import dev.halloween.game.LightSystem;
+import dev.halloween.game.Loot;
+import dev.halloween.game.MapJob;
+import dev.halloween.game.MapPoints;
+import dev.halloween.game.Match;
+import dev.halloween.game.MatchManager;
+import dev.halloween.game.Nav;
+import dev.halloween.game.Townsfolk;
+import java.util.ArrayList;
+import java.util.EnumMap;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
+import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
+import net.fabricmc.fabric.api.client.gametest.v1.context.TestServerContext;
+import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
+import net.minecraft.core.BlockPos;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.block.DoorBlock;
+import net.minecraft.world.level.block.StairBlock;
+import net.minecraft.world.phys.Vec3;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+/**
+ * The Haddonfield map: it builds, every map point is where it should be and can be walked to, the
+ * houses have what a match needs, and a match with bots runs on it. Screenshots show the town.
+ */
+public class HaddonfieldClientTest implements FabricClientGameTest {
+	private static final Logger LOG = LoggerFactory.getLogger("halloween-map-test");
+
+	private BlockPos origin;
+
+	@Override
+	public void runTest(ClientGameTestContext ctx) {
+		if (System.getenv("HW_SIM") != null || TestFilter.skip("map")) {
+			return;
+		}
+		try (TestSingleplayerContext sp = ctx.worldBuilder().create()) {
+			TestServerContext server = sp.getServer();
+			ctx.waitTicks(40);
+			ctx.runOnClient(mc -> mc.options.renderDistance().set(16));
+			this.origin = server.computeOnServer(s -> player(s).blockPosition());
+			long started = System.currentTimeMillis();
+			server.runCommand("execute as @p at @p run hw map haddonfield");
+			ctx.waitTicks(2);
+			boolean busy = true;
+			for (int i = 0; i < 3000 && busy; i++) {
+				ctx.waitTicks(10);
+				busy = server.computeOnServer(s -> MapJob.busy());
+			}
+			LOG.info("Haddonfield built in {} s", (System.currentTimeMillis() - started) / 1000);
+			check(!busy, "the map gets built");
+
+			// Every kind of point, enough of each.
+			Map<MapPoints.Type, Integer> counts = server.computeOnServer(s -> {
+				Map<MapPoints.Type, Integer> m = new EnumMap<>(MapPoints.Type.class);
+				for (MapPoints.Type t : MapPoints.Type.values()) {
+					m.put(t, MapPoints.get(s.overworld()).list(t).size());
+				}
+				return m;
+			});
+			LOG.info("Map points: {}", counts);
+			int[][] need = {
+				{MapPoints.Type.CENTER.ordinal(), 1}, {MapPoints.Type.SPAWN_SHAPE.ordinal(), 1}, {MapPoints.Type.SPAWN_CIVILIAN.ordinal(), 4},
+				{MapPoints.Type.SPAWN_DEPUTY.ordinal(), 1}, {MapPoints.Type.CELLAR.ordinal(), 3}, {MapPoints.Type.CAR.ordinal(), 3},
+				{MapPoints.Type.POLICE.ordinal(), 3}, {MapPoints.Type.GATE.ordinal(), 4}, {MapPoints.Type.PHONE.ordinal(), 25},
+				{MapPoints.Type.NPC.ordinal(), 25}, {MapPoints.Type.GUN_CASE.ordinal(), 3}};
+			for (int[] n : need) {
+				MapPoints.Type t = MapPoints.Type.values()[n[0]];
+				check(counts.get(t) >= n[1], "the map has " + n[1] + "+ " + t.key() + " points (" + counts.get(t) + ")");
+			}
+
+			// Spawns and townsfolk stand on open ground; phones sit on something.
+			String badSpots = server.computeOnServer(s -> {
+				ServerLevel level = s.overworld();
+				MapPoints points = MapPoints.get(level);
+				List<String> bad = new ArrayList<>();
+				for (MapPoints.Type t : new MapPoints.Type[]{MapPoints.Type.SPAWN_SHAPE, MapPoints.Type.SPAWN_CIVILIAN, MapPoints.Type.SPAWN_DEPUTY,
+					MapPoints.Type.NPC, MapPoints.Type.GUN_CASE, MapPoints.Type.CELLAR, MapPoints.Type.POLICE}) {
+					for (BlockPos p : points.list(t)) {
+						if (!Nav.standable(level, p)) {
+							bad.add(t.key() + "@" + p.subtract(this.origin).toShortString());
+						}
+					}
+				}
+				for (BlockPos p : points.list(MapPoints.Type.PHONE)) {
+					if (!Exits.isPhone(level, p)) {
+						bad.add("phone@" + p.subtract(this.origin).toShortString());
+					}
+				}
+				return String.join(", ", bad);
+			});
+			check(badSpots.isEmpty(), "every spawn, townsperson, cellar, van and gun case spot is open ground, every phone is a phone (" + badSpots + ")");
+
+			// Bots and townsfolk can walk everywhere that matters: exits, the Myers house, an upstairs bedroom.
+			String unreachable = server.computeOnServer(s -> {
+				ServerLevel level = s.overworld();
+				MapPoints points = MapPoints.get(level);
+				BlockPos from = points.list(MapPoints.Type.SPAWN_CIVILIAN).getFirst();
+				List<BlockPos> targets = new ArrayList<>();
+				for (MapPoints.Type t : new MapPoints.Type[]{MapPoints.Type.CELLAR, MapPoints.Type.CAR, MapPoints.Type.POLICE,
+					MapPoints.Type.SPAWN_SHAPE, MapPoints.Type.SPAWN_CIVILIAN, MapPoints.Type.GUN_CASE, MapPoints.Type.SPAWN_DEPUTY}) {
+					targets.addAll(points.list(t));
+				}
+				List<BlockPos> npcs = points.list(MapPoints.Type.NPC);
+				for (int i = 0; i < npcs.size(); i += 3) {
+					targets.add(npcs.get(i));
+				}
+				// The Doyle house's back bedroom, upstairs.
+				targets.add(this.origin.offset(82, 5, -43));
+				List<String> bad = new ArrayList<>();
+				for (BlockPos target : targets) {
+					List<Nav.Node> path = Nav.to(level, from, target, 2.5, Nav.Options.walker().nodes(80000));
+					BlockPos end = path.isEmpty() ? from : path.getLast().pos();
+					if (end.distSqr(target) > 3.5 * 3.5) {
+						bad.add(target.subtract(this.origin).toShortString() + " (got to " + end.subtract(this.origin).toShortString() + ")");
+					}
+				}
+				return String.join("; ", bad);
+			});
+			check(unreachable.isEmpty(), "every exit spot, spawn, gun case, a sample of townsfolk and an upstairs bedroom can be walked to (" + unreachable + ")");
+
+			// A house has its doors, stairs up, a breaker that works the lights.
+			String house = server.computeOnServer(s -> {
+				ServerLevel level = s.overworld();
+				BlockPos front = this.origin.offset(82, 0, -51);
+				if (!(level.getBlockState(front).getBlock() instanceof DoorBlock)) {
+					return "no front door at the Doyle house";
+				}
+				if (!(level.getBlockState(this.origin.offset(77, 0, -49)).getBlock() instanceof StairBlock)) {
+					return "no stairs up";
+				}
+				List<BlockPos> breakers = LightSystem.breakers(level, this.origin.offset(82, 0, -45), 10);
+				if (breakers.isEmpty()) {
+					return "no breaker";
+				}
+				return "ok";
+			});
+			check("ok".equals(house), "the Doyle house has a front door, stairs up and a breaker box (" + house + ")");
+
+			// Pictures: the town from above by day, Lampkin Lane and the Myers house at night, inside a house.
+			server.runCommand("gamemode spectator @p");
+			server.runCommand("time set noon");
+			String biome = server.computeOnServer(s -> s.overworld().getBiome(this.origin.offset(10, 0, 10)).unwrapKey().map(k -> k.identifier().getPath()).orElse("?"));
+			check("badlands".equals(biome), "the town is in autumn colours (" + biome + ")");
+			this.view(ctx, server, new Vec3(0, 120, 60), 0, 60);
+			ctx.waitTicks(200);
+			ctx.takeScreenshot("h01_town_from_above");
+			this.view(ctx, server, new Vec3(-160, 60, 160), -135, 25);
+			ctx.waitTicks(120);
+			ctx.takeScreenshot("h02_town_from_southwest");
+			this.view(ctx, server, new Vec3(-108, 3, 4), 180, 10);
+			ctx.takeScreenshot("h03_myers_house_day");
+			this.view(ctx, server, new Vec3(0, 6, -60), 180, 15);
+			ctx.takeScreenshot("h04_school");
+			this.view(ctx, server, new Vec3(-20, 4, 70), 180, 5);
+			ctx.takeScreenshot("h05_main_street");
+			this.view(ctx, server, new Vec3(-125, 4, -80), 180, 10);
+			ctx.takeScreenshot("h06_cemetery");
+			server.runCommand("time set midnight");
+			this.view(ctx, server, new Vec3(-95, 3, 4), 140, 8);
+			ctx.takeScreenshot("h07_lampkin_lane_night");
+			this.view(ctx, server, new Vec3(80.5, 0, -48.5), 90, 5);
+			ctx.takeScreenshot("h08_inside_doyle_house");
+			this.view(ctx, server, new Vec3(80.5, 5, -46.5), 0, 10);
+			ctx.takeScreenshot("h09_upstairs");
+			server.runCommand("gamemode survival @p");
+
+			// A match on the map: the player is the Shape, four bots, townsfolk, the exits come up.
+			server.runOnServer(s -> HwConfig.get().countdownSeconds = 2);
+			server.runCommand("hw start @p");
+			ctx.waitTicks(60);
+			check(server.computeOnServer(s -> Match.running()), "a match starts on Haddonfield");
+			check(server.computeOnServer(s -> MatchManager.role(player(s))) == Role.SHAPE, "the player is the Shape at the Myers house");
+			int containers = server.computeOnServer(s -> Loot.containers().size());
+			check(containers >= 50, "the town's chests and barrels are searchable (" + containers + ")");
+			check(server.computeOnServer(s -> Exits.infos().size()) == 4, "all four kinds of exit are set up");
+			check(server.computeOnServer(s -> Townsfolk.count()) >= 6, "townsfolk are at home");
+			Map<UUID, Vec3> start = server.computeOnServer(s -> {
+				Map<UUID, Vec3> m = new HashMap<>();
+				Bots.all().forEach(b -> m.put(b.getUUID(), b.position()));
+				return m;
+			});
+			check(start.size() == 4, "four bots play the civilians");
+			// The Shape keeps out of the way while the bots go about their business.
+			server.runOnServer(s -> player(s).teleportTo(s.overworld(), this.origin.getX() + 140.5, this.origin.getY(), this.origin.getZ() + 140.5,
+				java.util.Set.of(), 0f, 0f, false));
+			ctx.waitTicks(600);
+			double moved = server.computeOnServer(s -> Bots.all().stream()
+				.mapToDouble(b -> b.position().distanceTo(start.getOrDefault(b.getUUID(), b.position()))).max().orElse(0));
+			int searched = server.computeOnServer(s -> Loot.searched().size());
+			LOG.info("Bots walked up to {} blocks, searched {} containers; stats {}", moved, searched,
+				server.computeOnServer(s -> dev.halloween.game.AiStats.snapshot().get("*total")));
+			check(moved > 15, "bots get about the town (" + moved + ")");
+			check(searched > 0, "bots search the houses (" + searched + ")");
+			server.runCommand("hw stop");
+			ctx.waitTicks(5);
+		}
+		LOG.info("Haddonfield map test finished OK");
+	}
+
+	/** Puts the (spectating) player at {@code at} (relative to the map centre) looking along yaw/pitch. */
+	private void view(ClientGameTestContext ctx, TestServerContext server, Vec3 at, float yaw, float pitch) {
+		server.runOnServer(s -> player(s).teleportTo(s.overworld(), this.origin.getX() + at.x, this.origin.getY() + at.y, this.origin.getZ() + at.z,
+			java.util.Set.of(), yaw, pitch, false));
+		ctx.waitTicks(60);
+	}
+
+	private static ServerPlayer player(MinecraftServer server) {
+		for (ServerPlayer p : server.getPlayerList().getPlayers()) {
+			if (!(p instanceof BotPlayer)) {
+				return p;
+			}
+		}
+		throw new IllegalStateException("no player");
+	}
+
+	private static void check(boolean ok, String what) {
+		if (!ok) {
+			throw new AssertionError("FAILED: " + what);
+		}
+		LOG.info("PASS: {}", what);
+	}
+}

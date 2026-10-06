@@ -89,6 +89,9 @@ public final class Match {
 		HwConfig cfg = HwConfig.get();
 		MapPoints points = MapPoints.get(level);
 		BlockPos center = points.first(MapPoints.Type.CENTER);
+		if (MapJob.busy()) {
+			return Component.translatable("halloween.cmd.map_busy");
+		}
 		if (center == null || points.list(MapPoints.Type.SPAWN_CIVILIAN).isEmpty()) {
 			return Component.translatable("halloween.cmd.no_points");
 		}

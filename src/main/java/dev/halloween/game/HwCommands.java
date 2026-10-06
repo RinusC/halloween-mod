@@ -31,6 +31,16 @@ public final class HwCommands {
 			.requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
 			.then(Commands.literal("role").then(role))
 			.then(Commands.literal("arena").executes(HwCommands::arena))
+			.then(Commands.literal("map").then(Commands.literal("haddonfield").executes(ctx -> {
+				CommandSourceStack src = ctx.getSource();
+				if (MapJob.busy() || Match.state() != Match.State.IDLE) {
+					src.sendFailure(Component.translatable("halloween.cmd.map_busy"));
+					return 0;
+				}
+				src.sendSuccess(() -> Component.translatable("halloween.cmd.map_start", "Haddonfield"), true);
+				MapJob.start(src.getLevel(), BlockPos.containing(src.getPosition()), new Haddonfield(), src, "Haddonfield");
+				return 1;
+			})))
 			.then(Commands.literal("mannequin").executes(HwCommands::mannequin))
 			.then(Commands.literal("exit").then(Commands.literal("open").then(Commands.argument("type", StringArgumentType.word())
 				.suggests((c, b) -> SharedSuggestionProvider.suggest(java.util.List.of("cellar", "car", "police", "gate"), b))
