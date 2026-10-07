@@ -907,6 +907,8 @@ public final class MatchManager {
 		if (role(player) != Role.SHAPE || state == null || state.busy() || state.shadowTicks > 0 || state.grabCooldown > 0) {
 			return;
 		}
+		// He lunges for them, whether or not he gets hold.
+		GrabSession.anim(player, dev.halloween.net.HwNet.Anim.REACH);
 		Entity target = player.level().getEntity(targetId);
 		if (!exposed(target) || player.distanceTo(target) > cfg.grabRange
 			|| !Sight.canSee(player.level(), player.getEyePosition(), FocusPoints.bodyCenter((LivingEntity) target), player)) {

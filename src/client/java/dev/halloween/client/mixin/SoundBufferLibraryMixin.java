@@ -18,7 +18,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-/** Our voice clips and Shape Jump sounds are WAV, not Ogg: load them with {@link WavSounds} instead of the Vorbis decoder. */
+/** Our voice clips, Shape Jump sounds and talk babble are WAV, not Ogg: load them with {@link WavSounds} instead of the Vorbis decoder. */
 @Mixin(SoundBufferLibrary.class)
 public abstract class SoundBufferLibraryMixin {
 	@Shadow
@@ -31,7 +31,8 @@ public abstract class SoundBufferLibraryMixin {
 
 	@Inject(method = "getCompleteBuffer", at = @At("HEAD"), cancellable = true)
 	private void halloween$wavVoices(Identifier location, CallbackInfoReturnable<CompletableFuture<SoundBuffer>> cir) {
-		if (!location.getNamespace().equals("halloween") || !location.getPath().startsWith("sounds/voice/") && !location.getPath().startsWith("sounds/shape/")) {
+		if (!location.getNamespace().equals("halloween") || !location.getPath().startsWith("sounds/voice/") && !location.getPath().startsWith("sounds/shape/")
+			&& !location.getPath().startsWith("sounds/talk/")) {
 			return;
 		}
 		cir.setReturnValue(this.cache.computeIfAbsent(location, l -> CompletableFuture.supplyAsync(() -> {

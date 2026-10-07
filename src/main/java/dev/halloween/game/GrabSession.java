@@ -44,6 +44,10 @@ public final class GrabSession {
 	private boolean done;
 	/** Whether the Shape's HUD was last told a window is at hand (he may walk up to one mid-grab). */
 	private boolean windowShown;
+	/** When the victim next chokes and gasps for air. */
+	private long nextChoke;
+	/** The way out has been animated already (an escape plays its own moves). */
+	private boolean animated;
 
 	/** One side's current reaction check. */
 	private static final class Track {
@@ -64,6 +68,9 @@ public final class GrabSession {
 		victimState.grabbed = true;
 		this.level().playSound(null, victim.getX(), victim.getY(), victim.getZ(), HwSounds.GRAB, SoundSource.HOSTILE, 1.2f, 1f);
 		Voices.play(victim, Voices.Kind.SCREAM);
+		this.nextChoke = this.level().getGameTime() + 14;
+		anim(shape, HwNet.Anim.HOLD);
+		anim(victim, HwNet.Anim.STRUGGLE);
 		this.startVictimRound(0);
 		this.startShapeRound(0);
 		this.sendState();
@@ -223,7 +230,28 @@ public final class GrabSession {
 		return false;
 	}
 
+	/** Tells everyone around what this entity is doing (see client.ClientAnims). */
+	static void anim(net.minecraft.world.entity.Entity who, int kind) {
+		if (!(who.level() instanceof ServerLevel level)) {
+			return;
+		}
+		HwNet.Anim payload = new HwNet.Anim(who.getId(), kind);
+		for (ServerPlayer p : level.players()) {
+			if (!Bots.isBot(p) && p.distanceToSqr(who) < 160 * 160) {
+				ServerPlayNetworking.send(p, payload);
+			}
+		}
+	}
+
 	private void escape() {
+		this.escape(false);
+	}
+
+	/** Out of his hands: torn free with a shove (he staggers), or with a knife in him (he clutches the wound). */
+	private void escape(boolean stab) {
+		this.animated = true;
+		anim(this.victim, stab ? HwNet.Anim.STAB : HwNet.Anim.BREAK_FREE);
+		anim(this.shape, stab ? HwNet.Anim.STABBED : HwNet.Anim.STAGGER);
 		AiStats.add(this.victim, "grab.escaped");
 		HwConfig cfg = this.cfg();
 		this.state.recoverTicks = cfg.escapeShapeRecoverTicks;
@@ -246,7 +274,7 @@ public final class GrabSession {
 		ServerLevel level = this.level();
 		level.playSound(null, this.shape.getX(), this.shape.getEyeY(), this.shape.getZ(), HwSounds.STAB, SoundSource.PLAYERS, 1.2f, 1.3f);
 		MatchManager.bleed(level, this.shape, 10);
-		this.escape();
+		this.escape(true);
 		this.shape.sendOverlayMessage(Component.translatable("halloween.msg.stabbed_shape").withStyle(net.minecraft.ChatFormatting.DARK_RED));
 		if (this.victim instanceof ServerPlayer player) {
 			player.sendOverlayMessage(Component.translatable("halloween.msg.stabbed_free").withStyle(net.minecraft.ChatFormatting.GREEN));
@@ -306,6 +334,8 @@ public final class GrabSession {
 				this.smashWindow();
 			} else if (this.finisherTick >= 26) {
 				this.done = true;
+				anim(this.shape, HwNet.Anim.NONE);
+				anim(this.victim, HwNet.Anim.NONE);
 				MatchManager.kill(this.shape, this.state, this.victim, MatchManager.KillKind.WINDOW, this.bloody);
 			}
 			return;
@@ -318,12 +348,15 @@ public final class GrabSession {
 		}
 		if (this.finisherTick >= this.cfg().finisherTicks) {
 			this.done = true;
+			anim(this.shape, HwNet.Anim.NONE);
+			anim(this.victim, HwNet.Anim.NONE);
 			MatchManager.kill(this.shape, this.state, this.victim, MatchManager.KillKind.EXECUTION, this.bloody);
 		}
 	}
 
 	private void stabEffects() {
 		ServerLevel level = this.level();
+		anim(this.shape, HwNet.Anim.KNIFE_DOWN);
 		level.playSound(null, this.victim.getX(), this.victim.getY(), this.victim.getZ(), HwSounds.STAB, SoundSource.HOSTILE, 1.1f, 0.9f + this.random.nextFloat() * 0.2f);
 		MatchManager.bleed(level, this.victim, this.bloody ? 30 : 18);
 	}
@@ -331,6 +364,7 @@ public final class GrabSession {
 	private void smashWindow() {
 		// The glass shatters but shards stay in the frame (see Windows).
 		Windows.breakColumn(this.level(), this.windowPos);
+		anim(this.victim, HwNet.Anim.NONE);
 		Vec3 window = Vec3.atBottomCenterOf(this.windowPos);
 		Vec3 dir = window.subtract(this.shape.position()).multiply(1, 0, 1);
 		dir = dir.lengthSqr() < 1.0E-4 ? this.shape.getLookAngle().multiply(1, 0, 1) : dir;
@@ -360,6 +394,13 @@ public final class GrabSession {
 		}
 		HwConfig cfg = this.cfg();
 		long now = this.level().getGameTime();
+		if (now >= this.nextChoke) {
+			// Held by the throat: choking, gasping for air.
+			this.nextChoke = now + 22 + this.random.nextInt(14);
+			float pitch = (Voices.female(this.victim) ? 1.18f : 0.95f) + this.random.nextFloat() * 0.08f;
+			this.level().playSound(null, this.victim.getX(), this.victim.getEyeY(), this.victim.getZ(), HwSounds.VOICE_CHOKE, SoundSource.PLAYERS, 1.2f, pitch);
+			AiStats.add(this.victim, "voice.choke");
+		}
 		if (now % 5 == 0 && this.windowAvailable() != this.windowShown) {
 			// He shuffled up to a window (or away from one): the throw is on offer (or not) right away.
 			this.sendState();
@@ -417,6 +458,11 @@ public final class GrabSession {
 
 	/** Releases everything without a kill (escape, abort, reset). */
 	void end() {
+		if (!this.animated) {
+			anim(this.shape, HwNet.Anim.NONE);
+			anim(this.victim, HwNet.Anim.NONE);
+			this.animated = true;
+		}
 		if (this.state.grab == this) {
 			this.state.grab = null;
 		}

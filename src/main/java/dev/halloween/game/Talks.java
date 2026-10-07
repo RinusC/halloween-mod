@@ -24,6 +24,7 @@ public final class Talks {
 		final Entity npc;
 		final int option;
 		int progress;
+		int ticks;
 
 		Talk(ServerPlayer player, Entity npc, int option) {
 			this.player = player;
@@ -62,10 +63,15 @@ public final class Talks {
 		if (option == Townsfolk.FOLLOW && Townsfolk.followsPlayer(npc, player)) {
 			// "Stay here" to someone already following you needs no persuading.
 			Townsfolk.beginTalk(player, npc);
+			Dialogue.ask(player, option, true);
 			Townsfolk.apply(player, npc, option);
+			if (npc instanceof net.minecraft.world.entity.LivingEntity body) {
+				Dialogue.agree(body, player, option, true);
+			}
 			return true;
 		}
 		Townsfolk.beginTalk(player, npc);
+		Dialogue.ask(player, option, false);
 		TALKS.put(player.getUUID(), new Talk(player, npc, option));
 		AiStats.add(player, "talk.start");
 		return true;
@@ -81,6 +87,9 @@ public final class Talks {
 		ServerPlayNetworking.send(player, HwNet.Progress.NONE);
 		if (!byPlayer) {
 			player.sendOverlayMessage(Component.translatable("halloween.npc.talk_broken").withStyle(ChatFormatting.GRAY));
+			if (talk.npc instanceof net.minecraft.world.entity.LivingEntity body && !MatchManager.isHeld(body)) {
+				Dialogue.refuse(body, player);
+			}
 		}
 	}
 
@@ -99,11 +108,18 @@ public final class Talks {
 				continue;
 			}
 			talk.progress += 1 + SkillChecks.tick(player);
+			if (++talk.ticks == 22 && talk.npc instanceof net.minecraft.world.entity.LivingEntity body) {
+				// Spoken to, the townsperson asks what it is.
+				Dialogue.greet(body, player);
+			}
 			if (talk.progress >= cfg.talkTicks) {
 				TALKS.remove(player.getUUID());
 				SkillChecks.stop(player);
 				ServerPlayNetworking.send(player, HwNet.Progress.NONE);
 				Townsfolk.apply(player, talk.npc, talk.option);
+				if (talk.npc instanceof net.minecraft.world.entity.LivingEntity body) {
+					Dialogue.agree(body, player, talk.option, false);
+				}
 				AiStats.add(player, "talk.done");
 			} else if (talk.progress % 2 == 0) {
 				ServerPlayNetworking.send(player, new HwNet.Progress("halloween.hud.progress.talk." + talk.option,

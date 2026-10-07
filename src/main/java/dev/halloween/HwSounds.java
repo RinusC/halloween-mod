@@ -54,6 +54,28 @@ public final class HwSounds {
 	public static final SoundEvent VOICE_MALE_SCREAM = register("voice.male.scream");
 	public static final SoundEvent VOICE_MALE_HURT = register("voice.male.hurt");
 	public static final SoundEvent VOICE_MALE_DEATH = register("voice.male.death");
+	/** Choking and gasping for air, held by the throat (pitched by who it is). */
+	public static final SoundEvent VOICE_CHOKE = register("voice.choke");
+	/** Voices for townsfolk talks (see game.Dialogue; the Coqui voice pack): women, men; each says request, question, agree, refuse lines. */
+	public static final String[] TALK_WOMEN = {"claribel_dervla", "daisy_studious", "gracie_wise", "tammie_ema", "ana_florence", "sofia_hellen"};
+	public static final String[] TALK_MEN = {"andrew_chipper", "badr_odhiambo", "damien_black", "craig_gutsy", "viktor_eka", "royston_min"};
+	private static final String[] MOODS = {"request", "question", "agree", "refuse"};
+	private static final java.util.Map<String, SoundEvent> TALK = new java.util.HashMap<>();
+
+	static {
+		for (String[] voices : new String[][]{TALK_WOMEN, TALK_MEN}) {
+			for (String voice : voices) {
+				for (String mood : MOODS) {
+					TALK.put(voice + "." + mood, register("talk." + voice + "." + mood));
+				}
+			}
+		}
+	}
+
+	/** What {@code voice} says in this mood (0 request, 1 question, 2 agree, 3 refuse). */
+	public static SoundEvent talk(String voice, int mood) {
+		return TALK.get(voice + "." + MOODS[mood]);
+	}
 	public static final SoundEvent LOCKER_SLAM = register("locker.slam");
 	public static final SoundEvent LOCKER_CLOSE = register("locker.close");
 	public static final SoundEvent GUN_REVOLVER = register("gun.revolver");

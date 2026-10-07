@@ -1848,18 +1848,19 @@ public final class Haddonfield extends MapPlan {
 	}
 
 	/**
-	 * A town map board at the street's edge, facing south over the sidewalk: two posts, a backing two squares
-	 * wide where the four maps hang (see MapBoards: they are drawn at every match), a little roof, a header and
-	 * a legend sign on the west post. {@code x0}: the board's west square.
+	 * A town map board at the street's edge, facing south over the sidewalk: two posts, a backing where the twelve maps hang (see MapBoards: they are drawn at every match), a little roof, a header and
+	 * a legend sign on the west post. {@code x0}: the board's west square (it is MapBoards.TX wide, MapBoards.TY maps high).
 	 */
 	private void mapBoard(int x0, int z) {
-		this.fill(x0 - 1, 0, z, x0 - 1, 3, z, b("dark_oak_log"));
-		this.fill(x0 + 2, 0, z, x0 + 2, 3, z, b("dark_oak_log"));
-		this.fill(x0, 0, z, x0 + 1, 3, z, b("dark_oak_planks"));
-		this.fill(x0 - 1, 4, z - 1, x0 + 2, 4, z + 1, slab("dark_oak_slab", SlabType.BOTTOM));
-		this.fill(x0 - 1, 0, z + 1, x0 + 2, 3, z + 1, AIR);
+		int w = MapBoards.TX;
+		int h = MapBoards.TY;
+		this.fill(x0 - 1, 0, z, x0 - 1, h + 1, z, b("dark_oak_log"));
+		this.fill(x0 + w, 0, z, x0 + w, h + 1, z, b("dark_oak_log"));
+		this.fill(x0, 0, z, x0 + w - 1, h + 1, z, b("dark_oak_planks"));
+		this.fill(x0 - 1, h + 2, z - 1, x0 + w, h + 2, z + 1, slab("dark_oak_slab", SlabType.BOTTOM));
+		this.fill(x0 - 1, 0, z + 1, x0 + w, h + 1, z + 1, AIR);
 		this.wallSign(x0 - 1, 1, z + 1, Direction.SOUTH, "", "", "", "");
-		this.wallSign(x0, 3, z + 1, Direction.SOUTH, "HADDONFIELD", "", "", "");
+		this.wallSign(x0 + 1, h + 1, z + 1, Direction.SOUTH, "HADDONFIELD", "town map", "", "");
 		this.point(MapPoints.Type.MAP_BOARD, x0, 1, z);
 	}
 

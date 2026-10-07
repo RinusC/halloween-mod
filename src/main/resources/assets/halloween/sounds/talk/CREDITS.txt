@@ -1,0 +1,1 @@
+Townsfolk talk voices: lines from the "Coqui voice pack v2" (voice_pack_v2) supplied by the mod's owner, 12 of its voices (women: claribel_dervla, daisy_studious, gracie_wise, tammie_ema, ana_florence, sofia_hellen; men: andrew_chipper, badr_odhiambo, damien_black, craig_gutsy, viktor_eka, royston_min). Trimmed and levelled; WAV under .ogg names. Private use.

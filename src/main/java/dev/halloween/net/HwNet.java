@@ -279,6 +279,38 @@ public final class HwNet {
 	}
 
 	/** The music this player should hear now: a mood of game.Music and which part of it (1-based). */
+	/** A grab animation for one entity (see client.ClientAnims): held poses until NONE, the rest play once. */
+	public record Anim(int entityId, int kind) implements CustomPacketPayload {
+		public static final int NONE = 0;
+		/** The Shape lunges for someone (also when he misses). */
+		public static final int REACH = 1;
+		/** The Shape holds someone by the throat, the knife raised. */
+		public static final int HOLD = 2;
+		/** Held: clawing at his arm, kicking, choking. */
+		public static final int STRUGGLE = 3;
+		/** Tearing free with a shove. */
+		public static final int BREAK_FREE = 4;
+		/** The Shape thrown back a step. */
+		public static final int STAGGER = 5;
+		/** Stabbing him to get free. */
+		public static final int STAB = 6;
+		/** The Shape stabbed: a hand to the wound. */
+		public static final int STABBED = 7;
+		/** The Shape's knife comes down (the kill). */
+		public static final int KNIFE_DOWN = 8;
+
+		public static final Type<Anim> TYPE = payloadType("anim");
+		public static final StreamCodec<RegistryFriendlyByteBuf, Anim> CODEC = StreamCodec.of((buf, v) -> {
+			buf.writeVarInt(v.entityId);
+			buf.writeVarInt(v.kind);
+		}, buf -> new Anim(buf.readVarInt(), buf.readVarInt()));
+
+		@Override
+		public Type<Anim> type() {
+			return TYPE;
+		}
+	}
+
 	public record MusicMood(int mood, int variant) implements CustomPacketPayload {
 		public static final Type<MusicMood> TYPE = payloadType("music");
 		public static final StreamCodec<RegistryFriendlyByteBuf, MusicMood> CODEC = StreamCodec.of((buf, v) -> {
@@ -730,6 +762,7 @@ public final class HwNet {
 		PayloadTypeRegistry.clientboundPlay().register(DoorSync.TYPE, DoorSync.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(Skins.TYPE, Skins.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(MusicMood.TYPE, MusicMood.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(Anim.TYPE, Anim.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(MinimapSync.TYPE, MinimapSync.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(MatchSync.TYPE, MatchSync.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(MatchEnd.TYPE, MatchEnd.CODEC);
