@@ -1091,6 +1091,18 @@ final class BotBrain {
 	}
 
 	/** Would this item on the ground be worth picking up? */
+	/** Is this item for getting away still of use (its exit not used up or opened already)? */
+	static boolean escapeNeeded(HwItems.Kind kind) {
+		return switch (kind) {
+			case BOLT_CUTTERS, PADLOCK_KEY -> Exits.infos().stream().anyMatch(e -> e.type() == Exits.CELLAR && e.state() == Exits.CLOSED);
+			case GAS_CAN, SEDAN_KEYS -> Exits.infos().stream().anyMatch(e -> e.type() == Exits.CAR && (e.state() & Exits.CAR_GONE) == 0);
+			case FUSE -> Exits.infos().stream().anyMatch(e -> e.type() == Exits.GATE && e.state() == Exits.CLOSED && e.extra() == 0);
+			case GATE_KEY -> Exits.infos().stream().anyMatch(e -> e.type() == Exits.GATE && e.state() == Exits.CLOSED);
+			case REPAIR_KIT -> true;
+			default -> false;
+		};
+	}
+
 	private boolean wants(HwItems.Kind kind) {
 		if (kind == null || Inventory.has(this.bot, kind)) {
 			return false;
@@ -1100,13 +1112,11 @@ final class BotBrain {
 			free |= this.bot.getInventory().getItem(i).isEmpty();
 		}
 		if (!free) {
-			return false;
+			// Pockets full: only something for getting away is worth it, in place of something that isn't.
+			return kind.escape() && Inventory.hasRoomForEscape(this.bot) && escapeNeeded(kind);
 		}
 		return switch (kind) {
-			case BOLT_CUTTERS, PADLOCK_KEY -> Exits.infos().stream().anyMatch(e -> e.type() == Exits.CELLAR && e.state() == Exits.CLOSED);
-			case GAS_CAN, SEDAN_KEYS -> Exits.infos().stream().anyMatch(e -> e.type() == Exits.CAR && (e.state() & Exits.CAR_GONE) == 0);
-			case FUSE -> Exits.infos().stream().anyMatch(e -> e.type() == Exits.GATE && e.state() == Exits.CLOSED && e.extra() == 0);
-			case GATE_KEY -> Exits.infos().stream().anyMatch(e -> e.type() == Exits.GATE && e.state() == Exits.CLOSED);
+			case BOLT_CUTTERS, PADLOCK_KEY, GAS_CAN, SEDAN_KEYS, FUSE, GATE_KEY -> escapeNeeded(kind);
 			case REPAIR_KIT, DART, POCKET_KNIFE, BUTTERFLY_KNIFE, MED_KIT, HEALING_SPRAY, AMULET, HOURGLASS, BRICK, ROCK, BASEBALL,
 				FIRECRACKERS, ROAD_FLARE -> true;
 			case ICE_PICK, KITCHEN_KNIFE, CLEAVER, HATCHET, PIPE_WRENCH, BAT, FIRE_POKER, AXE, PICKAXE, PITCHFORK -> this.meleeSlot() < 0;
@@ -1210,7 +1220,9 @@ final class BotBrain {
 			}
 		}
 		List<BlockPos> searched = Loot.searched();
-		for (BlockPos container : Loot.containers()) {
+		// Pockets full of things for getting away: nothing a search could turn up is worth carrying any more.
+		boolean roomToFind = Inventory.hasRoomForEscape(this.bot);
+		for (BlockPos container : roomToFind ? Loot.containers() : List.<BlockPos>of()) {
 			if (!searched.contains(container) && !Bots.claimedByOther(container, this.bot)) {
 				out.put(new Task(container, 2.0, true, "search"), 30.0);
 			}

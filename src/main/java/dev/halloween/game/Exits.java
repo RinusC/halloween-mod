@@ -485,9 +485,23 @@ public final class Exits {
 			}
 		}
 		ServerPlayer driver = level.getServer().getPlayerList().getPlayer(SEATED.getFirst());
-		if (driver != null && Bots.isBot(driver) && ++botWait >= HwConfig.get().carWaitTicks) {
+		if (driver != null && Bots.isBot(driver) && (++botWait >= HwConfig.get().carWaitTicks || botWait >= 20 && !anyoneComing(level))) {
 			driveOff(level);
 		}
+	}
+
+	/**
+	 * A bot at the wheel waits for others only while somebody could still get in: a survivor (not in the car)
+	 * within 30 blocks (townsfolk come with them).
+	 */
+	private static boolean anyoneComing(ServerLevel level) {
+		Vec3 c = Vec3.atCenterOf(car);
+		for (ServerPlayer p : level.getServer().getPlayerList().getPlayers()) {
+			if (MatchManager.role(p) == Role.CIVILIAN && !p.isSpectator() && !SEATED.contains(p.getUUID()) && p.position().distanceTo(c) < 30) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/** Sitting in the running car (out of the match's reach until it goes). */
