@@ -6,20 +6,17 @@ import java.util.List;
 import java.util.Locale;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
- * The gun case: a chest with a combination lock somewhere on the map (one of the gun_case points), with
+ * The gun case: a steel gun safe with a keypad somewhere on the map (one of the gun_case points), with
  * the rifle inside. A note with the code lies in one of the ordinary containers; the code is typed on the
  * lock's keypad (whoever remembers it needs no note). Bolt cutters cut the lock instead, and are spent.
  */
@@ -40,9 +37,26 @@ public final class GunCase {
 		}
 		pos = spots.get(random.nextInt(spots.size())).immutable();
 		code = String.format(Locale.ROOT, "%04d", random.nextInt(10000));
-		Block chest = BuiltInRegistries.BLOCK.getValue(Identifier.withDefaultNamespace("waxed_copper_chest"));
 		replaced = level.getBlockState(pos);
-		level.setBlock(pos, (chest == Blocks.AIR ? Blocks.CHEST : chest).defaultBlockState(), Block.UPDATE_ALL);
+		level.setBlock(pos, dev.halloween.HwBlocks.GUN_SAFE.defaultBlockState().setValue(SafeBlock.FACING, facing(level, pos)), Block.UPDATE_ALL);
+	}
+
+	/** Which way the safe's door looks: into the room, with a wall at its back if there is one. */
+	private static net.minecraft.core.Direction facing(ServerLevel level, BlockPos at) {
+		net.minecraft.core.Direction best = net.minecraft.core.Direction.NORTH;
+		int bestScore = -1;
+		for (net.minecraft.core.Direction dir : net.minecraft.core.Direction.Plane.HORIZONTAL) {
+			BlockPos front = at.relative(dir);
+			BlockPos back = at.relative(dir.getOpposite());
+			int score = (level.getBlockState(front).getCollisionShape(level, front).isEmpty() ? 2 : 0)
+				+ (level.getBlockState(front.relative(dir)).getCollisionShape(level, front.relative(dir)).isEmpty() ? 1 : 0)
+				+ (level.getBlockState(back).isCollisionShapeFullBlock(level, back) ? 2 : 0);
+			if (score > bestScore) {
+				bestScore = score;
+				best = dir;
+			}
+		}
+		return best;
 	}
 
 	public static void clear(ServerLevel level) {
@@ -116,7 +130,11 @@ public final class GunCase {
 		open = true;
 		ServerLevel level = player.level();
 		level.playSound(null, pos, HwSounds.CASE_OPEN, SoundSource.BLOCKS, 1f, 1f);
-		level.playSound(null, pos, SoundEvents.CHEST_OPEN, SoundSource.BLOCKS, 0.8f, 0.8f);
+		level.playSound(null, pos, SoundEvents.IRON_DOOR_OPEN, SoundSource.BLOCKS, 0.8f, 0.7f);
+		BlockState safe = level.getBlockState(pos);
+		if (safe.getBlock() instanceof SafeBlock) {
+			level.setBlock(pos, safe.setValue(SafeBlock.OPEN, true), Block.UPDATE_CLIENTS);
+		}
 		Inventory.give(player, HwItems.create(HwItems.Kind.RIFLE));
 		Component name = Component.translatable("halloween.item.rifle");
 		player.sendOverlayMessage(Component.translatable("halloween.hint.found", name));

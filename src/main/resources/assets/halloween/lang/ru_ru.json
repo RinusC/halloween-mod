@@ -1,4 +1,5 @@
 {
+  "block.halloween.gun_safe": "Оружейный сейф",
   "block.halloween.dresser": "Комод",
   "block.halloween.nightstand": "Тумбочка",
   "block.halloween.kitchen_cabinet": "Кухонная тумба",
@@ -97,9 +98,9 @@
 	"halloween.msg.no_ammo": "Нет патронов",
 	"halloween.hud.progress.reload": "Перезарядка…",
 	"halloween.hud.progress.cut_case": "Срезаю замок…",
-	"halloween.hud.prompt.case": "Ящик с оружием на кодовом замке",
+	"halloween.hud.prompt.case": "Оружейный сейф на кодовом замке",
 	"halloween.hud.prompt.case_how": "Удерживайте ПКМ — набрать код; с кусачками и без записки — срезать замок",
-	"halloween.hint.case_empty": "Ящик пуст",
+	"halloween.hint.case_empty": "Сейф пуст",
 	"halloween.minigame.keypad": "Кодовый замок",
 	"halloween.minigame.keypad.hint": "4 цифры и OK  •  Esc — отойти",
 	"halloween.minigame.keypad.wrong": "НЕВЕРНО",

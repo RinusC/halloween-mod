@@ -30,6 +30,10 @@ public final class HwBlocks {
 	public static final Block TOOL_CABINET = search("tool_cabinet", Blocks.IRON_BLOCK, dev.halloween.game.SearchBlock.Stuff.METAL, 1, 0, 2, 15, 16, 15);
 	public static final Block FILING_CABINET = search("filing_cabinet", Blocks.IRON_BLOCK, dev.halloween.game.SearchBlock.Stuff.METAL, 2, 0, 1, 14, 16, 15);
 
+	/** The gun safe with the rifle (see game.GunCase). */
+	public static final Block GUN_SAFE = Registry.register(BuiltInRegistries.BLOCK, key("gun_safe"),
+		new dev.halloween.game.SafeBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.IRON_BLOCK).strength(-1f, 3600000f).noOcclusion().setId(key("gun_safe"))));
+
 	private HwBlocks() {
 	}
 

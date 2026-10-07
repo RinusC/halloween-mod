@@ -1,4 +1,5 @@
 {
+  "block.halloween.gun_safe": "Gun Safe",
   "block.halloween.dresser": "Dresser",
   "block.halloween.nightstand": "Nightstand",
   "block.halloween.kitchen_cabinet": "Kitchen Cabinet",
@@ -97,9 +98,9 @@
 	"halloween.msg.no_ammo": "No rounds",
 	"halloween.hud.progress.reload": "Reloading…",
 	"halloween.hud.progress.cut_case": "Cutting the lock…",
-	"halloween.hud.prompt.case": "Gun case with a combination lock",
+	"halloween.hud.prompt.case": "Gun safe with a combination lock",
 	"halloween.hud.prompt.case_how": "Hold use - enter the code; with bolt cutters and no note - cut the lock",
-	"halloween.hint.case_empty": "The case is empty",
+	"halloween.hint.case_empty": "The safe is empty",
 	"halloween.minigame.keypad": "Combination lock",
 	"halloween.minigame.keypad.hint": "4 digits and OK  •  Esc - step away",
 	"halloween.minigame.keypad.wrong": "WRONG",
