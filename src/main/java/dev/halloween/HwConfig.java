@@ -393,6 +393,13 @@ public class HwConfig {
 	public int carWaitTicks = 160;
 	/** The Shape in Shape Jump passes through a window this slowly (no glass broken). */
 	public int shapeWindowTicks = 50;
+	/** A survivor below this share of their health leaves a blood trail. */
+	public float bloodTrailBelowHealth = 0.999f;
+	/** Ticks between drips while they move (at least a block), and while they stand still. */
+	public int bloodTrailMovingTicks = 12;
+	public int bloodTrailStillTicks = 60;
+	/** How long a drip stays on the ground before it dries up. */
+	public int bloodTrailSeconds = 90;
 	public int removePartTicks = 40;
 	public int callPoliceTicks = 400;
 	public int cutPhoneTicks = 40;

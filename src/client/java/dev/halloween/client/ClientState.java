@@ -189,6 +189,7 @@ public final class ClientState {
 		ClientSkins.clear();
 		ClientMusic.reset();
 		ClientMinimap.clear();
+		BloodParticles.clear();
 		shapeEntityId = -1;
 		shapeShadow = false;
 		hud = null;

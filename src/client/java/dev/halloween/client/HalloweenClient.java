@@ -52,6 +52,10 @@ public class HalloweenClient implements ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
 		net.fabricmc.fabric.api.client.particle.v1.ParticleProviderRegistry.getInstance().register(dev.halloween.HwParticles.BEAM, BeamParticle.Provider::new);
+		net.fabricmc.fabric.api.client.particle.v1.ParticleProviderRegistry.getInstance().register(dev.halloween.HwParticles.BLOOD, BloodParticles.DropProvider::new);
+		net.fabricmc.fabric.api.client.particle.v1.ParticleProviderRegistry.getInstance().register(dev.halloween.HwParticles.BLOOD_SPLAT, BloodParticles.SplatProvider::new);
+		net.fabricmc.fabric.api.client.particle.v1.ParticleProviderRegistry.getInstance().register(dev.halloween.HwParticles.BLOOD_POOL, BloodParticles.PoolProvider::new);
+		net.fabricmc.fabric.api.client.particle.v1.ParticleProviderRegistry.getInstance().register(dev.halloween.HwParticles.BLOOD_DRIP, BloodParticles.DripProvider::new);
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.WorldSync.TYPE, (payload, ctx) -> {
 			ClientState.ROLES.clear();
 			for (HwNet.RoleEntry entry : payload.roles()) {
@@ -196,6 +200,8 @@ public class HalloweenClient implements ClientModInitializer {
 		}
 		ClientInteractions.tick(mc);
 		ShapeJumpAudio.tick(mc);
+		BloodParticles.tick(mc);
+		DashSteps.tick(mc);
 		Role role = ClientState.myRole();
 		CameraType wanted = role == Role.SHAPE ? CameraType.THIRD_PERSON_BACK : CameraType.FIRST_PERSON;
 		if (role != Role.NONE && mc.options.getCameraType() != wanted) {

@@ -16,6 +16,12 @@ public final class HwSounds {
 	public static final SoundEvent SHADOW_DRONE = register("shape.shadow_drone");
 	public static final SoundEvent SHADOW_WIND = register("shape.shadow_wind");
 	public static final SoundEvent STINGER = register("shape.stinger");
+	/** Michael's footsteps while he speeds up, by what is underfoot (Kenney's Impact Sounds, CC0). */
+	public static final SoundEvent DASH_STEP_CONCRETE = register("shape.dash_step.concrete");
+	public static final SoundEvent DASH_STEP_WOOD = register("shape.dash_step.wood");
+	public static final SoundEvent DASH_STEP_GRASS = register("shape.dash_step.grass");
+	public static final SoundEvent DASH_STEP_CARPET = register("shape.dash_step.carpet");
+	public static final SoundEvent DASH_STEP_SNOW = register("shape.dash_step.snow");
 	public static final SoundEvent TIER_UP = register("shape.tier_up");
 	public static final SoundEvent STAB = register("shape.stab");
 	public static final SoundEvent GRAB = register("shape.grab");

@@ -18,7 +18,6 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
-import net.minecraft.core.particles.BlockParticleOption;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.game.ClientboundSetTitleTextPacket;
@@ -41,7 +40,6 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.LightLayer;
-import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.scores.PlayerTeam;
 import net.minecraft.world.scores.Scoreboard;
@@ -178,6 +176,7 @@ public final class MatchManager {
 				player.getInventory().clearContent();
 				ItemStack knife = new ItemStack(Items.IRON_SWORD);
 				knife.set(DataComponents.CUSTOM_NAME, Component.translatable("halloween.item.knife"));
+				knife.set(DataComponents.ITEM_MODEL, Halloween.id("michael_knife"));
 				player.getInventory().setItem(0, knife);
 				player.getInventory().setSelectedSlot(0);
 				maxHealth.setBaseValue(20);
@@ -279,6 +278,7 @@ public final class MatchManager {
 		Townsfolk.tick(server);
 		Police.tick(server);
 		Guns.tick(server);
+		Blood.tick(server);
 
 		Iterator<VictimState> it = VICTIMS.values().iterator();
 		while (it.hasNext()) {
@@ -980,8 +980,7 @@ public final class MatchManager {
 	}
 
 	static void bleed(ServerLevel level, LivingEntity victim, int count) {
-		level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, Blocks.REDSTONE_BLOCK.defaultBlockState()),
-			victim.getX(), victim.getY() + victim.getBbHeight() * 0.6, victim.getZ(), count, 0.2, 0.25, 0.2, 0.1);
+		Blood.splash(level, victim, count);
 	}
 
 	/** Kills a victim on behalf of the Shape, leaves a corpse and pays out Bloodthirst and score. */
@@ -1013,8 +1012,15 @@ public final class MatchManager {
 		}
 		score(shape, state, policeHalf(victim, points), lines.toArray(Component[]::new));
 
+		String profile = corpseProfile(victim);
 		eliminate(victim);
-		spawnCorpse(level, pos, yaw);
+		spawnCorpse(level, pos, yaw, profile);
+		Blood.pool(level, pos);
+		// His knife is bloody from now on.
+		ItemStack knife = shape.getInventory().getItem(0);
+		if (knife.is(Items.IRON_SWORD)) {
+			knife.set(DataComponents.ITEM_MODEL, Halloween.id("michael_knife_bloody"));
+		}
 		Corpse corpse = new Corpse(level, pos, name, cfg.corpseAdmireTicks);
 		corpse.police = Police.isOfficer(victim);
 		CORPSES.add(corpse);
@@ -1036,16 +1042,39 @@ public final class MatchManager {
 		Component name = victim.getDisplayName();
 		AiStats.add(victim, "killed.shot");
 		bleed(level, victim, 40);
+		String profile = corpseProfile(victim);
 		eliminate(victim);
-		spawnCorpse(level, pos, yaw);
+		spawnCorpse(level, pos, yaw, profile);
+		Blood.pool(level, pos);
 		Police.addBody(pos, name);
 	}
 
-	private static void spawnCorpse(ServerLevel level, Vec3 pos, float yaw) {
+	/**
+	 * The look the body keeps (SNBT of a mannequin profile): a townsperson's or officer's own, a survivor's or
+	 * deputy's match skin. Null: the default look.
+	 */
+	static String corpseProfile(LivingEntity victim) {
+		if (victim instanceof net.minecraft.world.entity.decoration.Mannequin body) {
+			return net.minecraft.world.item.component.ResolvableProfile.CODEC.encodeStart(net.minecraft.nbt.NbtOps.INSTANCE, body.getProfile())
+				.result().map(Object::toString).orElse(null);
+		}
+		if (victim instanceof ServerPlayer player) {
+			String key = Skins.skinOf(player);
+			if (key == null) {
+				return null;
+			}
+			int index = Skins.SURVIVORS.indexOf(key);
+			String texture = key.equals("police") ? "halloween:entity/police" : "halloween:entity/skin/" + key;
+			return "{texture:\"" + texture + "\",model:\"" + (index >= 0 && index < Skins.SLIM_COUNT ? "slim" : "wide") + "\"}";
+		}
+		return null;
+	}
+
+	private static void spawnCorpse(ServerLevel level, Vec3 pos, float yaw, String profile) {
 		CommandSourceStack console = level.getServer().createCommandSourceStack().withLevel(level).withSuppressedOutput();
 		String command = String.format(Locale.ROOT,
-			"summon minecraft:mannequin %.2f %.2f %.2f {Tags:[\"%s\"],pose:\"sleeping\",immovable:1b,Invulnerable:1b,hide_description:1b,Rotation:[%.1ff,0f]}",
-			pos.x, pos.y, pos.z, CORPSE_TAG, yaw);
+			"summon minecraft:mannequin %.2f %.2f %.2f {Tags:[\"%s\"],pose:\"sleeping\",immovable:1b,Invulnerable:1b,hide_description:1b,Rotation:[%.1ff,0f]%s}",
+			pos.x, pos.y, pos.z, CORPSE_TAG, yaw, profile == null ? "" : ",profile:" + profile);
 		level.getServer().getCommands().performPrefixedCommand(console, command);
 	}
 

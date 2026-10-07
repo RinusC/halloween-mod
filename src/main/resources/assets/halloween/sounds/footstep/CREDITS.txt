@@ -1,0 +1,1 @@
+Michael's footsteps while he speeds up: footstep_*_000..004 from "Impact Sounds" (1.0) by Kenney (www.kenney.nl), CC0 1.0 (http://creativecommons.org/publicdomain/zero/1.0/). Renamed to <surface>_<n>.ogg.
