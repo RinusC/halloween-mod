@@ -85,7 +85,6 @@ public final class HwHud {
 				g.centeredText(mc.font, line, w / 2, h - 40, respawn > 0 ? 0xFF7FA7FF : BLOOD);
 			} else {
 				alerts(g, mc, w, h, partial);
-				vanMarker(g, mc, w, h, partial);
 				healthBar(g, mc, w, h);
 				int pushLeft = (int) Math.max(0, ClientState.pushReadyAt - mc.level.getGameTime());
 				smallAction(g, mc.font, w - 12, h - 84, Component.translatable("halloween.hud.shove"), mc.options.keyAttack.getTranslatedKeyMessage(), pushLeft);
@@ -262,7 +261,43 @@ public final class HwHud {
 			}
 			g.blit(net.minecraft.client.renderer.RenderPipelines.GUI_TEXTURED, BADGE, x, y, 0, 0, size, size, 16, 16, 16, 16, on ? 0xFFFFFFFF : 0x80484848);
 		}
+		// The police van waiting: a small blue arrow under the badges shows survivors which way it is.
+		Vec3 van = ClientState.myRole().survivor() && !mc.player.isSpectator() ? waitingVan() : null;
+		if (van != null) {
+			Vec3 to = van.subtract(mc.player.position());
+			double angle = Math.toRadians(Mth.wrapDegrees(Math.toDegrees(Math.atan2(to.z, to.x)) - 90 - mc.player.getYRot()));
+			arrow(g, x0 + span / 2, y + size + 10, angle, (t / 10) % 2 == 0 ? 0xFF5A9CFF : 0xFF3A6AD8);
+			return y + size + 26;
+		}
 		return y + size + 10;
+	}
+
+	/** Where the police van waits for survivors (null: it doesn't). */
+	private static Vec3 waitingVan() {
+		for (HwNet.ExitInfo e : ClientState.match.exits()) {
+			if (e.type() == 2 && e.state() == 2) {
+				return Vec3.atCenterOf(e.pos());
+			}
+		}
+		return null;
+	}
+
+	/** A small arrow centred on (cx, cy), pointing {@code angle} radians clockwise from straight up. */
+	private static void arrow(GuiGraphicsExtractor g, int cx, int cy, double angle, int color) {
+		double sin = Math.sin(angle);
+		double cos = Math.cos(angle);
+		for (int py = -7; py <= 7; py++) {
+			for (int px = -7; px <= 7; px++) {
+				// Back into the arrow's own frame (tip up at -6, base at +5, a notch in the middle of the base).
+				double ax = px * cos + py * sin;
+				double ay = -px * sin + py * cos;
+				boolean head = ay >= -6 && ay <= 5 && Math.abs(ax) <= (ay + 6) * 0.45;
+				boolean notch = ay > 1.5 && Math.abs(ax) < (ay - 1.5) * 1.2;
+				if (head && !notch) {
+					g.fill(cx + px, cy + py, cx + px + 1, cy + py + 1, color);
+				}
+			}
+		}
 	}
 
 	/** Distance and an arrow towards a spot, as seen from where the player looks: "45 m ↗". */
@@ -275,40 +310,6 @@ public final class HwHud {
 		String[] arrows = {"↑", "↗", "→", "↘", "↓", "↙", "←", "↖"};
 		int sector = (int) Math.floorMod(Math.round(angle / 45.0), 8);
 		return Component.translatable("halloween.hud.meters", dist).getString() + " " + arrows[sector];
-	}
-
-	/** The police van, when it waits: a flashing badge over it, or at the screen edge which way to turn. */
-	private static void vanMarker(GuiGraphicsExtractor g, Minecraft mc, int w, int h, float partial) {
-		HwNet.MatchSync m = ClientState.match;
-		if (m.state() != 2) {
-			return;
-		}
-		for (HwNet.ExitInfo e : m.exits()) {
-			if (e.type() != 2 || e.state() != 2) {
-				continue;
-			}
-			long t = mc.level.getGameTime();
-			int glow = (t / 6) % 2 == 0 ? 0x90D03A3A : 0x903A6AD8;
-			int dist = (int) Math.round(mc.player.position().distanceTo(Vec3.atCenterOf(e.pos())));
-			Component label = Component.translatable("halloween.hud.van_here", dist);
-			Projection.Point p = Projection.toScreen(Vec3.atCenterOf(e.pos()).add(0, 3.5, 0), w, h);
-			if (p != null && p.x() >= 0 && p.x() <= w && p.y() >= 0 && p.y() <= h) {
-				int x = (int) p.x();
-				int y = (int) p.y();
-				g.fill(x - 10, y - 10, x + 10, y + 10, glow);
-				g.blit(net.minecraft.client.renderer.RenderPipelines.GUI_TEXTURED, BADGE, x - 8, y - 8, 0, 0, 16, 16, 16, 16, 16, 16);
-				g.centeredText(mc.font, label, x, y + 13, 0xFF9FC4FF);
-				continue;
-			}
-			Vec3 to = Vec3.atCenterOf(e.pos()).subtract(mc.player.getEyePosition(partial));
-			Vec3 look = mc.player.getViewVector(partial);
-			boolean right = look.x * to.z - look.z * to.x > 0;
-			int x = right ? w - 16 - mc.font.width(label) / 2 : 16 + mc.font.width(label) / 2;
-			g.fill(x - 10, h / 2 - 40, x + 10, h / 2 - 20, glow);
-			g.blit(net.minecraft.client.renderer.RenderPipelines.GUI_TEXTURED, BADGE, x - 8, h / 2 - 38, 0, 0, 16, 16, 16, 16, 16, 16);
-			g.centeredText(mc.font, Component.literal(right ? "▶" : "◀"), x, h / 2 - 16, 0xFF9FC4FF);
-			g.centeredText(mc.font, label, x, h / 2 - 6, 0xFF9FC4FF);
-		}
 	}
 
 	/** A hand and three pockets, bottom centre. */
