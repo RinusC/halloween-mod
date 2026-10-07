@@ -12,4 +12,4 @@ m_scream_9..25, m_death_7..9, m_hurt_1..12 - "Male Grunt/Yelling sounds" by Hael
 m_death_1..6, m_hurt_13..15 - "Death sounds" by Exewin, opengameart.org/content/death-sounds-0 - CC0
 
 choke_1..4: choking and gasping takes supplied by the mod owner (private use), mixed down to mono and levelled.
-pant_m.ogg, pant_f.ogg, recover.ogg (WAV): panting takes (a man's, a woman's) and a deep breath out, supplied by the mod owner (private use); mixed to mono and levelled.
+pant_m.ogg, pant_f.ogg (WAV): panting takes (a man's, a woman's), supplied by the mod owner (private use); mixed to mono and levelled.

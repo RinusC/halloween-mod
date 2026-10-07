@@ -15,14 +15,13 @@ import net.minecraft.world.entity.Entity;
 
 /**
  * Someone out of breath (game.Stamina): one long take of panting that follows them (a man's or a woman's),
- * no short loop. When they catch their breath it fades out over a couple of seconds and one deep breath out
- * follows. Should the panting outlast the take, it starts over a little quieter and pitched a touch apart.
+ * no short loop. When they catch their breath it fades out over a couple of seconds (in the same voice: nothing
+ * else follows). Should the panting outlast the take, it starts over a little quieter and pitched a touch apart.
  */
 public final class ClientPanting {
-	/** Take lengths (ticks at pitch 1): a man's, a woman's panting; the breath out. */
+	/** Take lengths (ticks at pitch 1): a man's, a woman's panting. */
 	private static final int MALE_TICKS = 121;
 	private static final int FEMALE_TICKS = 334;
-	private static final int RECOVER_TICKS = 78;
 	private static final int FADE_TICKS = 50;
 	private static final Map<Integer, Breath> PANTING = new HashMap<>();
 	private static final RandomSource RANDOM = RandomSource.create();
@@ -42,8 +41,6 @@ public final class ClientPanting {
 		if (playing != null) {
 			PANTING.remove(pant.entityId());
 			playing.fadeOut();
-			float pitch = pant.female() ? 1.12f : 0.97f;
-			mc.getSoundManager().play(new Breath(HwSounds.VOICE_RECOVER, pant.entityId(), pant.female(), pant.volume() * 0.8f, pitch, RECOVER_TICKS));
 		}
 	}
 

@@ -54,10 +54,9 @@ public final class HwSounds {
 	public static final SoundEvent VOICE_MALE_SCREAM = register("voice.male.scream");
 	public static final SoundEvent VOICE_MALE_HURT = register("voice.male.hurt");
 	public static final SoundEvent VOICE_MALE_DEATH = register("voice.male.death");
-	/** Out of breath after running (game.Stamina, client.ClientPanting): a man's, a woman's long take of panting; one deep breath out. */
+	/** Out of breath after running (game.Stamina, client.ClientPanting): a man's, a woman's long take of panting. */
 	public static final SoundEvent VOICE_PANT_MALE = register("voice.pant.male");
 	public static final SoundEvent VOICE_PANT_FEMALE = register("voice.pant.female");
-	public static final SoundEvent VOICE_RECOVER = register("voice.recover");
 	/** Choking and gasping for air, held by the throat: long takes, one at a time (pitched a little by who it is). */
 	public static final SoundEvent[] VOICE_CHOKES = {register("voice.choke.1"), register("voice.choke.2"), register("voice.choke.3"), register("voice.choke.4")};
 	/** How long each choke take lasts (ticks, at pitch 1). */
