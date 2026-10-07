@@ -67,6 +67,7 @@ public final class Haddonfield extends MapPlan {
 		this.commerce();
 		this.woodsAndFields();
 		this.backHedges();
+		this.streetTrees();
 		this.lamps();
 		this.streetDecor();
 		this.welcome(-FENCE + 9, LAMPKIN - 8, Direction.EAST);
@@ -175,18 +176,31 @@ public final class Haddonfield extends MapPlan {
 
 	// ---------------------------------------------------------------- houses
 
-	/** A house's own frame: u along +x from its west wall, v from the front wall to the back; y 0 = ground floor. */
+	/**
+	 * A house's own frame: u along +x from its west wall (or, built the other way round, from its east wall), v
+	 * from the front wall to the back; y 0 = ground floor. Blocks set through it are turned to match.
+	 */
 	private final class Frame {
 		final int x0;
 		final Lot lot;
+		final int w;
+		/** Left for right: everything inside on the other side. */
+		final boolean mirror;
 
-		Frame(int x0, Lot lot) {
+		Frame(int x0, Lot lot, int w, boolean mirror) {
 			this.x0 = x0;
 			this.lot = lot;
+			this.w = w;
+			this.mirror = mirror;
 		}
 
 		int x(int u) {
-			return this.x0 + u;
+			return this.x0 + (this.mirror ? this.w - 1 - u : u);
+		}
+
+		/** The u of a world x. */
+		int u(int x) {
+			return this.mirror ? this.w - 1 - (x - this.x0) : x - this.x0;
 		}
 
 		int z(int v) {
@@ -202,7 +216,15 @@ public final class Haddonfield extends MapPlan {
 		}
 
 		void set(int u, int y, int v, BlockState s) {
-			Haddonfield.this.set(this.x(u), y, this.z(v), s);
+			Haddonfield.this.set(this.x(u), y, this.z(v), this.mirror ? s.mirror(net.minecraft.world.level.block.Mirror.FRONT_BACK) : s);
+		}
+
+		/** A floor block that leaves a ceiling light of the room below where it is. */
+		void floor(int u, int y, int v, BlockState s) {
+			BlockState there = Haddonfield.this.blocks.get(net.minecraft.core.BlockPos.asLong(this.x(u), y, this.z(v)));
+			if (there == null || !(there.getBlock() instanceof net.minecraft.world.level.block.CopperBulbBlock)) {
+				this.set(u, y, v, s);
+			}
 		}
 
 		void fill(int u0, int y0, int v0, int u1, int y1, int v1, BlockState s) {
@@ -215,12 +237,24 @@ public final class Haddonfield extends MapPlan {
 			}
 		}
 
+		void floorFill(int u0, int y, int v0, int u1, int v1, BlockState s) {
+			for (int u = Math.min(u0, u1); u <= Math.max(u0, u1); u++) {
+				for (int v = Math.min(v0, v1); v <= Math.max(v0, v1); v++) {
+					this.floor(u, y, v, s);
+				}
+			}
+		}
+
 		void door(int u, int y, int v, Direction facing) {
 			Haddonfield.this.door(this.x(u), y, this.z(v), facing, "oak_door");
 		}
 
 		void locker(int u, int v, Direction facing) {
-			Haddonfield.this.locker(this.x(u), 0, this.z(v), facing);
+			Haddonfield.this.locker(this.x(u), 0, this.z(v), this.mirror ? net.minecraft.world.level.block.Mirror.FRONT_BACK.mirror(facing) : facing);
+		}
+
+		void bulb(int u, int y, int v) {
+			Haddonfield.this.bulb(this.x(u), y, this.z(v));
 		}
 
 		void point(MapPoints.Type type, int u, int y, int v) {
@@ -228,28 +262,57 @@ public final class Haddonfield extends MapPlan {
 		}
 	}
 
+	/** How a house's ground floor is laid out. */
+	private enum Plan {
+		/** The living room at the front, the kitchen behind it (the film's houses are like this). */
+		CLASSIC,
+		/** The kitchen at the front by the door, the living room at the back. */
+		KITCHEN_FRONT,
+		/** A long hall from the front door straight through to the back door along one side; the rooms open off it. */
+		HALL
+	}
+
+	/** How the upstairs is divided. */
+	private enum Upstairs {
+		/** A bedroom at the front, another at the back. */
+		TWO_BEDROOMS,
+		/** One big bedroom and a bathroom in the back corner. */
+		MASTER_AND_BATH,
+		/** The parents at the front, a child's room at the back. */
+		KIDS_ROOM
+	}
+
 	/**
-	 * A family house on {@code lot}: ground floor with the living room at the front and the kitchen at the
-	 * back, an upstairs with two bedrooms if {@code storeys} is 2, a pitched roof, a porch with pumpkins.
+	 * A family house on {@code lot}. Houses differ: the kitchen at the back or by the front door, or a long hall
+	 * down one side with the rooms off it, any of them built left for right; two bedrooms, or one big one and a
+	 * bathroom, or a child's room upstairs; the things to search stand in different places. The film's houses
+	 * (with a name) keep the plan they have always had: the living room at the front, the kitchen behind it.
+	 * Every house has a pitched roof, a porch with pumpkins, a phone in the kitchen, a breaker box outside on
+	 * the east wall and a wardrobe to hide in.
 	 */
 	private void house(Lot lot, int storeys, boolean big, Style s, String name, boolean abandoned, int w) {
+		boolean film = name != null;
+		Plan plan = film ? Plan.CLASSIC : Plan.values()[this.random.nextInt(Plan.values().length)];
+		Upstairs up = film ? Upstairs.TWO_BEDROOMS : Upstairs.values()[this.random.nextInt(Upstairs.values().length)];
+		boolean mirror = !film && this.random.nextBoolean();
 		int d = 12;
-		Frame f = new Frame(lot.cx() - w / 2, lot);
+		Frame f = new Frame(lot.cx() - w / 2, lot, w, mirror);
 		boolean two = storeys == 2;
 		int wallTop = two ? 8 : 3;
 		int top = two ? 9 : 4;
 		int mid = d / 2;
-		BlockState air = AIR;
 		BlockState wall = b(s.wall());
 		BlockState floor = b(s.floor());
 		BlockState pane = b("glass_pane");
 		BlockState broken = dev.halloween.HwBlocks.BROKEN_GLASS_PANE.defaultBlockState();
+		// The front door: in the middle, or at the end of the hall.
+		int doorU = plan == Plan.HALL ? 2 : w / 2;
 
 		// Foundation, floor, shell and corners.
 		f.fill(-1, -1, -1, w, -1, d, b("stone_bricks"));
 		f.fill(1, -1, 1, w - 2, -1, d - 2, floor);
 		f.fill(0, 0, 0, w - 1, wallTop, d - 1, wall);
-		f.fill(1, 0, 1, w - 2, wallTop, d - 2, air);
+		f.fill(1, 0, 1, w - 2, wallTop, d - 2, AIR);
 		for (int[] c : new int[][]{{0, 0}, {w - 1, 0}, {0, d - 1}, {w - 1, d - 1}}) {
 			f.fill(c[0], 0, c[1], c[0], wallTop, c[1], b(s.corner()));
 		}
@@ -257,120 +320,48 @@ public final class Haddonfield extends MapPlan {
 		f.fill(1, 4, 1, w - 2, 4, d - 2, floor);
 		f.fill(0, top, 0, w - 1, top, d - 1, wall);
 		f.fill(1, top, 1, w - 2, top, d - 2, floor);
-		// A rug in the living room (part of the floor: nothing to trip over).
-		f.fill(w / 2 - 1, -1, 2, w / 2 + 1, -1, 4, b(s.rug()));
 
-		// Wall between the living room and the kitchen, doorway on the east side.
-		f.fill(1, 0, mid, w - 2, 3, mid, wall);
-		f.fill(w - 4, 0, mid, w - 3, 2, mid, air);
-		// Doors: front in the middle, back near the east corner.
-		f.door(w / 2, 0, 0, f.back());
-		f.door(w - 3, 0, d - 1, f.front());
-		// Ground-floor windows: two each side of the front door, two on each side wall. Sills stay solid.
-		for (int u : new int[]{2, 3, w - 4, w - 3}) {
-			f.fill(u, 1, 0, u, 2, 0, abandoned && u % 2 == 0 ? broken : pane);
+		// Doors, and the ground-floor windows (two pairs at the front clear of the door, two on each side). Sills stay solid.
+		f.door(doorU, 0, 0, f.back());
+		f.door(plan == Plan.HALL ? 2 : w - 3, 0, d - 1, f.front());
+		int[] frontWindows = plan == Plan.HALL ? new int[]{5, 6, w - 4, w - 3} : new int[]{2, 3, w - 4, w - 3};
+		java.util.Set<Integer> windowU = new java.util.HashSet<>();
+		for (int u : frontWindows) {
+			if (Math.abs(u - doorU) > 1) {
+				f.fill(u, 1, 0, u, 2, 0, abandoned && u % 2 == 0 ? broken : pane);
+				windowU.add(u);
+			}
 		}
 		for (int v : new int[]{2, 3, d - 4, d - 3}) {
 			f.fill(0, 1, v, 0, 2, v, abandoned && v == 3 ? broken : pane);
 			f.fill(w - 1, 1, v, w - 1, 2, v, pane);
 		}
-		// Breaker box outside on the east wall, level with the dividing wall.
+		// The breaker box outside, always on the east wall (each house's lights stay nearest its own box).
 		if (!abandoned) {
-			this.breaker(f.x(w - 1), 1, f.z(mid), Direction.EAST);
+			this.breaker(Math.max(f.x(0), f.x(w - 1)), 1, f.z(mid), Direction.EAST);
 		}
 
-		// Living room: a sofa against the dividing wall facing the front, a coffee table, a bookcase, a dresser,
-		// and either a television or a fireplace; curtains by the front windows, a picture over the sofa.
 		boolean fireplace = this.random.nextBoolean();
-		for (int u = 4; u <= 6; u++) {
-			f.set(u, 0, mid - 1, abandoned ? b("white_wool") : stairs(this.pick("dark_oak_stairs", "spruce_stairs", "mangrove_stairs"), f.back()));
-		}
-		f.set(5, 0, mid - 3, slab("dark_oak_slab", SlabType.BOTTOM));
-		f.set(w - 2, 0, mid - 1, b("bookshelf"));
-		f.set(w - 2, 1, mid - 1, b("bookshelf"));
-		f.set(w - 2, 0, 1, search(HwBlocks.DRESSER, Direction.WEST));
-		f.set(4, 0, 1, b(this.pick("potted_fern", "potted_red_tulip", "potted_orange_tulip", "potted_dead_bush")));
-		if (fireplace) {
-			// A brick hearth on the east wall, its chimney up the outside.
-			f.set(w - 2, 0, 4, b("campfire").setValue(BlockStateProperties.LIT, false).setValue(BlockStateProperties.HORIZONTAL_FACING, Direction.WEST));
-			f.fill(w - 2, 1, 4, w - 2, 3, 4, b("bricks"));
-			f.fill(w, 0, 4, w, top + 6, 4, b("bricks"));
-		} else {
-			// The family television, rabbit ears and all.
-			f.set(w / 2 + 1, 0, 1, b("dark_oak_planks"));
-			f.set(w / 2 + 1, 1, 1, b("black_concrete"));
-			f.set(w / 2 + 1, 2, 1, b("iron_bars"));
-		}
-		// An armchair by the side windows, a floor lamp by the sofa, a side table on the other end.
-		f.set(w - 3, 0, 3, stairs(abandoned ? "cobblestone_stairs" : "spruce_stairs", Direction.EAST));
-		f.set(3, 0, mid - 1, b("dark_oak_fence"));
-		if (abandoned) {
-			f.set(3, 1, mid - 1, b("cobweb"));
-		} else {
-			this.bulb(f.x(3), 1, f.z(mid - 1));
-		}
-		if (w >= 13) {
-			f.set(7, 0, mid - 1, b("dark_oak_planks"));
-			f.set(7, 1, mid - 1, b(abandoned ? "skeleton_skull" : this.pick("flower_pot", "candle", "potted_fern")));
-		}
-		f.set(1, 2, 1, b(this.pick("red", "brown", "green", "blue") + "_wall_banner").setValue(BlockStateProperties.HORIZONTAL_FACING, f.back()));
-		f.set(w - 2, 2, 1, b(this.pick("red", "brown", "green", "blue") + "_wall_banner").setValue(BlockStateProperties.HORIZONTAL_FACING, f.back()));
-		f.set(5, 2, mid - 1, b(this.pick("orange", "yellow", "light_blue", "lime", "purple") + "_wall_banner").setValue(BlockStateProperties.HORIZONTAL_FACING, f.front()));
-		f.point(MapPoints.Type.NPC, w / 2, 0, 2);
-
-		// Kitchen: counters along the back wall (sink, stove, the phone), cupboards over them, a fridge, a cabinet,
-		// a table with a candle and two chairs, a checked floor, the wardrobe to hide in.
-		for (int u = 1; u <= w - 2; u++) {
-			for (int v = mid + 1; v <= d - 2; v++) {
-				f.set(u, -1, v, b((u + v) % 2 == 0 ? "white_terracotta" : (abandoned ? "coarse_dirt" : "gray_terracotta")));
-			}
-		}
-		for (int u = 2; u <= w - 6; u++) {
-			f.set(u, 0, d - 2, b(abandoned ? "cobblestone" : "polished_andesite"));
-			f.set(u, 2, d - 2, b("spruce_planks"));
-		}
-		f.set(3, 0, d - 2, b("cauldron"));
-		f.set(4, 0, d - 2, facing("smoker", f.front()));
-		f.set(w - 6, 1, d - 2, b(this.pick("potted_fern", "potted_spruce_sapling", "potted_red_tulip")));
-		f.fill(w - 5, 0, d - 2, w - 5, 1, d - 2, b("quartz_pillar"));
-		f.set(1, 0, d - 2, search(HwBlocks.KITCHEN_CABINET, f.front()));
-		f.set(2, 1, d - 2, dev.halloween.HwBlocks.PHONE.defaultBlockState());
-		f.point(MapPoints.Type.PHONE, 2, 1, d - 2);
-		int tableU = w / 2 - 1;
-		f.set(tableU, 0, mid + 3, b("dark_oak_fence"));
+		int chimneyV = switch (plan) {
+			case CLASSIC -> this.classicFloor(f, w, d, mid, s, wall, abandoned, two, fireplace);
+			case KITCHEN_FRONT -> this.kitchenFrontFloor(f, w, d, mid, s, wall, two, fireplace);
+			case HALL -> this.hallFloor(f, w, d, mid, s, wall, two, fireplace);
+		};
+		// The porch light by the front door, in the wall.
 		if (!abandoned) {
-			f.set(tableU, 1, mid + 3, b("candle"));
-		}
-		f.set(tableU - 1, 0, mid + 3, stairs("oak_stairs", Direction.WEST));
-		f.set(tableU + 1, 0, mid + 3, stairs("oak_stairs", Direction.EAST));
-		f.locker(1, mid + 1, Direction.EAST);
-		f.set(3, 2, mid + 1, b("white_wall_banner").setValue(BlockStateProperties.HORIZONTAL_FACING, f.back()));
-
-		// Lights in the ceilings (none in the abandoned house).
-		if (!abandoned) {
-			// Two ceiling lights in each room, a light under the hood over the stove, a porch light by the front
-			// door: all on the house's wiring, so they go out with the breaker.
-			this.bulb(f.x(w / 2 - 2), 4, f.z(3));
-			this.bulb(f.x(w / 2 + 2), 4, f.z(3));
-			this.bulb(f.x(w / 2 - 2), 4, f.z(d - 3));
-			this.bulb(f.x(w / 2 + 2), 4, f.z(mid + 3));
-			this.bulb(f.x(4), 2, f.z(d - 2));
-			this.bulb(f.x(w / 2 + 1), 2, f.z(0));
+			f.bulb(doorU + 1, 2, 0);
 		}
 
 		if (two) {
-			// Stairs along the west wall, climbing towards the back, up to the landing above the dividing wall.
+			// Stairs along the west wall, climbing towards the back, up to the landing above the middle.
 			for (int k = 0; k <= 4; k++) {
 				f.set(1, k, mid - 4 + k, stairs(s.floor().replace("_planks", "_stairs"), f.back()));
 				if (k + 1 <= 3) {
-					f.fill(1, k + 1, mid - 4 + k, 1, 3, mid - 4 + k, air);
+					f.fill(1, k + 1, mid - 4 + k, 1, 3, mid - 4 + k, AIR);
 				}
 			}
-			f.fill(1, 4, mid - 4, 1, 4, mid - 1, air);
+			f.fill(1, 4, mid - 4, 1, 4, mid - 1, AIR);
 			f.fill(2, 5, mid - 4, 2, 5, mid - 1, b("dark_oak_fence"));
-			// Upstairs: a wall between the two bedrooms, one step behind the landing.
-			f.fill(1, 5, mid + 1, w - 2, 8, mid + 1, wall);
-			f.fill(w / 2, 5, mid + 1, w / 2 + 1, 6, mid + 1, air);
 			for (int u : new int[]{2, 3, w - 4, w - 3}) {
 				f.fill(u, 6, 0, u, 7, 0, abandoned ? broken : pane);
 			}
@@ -378,35 +369,11 @@ public final class Haddonfield extends MapPlan {
 				f.fill(0, 6, v, 0, 7, v, pane);
 				f.fill(w - 1, 6, v, w - 1, 7, v, pane);
 			}
-			// Front bedroom: a bed under the window, a bedside table, a desk and chair, a dresser, a rug.
-			String bed = abandoned ? "white" : this.pick("red", "blue", "green", "yellow", "light_blue", "brown");
-			this.bed(f, w - 2, 5, 3, f.front(), bed);
-			f.set(w - 2, 5, 1, b("spruce_planks"));
-
-			f.set(w / 2, 5, 1, slab("spruce_slab", SlabType.TOP));
-			f.set(w / 2, 5, 2, stairs("spruce_stairs", f.back()));
-			f.set(3, 5, 1, b("chiseled_bookshelf").setValue(BlockStateProperties.HORIZONTAL_FACING, f.back()));
-			f.fill(w / 2 - 1, 4, 3, w / 2 + 1, 4, 4, b(s.rug()));
-			f.set(w / 2, 7, 1, b(this.pick("pink", "cyan", "lime", "orange") + "_wall_banner").setValue(BlockStateProperties.HORIZONTAL_FACING, f.back()));
-			// Back bedroom: a bed against the back wall, a nightstand or a dresser, a bookcase, a desk.
-			this.bed(f, w - 2, 5, d - 3, f.back(), abandoned ? "white" : this.pick("red", "blue", "green", "purple", "orange"));
-			f.set(1, 5, d - 2, search(this.random.nextBoolean() ? HwBlocks.NIGHTSTAND : HwBlocks.DRESSER, Direction.EAST));
-			f.set(1, 5, mid + 2, b("bookshelf"));
-			f.set(1, 6, mid + 2, b("bookshelf"));
-			f.set(w / 2, 5, d - 2, slab("spruce_slab", SlabType.TOP));
-			f.set(w / 2, 5, d - 3, stairs("spruce_stairs", f.front()));
-			f.fill(w / 2 - 1, 4, mid + 2, w / 2 + 1, 4, mid + 3, b(this.pick("light_blue_wool", "lime_wool", "pink_wool")));
-			if (!abandoned) {
-				this.bulb(f.x(w / 2), 9, f.z(3));
-				this.bulb(f.x(w / 2), 9, f.z(d - 3));
-				// Bedside and desk lamps.
-				this.bulb(f.x(w - 2), 6, f.z(1));
-				this.bulb(f.x(w / 2), 6, f.z(d - 2));
-			}
+			this.upstairs(f, w, d, mid, s, wall, abandoned, up);
 		}
 		this.roof(f, w, d, top, s, wall);
-		if (fireplace) {
-			f.fill(w, top, 4, w, top + 6, 4, b("bricks"));
+		if (chimneyV >= 0) {
+			f.fill(w, 0, chimneyV, w, top + 6, chimneyV, b("bricks"));
 		}
 
 		if (abandoned) {
@@ -421,22 +388,23 @@ public final class Haddonfield extends MapPlan {
 			f.set(w - 3, 0, 4, b("skeleton_skull").setValue(BlockStateProperties.ROTATION_16, 6));
 		}
 
-		this.porch(f, w, abandoned);
+		this.porch(f, doorU, windowU, abandoned);
+		String pathBlock = abandoned ? "dirt_path" : this.pick("dirt_path", "dirt_path", "gravel", "stone_bricks", "bricks", "mossy_stone_bricks");
 		for (int v = -3; v >= -7; v--) {
-			f.set(w / 2, -1, v, b("dirt_path"));
+			f.set(doorU, -1, v, b(pathBlock));
 		}
 		if (name != null) {
 			int rot = lot.south ? 0 : 8;
-			this.sign(f.x(w / 2 + 2), 0, f.z(-5), rot, "", name, "");
+			this.sign(f.x(doorU + 2), 0, f.z(-5), rot, "", name, "");
 		}
-		this.flowerBed(f, w);
+		this.flowerBed(f, w, doorU);
 		boolean drive = this.driveway(f, w, lot, abandoned);
-		if (!abandoned && this.random.nextInt(2) == 0) {
-			this.picketFence(f, w, lot, drive);
-		}
 		if (!abandoned) {
-			this.mailbox(f, w);
+			this.frontFence(f, w, lot, drive, doorU);
+			this.mailbox(f, doorU);
 			this.backyard(f, d);
+			this.halloweenYard(f, w, lot, drive, doorU);
+			this.curbside(f, w, lot, drive);
 		} else {
 			// The Myers yard: overgrown, a dead tree, nothing on the porch but the pumpkins.
 			this.deadTree(f.x(w + 3), f.z(-4));
@@ -444,7 +412,343 @@ public final class Haddonfield extends MapPlan {
 		// A tree in the front yard on the side without the drive.
 		int tu = drive || this.random.nextBoolean() ? -3 : w + 2;
 		if (f.x(tu) > lot.x0 + 1 && f.x(tu) < lot.x1 - 1 && this.freeArea(f.x(tu) - 1, f.z(-4) - 1, f.x(tu) + 1, f.z(-4) + 1)) {
-			this.tree(f.x(tu), f.z(-4), this.random.nextInt(3));
+			this.tree(f.x(tu), f.z(-4), this.yardTreeKind());
+		}
+	}
+
+	/**
+	 * The film's plan: the living room at the front (sofa against the dividing wall, a coffee table, a bookcase,
+	 * a television or a fireplace), the kitchen behind it (counters along the back wall with the stove and the
+	 * phone, a fridge, a table and two chairs, the wardrobe). The dresser and the kitchen cabinet stand in one
+	 * of a few places; now and then a nightstand by the front door. Returns where the chimney goes (v) or -1.
+	 */
+	private int classicFloor(Frame f, int w, int d, int mid, Style s, BlockState wall, boolean abandoned, boolean two, boolean fireplace) {
+		// A rug in the living room (part of the floor: nothing to trip over).
+		f.fill(w / 2 - 1, -1, 2, w / 2 + 1, -1, 4, b(s.rug()));
+		// Wall between the living room and the kitchen, doorway on the east side.
+		f.fill(1, 0, mid, w - 2, 3, mid, wall);
+		f.fill(w - 4, 0, mid, w - 3, 2, mid, AIR);
+
+		String sofa = this.pick("dark_oak_stairs", "spruce_stairs", "mangrove_stairs");
+		for (int u = 4; u <= 6; u++) {
+			f.set(u, 0, mid - 1, abandoned ? b("white_wool") : stairs(sofa, f.back()));
+		}
+		f.set(5, 0, mid - 3, slab("dark_oak_slab", SlabType.BOTTOM));
+		f.set(w - 2, 0, mid - 1, b("bookshelf"));
+		f.set(w - 2, 1, mid - 1, b("bookshelf"));
+		// The dresser: in the east corner by the front wall, or on the west side by the windows (not in the way of the stairs).
+		switch (abandoned ? 0 : this.random.nextInt(two ? 2 : 3)) {
+			case 0 -> f.set(w - 2, 0, 1, search(HwBlocks.DRESSER, Direction.WEST));
+			case 1 -> f.set(2, 0, 1, search(HwBlocks.DRESSER, f.back()));
+			default -> f.set(1, 0, 2, search(HwBlocks.DRESSER, Direction.EAST));
+		}
+		if (!abandoned && this.random.nextInt(5) < 2) {
+			// A nightstand by the front door, for the keys and the post.
+			f.set(w / 2 - 2, 0, 1, search(HwBlocks.NIGHTSTAND, f.back()));
+		} else {
+			f.set(w / 2 - 2, 0, 1, b(this.pick("potted_fern", "potted_red_tulip", "potted_orange_tulip", "potted_dead_bush")));
+		}
+		if (fireplace) {
+			// A brick hearth on the east wall, its chimney up the outside.
+			f.set(w - 2, 0, 4, b("campfire").setValue(BlockStateProperties.LIT, false).setValue(BlockStateProperties.HORIZONTAL_FACING, Direction.WEST));
+			f.fill(w - 2, 1, 4, w - 2, 3, 4, b("bricks"));
+		} else {
+			// The family television, rabbit ears and all.
+			f.set(w / 2 + 1, 0, 1, b("dark_oak_planks"));
+			f.set(w / 2 + 1, 1, 1, b("black_concrete"));
+			f.set(w / 2 + 1, 2, 1, b("iron_bars"));
+		}
+		// An armchair by the side windows, a floor lamp by the sofa, a side table on the other end.
+		f.set(w - 3, 0, 3, stairs(abandoned ? "cobblestone_stairs" : "spruce_stairs", Direction.EAST));
+		f.set(3, 0, mid - 1, b("dark_oak_fence"));
+		if (abandoned) {
+			f.set(3, 1, mid - 1, b("cobweb"));
+		} else {
+			f.bulb(3, 1, mid - 1);
+		}
+		if (w >= 13) {
+			f.set(7, 0, mid - 1, b("dark_oak_planks"));
+			f.set(7, 1, mid - 1, b(abandoned ? "skeleton_skull" : this.pick("flower_pot", "candle", "potted_fern")));
+		}
+		f.set(1, 2, 1, b(this.pick("red", "brown", "green", "blue") + "_wall_banner").setValue(BlockStateProperties.HORIZONTAL_FACING, f.back()));
+		f.set(w - 2, 2, 1, b(this.pick("red", "brown", "green", "blue") + "_wall_banner").setValue(BlockStateProperties.HORIZONTAL_FACING, f.back()));
+		f.set(5, 2, mid - 1, b(this.pick("orange", "yellow", "light_blue", "lime", "purple") + "_wall_banner").setValue(BlockStateProperties.HORIZONTAL_FACING, f.front()));
+		f.point(MapPoints.Type.NPC, w / 2, 0, 2);
+
+		// Kitchen: a checked floor, counters along the back wall (sink, stove, the phone), cupboards over them, a fridge,
+		// the cabinet at the west end of the counters or by the doorway, a table and two chairs, the wardrobe to hide in.
+		for (int u = 1; u <= w - 2; u++) {
+			for (int v = mid + 1; v <= d - 2; v++) {
+				f.set(u, -1, v, b((u + v) % 2 == 0 ? "white_terracotta" : (abandoned ? "coarse_dirt" : "gray_terracotta")));
+			}
+		}
+		for (int u = 2; u <= w - 6; u++) {
+			f.set(u, 0, d - 2, b(abandoned ? "cobblestone" : "polished_andesite"));
+			f.set(u, 2, d - 2, b("spruce_planks"));
+		}
+		f.set(3, 0, d - 2, b("cauldron"));
+		f.set(4, 0, d - 2, facing("smoker", f.front()));
+		f.set(w - 6, 1, d - 2, b(this.pick("potted_fern", "potted_spruce_sapling", "potted_red_tulip")));
+		f.fill(w - 5, 0, d - 2, w - 5, 1, d - 2, b("quartz_pillar"));
+		if (abandoned || this.random.nextBoolean()) {
+			f.set(1, 0, d - 2, search(HwBlocks.KITCHEN_CABINET, f.front()));
+		} else {
+			f.set(1, 0, d - 2, b("polished_andesite"));
+			f.set(w - 2, 0, mid + 1, search(HwBlocks.KITCHEN_CABINET, Direction.WEST));
+		}
+		f.set(2, 1, d - 2, dev.halloween.HwBlocks.PHONE.defaultBlockState());
+		f.point(MapPoints.Type.PHONE, 2, 1, d - 2);
+		int tableU = w / 2 - 1;
+		f.set(tableU, 0, mid + 3, b("dark_oak_fence"));
+		if (!abandoned) {
+			f.set(tableU, 1, mid + 3, b("candle"));
+		}
+		f.set(tableU - 1, 0, mid + 3, stairs("oak_stairs", Direction.WEST));
+		f.set(tableU + 1, 0, mid + 3, stairs("oak_stairs", Direction.EAST));
+		f.locker(1, mid + 1, Direction.EAST);
+		f.set(3, 2, mid + 1, b("white_wall_banner").setValue(BlockStateProperties.HORIZONTAL_FACING, f.back()));
+
+		if (!abandoned) {
+			// Two ceiling lights in each room and one under the hood over the stove: all on the house's wiring.
+			f.bulb(w / 2 - 2, 4, 3);
+			f.bulb(w / 2 + 2, 4, 3);
+			f.bulb(w / 2 - 2, 4, d - 3);
+			f.bulb(w / 2 + 2, 4, mid + 3);
+			f.bulb(4, 2, d - 2);
+		}
+		return fireplace ? 4 : -1;
+	}
+
+	/**
+	 * The kitchen at the front: in by the door, counters down the east wall (the cabinet, the phone, the stove,
+	 * the sink, the fridge), a table by the windows; the stairs go up from the kitchen. The living room behind
+	 * it: a sofa against the back wall facing a television or a fireplace, an armchair, a bookcase, a dresser,
+	 * the wardrobe in the far corner. Returns where the chimney goes (v) or -1.
+	 */
+	private int kitchenFrontFloor(Frame f, int w, int d, int mid, Style s, BlockState wall, boolean two, boolean fireplace) {
+		for (int u = 1; u <= w - 2; u++) {
+			for (int v = 1; v <= mid - 1; v++) {
+				f.set(u, -1, v, b((u + v) % 2 == 0 ? "white_terracotta" : "gray_terracotta"));
+			}
+		}
+		f.fill(1, 0, mid, w - 2, 3, mid, wall);
+		f.fill(w - 4, 0, mid, w - 3, 2, mid, AIR);
+		// Counters down the east wall.
+		f.set(w - 2, 0, 1, search(HwBlocks.KITCHEN_CABINET, Direction.WEST));
+		f.set(w - 2, 2, 1, b("spruce_planks"));
+		f.set(w - 2, 0, 2, b("polished_andesite"));
+		f.set(w - 2, 1, 2, dev.halloween.HwBlocks.PHONE.defaultBlockState());
+		f.point(MapPoints.Type.PHONE, w - 2, 1, 2);
+		f.set(w - 2, 0, 3, facing("smoker", Direction.WEST));
+		f.set(w - 2, 0, 4, b("cauldron"));
+		f.set(w - 2, 2, 4, b("spruce_planks"));
+		f.fill(w - 2, 0, mid - 1, w - 2, 1, mid - 1, b("quartz_pillar"));
+		// The table by the front windows.
+		int tableU = w / 2 - 2;
+		f.set(tableU, 0, 3, b("dark_oak_fence"));
+		f.set(tableU, 1, 3, b("candle"));
+		f.set(tableU - 1, 0, 3, stairs("oak_stairs", Direction.WEST));
+		f.set(tableU + 1, 0, 3, stairs("oak_stairs", Direction.EAST));
+		f.set(w - 2, 2, mid - 1, b("white_wall_banner").setValue(BlockStateProperties.HORIZONTAL_FACING, Direction.WEST));
+
+		// The living room at the back.
+		f.fill(w / 2 - 1, -1, mid + 2, w / 2 + 1, -1, mid + 4, b(s.rug()));
+		String sofa = this.pick("dark_oak_stairs", "spruce_stairs", "mangrove_stairs");
+		for (int u = 4; u <= 6; u++) {
+			f.set(u, 0, d - 2, stairs(sofa, f.back()));
+		}
+		f.set(5, 0, d - 4, slab("dark_oak_slab", SlabType.BOTTOM));
+		if (fireplace) {
+			f.set(w - 2, 0, mid + 1, b("campfire").setValue(BlockStateProperties.LIT, false).setValue(BlockStateProperties.HORIZONTAL_FACING, Direction.WEST));
+			f.fill(w - 2, 1, mid + 1, w - 2, 3, mid + 1, b("bricks"));
+		} else {
+			f.set(w / 2 + 1, 0, mid + 1, b("dark_oak_planks"));
+			f.set(w / 2 + 1, 1, mid + 1, b("black_concrete"));
+			f.set(w / 2 + 1, 2, mid + 1, b("iron_bars"));
+		}
+		f.set(w - 2, 0, d - 4, stairs("spruce_stairs", Direction.EAST));
+		f.fill(w - 2, 0, d - 2, w - 2, 1, d - 2, b("bookshelf"));
+		f.set(3, 0, d - 2, b("dark_oak_fence"));
+		f.bulb(3, 1, d - 2);
+		f.set(1, 0, mid + 1 + this.random.nextInt(2), search(HwBlocks.DRESSER, Direction.EAST));
+		f.locker(1, d - 2, Direction.EAST);
+		f.set(5, 2, d - 2, b(this.pick("orange", "yellow", "light_blue", "lime", "purple") + "_wall_banner").setValue(BlockStateProperties.HORIZONTAL_FACING, f.front()));
+		f.point(MapPoints.Type.NPC, w / 2, 0, mid + 3);
+
+		f.bulb(w / 2 - 2, 4, 3);
+		f.bulb(w / 2 + 2, 4, 3);
+		f.bulb(w / 2 - 2, 4, mid + 3);
+		f.bulb(w / 2 + 2, 4, mid + 3);
+		f.bulb(w - 2, 2, 3);
+		return fireplace ? mid + 1 : -1;
+	}
+
+	/**
+	 * A long hall down the west side from the front door to the back door (the stairs go up in it), its wall
+	 * opening into the living room at the front and the kitchen at the back; the two rooms open into each other
+	 * too. Something to search stands in the hall. Returns where the chimney goes (v) or -1.
+	 */
+	private int hallFloor(Frame f, int w, int d, int mid, Style s, BlockState wall, boolean two, boolean fireplace) {
+		f.fill(3, 0, 1, 3, 3, d - 2, wall);
+		f.fill(3, 0, 3, 3, 2, 4, AIR);
+		f.fill(3, 0, mid + 2, 3, 2, mid + 3, AIR);
+		f.fill(4, 0, mid, w - 2, 3, mid, wall);
+		f.fill(w - 4, 0, mid, w - 3, 2, mid, AIR);
+		// A runner down the hall.
+		f.fill(2, -1, 1, 2, -1, d - 2, b(this.pick("red_wool", "brown_wool", "green_wool")));
+		if (two) {
+			f.set(1, 0, d - 2 - this.random.nextInt(3), search(this.random.nextBoolean() ? HwBlocks.NIGHTSTAND : HwBlocks.DRESSER, Direction.EAST));
+		} else {
+			f.set(1, 0, mid - 1 + this.random.nextInt(3), search(HwBlocks.DRESSER, Direction.EAST));
+		}
+		f.set(1, 2, d - 3, b(this.pick("red", "brown", "green", "blue") + "_wall_banner").setValue(BlockStateProperties.HORIZONTAL_FACING, Direction.EAST));
+
+		int lc = (4 + w - 2) / 2;
+		// Living room.
+		f.fill(lc - 1, -1, 2, lc + 1, -1, 4, b(s.rug()));
+		// (Short enough to leave the way through to the kitchen clear in a narrow house.)
+		String sofa = this.pick("dark_oak_stairs", "spruce_stairs", "mangrove_stairs");
+		for (int u = lc - 1; u <= Math.min(lc + 1, w - 5); u++) {
+			f.set(u, 0, mid - 1, stairs(sofa, f.back()));
+		}
+		f.set(lc, 0, mid - 3, slab("dark_oak_slab", SlabType.BOTTOM));
+		if (fireplace) {
+			f.set(w - 2, 0, 4, b("campfire").setValue(BlockStateProperties.LIT, false).setValue(BlockStateProperties.HORIZONTAL_FACING, Direction.WEST));
+			f.fill(w - 2, 1, 4, w - 2, 3, 4, b("bricks"));
+		} else {
+			f.set(w - 2, 0, 4, b("dark_oak_planks"));
+			f.set(w - 2, 1, 4, b("black_concrete"));
+			f.set(w - 2, 2, 4, b("iron_bars"));
+		}
+		f.set(this.random.nextBoolean() ? w - 2 : 4, 0, 1, search(HwBlocks.DRESSER, f.back()));
+		f.set(w - 3, 0, 2, stairs("spruce_stairs", Direction.EAST));
+		f.set(4, 0, mid - 1, b("dark_oak_fence"));
+		f.bulb(4, 1, mid - 1);
+		f.set(lc, 2, mid - 1, b(this.pick("orange", "yellow", "light_blue", "lime", "purple") + "_wall_banner").setValue(BlockStateProperties.HORIZONTAL_FACING, f.front()));
+		f.point(MapPoints.Type.NPC, lc, 0, 2);
+
+		// Kitchen.
+		for (int u = 4; u <= w - 2; u++) {
+			for (int v = mid + 1; v <= d - 2; v++) {
+				f.set(u, -1, v, b((u + v) % 2 == 0 ? "white_terracotta" : "gray_terracotta"));
+			}
+		}
+		f.set(4, 0, d - 2, search(HwBlocks.KITCHEN_CABINET, f.front()));
+		for (int u = 5; u <= w - 4; u++) {
+			f.set(u, 0, d - 2, b("polished_andesite"));
+			f.set(u, 2, d - 2, b("spruce_planks"));
+		}
+		f.set(5, 1, d - 2, dev.halloween.HwBlocks.PHONE.defaultBlockState());
+		f.point(MapPoints.Type.PHONE, 5, 1, d - 2);
+		f.set(6, 0, d - 2, facing("smoker", f.front()));
+		f.set(6, 2, d - 2, AIR);
+		f.bulb(6, 2, d - 2);
+		if (w - 4 >= 7) {
+			f.set(7, 0, d - 2, b("cauldron"));
+		}
+		f.fill(w - 3, 0, d - 2, w - 3, 1, d - 2, b("quartz_pillar"));
+		f.locker(w - 2, d - 2, Direction.WEST);
+		f.set(lc, 0, mid + 2, b("dark_oak_fence"));
+		f.set(lc, 1, mid + 2, b("candle"));
+		f.set(lc - 1, 0, mid + 2, stairs("oak_stairs", Direction.WEST));
+		f.set(lc + 1, 0, mid + 2, stairs("oak_stairs", Direction.EAST));
+
+		f.bulb(2, 4, mid + 2);
+		f.bulb(lc, 4, 3);
+		f.bulb(lc, 4, d - 3);
+		return fireplace ? 4 : -1;
+	}
+
+	/**
+	 * Upstairs (the stairs come up at the west wall, landing at the middle): two bedrooms; or one big bedroom
+	 * with a double bed and a bathroom in the back corner; or the parents at the front and a child's room at the
+	 * back. Nightstands, dressers and a toy chest to search.
+	 */
+	private void upstairs(Frame f, int w, int d, int mid, Style s, BlockState wall, boolean abandoned, Upstairs up) {
+		String rug = abandoned ? "white" : this.pick("red", "blue", "green", "yellow", "light_blue", "brown");
+		if (up != Upstairs.MASTER_AND_BATH) {
+			// A wall between the two rooms, one step behind the landing.
+			f.fill(1, 5, mid + 1, w - 2, 8, mid + 1, wall);
+			f.fill(w / 2, 5, mid + 1, w / 2 + 1, 6, mid + 1, AIR);
+			// Front bedroom: a bed under the window, a bedside table (sometimes a nightstand to search), a desk and chair,
+			// a bookcase, a rug.
+			this.bed(f, w - 2, 5, 3, f.front(), rug);
+			if (!abandoned && this.random.nextBoolean()) {
+				f.set(w - 2, 5, 1, search(HwBlocks.NIGHTSTAND, f.back()));
+			} else {
+				f.set(w - 2, 5, 1, b("spruce_planks"));
+			}
+			f.set(w / 2, 5, 1, slab("spruce_slab", SlabType.TOP));
+			f.set(w / 2, 5, 2, stairs("spruce_stairs", f.back()));
+			f.set(3, 5, 1, b("chiseled_bookshelf").setValue(BlockStateProperties.HORIZONTAL_FACING, f.back()));
+			f.floorFill(w / 2 - 1, 4, 3, w / 2 + 1, 4, b(s.rug()));
+			f.set(w / 2, 7, 1, b(this.pick("pink", "cyan", "lime", "orange") + "_wall_banner").setValue(BlockStateProperties.HORIZONTAL_FACING, f.back()));
+			if (!abandoned) {
+				f.bulb(w / 2, 9, 3);
+				f.bulb(w - 2, 6, 1);
+			}
+		}
+		switch (up) {
+			case TWO_BEDROOMS -> {
+				// Back bedroom: a bed against the back wall, a nightstand or a dresser, a bookcase, a desk.
+				this.bed(f, w - 2, 5, d - 3, f.back(), abandoned ? "white" : this.pick("red", "blue", "green", "purple", "orange"));
+				f.set(1, 5, d - 2, search(this.random.nextBoolean() ? HwBlocks.NIGHTSTAND : HwBlocks.DRESSER, Direction.EAST));
+				f.set(1, 5, mid + 2, b("bookshelf"));
+				f.set(1, 6, mid + 2, b("bookshelf"));
+				f.set(w / 2, 5, d - 2, slab("spruce_slab", SlabType.TOP));
+				f.set(w / 2, 5, d - 3, stairs("spruce_stairs", f.front()));
+				f.floorFill(w / 2 - 1, 4, mid + 2, w / 2 + 1, mid + 3, b(this.pick("light_blue_wool", "lime_wool", "pink_wool")));
+				if (!abandoned) {
+					f.bulb(w / 2, 9, d - 3);
+					f.bulb(w / 2, 6, d - 2);
+				}
+			}
+			case KIDS_ROOM -> {
+				// A child's room: a bed along the west side, a toy chest (a crate), a little desk, a bright rug, toys about.
+				String kid = this.pick("lime", "pink", "light_blue", "yellow");
+				this.bed(f, 2, 5, d - 3, f.back(), kid);
+				f.set(w - 2, 5, d - 2, search(HwBlocks.CRATE, Direction.WEST));
+				f.set(w - 2, 5, mid + 2, slab("birch_slab", SlabType.TOP));
+				f.set(w - 3, 5, mid + 2, stairs("birch_stairs", Direction.EAST));
+				f.floorFill(w / 2 - 1, 4, mid + 3, w / 2 + 1, d - 2, b(kid + "_wool"));
+				f.set(w / 2 + 1, 5, d - 2, b(this.pick("red_candle", "lime_candle", "blue_candle", "yellow_candle")));
+				f.set(1, 5, mid + 2, b("bookshelf"));
+				f.set(w / 2, 7, d - 2, b(kid + "_wall_banner").setValue(BlockStateProperties.HORIZONTAL_FACING, f.front()));
+				f.bulb(w / 2, 9, d - 3);
+				f.bulb(w - 2, 6, mid + 2);
+			}
+			case MASTER_AND_BATH -> {
+				// The bathroom in the back east corner: tiles, a bathtub, a toilet, a basin.
+				int bu = w - 5;
+				f.fill(bu, 5, mid + 1, w - 2, 8, mid + 1, wall);
+				f.fill(bu, 5, mid + 2, bu, 8, d - 2, wall);
+				f.fill(bu, 5, mid + 3, bu, 6, mid + 3, AIR);
+				f.floorFill(w - 4, 4, mid + 2, w - 2, d - 2, b("white_terracotta"));
+				BlockState bath = b("water_cauldron").setValue(BlockStateProperties.LEVEL_CAULDRON, 3);
+				f.set(w - 3, 5, d - 2, bath);
+				f.set(w - 2, 5, d - 2, bath);
+				f.set(w - 4, 5, d - 2, stairs("quartz_stairs", f.back()));
+				f.set(w - 2, 5, mid + 2, b("cauldron"));
+				f.set(w - 2, 6, mid + 2, b("tripwire_hook").setValue(BlockStateProperties.HORIZONTAL_FACING, Direction.WEST));
+				f.bulb(w - 3, 9, mid + 3);
+				// The bedroom: a double bed against the east wall, a nightstand beside it, a dresser in the far corner,
+				// a desk, a bookcase, a big rug.
+				this.bed(f, w - 2, 5, 3, f.front(), rug);
+				this.bed(f, w - 3, 5, 3, f.front(), rug);
+				f.set(w - 4, 5, 2, search(HwBlocks.NIGHTSTAND, f.back()));
+				f.set(1, 5, d - 2, search(HwBlocks.DRESSER, Direction.EAST));
+				f.set(w / 2 - 1, 5, 1, slab("spruce_slab", SlabType.TOP));
+				f.set(w / 2 - 1, 5, 2, stairs("spruce_stairs", f.back()));
+				f.set(1, 5, mid + 2, b("bookshelf"));
+				f.set(1, 6, mid + 2, b("bookshelf"));
+				f.floorFill(w / 2 - 2, 4, mid, w / 2, mid + 2, b(s.rug()));
+				f.set(w / 2, 7, 1, b(this.pick("pink", "cyan", "lime", "orange") + "_wall_banner").setValue(BlockStateProperties.HORIZONTAL_FACING, f.back()));
+				if (!abandoned) {
+					f.bulb(w / 2, 9, 3);
+					f.bulb(w / 2 - 1, 9, d - 3);
+					f.bulb(w - 4, 6, 2);
+				}
+			}
 		}
 	}
 
@@ -460,9 +764,8 @@ public final class Haddonfield extends MapPlan {
 		f.set(u, y, headV, bed.setValue(BlockStateProperties.BED_PART, net.minecraft.world.level.block.state.properties.BedPart.HEAD));
 	}
 
-	/** A deck and a little roof over the front door on two posts, pumpkins, a rocking chair; a lantern on some. */
-	private void porch(Frame f, int w, boolean abandoned) {
-		int c = w / 2;
+	/** A deck and a little roof over the front door (at u = {@code c}) on two posts, pumpkins, a rocking chair; a lantern on some. */
+	private void porch(Frame f, int c, java.util.Set<Integer> windows, boolean abandoned) {
 		f.fill(c - 2, -1, -1, c + 2, -1, -2, b("spruce_planks"));
 		f.fill(c - 2, 0, -2, c - 2, 2, -2, b("spruce_fence"));
 		f.fill(c + 2, 0, -2, c + 2, 2, -2, b("spruce_fence"));
@@ -478,59 +781,189 @@ public final class Haddonfield extends MapPlan {
 		}
 		// Cobwebs in the top corners: Halloween decorations, up out of anyone's way.
 		// (Not over a window: a climb through it must not end in a web.)
-		if (c - 2 != 3) {
+		if (!windows.contains(c - 2)) {
 			f.set(c - 2, 2, -1, b("cobweb"));
 		}
-		if ((abandoned || this.random.nextBoolean()) && c + 2 != w - 4) {
+		if ((abandoned || this.random.nextBoolean()) && !windows.contains(c + 2)) {
 			f.set(c + 2, 2, -1, b("cobweb"));
 		}
 	}
 
-	/** Autumn flowers along the front wall (no collision: windows and the door stay usable). */
-	private void flowerBed(Frame f, int w) {
+	/** Autumn flowers along the front wall, clear of the steps (no collision: windows and the door stay usable). */
+	private void flowerBed(Frame f, int w, int doorU) {
 		for (int u = 0; u < w; u++) {
-			if (Math.abs(u - w / 2) <= 2 || this.random.nextInt(3) == 0) {
+			if (Math.abs(u - doorU) <= 2 || this.random.nextInt(3) == 0) {
 				continue;
 			}
 			f.set(u, 0, -1, b(this.pick("poppy", "orange_tulip", "red_tulip", "dandelion", "oxeye_daisy", "short_grass")));
 		}
 	}
 
-	/** A concrete drive along the house (no parked cars: the only car in town is the one that drives). */
+	/** A drive along the house: concrete, gravel or stone (no parked cars: the only car in town is the one that drives). */
 	private boolean driveway(Frame f, int w, Lot lot, boolean abandoned) {
-		if (f.x(w + 3) > lot.x1 - 1) {
+		int xa = Math.min(f.x(w + 1), f.x(w + 3));
+		int xb = Math.max(f.x(w + 1), f.x(w + 3));
+		if (xb > lot.x1 - 1 || xa < lot.x0 + 1) {
 			return false;
 		}
+		BlockState surface = b(abandoned ? "coarse_dirt" : this.pick("light_gray_concrete", "light_gray_concrete", "gravel", "andesite", "smooth_stone"));
 		for (int v = -7; v <= 4; v++) {
 			for (int u = w + 1; u <= w + 3; u++) {
-				f.set(u, -1, v, b(abandoned ? "coarse_dirt" : "light_gray_concrete"));
+				f.set(u, -1, v, surface);
 			}
 		}
 		return true;
 	}
 
-	/** A white picket fence along the sidewalk, open at the path and the drive. */
-	private void picketFence(Frame f, int w, Lot lot, boolean drive) {
+	/**
+	 * Along the sidewalk, one of: nothing, a white picket fence, a low hedge, a low stone wall, a wrought-iron
+	 * railing; open at the path and the drive.
+	 */
+	private void frontFence(Frame f, int w, Lot lot, boolean drive, int doorU) {
+		int kind = this.random.nextInt(6);
+		if (kind < 2) {
+			return;
+		}
+		BlockState post = switch (kind) {
+			case 2 -> b("birch_fence");
+			case 3 -> leaves(this.pick("oak_leaves", "azalea_leaves", "dark_oak_leaves"));
+			case 4 -> b(this.pick("cobblestone_wall", "mossy_cobblestone_wall", "stone_brick_wall", "brick_wall"));
+			default -> b("iron_bars");
+		};
 		int z = f.z(-7);
 		for (int x = lot.x0 + 1; x <= lot.x1 - 1; x++) {
-			int u = x - f.x0;
-			if (u == w / 2 || drive && u >= w + 1 && u <= w + 3) {
+			int u = f.u(x);
+			if (u == doorU || drive && u >= w + 1 && u <= w + 3) {
 				continue;
 			}
 			if (this.free(x, z)) {
-				this.set(x, 0, z, b("birch_fence"));
+				this.set(x, 0, z, post);
 			}
 		}
 	}
 
 	/** A mailbox by the path, at the sidewalk. */
-	private void mailbox(Frame f, int w) {
-		int x = f.x(w / 2 - 2);
+	private void mailbox(Frame f, int doorU) {
+		int x = f.x(doorU - 2);
 		int z = f.z(-6);
 		if (this.free(x, z)) {
-			this.set(x, 0, z, b("spruce_fence"));
-			this.set(x, 1, z, b(this.pick("red_terracotta", "light_gray_terracotta", "blue_terracotta")));
+			this.set(x, 0, z, b(this.pick("spruce_fence", "dark_oak_fence", "cobblestone_wall")));
+			this.set(x, 1, z, b(this.pick("red_terracotta", "light_gray_terracotta", "blue_terracotta", "black_terracotta", "white_terracotta")));
 		}
+	}
+
+	/**
+	 * Halloween in the front yard, one or two of: a little graveyard of headstones, a scarecrow with a pumpkin
+	 * head, a pile of pumpkins, hay bales with pumpkins, skulls on stakes. Clear of the path and the drive.
+	 */
+	private void halloweenYard(Frame f, int w, Lot lot, boolean drive, int doorU) {
+		// The side of the front yard away from the path.
+		int u0 = doorU <= w / 2 ? doorU + 3 : 1;
+		int u1 = doorU <= w / 2 ? w - 2 : doorU - 3;
+		if (u1 - u0 < 2) {
+			return;
+		}
+		int count = 1 + this.random.nextInt(2);
+		java.util.List<Integer> kinds = new java.util.ArrayList<>(java.util.List.of(0, 1, 2, 3, 4));
+		java.util.Collections.shuffle(kinds, this.random);
+		int u = u0;
+		for (int i = 0; i < count && u <= u1; i++) {
+			switch (kinds.get(i)) {
+				case 0 -> {
+					// Headstones in a row, a skull on one.
+					String stone = this.pick("stone_brick_wall", "cobblestone_wall", "andesite_wall", "mossy_stone_brick_wall");
+					for (int k = 0; k < 3 && u <= u1; k++, u += 2) {
+						if (this.yardFree(f, u, -5)) {
+							f.set(u, 0, -5, b(stone));
+							f.set(u, -1, -4, b("coarse_dirt"));
+							if (this.random.nextInt(4) == 0) {
+								f.set(u, 1, -5, b("skeleton_skull").setValue(BlockStateProperties.ROTATION_16, lot.south ? 0 : 8));
+							}
+						}
+					}
+				}
+				case 1 -> {
+					// A scarecrow: a post, a hay body with arms, a carved pumpkin for a head.
+					if (u + 2 <= u1 && this.yardFree(f, u, -5) && this.yardFree(f, u + 1, -5) && this.yardFree(f, u + 2, -5)) {
+						f.set(u + 1, 0, -5, b("dark_oak_fence"));
+						f.set(u + 1, 1, -5, b("hay_block"));
+						f.set(u + 1, 2, -5, facing("carved_pumpkin", f.front()));
+						f.set(u, 1, -5, b("dark_oak_fence"));
+						f.set(u + 2, 1, -5, b("dark_oak_fence"));
+					}
+					u += 4;
+				}
+				case 2 -> {
+					// Pumpkins in a heap.
+					for (int[] p : new int[][]{{0, -4}, {1, -4}, {0, -5}, {1, -5}, {2, -4}}) {
+						if (u + p[0] <= u1 && this.yardFree(f, u + p[0], p[1]) && this.random.nextInt(4) > 0) {
+							f.set(u + p[0], 0, p[1], this.random.nextInt(3) == 0 ? facing("carved_pumpkin", f.front()) : b("pumpkin"));
+						}
+					}
+					u += 4;
+				}
+				case 3 -> {
+					// Hay bales, pumpkins on top.
+					for (int k = 0; k < 2 && u + k <= u1; k++) {
+						if (this.yardFree(f, u + k, -5)) {
+							f.set(u + k, 0, -5, b("hay_block"));
+							f.set(u + k, 1, -5, k == 0 ? b("pumpkin") : facing("carved_pumpkin", f.front()));
+						}
+					}
+					u += 3;
+				}
+				default -> {
+					// Skulls on stakes.
+					for (int k = 0; k < 2 && u <= u1; k++, u += 2) {
+						if (this.yardFree(f, u, -4)) {
+							f.set(u, 0, -4, b("dark_oak_fence"));
+							f.set(u, 1, -4, b("skeleton_skull").setValue(BlockStateProperties.ROTATION_16, lot.south ? 0 : 8));
+						}
+					}
+				}
+			}
+			u += 1;
+		}
+	}
+
+	private boolean yardFree(Frame f, int u, int v) {
+		return this.free(f.x(u), f.z(v));
+	}
+
+	/** By the curb: a trash can or two on some days, a pile of raked leaves, now and then a For Sale sign. */
+	private void curbside(Frame f, int w, Lot lot, boolean drive) {
+		int u = drive ? w + 4 : w - 1;
+		if (this.random.nextBoolean() && f.x(u) > lot.x0 && f.x(u) < lot.x1 && this.yardFree(f, u, -6)) {
+			f.set(u, 0, -6, b(this.pick("cauldron", "cauldron", "composter")));
+			if (this.random.nextBoolean() && this.yardFree(f, u + 1, -6) && f.x(u + 1) > lot.x0 && f.x(u + 1) < lot.x1) {
+				f.set(u + 1, 0, -6, b("cauldron"));
+			}
+		}
+		// Raked leaves in a heap on the lawn.
+		int lu = drive ? -2 : w + 1;
+		if (this.random.nextInt(3) > 0) {
+			for (int du = 0; du < 3; du++) {
+				for (int dv = 0; dv < 2; dv++) {
+					if (f.x(lu + du) > lot.x0 && f.x(lu + du) < lot.x1 && this.yardFree(f, lu + du, -5 + dv)) {
+						f.set(lu + du, 0, -5 + dv, this.leafLitter(du == 1 ? 4 : 2 + this.random.nextInt(2)));
+					}
+				}
+			}
+		}
+		if (this.random.nextInt(12) == 0 && this.yardFree(f, w - 1, -5)) {
+			int rot = lot.south ? 0 : 8;
+			this.sign(f.x(w - 1), 0, f.z(-5), rot, "FOR SALE", "Nichols", "Realty", "555-0178");
+		}
+	}
+
+	/** Fallen leaves, {@code amount} of 4 layers. */
+	private BlockState leafLitter(int amount) {
+		BlockState s = b("leaf_litter").setValue(BlockStateProperties.HORIZONTAL_FACING, Direction.from2DDataValue(this.random.nextInt(4)));
+		net.minecraft.world.level.block.state.properties.Property<?> p = s.getBlock().getStateDefinition().getProperty("segment_amount");
+		if (p instanceof net.minecraft.world.level.block.state.properties.IntegerProperty ip) {
+			s = s.setValue(ip, Math.max(1, Math.min(4, amount)));
+		}
+		return s;
 	}
 
 	/** Something in the back yard: a shed, a swing set, washing on the line, a dog kennel, a pumpkin patch, a picnic table. */
@@ -541,7 +974,8 @@ public final class Haddonfield extends MapPlan {
 		int zb = Math.max(f.z(v0), f.z(v0 + 5));
 		for (Object[] p : this.points) {
 			net.minecraft.core.BlockPos at = (net.minecraft.core.BlockPos) p[1];
-			if (p[0] == MapPoints.Type.CELLAR && at.getX() >= f.x(u0) - 4 && at.getX() <= f.x(u0 + 6) + 4 && at.getZ() >= za - 4 && at.getZ() <= zb + 4) {
+			if (p[0] == MapPoints.Type.CELLAR && at.getX() >= Math.min(f.x(u0), f.x(u0 + 6)) - 4 && at.getX() <= Math.max(f.x(u0), f.x(u0 + 6)) + 4
+				&& at.getZ() >= za - 4 && at.getZ() <= zb + 4) {
 				return;
 			}
 		}
@@ -639,7 +1073,7 @@ public final class Haddonfield extends MapPlan {
 			int x = lot.x0 + 3 + this.random.nextInt(Math.max(1, lot.width() - 6));
 			int z = lot.z(6 + this.random.nextInt(16));
 			if (this.freeArea(x - 2, z - 2, x + 2, z + 2)) {
-				this.tree(x, z, this.random.nextInt(3));
+				this.tree(x, z, this.yardTreeKind());
 			}
 		}
 	}
@@ -1354,11 +1788,12 @@ public final class Haddonfield extends MapPlan {
 		}
 	}
 
-	/** A street 7 wide with a dashed centre line and sidewalks, running the whole way between the fences. */
+	/** A street 7 wide with a dashed centre line, a manhole cover now and then, and sidewalks, running the whole way between the fences. */
 	private void street(boolean eastWest, int c) {
 		for (int t = -FENCE + 1; t <= FENCE - 1; t++) {
 			for (int o = -5; o <= 5; o++) {
-				BlockState s = Math.abs(o) >= 4 ? b("smooth_stone") : o == 0 && Math.floorMod(t, 6) < 3 ? b("yellow_terracotta") : b("gray_concrete");
+				BlockState s = Math.abs(o) >= 4 ? b("smooth_stone") : o == 0 && Math.floorMod(t, 6) < 3 ? b("yellow_terracotta")
+					: Math.abs(o) == 2 && Math.floorMod(t + c + (o > 0 ? 19 : 0), 41) == 0 ? b("chiseled_stone_bricks") : b("gray_concrete");
 				if (eastWest) {
 					this.set(t, -1, c + o, s);
 					for (int y = 0; y <= 3; y++) {
@@ -1461,27 +1896,80 @@ public final class Haddonfield extends MapPlan {
 		}
 	}
 
-	/** Street lamps every 24 blocks, alternating sides; one in five has burnt out. */
+	/**
+	 * Street lamps every 24 blocks, alternating sides; one in five has burnt out. Each street has its own kind
+	 * of post: wooden on Orange Grove, stone on Lampkin Lane, black iron on Main Street, cobblestone on the
+	 * cross streets.
+	 */
 	private void lamps() {
-		for (int z : new int[]{ORANGE_GROVE, LAMPKIN, MAIN}) {
+		String[] posts = {"dark_oak_fence", "stone_brick_wall", "polished_deepslate_wall"};
+		int[] streets = {ORANGE_GROVE, LAMPKIN, MAIN};
+		for (int s = 0; s < streets.length; s++) {
+			int z = streets[s];
 			for (int x = -FENCE + 10, i = 0; x <= FENCE - 10; x += 24, i++) {
-				this.lamp(x, z + (i % 2 == 0 ? -5 : 5), i % 5 == 3);
+				this.lamp(x, z + (i % 2 == 0 ? -5 : 5), i % 5 == 3, posts[s]);
 			}
 		}
 		for (int x : new int[]{ELM, HACKBERRY}) {
 			for (int z = -FENCE + 22, i = 0; z <= FENCE - 10; z += 24, i++) {
-				this.lamp(x + (i % 2 == 0 ? -5 : 5), z, i % 5 == 1);
+				this.lamp(x + (i % 2 == 0 ? -5 : 5), z, i % 5 == 1, "cobblestone_wall");
 			}
 		}
 	}
 
-	private void lamp(int x, int z, boolean broken) {
+	private void lamp(int x, int z, boolean broken, String post) {
 		BlockState under = this.blocks.get(net.minecraft.core.BlockPos.asLong(x, -1, z));
 		if (under == null || !under.is(net.minecraft.world.level.block.Blocks.SMOOTH_STONE)) {
 			return;
 		}
-		this.fill(x, 0, z, x, 2, z, b("dark_oak_fence"));
-		this.set(x, 3, z, broken ? b("dark_oak_fence") : b("lantern"));
+		this.fill(x, 0, z, x, 2, z, b(post));
+		this.set(x, 3, z, broken ? b(post) : b("lantern"));
+	}
+
+	/**
+	 * Trees along the streets, just inside the yards behind the sidewalk: autumn oaks, dark oaks, birches,
+	 * pale oaks hung with moss, a bare one here and there; fallen leaves under them. Kept clear of paths, drives,
+	 * fences and each other.
+	 */
+	private void streetTrees() {
+		for (int road : new int[]{ORANGE_GROVE, LAMPKIN, MAIN}) {
+			for (int side : new int[]{-1, 1}) {
+				int z = road + side * 8;
+				for (int x = -FENCE + 6 + this.random.nextInt(5); x <= FENCE - 6; x += 9 + this.random.nextInt(6)) {
+					this.streetTree(x, z);
+				}
+			}
+		}
+		for (int road : new int[]{ELM, HACKBERRY}) {
+			for (int side : new int[]{-1, 1}) {
+				int x = road + side * 8;
+				for (int z = -FENCE + 6 + this.random.nextInt(5); z <= FENCE - 6; z += 9 + this.random.nextInt(6)) {
+					this.streetTree(x, z);
+				}
+			}
+		}
+	}
+
+	private void streetTree(int x, int z) {
+		if (!this.freeArea(x - 2, z - 2, x + 2, z + 2)) {
+			return;
+		}
+		// No spruce here: its lowest branches would hang over the sidewalk at head height.
+		int kind = this.yardTreeKind();
+		this.tree(x, z, kind == 2 ? 0 : kind);
+		for (int i = 0; i < 6; i++) {
+			int lx = x + this.random.nextInt(5) - 2;
+			int lz = z + this.random.nextInt(5) - 2;
+			if (this.free(lx, lz)) {
+				this.set(lx, 0, lz, this.leafLitter(1 + this.random.nextInt(4)));
+			}
+		}
+	}
+
+	/** A tree for a yard: mostly autumn oaks, some dark oaks, birches and pale oaks, a spruce, a bare tree now and then. */
+	private int yardTreeKind() {
+		int r = this.random.nextInt(11);
+		return r < 3 ? 0 : r < 5 ? 1 : r < 6 ? 2 : r < 8 ? 3 : r < 10 ? 4 : 5;
 	}
 
 	/** Hedges where back yards meet, with a gap at every lot boundary to slip through. */
@@ -1581,11 +2069,27 @@ public final class Haddonfield extends MapPlan {
 
 	// ---------------------------------------------------------------- nature
 
-	/** 0: oak, 1: dark oak, 2: spruce. */
+	/** 0: oak, 1: dark oak, 2: spruce, 3: birch, 4: pale oak hung with moss, 5: a bare tree. */
 	private void tree(int x, int z, int kind) {
+		if (kind == 5) {
+			this.bareTree(x, z);
+			return;
+		}
 		int h = 5 + this.random.nextInt(3);
-		String log = kind == 2 ? "spruce_log" : kind == 1 ? "dark_oak_log" : "oak_log";
-		BlockState leaves = leaves(kind == 2 ? "spruce_leaves" : kind == 1 ? "dark_oak_leaves" : "oak_leaves");
+		String log = switch (kind) {
+			case 1 -> "dark_oak_log";
+			case 2 -> "spruce_log";
+			case 3 -> "birch_log";
+			case 4 -> "pale_oak_log";
+			default -> "oak_log";
+		};
+		BlockState leaves = leaves(switch (kind) {
+			case 1 -> "dark_oak_leaves";
+			case 2 -> "spruce_leaves";
+			case 3 -> "birch_leaves";
+			case 4 -> "pale_oak_leaves";
+			default -> "oak_leaves";
+		});
 		if (kind == 2) {
 			for (int y = 2; y <= h + 1; y++) {
 				int r = Math.max(0, (h + 2 - y) / 2);
@@ -1611,6 +2115,34 @@ public final class Haddonfield extends MapPlan {
 			}
 		}
 		this.fill(x, 0, z, x, h, z, b(log));
+		if (kind == 4) {
+			// Pale moss hanging from the crown.
+			for (int dx = -2; dx <= 2; dx++) {
+				for (int dz = -2; dz <= 2; dz++) {
+					if ((dx != 0 || dz != 0) && this.random.nextInt(3) == 0) {
+						BlockState above = this.blocks.get(net.minecraft.core.BlockPos.asLong(x + dx, h - 2, z + dz));
+						if (above != null && above.is(net.minecraft.world.level.block.Blocks.PALE_OAK_LEAVES)
+							&& !this.blocks.containsKey(net.minecraft.core.BlockPos.asLong(x + dx, h - 3, z + dz))) {
+							this.set(x + dx, h - 3, z + dz, b("pale_hanging_moss"));
+						}
+					}
+				}
+			}
+		}
+	}
+
+	/** A bare tree: a trunk and a few crooked branches, its leaves all down. */
+	private void bareTree(int x, int z) {
+		int h = 5 + this.random.nextInt(2);
+		this.fill(x, 0, z, x, h, z, b("dark_oak_log"));
+		for (Direction d : Direction.Plane.HORIZONTAL) {
+			if (this.random.nextInt(4) > 0) {
+				int y = h - 1 - this.random.nextInt(2);
+				this.setLeaf(x + d.getStepX(), y, z + d.getStepZ(), b("dark_oak_fence"));
+				this.setLeaf(x + 2 * d.getStepX(), y + 1, z + 2 * d.getStepZ(), b("dark_oak_fence"));
+			}
+		}
+		this.setLeaf(x, h + 1, z, b("dark_oak_fence"));
 	}
 
 	private void setLeaf(int x, int y, int z, BlockState leaves) {
@@ -1626,8 +2158,33 @@ public final class Haddonfield extends MapPlan {
 		this.set(x, 5, z + 1, b("dark_oak_fence"));
 	}
 
-	/** Fallen leaves and the odd pumpkin on the lawns. */
+	/** Fallen leaves and the odd pumpkin on the lawns; muddy patches where the rain stood; heaps of raked leaves. */
 	private void autumn() {
+		for (int i = 0; i < 60; i++) {
+			int x = -FENCE + 4 + this.random.nextInt(2 * FENCE - 8);
+			int z = -FENCE + 4 + this.random.nextInt(2 * FENCE - 8);
+			int size = 1 + this.random.nextInt(2);
+			if (this.freeArea(x - size, z - size, x + size, z + size)) {
+				for (int dx = -size; dx <= size; dx++) {
+					for (int dz = -size; dz <= size; dz++) {
+						if (Math.abs(dx) + Math.abs(dz) <= size + this.random.nextInt(2)) {
+							this.set(x + dx, -1, z + dz, b("mud"));
+						}
+					}
+				}
+			}
+		}
+		for (int i = 0; i < 70; i++) {
+			int x = -FENCE + 4 + this.random.nextInt(2 * FENCE - 8);
+			int z = -FENCE + 4 + this.random.nextInt(2 * FENCE - 8);
+			if (this.freeArea(x - 1, z - 1, x + 1, z + 1)) {
+				for (int dx = -1; dx <= 1; dx++) {
+					for (int dz = -1; dz <= 1; dz++) {
+						this.set(x + dx, 0, z + dz, this.leafLitter(dx == 0 && dz == 0 ? 4 : 2 + this.random.nextInt(3)));
+					}
+				}
+			}
+		}
 		for (int i = 0; i < 9000; i++) {
 			int x = -FENCE + 1 + this.random.nextInt(2 * FENCE - 1);
 			int z = -FENCE + 1 + this.random.nextInt(2 * FENCE - 1);

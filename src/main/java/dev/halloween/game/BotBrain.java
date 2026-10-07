@@ -69,6 +69,8 @@ final class BotBrain {
 	private int pathAt;
 	private BlockPos shelterDoor;
 	private BlockPos locker;
+	/** Standing about or hiding, he looks around. */
+	private final LookAround look = new LookAround();
 	private boolean hidLocker;
 	private boolean skipLocker;
 	/** Doors this bot has locked (tests, debugging). */
@@ -622,6 +624,7 @@ final class BotBrain {
 		}
 		if (inLocker) {
 			this.walker.halt();
+			this.look.tick(this.bot, now, this.random, true, this.threat, this.locker);
 			return;
 		}
 		if (!this.hidePathSet) {
@@ -667,9 +670,8 @@ final class BotBrain {
 		if (status == Walker.Status.ARRIVED || status == Walker.Status.IDLE || status == Walker.Status.STUCK) {
 			this.walker.halt();
 			this.bot.setShiftKeyDown(true);
-			if (this.threat != null) {
-				this.walker.face(this.threat.add(0, 1.5, 0));
-			}
+			// Crouched in a corner, glancing about: mostly towards where he was.
+			this.look.tick(this.bot, now, this.random, true, this.threat, null);
 		}
 	}
 
@@ -903,8 +905,10 @@ final class BotBrain {
 		}
 		if (now < this.quietUntil) {
 			this.walker.halt();
+			this.look.tick(this.bot, now, this.random, false, null, null);
 			return;
 		}
+		this.look.reset();
 		if (this.task == null || now >= this.replanAt) {
 			this.plan(now);
 		}

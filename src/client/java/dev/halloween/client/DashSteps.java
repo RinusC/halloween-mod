@@ -15,7 +15,7 @@ import net.minecraft.world.level.block.state.BlockState;
  */
 public final class DashSteps {
 	/** Blocks per step at a fast walk. */
-	private static final double STRIDE = 1.15;
+	private static final double STRIDE = 1.45;
 	private static double walked;
 	/** For tests: steps played since the start. */
 	public static int played;

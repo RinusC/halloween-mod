@@ -51,6 +51,8 @@ public final class Townsfolk {
 	private static final class Npc {
 		final Mannequin body;
 		final Walker walker;
+		/** Standing about or hiding, it looks around. */
+		final LookAround look = new LookAround();
 		final String name;
 		BlockPos home;
 		State state = State.HOME;
@@ -505,8 +507,10 @@ public final class Townsfolk {
 			return;
 		}
 		if (now < npc.nextStroll) {
+			npc.look.tick(npc.body, now, level.getRandom(), false, null, null);
 			return;
 		}
+		npc.look.reset();
 		RandomSource random = level.getRandom();
 		npc.nextStroll = now + 60 + random.nextInt(140);
 		setSpeed(npc, HwConfig.get().npcWalkSpeed);
@@ -631,6 +635,7 @@ public final class Townsfolk {
 		}
 		if (Lockers.isInside(npc.body)) {
 			npc.walker.halt();
+			npc.look.tick(npc.body, now, level.getRandom(), true, npc.threat, npc.locker);
 			return;
 		}
 		if (!npc.pathSet) {
@@ -664,6 +669,9 @@ public final class Townsfolk {
 		if (status != Walker.Status.MOVING) {
 			npc.walker.halt();
 			npc.body.setPose(Pose.CROUCHING);
+			npc.look.tick(npc.body, now, level.getRandom(), true, npc.threat, null);
+		} else {
+			npc.look.reset();
 		}
 	}
 

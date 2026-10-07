@@ -267,6 +267,18 @@ public class HaddonfieldClientTest implements FabricClientGameTest {
 			ctx.takeScreenshot("h16_backyards");
 			this.view(ctx, server, new Vec3(-122, 2, 64), 90, 4);
 			ctx.takeScreenshot("h17_forest_edge");
+			// Streets and houses that differ: trees along the sidewalks, fences, decorations; inside, other plans.
+			this.view(ctx, server, new Vec3(10, 2.5, 4.5), -90, 6);
+			ctx.takeScreenshot("h17a_lampkin_east");
+			this.view(ctx, server, new Vec3(60, 2.5, -4.5), 90, 6);
+			ctx.takeScreenshot("h17b_lampkin_west");
+			this.view(ctx, server, new Vec3(-15.5, 3, 8), 10, 18);
+			ctx.takeScreenshot("h17c_front_yard");
+			int n = 0;
+			for (double[] at : new double[][]{{-15, 15, 0}, {14, 15, 0}, {43, 15, 0}, {-15, -15, 180}, {43, -15, 180}}) {
+				this.view(ctx, server, new Vec3(at[0] + 0.5, 0.2, at[1] + 0.5), (float) at[2], 18);
+				ctx.takeScreenshot("h17d_house_" + (n++));
+			}
 			server.runCommand("gamemode survival @p");
 
 			// A match on the map: the player is the Shape, four bots, townsfolk, the exits come up.
@@ -339,6 +351,8 @@ public class HaddonfieldClientTest implements FabricClientGameTest {
 				server.computeOnServer(s -> dev.halloween.game.AiStats.snapshot().get("*total")));
 			check(moved > 15, "bots get about the town (" + moved + ")");
 			check(searched > 0, "bots search the houses (" + searched + ")");
+			int turns = server.computeOnServer(s -> dev.halloween.game.LookAround.turns);
+			check(turns > 10, "townsfolk and bots standing about look around (" + turns + " turns)");
 			server.runCommand("hw stop");
 			ctx.waitTicks(5);
 		}

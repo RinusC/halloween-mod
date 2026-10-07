@@ -1,0 +1,5 @@
+Shape Jump sounds (enter, exit, drone, wind): synthesised for this mod (ShapeSounds), no outside material.
+breath.ogg (Michael's breathing, WAV): built from two CC0 recordings from opengameart.org -
+  "Ghost breath" by qubodup (opengameart.org/content/ghost-breath), CC0
+  "breathing tired" by mikeask (opengameart.org/content/breathing-tired), CC0
+  sped up / slowed down, one breath reversed for the breath in, low hum cut, lightly low-passed.

@@ -14,8 +14,8 @@ import net.minecraft.world.entity.Entity;
  */
 public final class ShapeBreath {
 	/** Volume for Michael himself, and at his side for anyone else (falls to nothing at two blocks). */
-	private static final float OWN_VOLUME = 0.16f;
-	private static final float NEAR_VOLUME = 0.3f;
+	private static final float OWN_VOLUME = 0.08f;
+	private static final float NEAR_VOLUME = 0.15f;
 	private static Breath playing;
 
 	private ShapeBreath() {
