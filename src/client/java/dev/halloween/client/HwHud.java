@@ -44,6 +44,9 @@ public final class HwHud {
 			// The opening scene: nothing else on screen.
 			return;
 		}
+		if (!ClientState.inMatch() && ClientState.lobby.inLobby()) {
+			lobby(g, mc);
+		}
 		// The whole match HUD is drawn a little smaller than the GUI scale.
 		float scale = (float) HwConfig.get().hudScale;
 		g.pose().pushMatrix();
@@ -52,6 +55,40 @@ public final class HwHud {
 			renderScaled(g, delta, mc, Math.round(g.guiWidth() / scale), Math.round(g.guiHeight() / scale));
 		} finally {
 			g.pose().popMatrix();
+		}
+	}
+
+	/** The lobby: the status line on top, a tip that changes now and then, and the stand's text when at one. */
+	private static void lobby(GuiGraphicsExtractor g, Minecraft mc) {
+		int w = g.guiWidth();
+		int h = g.guiHeight();
+		HwNet.LobbyInfo info = ClientState.lobby;
+		if (!info.status().getString().isEmpty()) {
+			int tw = mc.font.width(info.status());
+			g.fill(w / 2 - tw / 2 - 6, 6, w / 2 + tw / 2 + 6, 20, 0xA0000000);
+			g.centeredText(mc.font, info.status(), w / 2, 9, 0xFFFFFFFF);
+		}
+		int tip = (int) (mc.level.getGameTime() / 240 % 12) + 1;
+		Component tipText = Component.translatable("halloween.lobby.tip." + tip);
+		g.text(mc.font, tipText, 8, 26, 0xFFB8B2A6, true);
+		if (info.panel().isEmpty()) {
+			return;
+		}
+		int pw = Math.min(w - 20, 330);
+		java.util.List<net.minecraft.util.FormattedCharSequence> lines = new java.util.ArrayList<>();
+		for (int i = 1; i < info.panel().size(); i++) {
+			lines.addAll(mc.font.split(info.panel().get(i), pw - 16));
+		}
+		int ph = 22 + lines.size() * 10;
+		int x0 = w / 2 - pw / 2;
+		int y0 = h - 64 - ph;
+		g.fill(x0, y0, x0 + pw, y0 + ph, 0xD0100C0A);
+		g.fill(x0, y0, x0 + pw, y0 + 2, 0xFFE0A040);
+		g.centeredText(mc.font, info.panel().getFirst(), w / 2, y0 + 7, 0xFFFFFFFF);
+		int y = y0 + 20;
+		for (net.minecraft.util.FormattedCharSequence line : lines) {
+			g.text(mc.font, line, x0 + 8, y, 0xFFE8E2D4, false);
+			y += 10;
 		}
 	}
 

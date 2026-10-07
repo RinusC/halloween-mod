@@ -551,6 +551,8 @@ public final class Match {
 		state = State.IDLE;
 		syncAll(server);
 		Tutorial.matchEnded(server);
+		// Everyone back to the gym (the summary screen is up meanwhile).
+		Lobby.returnAll(server);
 	}
 
 	/** Hands the Shape's place in the final tally to {@code shape} (the AI simulation gives the role to a bot). */

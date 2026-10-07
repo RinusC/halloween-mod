@@ -266,6 +266,7 @@ public final class MatchManager {
 		MapJob.tick(server);
 		Match.tick(server);
 		Tutorial.tick(server);
+		Lobby.tick(server);
 		Noise.tick(server);
 		Panic.tick(server);
 		Stamina.tick(server);

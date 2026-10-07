@@ -326,6 +326,34 @@ public final class HwNet {
 		}
 	}
 
+	/** In the lobby (see game.Lobby): the line at the top (ready, countdown, parkour clock) and what the stand at hand says. */
+	public record LobbyInfo(boolean inLobby, Component status, List<Component> panel) implements CustomPacketPayload {
+		public static final LobbyInfo NONE = new LobbyInfo(false, Component.empty(), List.of());
+		public static final Type<LobbyInfo> TYPE = payloadType("lobby");
+		public static final StreamCodec<RegistryFriendlyByteBuf, LobbyInfo> CODEC = StreamCodec.of((buf, v) -> {
+			buf.writeBoolean(v.inLobby);
+			ComponentSerialization.TRUSTED_STREAM_CODEC.encode(buf, v.status);
+			buf.writeVarInt(v.panel.size());
+			for (Component c : v.panel) {
+				ComponentSerialization.TRUSTED_STREAM_CODEC.encode(buf, c);
+			}
+		}, buf -> {
+			boolean in = buf.readBoolean();
+			Component status = ComponentSerialization.TRUSTED_STREAM_CODEC.decode(buf);
+			int n = buf.readVarInt();
+			List<Component> panel = new ArrayList<>(n);
+			for (int i = 0; i < n; i++) {
+				panel.add(ComponentSerialization.TRUSTED_STREAM_CODEC.decode(buf));
+			}
+			return new LobbyInfo(in, status, panel);
+		});
+
+		@Override
+		public Type<LobbyInfo> type() {
+			return TYPE;
+		}
+	}
+
 	/** The opening scene to play while the match counts down (see game.Cutscenes; a, b, c depend on the kind). */
 	public record Cutscene(int kind, int ticks, Vec3 a, Vec3 b, Vec3 c) implements CustomPacketPayload {
 		public static final Type<Cutscene> TYPE = payloadType("cutscene");
@@ -894,6 +922,7 @@ public final class HwNet {
 		PayloadTypeRegistry.clientboundPlay().register(Pant.TYPE, Pant.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(NoiseBurst.TYPE, NoiseBurst.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(Cutscene.TYPE, Cutscene.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(LobbyInfo.TYPE, LobbyInfo.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(PerkSync.TYPE, PerkSync.CODEC);
 		PayloadTypeRegistry.serverboundPlay().register(PerkAction.TYPE, PerkAction.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(MinimapSync.TYPE, MinimapSync.CODEC);

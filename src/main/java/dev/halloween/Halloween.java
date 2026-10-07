@@ -82,6 +82,8 @@ public class Halloween implements ModInitializer {
 			dev.halloween.game.Music.forget(handler.player);
 			dev.halloween.game.Minimap.syncTo(handler.player);
 			dev.halloween.game.Match.markDirty();
+			// Between matches everyone waits in the gym.
+			dev.halloween.game.Lobby.onJoin(handler.player);
 		});
 		ServerLifecycleEvents.SERVER_STOPPING.register(dev.halloween.game.Match::stop);
 		ServerLifecycleEvents.SERVER_STOPPED.register(server -> MatchManager.clearAll());
@@ -97,6 +99,8 @@ public class Halloween implements ModInitializer {
 			&& MatchManager.shapeState(sp) != null && MatchManager.shapeState(sp).shadowTicks > 0
 			? net.minecraft.world.InteractionResult.FAIL : net.minecraft.world.InteractionResult.PASS);
 		UseBlockCallback.EVENT.register(LightSystem::onUseBlock);
+		UseBlockCallback.EVENT.register((player, level, hand, hit) -> !level.isClientSide() && player instanceof net.minecraft.server.level.ServerPlayer sp
+			? dev.halloween.game.Lobby.onUse(sp, hit.getBlockPos()) : net.minecraft.world.InteractionResult.PASS);
 		UseBlockCallback.EVENT.register((player, level, hand, hit) -> {
 			if (level.isClientSide()) {
 				return net.minecraft.world.InteractionResult.PASS;

@@ -127,6 +127,7 @@ public class HalloweenClient implements ClientModInitializer {
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.MinimapSync.TYPE, (payload, ctx) -> ClientMinimap.apply(payload));
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.MusicMood.TYPE, (payload, ctx) -> ClientMusic.set(payload.mood(), payload.variant()));
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.Anim.TYPE, (payload, ctx) -> ClientAnims.receive(payload));
+		ClientPlayNetworking.registerGlobalReceiver(HwNet.LobbyInfo.TYPE, (payload, ctx) -> ClientState.lobby = payload);
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.Cutscene.TYPE, (payload, ctx) -> Minecraft.getInstance().execute(() -> Cutscene.begin(payload)));
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.NoiseBurst.TYPE, (payload, ctx) -> {
 			Minecraft mc = Minecraft.getInstance();

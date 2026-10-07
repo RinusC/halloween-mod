@@ -29,6 +29,8 @@ public final class ClientState {
 	public static HwNet.Qte qte = HwNet.Qte.INACTIVE;
 	/** Current match, as last synced. */
 	public static HwNet.MatchSync match = HwNet.MatchSync.IDLE;
+	/** In the lobby: its status line and the stand at hand (see game.Lobby). */
+	public static HwNet.LobbyInfo lobby = HwNet.LobbyInfo.NONE;
 	/** Final scoreboard and when it arrived (ms). */
 	public static HwNet.MatchEnd matchEnd;
 	public static long matchEndAt;

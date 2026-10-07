@@ -82,9 +82,24 @@ public final class HwCommands {
 				ctx.getSource().sendSuccess(() -> result, false);
 				return 1;
 			}))
+			.then(Commands.literal("lobby")
+				.executes(ctx -> {
+					// Builds the gym (beside the town if there is one, else here) and sends everyone in.
+					MinecraftServer server = ctx.getSource().getServer();
+					BlockPos center = MapPoints.get(server.overworld()).first(MapPoints.Type.CENTER);
+					Lobby.build(server.overworld(), center != null ? center.offset(-Lobby.W / 2, 0, -420) : BlockPos.containing(ctx.getSource().getPosition()));
+					Lobby.returnAll(server);
+					ctx.getSource().sendSuccess(() -> Component.translatable("halloween.cmd.lobby_built"), true);
+					return 1;
+				})
+				.then(Commands.literal("tp").executes(ctx -> {
+					Lobby.sendTo(ctx.getSource().getPlayerOrException());
+					return 1;
+				})))
 			.then(Commands.literal("stop").executes(ctx -> {
 				Tutorial.stop();
 				Match.stop(ctx.getSource().getServer());
+				Lobby.returnAll(ctx.getSource().getServer());
 				ctx.getSource().sendSuccess(() -> Component.translatable("halloween.cmd.stopped"), true);
 				return 1;
 			}))
