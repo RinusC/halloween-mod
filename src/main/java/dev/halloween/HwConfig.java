@@ -483,7 +483,7 @@ public class HwConfig {
 	public float perkQuickSearchFactor = 0.6f;
 	public double perkStaminaFactor = 1.2;
 	public double perkQuietNoiseFactor = 0.5;
-	public float perkToughHealth = 2f;
+	public float perkToughHealth = 10f;
 	/** Adrenaline: the breath comes back this much faster. Barricade: blows a door you locked takes, times this. */
 	public float perkAdrenalineRegen = 1.3f;
 	public double perkBarricadeFactor = 1.5;

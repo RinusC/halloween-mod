@@ -138,8 +138,8 @@ public class PanicPerksClientTest implements FabricClientGameTest {
 				return hold == null ? -1 : hold.ticks();
 			});
 			check(searchTicks == Math.round(HwConfig.get().searchTicks * HwConfig.get().perkQuickSearchFactor), "quick search: " + searchTicks + " ticks");
-			check(server.computeOnServer(s -> player(s).getMaxHealth() == 22f), "tough: 22 health");
-			check(server.computeOnServer(s -> Math.abs(dev.halloween.game.Windows.cutDamage(player(s)) - 22f * HwConfig.get().vaultDamageFraction * 0.5f) < 1e-3),
+			check(server.computeOnServer(s -> player(s).getMaxHealth() == 30f), "tough: 30 health");
+			check(server.computeOnServer(s -> Math.abs(dev.halloween.game.Windows.cutDamage(player(s)) - 30f * HwConfig.get().vaultDamageFraction * 0.5f) < 1e-3),
 				"glass walker: half the cuts");
 			ctx.runOnClient(mc -> ClientPlayNetworking.send(new HwNet.PerkAction("tough", Perks.UNEQUIP)));
 			ctx.waitTicks(3);
