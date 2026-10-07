@@ -29,7 +29,7 @@ public class HwConfig {
 
 	// --- Melee: light/heavy attacks with combos ---
 	public float lightDamage = 4f;
-	public float heavyDamage = 8f;
+	public float heavyDamage = 7f;
 	public int lightCooldownTicks = 18;
 	public int heavyCooldownTicks = 45;
 	public int heavyChargeTicks = 8;
@@ -125,7 +125,7 @@ public class HwConfig {
 	public int victimCursorPeriodTicks = 30;
 	public float victimZoneWidth = 0.24f;
 	public float[] victimZoneShrinkByTier = {0f, 0.03f, 0.06f};
-	public float[] victimZoneShrinkByStalk = {0f, 0.02f, 0.04f, 0.07f};
+	public float[] victimZoneShrinkByStalk = {0f, 0.03f, 0.06f, 0.10f};
 	public int shapeRoundTicks = 60;
 	public int shapeNeedlePeriodTicks = 40;
 	public float shapeZoneWidth = 0.16f;
@@ -312,14 +312,14 @@ public class HwConfig {
 	public int throwStaggerTicks = 15;
 	public int firecrackerFuseTicks = 30;
 	public double firecrackerRange = 6;
-	public float firecrackerStun = 0.35f;
+	public float firecrackerStun = 0.6f;
 	public int firecrackerBlindTicks = 40;
 	/** The bang is heard far off: the Shape sees where for this long. */
 	public int firecrackerRevealTicks = 80;
 	public int roadFlareTicks = 600;
 	/** A burning flare blinds the Shape this close if he looks at it. */
 	public double flareBlindRange = 7;
-	public float flareGunStun = 0.6f;
+	public float flareGunStun = 1.0f;
 	public int flareGunBlindTicks = 60;
 	public int flareGunBurnTicks = 200;
 	/** The flare gun fired at least this steeply up is a distress signal: a police call (a body must be found). */
