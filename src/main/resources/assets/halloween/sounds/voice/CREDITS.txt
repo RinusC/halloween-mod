@@ -10,3 +10,5 @@ m_scream_4..8 - "human male scream multi" by JohnsonBrandEditing (freesound.org)
   (1..8 via "Aargh!", opengameart.org/content/aargh-male-screams)
 m_scream_9..25, m_death_7..9, m_hurt_1..12 - "Male Grunt/Yelling sounds" by HaelDB, opengameart.org/content/male-gruntyelling-sounds - CC0
 m_death_1..6, m_hurt_13..15 - "Death sounds" by Exewin, opengameart.org/content/death-sounds-0 - CC0
+
+choke_1..4: choking and gasping takes supplied by the mod owner (private use), mixed down to mono and levelled.

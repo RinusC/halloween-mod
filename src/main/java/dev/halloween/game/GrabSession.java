@@ -47,6 +47,8 @@ public final class GrabSession {
 	private boolean windowShown;
 	/** When the victim next chokes and gasps for air. */
 	private long nextChoke;
+	/** The choke take playing now (stopped when the grab ends); -1: none. */
+	private int choking = -1;
 	/** The way out has been animated already (an escape plays its own moves). */
 	private boolean animated;
 
@@ -399,9 +401,15 @@ public final class GrabSession {
 		long now = this.level().getGameTime();
 		if (now >= this.nextChoke) {
 			// Held by the throat: choking, gasping for air.
-			this.nextChoke = now + 22 + this.random.nextInt(14);
-			float pitch = (Voices.female(this.victim) ? 1.18f : 0.95f) + this.random.nextFloat() * 0.08f;
-			this.level().playSound(null, this.victim.getX(), this.victim.getEyeY(), this.victim.getZ(), HwSounds.VOICE_CHOKE, SoundSource.PLAYERS, 1.2f, pitch);
+			// One whole take at a time; the next (a different one) only once it is over.
+			int take = this.random.nextInt(HwSounds.VOICE_CHOKES.length);
+			if (take == this.choking) {
+				take = (take + 1) % HwSounds.VOICE_CHOKES.length;
+			}
+			this.choking = take;
+			float pitch = (Voices.female(this.victim) ? 1.05f : 0.97f) + this.random.nextFloat() * 0.03f;
+			this.nextChoke = now + (long) (HwSounds.VOICE_CHOKE_TICKS[take] / pitch) + 4;
+			this.level().playSound(null, this.victim.getX(), this.victim.getEyeY(), this.victim.getZ(), HwSounds.VOICE_CHOKES[take], SoundSource.VOICE, 1.2f, pitch);
 			AiStats.add(this.victim, "voice.choke");
 		}
 		if (now % 5 == 0 && this.windowAvailable() != this.windowShown) {
@@ -460,6 +468,21 @@ public final class GrabSession {
 	}
 
 	/** Releases everything without a kill (escape, abort, reset). */
+	/** Out of his hands (or dead): the choking breaks off. */
+	private void stopChoking() {
+		if (this.choking < 0) {
+			return;
+		}
+		net.minecraft.network.protocol.game.ClientboundStopSoundPacket stop = new net.minecraft.network.protocol.game.ClientboundStopSoundPacket(
+			HwSounds.VOICE_CHOKES[this.choking].location(), SoundSource.VOICE);
+		this.choking = -1;
+		for (ServerPlayer p : this.level().getServer().getPlayerList().getPlayers()) {
+			if (p.level() == this.level() && p.distanceToSqr(this.victim) < 64 * 64) {
+				p.connection.send(stop);
+			}
+		}
+	}
+
 	void end() {
 		if (!this.animated) {
 			anim(this.shape, HwNet.Anim.NONE);
@@ -471,6 +494,7 @@ public final class GrabSession {
 		}
 		this.done = true;
 		this.victimState.grabbed = false;
+		this.stopChoking();
 		if (this.victim instanceof ServerPlayer player) {
 			ServerPlayNetworking.send(player, HwNet.Qte.INACTIVE);
 		}

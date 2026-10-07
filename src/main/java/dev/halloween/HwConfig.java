@@ -423,7 +423,7 @@ public class HwConfig {
 	/** How often a match night is clear, foggy, rainy (weights). */
 	public int[] weatherWeights = {40, 35, 25};
 	/** How far townsfolk, bots and police notice the Shape in fog and in rain, against a clear night. */
-	public double fogSightFactor = 0.55;
+	public double fogSightFactor = 0.7;
 	public double rainSightFactor = 0.8;
 	public int flashlightChargeTicks = 200;
 	/** With this little charge left the flashlight starts to flicker. */

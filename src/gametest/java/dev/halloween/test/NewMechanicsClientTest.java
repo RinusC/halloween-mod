@@ -75,7 +75,7 @@ public class NewMechanicsClientTest implements FabricClientGameTest {
 							library = (SoundBufferLibrary) f.get(engine);
 						}
 					}
-					for (String path : new String[]{"voice/choke_1", "voice/choke_6", "talk/damien_black_request_1", "talk/claribel_dervla_question_2", "talk/royston_min_agree_3", "talk/sofia_hellen_refuse_4"}) {
+					for (String path : new String[]{"voice/choke_1", "voice/choke_4", "talk/damien_black_request_1", "talk/claribel_dervla_question_2", "talk/royston_min_agree_3", "talk/sofia_hellen_refuse_4"}) {
 						SoundBuffer b = library.getCompleteBuffer(Identifier.fromNamespaceAndPath("halloween", "sounds/" + path + ".ogg")).get();
 						if (!b.isValid()) {
 							sb.append(path).append(' ');

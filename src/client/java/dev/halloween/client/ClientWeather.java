@@ -7,8 +7,8 @@ import net.minecraft.util.Mth;
 /** The match's weather as the server says it; fog thickens and thins smoothly. */
 public final class ClientWeather {
 	/** How near the fog closes in at full thickness (blocks): it starts here and nothing shows past the end. */
-	private static final float FOG_START = 3f;
-	private static final float FOG_END = 26f;
+	private static final float FOG_START = 8f;
+	private static final float FOG_END = 31f;
 	public static int kind = Weather.CLEAR;
 	private static float thickness;
 
