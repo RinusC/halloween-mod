@@ -59,6 +59,25 @@ public class PanicPerksClientTest implements FabricClientGameTest {
 				return gravel && pile && single;
 			});
 			check(surfaces, "gravel and leaf piles are loud, a single leaf isn't");
+			// A smashed window is put back at the next match (kept with the world, so even after the game was closed).
+			BlockPos window = server.computeOnServer(s -> {
+				BlockPos c = player(s).blockPosition();
+				for (BlockPos p : BlockPos.betweenClosed(c.offset(-40, -2, -40), c.offset(40, 4, 40))) {
+					if (dev.halloween.game.Windows.isWindow(s.overworld().getBlockState(p)) && !dev.halloween.game.Windows.isBrokenPane(s.overworld().getBlockState(p))) {
+						BlockPos at = p.immutable();
+						dev.halloween.game.Windows.breakColumn(s.overworld(), at);
+						return at;
+					}
+				}
+				return null;
+			});
+			check(window != null && server.computeOnServer(s -> dev.halloween.game.Windows.isBrokenPane(s.overworld().getBlockState(window))), "a window smashed");
+			server.runOnServer(s -> HwConfig.get().botsFillTo = 0);
+			server.runCommand("hw start");
+			ctx.waitTicks(20);
+			check(server.computeOnServer(s -> !dev.halloween.game.Windows.isBrokenPane(s.overworld().getBlockState(window))), "and whole again at the next match");
+			server.runCommand("hw stop");
+			ctx.waitTicks(5);
 
 			// Michael hears survivors running.
 			server.runOnServer(s -> {
@@ -110,16 +129,16 @@ public class PanicPerksClientTest implements FabricClientGameTest {
 
 			// Perks: bought with points, kept for good, up to three in the build.
 			server.runOnServer(s -> {
-				Perks.give(s, player(s).getUUID(), 5000);
+				Perks.give(s, player(s).getUUID(), 12500);
 				Perks.sync(player(s));
 			});
 			ctx.waitTicks(5);
-			check(ctx.computeOnClient(mc -> ClientState.perkPoints >= 5000), "points reach the client");
+			check(ctx.computeOnClient(mc -> ClientState.perkPoints >= 12500), "points reach the client");
 			for (String key : new String[]{"quick_search", "tough", "glass_walker", "barricade", "slippery"}) {
 				ctx.runOnClient(mc -> ClientPlayNetworking.send(new HwNet.PerkAction(key, Perks.BUY)));
 				ctx.waitTicks(3);
 			}
-			check(server.computeOnServer(s -> Perks.points(s, player(s).getUUID())) == 400, "four perks bought, the points spent (400 left)");
+			check(server.computeOnServer(s -> Perks.points(s, player(s).getUUID())) == 1000, "four perks bought, the points spent (1000 left)");
 			check(server.computeOnServer(s -> !Perks.owns(s, player(s).getUUID(), Perks.Perk.SLIPPERY)), "one too dear can't be bought");
 			check(server.computeOnServer(s -> Perks.equipped(s, player(s).getUUID()).equals(java.util.EnumSet.of(Perks.Perk.QUICK_SEARCH, Perks.Perk.TOUGH, Perks.Perk.GLASS_WALKER))),
 				"the first three went into the build");

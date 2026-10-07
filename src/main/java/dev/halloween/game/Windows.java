@@ -39,7 +39,6 @@ import net.minecraft.world.phys.Vec3;
 public final class Windows {
 	private static final Map<UUID, Vault> VAULTS = new HashMap<>();
 	/** Broken pane positions and the glass that was there, for /hw reset. */
-	private static final Map<BlockPos, BlockState> BROKEN = new LinkedHashMap<>();
 
 	private static final class Vault {
 		final BlockPos window;
@@ -265,7 +264,7 @@ public final class Windows {
 			if (!isWindow(state) || isBrokenPane(state)) {
 				continue;
 			}
-			BROKEN.putIfAbsent(p.immutable(), state);
+			BrokenWindows.get(level.getServer()).add(p, state);
 			BlockState broken = HwBlocks.BROKEN_GLASS_PANE.defaultBlockState();
 			if (state.getBlock() instanceof IronBarsBlock) {
 				for (var prop : new net.minecraft.world.level.block.state.properties.BooleanProperty[]{
@@ -284,13 +283,15 @@ public final class Windows {
 	}
 
 	public static void clear(MinecraftServer server) {
-		for (Map.Entry<BlockPos, BlockState> e : BROKEN.entrySet()) {
+		// Kept with the world: a game closed mid-match still gets its windows back next time.
+		BrokenWindows saved = BrokenWindows.get(server);
+		for (Map.Entry<BlockPos, BlockState> e : saved.panes().entrySet()) {
 			ServerLevel level = server.overworld();
 			if (isBrokenPane(level.getBlockState(e.getKey()))) {
 				level.setBlock(e.getKey(), e.getValue(), Block.UPDATE_ALL);
 			}
 		}
-		BROKEN.clear();
+		saved.clear();
 		VAULTS.clear();
 	}
 }
