@@ -1,4 +1,10 @@
 {
+	"halloween.board.title": "Карта города",
+	"halloween.board.cellar": "▪ погреб",
+	"halloween.board.gate": "▪ ворота",
+	"halloween.board.here": "● вы здесь",
+	"halloween.hint.car_driver": "За рулём. Пробел — ехать, Shift — выйти за кем-нибудь",
+	"halloween.hint.car_passenger": "В машине. Ехать решает водитель, Shift — выйти",
   "block.halloween.gun_safe": "Оружейный сейф",
   "block.halloween.dresser": "Комод",
   "block.halloween.nightstand": "Тумбочка",
@@ -321,9 +327,9 @@
 	"halloween.hud.prompt.item.throw": "ПКМ — бросить",
 	"halloween.hud.meters": "%s м",
 	"halloween.hud.van_here": "Фургон полиции · %s м",
-	"halloween.hud.exit.car.running": "Машина: мотор заведён, уезжает через %s",
-	"halloween.hud.progress.escape_car": "Запрыгиваю в машину…",
+	"halloween.hud.exit.car.running": "Машина: мотор заведён, свободных мест: %s",
+	"halloween.hud.progress.escape_car": "Сажусь в машину…",
 	"halloween.hud.prompt.window_shadow": "ПКМ — пройти сквозь окно",
 	"halloween.hud.prompt.window_smash": "Удар — выбить окно",
-	"halloween.match.car_running": "Машина заведена! Через %s с она уедет — успейте сесть"
+	"halloween.match.car_running": "Машина заведена! Садитесь: водитель решает, когда ехать"
 }

@@ -39,24 +39,7 @@ public final class Minimap {
 			for (int dx = 0; dx < w; dx++) {
 				int x = x0 + dx;
 				int z = z0 + dz;
-				byte kind = road(level.getBlockState(pos.set(x, base - 1, z))) ? ROAD : GROUND;
-				boolean trees = false;
-				for (int dy = 0; dy <= 10; dy++) {
-					BlockState s = level.getBlockState(pos.set(x, base + dy, z));
-					if (s.isAir()) {
-						continue;
-					}
-					if (s.is(BlockTags.LEAVES) || s.is(BlockTags.LOGS)) {
-						trees = true;
-					} else if (dy >= 1 && s.isSolidRender()) {
-						kind = BUILDING;
-						break;
-					}
-				}
-				if (kind != BUILDING && trees) {
-					kind = TREES;
-				}
-				plan[dz * w + dx] = kind;
+				plan[dz * w + dx] = kindAt(level, x, z, base, pos);
 			}
 		}
 		current = new HwNet.MinimapSync(x0, z0, w, h, plan);
@@ -65,6 +48,25 @@ public final class Minimap {
 				ServerPlayNetworking.send(player, current);
 			}
 		}
+	}
+
+	/** What a column of the town is, seen from above: ground, road (or pavement), trees or a building. */
+	static byte kindAt(ServerLevel level, int x, int z, int base, BlockPos.MutableBlockPos pos) {
+		byte kind = road(level.getBlockState(pos.set(x, base - 1, z))) ? ROAD : GROUND;
+		boolean trees = false;
+		for (int dy = 0; dy <= 10; dy++) {
+			BlockState s = level.getBlockState(pos.set(x, base + dy, z));
+			if (s.isAir()) {
+				continue;
+			}
+			if (s.is(BlockTags.LEAVES) || s.is(BlockTags.LOGS)) {
+				trees = true;
+			} else if (dy >= 1 && s.isSolidRender()) {
+				kind = BUILDING;
+				break;
+			}
+		}
+		return kind != BUILDING && trees ? TREES : kind;
 	}
 
 	private static boolean road(BlockState ground) {

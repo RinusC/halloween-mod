@@ -155,6 +155,7 @@ public final class Match {
 		Loot.setup(level, center, level.getRandom());
 		restoreTown(level, center, Loot.radius());
 		Minimap.bake(level, area(points), center);
+		MapBoards.setup(level, area(points), center);
 
 		CommandSourceStack console = server.createCommandSourceStack().withLevel(level).withSuppressedOutput();
 		for (String command : new String[]{"time set midnight", "weather clear", "gamerule advance_time false",
@@ -316,7 +317,7 @@ public final class Match {
 	 */
 	private static boolean nobodyLeft(MinecraftServer server) {
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-			if (MatchManager.role(player).survivor() && !player.isSpectator() && player.isAlive()) {
+			if (MatchManager.role(player).survivor() && (!player.isSpectator() && player.isAlive() || Exits.isSeated(player))) {
 				return false;
 			}
 		}

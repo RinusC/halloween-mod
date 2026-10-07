@@ -78,9 +78,15 @@ public final class Exits {
 	private static final List<Cellar> CELLARS = new ArrayList<>();
 	private static BlockPos car;
 	private static int carFlags;
-	/** Seats left in the running car, how long it still waits, and the blocks it stands on (it drives off). */
-	private static int carSeats;
+	/**
+	 * Who sits in the running car: the driver (the first in) and the passengers, the game mode each had before
+	 * (they sit as spectators held in their seat); the engine's ticks; the blocks it stands on (it drives off).
+	 */
+	private static final List<java.util.UUID> SEATED = new ArrayList<>();
+	private static final Map<java.util.UUID, net.minecraft.world.level.GameType> SEATED_MODE = new java.util.HashMap<>();
 	private static int carTimer;
+	/** How long a bot at the wheel has waited for the others. */
+	private static int botWait;
 	private static final List<BlockPos> CAR_BLOCKS = new ArrayList<>();
 	private static BlockPos police;
 	/** Survivors the waiting van can still take (levels 1 and 3 each bring one seat), and how long it waits. */
@@ -140,8 +146,18 @@ public final class Exits {
 		gateState = CLOSED;
 		gateFuse = false;
 		carFlags = 0;
-		carSeats = 0;
+		// Anyone still sitting in the car gets their game mode back (the match is over or starting afresh).
+		for (java.util.UUID id : SEATED) {
+			ServerPlayer p = level.getServer().getPlayerList().getPlayer(id);
+			net.minecraft.world.level.GameType mode = SEATED_MODE.get(id);
+			if (p != null && mode != null && p.isSpectator()) {
+				p.setGameMode(mode);
+			}
+		}
+		SEATED.clear();
+		SEATED_MODE.clear();
 		carTimer = 0;
+		botWait = 0;
 		CAR_BLOCKS.clear();
 		vanSeats = 0;
 		vanTimer = 0;
@@ -154,11 +170,10 @@ public final class Exits {
 	public static void tick(ServerLevel level) {
 		HwConfig cfg = HwConfig.get();
 		if ((carFlags & CAR_RUNNING) != 0 && (carFlags & CAR_GONE) == 0) {
-			if (--carTimer <= 0 || carSeats <= 0) {
-				driveOff(level);
-			} else if (carTimer % 20 == 0) {
+			if (carTimer++ % 20 == 0) {
 				level.playSound(null, car, SoundEvents.MINECART_RIDING, SoundSource.BLOCKS, 1.2f, 0.5f);
 			}
+			tickSeats(level);
 		}
 		if (vanSeats > 0 && --vanTimer <= 0) {
 			vanSeats = 0;
@@ -272,13 +287,10 @@ public final class Exits {
 					}) : null;
 			}
 			if ((carFlags & CAR_RUNNING) != 0) {
-				// The engine runs: a second survivor can still jump in.
-				if (civilian && carSeats > 0) {
-					return escapeHold(pos, "halloween.hud.progress.escape_car", p -> carSeats > 0 && (carFlags & CAR_GONE) == 0, p -> {
-						carSeats--;
-						Match.escape(p, Component.translatable("halloween.exit.car"));
-						Match.markDirty();
-					});
+				// The engine runs: survivors get in (the first is the driver) while there are seats.
+				if (civilian && SEATED.size() < cfg.carSeats && !SEATED.contains(player.getUUID())) {
+					return escapeHold(pos, "halloween.hud.progress.escape_car",
+						p -> SEATED.size() < HwConfig.get().carSeats && (carFlags & CAR_GONE) == 0 && !SEATED.contains(p.getUUID()), p -> board(level, p));
 				}
 				if (!civilian) {
 					hint(player, "halloween.hint.deputy_no_escape");
@@ -324,15 +336,14 @@ public final class Exits {
 			return new Holds.Hold(pos, "halloween.hud.progress.start_car", true, cfg.startCarTicks,
 				p -> (carFlags & CAR_REPAIRED) != 0 && (carFlags & CAR_FUEL) != 0 && (carFlags & (CAR_GONE | CAR_RUNNING)) == 0
 					&& Inventory.has(p, HwItems.Kind.SEDAN_KEYS), p -> {
-					// The engine starts: the driver is in, the car waits a moment for one more and for townsfolk.
+					// The engine starts and runs: nobody is in yet. It waits until the driver (the first to get in)
+					// says go, or both seats are taken; townsfolk brought up to it get in meanwhile.
 					Inventory.consume(p, HwItems.Kind.SEDAN_KEYS);
 					carFlags |= CAR_RUNNING;
-					carSeats = Math.max(0, cfg.carSeats - 1);
-					carTimer = cfg.carWaitTicks;
+					carTimer = 0;
+					botWait = 0;
 					level.playSound(null, car, SoundEvents.MINECART_RIDING, SoundSource.BLOCKS, 3f, 0.6f);
-					Match.escape(p, Component.translatable("halloween.exit.car"));
-					Match.announce(level.getServer(), Component.translatable("halloween.match.car_running", cfg.carWaitTicks / 20)
-						.withStyle(net.minecraft.ChatFormatting.GREEN));
+					Match.announce(level.getServer(), Component.translatable("halloween.match.car_running").withStyle(net.minecraft.ChatFormatting.GREEN));
 					Match.markDirty();
 				});
 		}
@@ -400,10 +411,105 @@ public final class Exits {
 		return null;
 	}
 
-	/** The car drives off: horn, engine, and it is gone from where it stood. */
+	/** Someone gets into the running car: they sit (held in their seat as a spectator, out of reach). */
+	private static void board(ServerLevel level, ServerPlayer p) {
+		SEATED.add(p.getUUID());
+		SEATED_MODE.put(p.getUUID(), p.gameMode.getGameModeForPlayer());
+		p.setGameMode(net.minecraft.world.level.GameType.SPECTATOR);
+		level.playSound(null, car, SoundEvents.IRON_DOOR_CLOSE, SoundSource.BLOCKS, 1f, 1.2f);
+		AiStats.add(p, SEATED.size() == 1 ? "car.driver" : "car.passenger");
+		Match.markDirty();
+		if (SEATED.size() >= HwConfig.get().carSeats) {
+			// Every seat taken: off we go.
+			driveOff(level);
+		}
+	}
+
+	/** Out of the car again (to fetch someone): on the side of it where there is room. */
+	private static void getOut(ServerLevel level, ServerPlayer p) {
+		SEATED.remove(p.getUUID());
+		net.minecraft.world.level.GameType mode = SEATED_MODE.remove(p.getUUID());
+		p.setGameMode(mode == null ? net.minecraft.world.level.GameType.ADVENTURE : mode);
+		Vec3 c = Vec3.atBottomCenterOf(car);
+		Vec3 out = c.add(0, 0, 3);
+		for (int i = 0; i < 8; i++) {
+			double a = i * Math.PI / 4;
+			Vec3 at = c.add(Math.cos(a) * 3, 0, Math.sin(a) * 3);
+			if (level.noCollision(new net.minecraft.world.phys.AABB(at.x - 0.3, at.y, at.z - 0.3, at.x + 0.3, at.y + 1.8, at.z + 0.3))) {
+				out = at;
+				break;
+			}
+		}
+		p.teleportTo(level, out.x, out.y, out.z, Set.of(net.minecraft.world.entity.Relative.X_ROT, net.minecraft.world.entity.Relative.Y_ROT), 0f, 0f, false);
+		level.playSound(null, car, SoundEvents.IRON_DOOR_OPEN, SoundSource.BLOCKS, 1f, 1.2f);
+		AiStats.add(p, "car.out");
+		Match.markDirty();
+	}
+
+	/**
+	 * The people in the car stay in their seats. The driver (a person) jumps to drive off, anyone sneaks to get
+	 * out; a bot at the wheel waits a while for the others and then goes.
+	 */
+	private static void tickSeats(ServerLevel level) {
+		SEATED.removeIf(id -> {
+			ServerPlayer p = level.getServer().getPlayerList().getPlayer(id);
+			return p == null || !MatchManager.role(p).survivor();
+		});
+		if (SEATED.isEmpty()) {
+			botWait = 0;
+			return;
+		}
+		Vec3 seat = Vec3.atBottomCenterOf(car).add(0, 0.3, 0);
+		for (int i = 0; i < SEATED.size(); i++) {
+			ServerPlayer p = level.getServer().getPlayerList().getPlayer(SEATED.get(i));
+			if (p.position().distanceToSqr(seat) > 0.01) {
+				p.teleportTo(level, seat.x, seat.y, seat.z, Set.of(net.minecraft.world.entity.Relative.X_ROT, net.minecraft.world.entity.Relative.Y_ROT), 0f, 0f, false);
+			}
+			p.setDeltaMovement(Vec3.ZERO);
+			if (Bots.isBot(p)) {
+				continue;
+			}
+			net.minecraft.world.entity.player.Input input = p.getLastClientInput();
+			if (input.shift()) {
+				getOut(level, p);
+				return;
+			}
+			if (i == 0 && input.jump()) {
+				driveOff(level);
+				return;
+			}
+			if (level.getGameTime() % 20 == 0) {
+				p.sendOverlayMessage(Component.translatable(i == 0 ? "halloween.hint.car_driver" : "halloween.hint.car_passenger").withStyle(ChatFormatting.GREEN));
+			}
+		}
+		ServerPlayer driver = level.getServer().getPlayerList().getPlayer(SEATED.getFirst());
+		if (driver != null && Bots.isBot(driver) && ++botWait >= HwConfig.get().carWaitTicks) {
+			driveOff(level);
+		}
+	}
+
+	/** Sitting in the running car (out of the match's reach until it goes). */
+	public static boolean isSeated(net.minecraft.world.entity.Entity entity) {
+		return SEATED.contains(entity.getUUID());
+	}
+
+	/** For tests: who sits in the car, the driver first. */
+	public static List<java.util.UUID> seated() {
+		return new ArrayList<>(SEATED);
+	}
+
+	/** The car drives off with everyone in it: horn, engine, and it is gone from where it stood. */
 	private static void driveOff(ServerLevel level) {
 		carFlags |= CAR_GONE;
-		carSeats = 0;
+		List<java.util.UUID> riders = new ArrayList<>(SEATED);
+		SEATED.clear();
+		for (java.util.UUID id : riders) {
+			SEATED_MODE.remove(id);
+			ServerPlayer p = level.getServer().getPlayerList().getPlayer(id);
+			if (p != null) {
+				Match.escape(p, Component.translatable("halloween.exit.car"));
+			}
+		}
 		level.playSound(null, car, SoundEvents.GOAT_HORN_SOUND_VARIANTS.get(0).value(), SoundSource.BLOCKS, 2f, 1.4f);
 		level.playSound(null, car, SoundEvents.MINECART_RIDING, SoundSource.BLOCKS, 3f, 0.8f);
 		for (BlockPos p : CAR_BLOCKS) {
@@ -501,6 +607,22 @@ public final class Exits {
 			|| police != null && vanSeats > 0 && Vec3.atCenterOf(police).distanceTo(at) <= radius + 1
 			|| carWaiting() && Vec3.atCenterOf(car).distanceTo(at) <= radius + 2
 			|| gate != null && gateState == OPEN && Vec3.atCenterOf(gate).distanceTo(at) <= radius;
+	}
+
+	/** An exit to draw on the town map boards: a storm cellar, or the gate. */
+	public record Marker(BlockPos pos, boolean cellar) {
+	}
+
+	/** This match's storm cellars and gate (where they are, whatever their state). */
+	public static List<Marker> markers() {
+		List<Marker> list = new ArrayList<>();
+		for (Cellar c : CELLARS) {
+			list.add(new Marker(c.pos, true));
+		}
+		if (gate != null) {
+			list.add(new Marker(gate, false));
+		}
+		return list;
 	}
 
 	/** The car's engine runs and it hasn't left yet. */
@@ -783,7 +905,7 @@ public final class Exits {
 			list.add(new HwNet.ExitInfo(CELLAR, c.pos, c.state, 0));
 		}
 		if (car != null) {
-			list.add(new HwNet.ExitInfo(CAR, car, carFlags, carWaiting() ? carTimer : 0));
+			list.add(new HwNet.ExitInfo(CAR, car, carFlags, carWaiting() ? Math.max(0, HwConfig.get().carSeats - SEATED.size()) : 0));
 		}
 		if (police != null) {
 			list.add(policeInfo());

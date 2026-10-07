@@ -169,7 +169,7 @@ public final class HwHud {
 				}
 				case 1 -> {
 					if ((e.state() & 8) != 0 && (e.state() & 4) == 0) {
-						line = Component.translatable("halloween.hud.exit.car.running", clock(e.extra()));
+						line = Component.translatable("halloween.hud.exit.car.running", e.extra());
 						color = 0xFF7FE07F;
 					} else if ((e.state() & 4) != 0) {
 						line = Component.translatable("halloween.hud.exit.car.gone");

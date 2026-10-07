@@ -1,4 +1,10 @@
 {
+	"halloween.board.title": "Town map",
+	"halloween.board.cellar": "▪ storm cellar",
+	"halloween.board.gate": "▪ gate",
+	"halloween.board.here": "● you are here",
+	"halloween.hint.car_driver": "At the wheel. Space to drive off, Shift to get out and fetch someone",
+	"halloween.hint.car_passenger": "In the car. The driver decides when to go; Shift to get out",
   "block.halloween.gun_safe": "Gun Safe",
   "block.halloween.dresser": "Dresser",
   "block.halloween.nightstand": "Nightstand",
@@ -321,9 +327,9 @@
 	"halloween.hud.prompt.item.throw": "Right click: throw",
 	"halloween.hud.meters": "%s m",
 	"halloween.hud.van_here": "Police van · %s m",
-	"halloween.hud.exit.car.running": "Car: engine running, leaves in %s",
-	"halloween.hud.progress.escape_car": "Jumping into the car…",
+	"halloween.hud.exit.car.running": "Car: engine running, seats free: %s",
+	"halloween.hud.progress.escape_car": "Getting into the car…",
 	"halloween.hud.prompt.window_shadow": "Right click: slip through the window",
 	"halloween.hud.prompt.window_smash": "Strike: smash the window",
-	"halloween.match.car_running": "The car is running! It leaves in %s s: get in"
+	"halloween.match.car_running": "The car is running! Get in: the driver decides when to go"
 }

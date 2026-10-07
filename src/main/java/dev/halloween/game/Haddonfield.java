@@ -63,6 +63,9 @@ public final class Haddonfield extends MapPlan {
 		this.park();
 		this.church();
 		this.roads();
+		// The town map boards go up before the lots, so fences and trees keep clear of them.
+		this.mapBoard(-31, MAIN - 6);
+		this.mapBoard(-1, LAMPKIN - 6);
 		this.lots();
 		this.commerce();
 		this.woodsAndFields();
@@ -1842,6 +1845,22 @@ public final class Haddonfield extends MapPlan {
 			this.onSidewalk(x + 1, MAIN - 5, stairs("dark_oak_stairs", Direction.NORTH));
 			this.onSidewalk(x + 3, MAIN - 5, b("cauldron"));
 		}
+	}
+
+	/**
+	 * A town map board at the street's edge, facing south over the sidewalk: two posts, a backing two squares
+	 * wide where the four maps hang (see MapBoards: they are drawn at every match), a little roof, a header and
+	 * a legend sign on the west post. {@code x0}: the board's west square.
+	 */
+	private void mapBoard(int x0, int z) {
+		this.fill(x0 - 1, 0, z, x0 - 1, 3, z, b("dark_oak_log"));
+		this.fill(x0 + 2, 0, z, x0 + 2, 3, z, b("dark_oak_log"));
+		this.fill(x0, 0, z, x0 + 1, 3, z, b("dark_oak_planks"));
+		this.fill(x0 - 1, 4, z - 1, x0 + 2, 4, z + 1, slab("dark_oak_slab", SlabType.BOTTOM));
+		this.fill(x0 - 1, 0, z + 1, x0 + 2, 3, z + 1, AIR);
+		this.wallSign(x0 - 1, 1, z + 1, Direction.SOUTH, "", "", "", "");
+		this.wallSign(x0, 3, z + 1, Direction.SOUTH, "HADDONFIELD", "", "", "");
+		this.point(MapPoints.Type.MAP_BOARD, x0, 1, z);
 	}
 
 	/** "Welcome to Haddonfield" board on two posts beside a road into town, facing {@code facing}. */

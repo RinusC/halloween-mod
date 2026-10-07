@@ -387,7 +387,7 @@ public class HwConfig {
 	public int installPartTicks = 60;
 	public int repairCarTicks = 300;
 	public int startCarTicks = 60;
-	/** Survivors the car takes, and how long it waits with the engine running before it drives off. */
+	/** Survivors the car takes (it goes when they are all in, or when the driver says so); how long a bot at the wheel waits for the others. */
 	public int carSeats = 2;
 	public int carWaitTicks = 160;
 	/** The Shape in Shape Jump passes through a window this slowly (no glass broken). */

@@ -107,7 +107,7 @@ public final class MatchManager {
 
 	/** A victim the Shape can learn about and reach: not hiding in a locker. */
 	public static boolean exposed(Entity entity) {
-		return isVictim(entity) && !Lockers.isInside(entity);
+		return isVictim(entity) && !Lockers.isInside(entity) && !Exits.isSeated(entity);
 	}
 
 	public static boolean isStunned(ServerPlayer player) {
