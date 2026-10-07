@@ -36,6 +36,8 @@ public class HalloweenClient implements ClientModInitializer {
 		new KeyMapping("key.halloween.shape_jump", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_V, CATEGORY));
 	public static final KeyMapping KEY_IMPULSE = KeyMappingHelper.registerKeyMapping(
 		new KeyMapping("key.halloween.impulse", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_B, CATEGORY));
+	public static final KeyMapping KEY_PERKS = KeyMappingHelper.registerKeyMapping(
+		new KeyMapping("key.halloween.perks", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_P, CATEGORY));
 
 	private static final Identifier FX_SHAPE_JUMP = Halloween.id("shape_jump");
 	private static final Identifier FX_SENSE = Halloween.id("killer_sense");
@@ -125,10 +127,30 @@ public class HalloweenClient implements ClientModInitializer {
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.MinimapSync.TYPE, (payload, ctx) -> ClientMinimap.apply(payload));
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.MusicMood.TYPE, (payload, ctx) -> ClientMusic.set(payload.mood(), payload.variant()));
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.Anim.TYPE, (payload, ctx) -> ClientAnims.receive(payload));
+		ClientPlayNetworking.registerGlobalReceiver(HwNet.NoiseBurst.TYPE, (payload, ctx) -> {
+			Minecraft mc = Minecraft.getInstance();
+			if (mc.level != null) {
+				ClientState.NOISES.add(new ClientState.NoiseMark(payload.pos(), payload.loud(), mc.level.getGameTime()));
+				if (ClientState.NOISES.size() > 12) {
+					ClientState.NOISES.removeFirst();
+				}
+			}
+		});
+		ClientPlayNetworking.registerGlobalReceiver(HwNet.PerkSync.TYPE, (payload, ctx) -> {
+			ClientState.perkPoints = payload.points();
+			ClientState.perkChosen = payload.perk();
+			Minecraft mc = Minecraft.getInstance();
+			mc.execute(() -> {
+				if (mc.gui.screen() instanceof PerkScreen perks) {
+					perks.refresh();
+				}
+			});
+		});
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.Pant.TYPE, (payload, ctx) -> ClientPanting.receive(payload));
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.StaminaSync.TYPE, (payload, ctx) -> {
 			ClientState.stamina = payload.value();
 			ClientState.staminaExhausted = payload.exhausted();
+			ClientState.panic = payload.panic();
 		});
 		dev.halloween.game.SprintRules.clientSurvivor = e -> e == net.minecraft.client.Minecraft.getInstance().player && ClientState.myRole().survivor();
 		dev.halloween.game.SprintRules.clientExhausted = e -> e == net.minecraft.client.Minecraft.getInstance().player && ClientState.staminaExhausted;
@@ -215,6 +237,12 @@ public class HalloweenClient implements ClientModInitializer {
 		ShapeBreath.tick(mc);
 		ClientWeather.tick();
 		ClientPanting.tick(mc);
+		ClientPanic.tick(mc);
+		while (KEY_PERKS.consumeClick()) {
+			if (mc.gui.screen() == null) {
+				mc.gui.setScreen(new PerkScreen());
+			}
+		}
 		Role role = ClientState.myRole();
 		CameraType wanted = role == Role.SHAPE ? CameraType.THIRD_PERSON_BACK : CameraType.FIRST_PERSON;
 		if (role != Role.NONE && mc.options.getCameraType() != wanted) {

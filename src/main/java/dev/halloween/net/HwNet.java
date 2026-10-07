@@ -312,15 +312,56 @@ public final class HwNet {
 	}
 
 	/** This survivor's stamina (0..1) and whether they are out of breath (see game.Stamina). */
-	public record StaminaSync(float value, boolean exhausted) implements CustomPacketPayload {
+	public record StaminaSync(float value, boolean exhausted, float panic) implements CustomPacketPayload {
 		public static final Type<StaminaSync> TYPE = payloadType("stamina");
 		public static final StreamCodec<RegistryFriendlyByteBuf, StaminaSync> CODEC = StreamCodec.of((buf, v) -> {
 			buf.writeFloat(v.value);
 			buf.writeBoolean(v.exhausted);
-		}, buf -> new StaminaSync(buf.readFloat(), buf.readBoolean()));
+			buf.writeFloat(v.panic);
+		}, buf -> new StaminaSync(buf.readFloat(), buf.readBoolean(), buf.readFloat()));
 
 		@Override
 		public Type<StaminaSync> type() {
+			return TYPE;
+		}
+	}
+
+	/** Michael hears footsteps: where they came from, and whether off a loud surface (see game.Noise). */
+	public record NoiseBurst(Vec3 pos, boolean loud) implements CustomPacketPayload {
+		public static final Type<NoiseBurst> TYPE = payloadType("noise");
+		public static final StreamCodec<RegistryFriendlyByteBuf, NoiseBurst> CODEC = StreamCodec.of((buf, v) -> {
+			writeVec(buf, v.pos);
+			buf.writeBoolean(v.loud);
+		}, buf -> new NoiseBurst(readVec(buf), buf.readBoolean()));
+
+		@Override
+		public Type<NoiseBurst> type() {
+			return TYPE;
+		}
+	}
+
+	/** This player's survivor points over all matches and the perk they picked (see game.Perks). */
+	public record PerkSync(int points, String perk) implements CustomPacketPayload {
+		public static final Type<PerkSync> TYPE = payloadType("perk_sync");
+		public static final StreamCodec<RegistryFriendlyByteBuf, PerkSync> CODEC = StreamCodec.of((buf, v) -> {
+			buf.writeVarInt(v.points);
+			buf.writeUtf(v.perk);
+		}, buf -> new PerkSync(buf.readVarInt(), buf.readUtf()));
+
+		@Override
+		public Type<PerkSync> type() {
+			return TYPE;
+		}
+	}
+
+	/** Client: pick this perk for the next match ("" takes it off). */
+	public record ChoosePerk(String perk) implements CustomPacketPayload {
+		public static final Type<ChoosePerk> TYPE = payloadType("choose_perk");
+		public static final StreamCodec<RegistryFriendlyByteBuf, ChoosePerk> CODEC = StreamCodec.of((buf, v) -> buf.writeUtf(v.perk),
+			buf -> new ChoosePerk(buf.readUtf()));
+
+		@Override
+		public Type<ChoosePerk> type() {
 			return TYPE;
 		}
 	}
@@ -815,6 +856,9 @@ public final class HwNet {
 		PayloadTypeRegistry.clientboundPlay().register(MatchWeather.TYPE, MatchWeather.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(StaminaSync.TYPE, StaminaSync.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(Pant.TYPE, Pant.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(NoiseBurst.TYPE, NoiseBurst.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(PerkSync.TYPE, PerkSync.CODEC);
+		PayloadTypeRegistry.serverboundPlay().register(ChoosePerk.TYPE, ChoosePerk.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(MinimapSync.TYPE, MinimapSync.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(MatchSync.TYPE, MatchSync.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(MatchEnd.TYPE, MatchEnd.CODEC);

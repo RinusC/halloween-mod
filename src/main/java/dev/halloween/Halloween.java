@@ -50,6 +50,7 @@ public class Halloween implements ModInitializer {
 				}
 			}
 		});
+		ServerPlayNetworking.registerGlobalReceiver(HwNet.ChoosePerk.TYPE, (payload, ctx) -> dev.halloween.game.Perks.choose(ctx.player(), payload.perk()));
 		ServerPlayNetworking.registerGlobalReceiver(HwNet.NpcTalk.TYPE, (payload, ctx) -> dev.halloween.game.Talks.request(ctx.player(), payload.entityId(), payload.option()));
 		ServerPlayNetworking.registerGlobalReceiver(HwNet.MinigameResult.TYPE, (payload, ctx) -> dev.halloween.game.Minigames.result(ctx.player(), payload));
 		ServerPlayNetworking.registerGlobalReceiver(HwNet.GunFire.TYPE, (payload, ctx) -> dev.halloween.game.Guns.fire(ctx.player(), payload.yaw(), payload.pitch()));
@@ -77,6 +78,7 @@ public class Halloween implements ModInitializer {
 			DoorLocks.syncTo(handler.player);
 			dev.halloween.game.Skins.syncTo(handler.player);
 			dev.halloween.game.Weather.syncTo(handler.player);
+			dev.halloween.game.Perks.sync(handler.player);
 			dev.halloween.game.Music.forget(handler.player);
 			dev.halloween.game.Minimap.syncTo(handler.player);
 			dev.halloween.game.Match.markDirty();

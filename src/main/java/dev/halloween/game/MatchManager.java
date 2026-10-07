@@ -188,7 +188,7 @@ public final class MatchManager {
 				ROLES.put(player.getUUID(), role);
 				player.setGameMode(GameType.ADVENTURE);
 				player.getInventory().clearContent();
-				maxHealth.setBaseValue(cfg.civilianMaxHealth);
+				maxHealth.setBaseValue(cfg.civilianMaxHealth + Perks.extraHealth(player));
 				camera.setBaseValue(camera.getAttribute().value().getDefaultValue());
 				player.setHealth(player.getMaxHealth());
 				scoreboard.addPlayerToTeam(player.getScoreboardName(), team);
@@ -266,6 +266,8 @@ public final class MatchManager {
 		MapJob.tick(server);
 		Match.tick(server);
 		Tutorial.tick(server);
+		Noise.tick(server);
+		Panic.tick(server);
 		Stamina.tick(server);
 		Holds.tick(server);
 		Fight.tick(server);
@@ -889,6 +891,7 @@ public final class MatchManager {
 		} else {
 			victim.hurtServer(level, player.damageSources().playerAttack(player), damage);
 			Voices.play(victim, Voices.Kind.HURT);
+			Panic.add(victim, cfg.panicOnHit);
 			// Strikes don't throw victims around; only the push does.
 			victim.setDeltaMovement(Vec3.ZERO);
 			victim.hurtMarked = true;
@@ -951,6 +954,7 @@ public final class MatchManager {
 		gainBloodthirst(player, state, cfg.bloodthirstPerGrab);
 		score(player, state, policeHalf(victim, cfg.scoreGrab), Component.translatable("halloween.score.grab", victim.getDisplayName(), vs.level()));
 		AiStats.add(victim, "grabbed");
+		Panic.add(victim, cfg.panicOnGrab);
 		if (victim instanceof ServerPlayer vp) {
 			AiStats.add(victim, "grabbed.while." + Bots.modeOf(vp));
 		}

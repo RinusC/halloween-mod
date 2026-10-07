@@ -35,6 +35,16 @@ public final class ClientState {
 	/** This survivor's stamina (see game.Stamina). */
 	public static float stamina = 1f;
 	public static boolean staminaExhausted;
+	/** This survivor's panic (see game.Panic). */
+	public static float panic;
+	/** Survivor points over all matches and the perk picked (see game.Perks). */
+	public static int perkPoints;
+	public static String perkChosen = "";
+	/** Footsteps Michael heard (see game.Noise), newest last. */
+	public static final java.util.List<NoiseMark> NOISES = new java.util.ArrayList<>();
+
+	public record NoiseMark(Vec3 pos, boolean loud, long at) {
+	}
 
 	/** Locked doors and doors with a broken lock (lower halves). */
 	public static final Set<net.minecraft.core.BlockPos> LOCKED_DOORS = new HashSet<>();
@@ -196,6 +206,8 @@ public final class ClientState {
 		ClientAnims.clear();
 		stamina = 1f;
 		staminaExhausted = false;
+		panic = 0f;
+		NOISES.clear();
 		ClientPanting.clear();
 		ClientWeather.kind = dev.halloween.game.Weather.CLEAR;
 		shapeEntityId = -1;

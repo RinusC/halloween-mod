@@ -197,7 +197,9 @@ public final class Loot {
 			return null;
 		}
 		BlockPos at = pos.immutable();
-		return new Holds.Hold(at, "halloween.hud.progress.search", false, HwConfig.get().searchTicks, p -> !SEARCHED.contains(at), p -> {
+		int ticks = Perks.has(player, Perks.Perk.QUICK_SEARCH) ? Math.round(HwConfig.get().searchTicks * HwConfig.get().perkQuickSearchFactor)
+			: HwConfig.get().searchTicks;
+		return new Holds.Hold(at, "halloween.hud.progress.search", false, ticks, p -> !SEARCHED.contains(at), p -> {
 			SEARCHED.add(at);
 			HwItems.Kind kind = HIDDEN.remove(at);
 			// Now and then somebody kept an old revolver in there.

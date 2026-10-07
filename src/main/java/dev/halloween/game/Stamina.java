@@ -25,6 +25,7 @@ public final class Stamina {
 		double lastZ;
 		float sent = -1f;
 		boolean sentExhausted;
+		float sentPanic;
 	}
 
 	private static final Map<UUID, State> STATES = new HashMap<>();
@@ -75,7 +76,8 @@ public final class Stamina {
 			s.lastX = p.getX();
 			s.lastZ = p.getZ();
 			if (p.isSprinting() && moved > 0.08) {
-				s.value -= 1f / Math.max(1, cfg.staminaRunTicks);
+				double runTicks = cfg.staminaRunTicks * (Perks.has(p, Perks.Perk.STAMINA) ? cfg.perkStaminaFactor : 1.0);
+				s.value -= (float) (1.0 / Math.max(1, runTicks));
 				s.restAt = now + cfg.staminaRegenDelayTicks;
 				if (s.value <= 0f) {
 					s.value = 0f;
@@ -87,14 +89,18 @@ public final class Stamina {
 				}
 			} else if (now >= s.restAt && s.value < 1f) {
 				boolean still = moved < 0.02 || Lockers.isInside(p);
-				s.value = Math.min(1f, s.value + 1f / Math.max(1, still ? cfg.staminaRestRegenTicks : cfg.staminaWalkRegenTicks));
+				// Panic takes the breath away: it comes back slower.
+				float calm = 1f - cfg.panicRegenPenalty * Panic.value(p);
+				s.value = Math.min(1f, s.value + calm / Math.max(1, still ? cfg.staminaRestRegenTicks : cfg.staminaWalkRegenTicks));
 			}
 			if (s.exhausted && s.value >= cfg.staminaRecoverFraction) {
 				s.exhausted = false;
 			}
-			if (s.exhausted != s.panting) {
-				// Out of breath: everyone near hears the panting until it is caught (then it fades, a deep breath out).
-				s.panting = s.exhausted;
+			// Out of breath, or panicking: everyone near hears the heavy breathing until it is caught (then it fades).
+			float panic = Panic.value(p);
+			boolean breathing = s.exhausted || panic >= cfg.panicBreathOn || s.panting && panic >= cfg.panicBreathOn - 0.15f;
+			if (breathing != s.panting) {
+				s.panting = breathing;
 				pant(p, s.panting);
 				if (s.panting) {
 					AiStats.add(p, "stamina.pant");
@@ -118,11 +124,14 @@ public final class Stamina {
 			return;
 		}
 		boolean full = s.value >= 1f && s.sent < 1f;
-		if (Math.abs(s.value - s.sent) < 0.02f && s.exhausted == s.sentExhausted && !full) {
+		float panic = Panic.value(p);
+		if (Math.abs(s.value - s.sent) < 0.02f && s.exhausted == s.sentExhausted && Math.abs(panic - s.sentPanic) < 0.03f && !full
+			&& !(panic == 0f && s.sentPanic > 0f)) {
 			return;
 		}
 		s.sent = s.value;
 		s.sentExhausted = s.exhausted;
-		ServerPlayNetworking.send(p, new HwNet.StaminaSync(s.value, s.exhausted));
+		s.sentPanic = panic;
+		ServerPlayNetworking.send(p, new HwNet.StaminaSync(s.value, s.exhausted, panic));
 	}
 }

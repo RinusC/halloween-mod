@@ -204,6 +204,8 @@ public final class Match {
 		}
 		Police.clear(server);
 		Townsfolk.spawnAll(level, level.getRandom());
+		// Everybody's perk for this match (before the roles: the tough one starts with more health).
+		Perks.begin(server, players);
 		int i = 0;
 		for (ServerPlayer player : players) {
 			Inventory.dropAll(player);
@@ -263,6 +265,9 @@ public final class Match {
 		Holds.clear();
 		Fight.clear(server);
 		Weather.clear(server);
+		Perks.end();
+		Noise.clear();
+		Panic.clear();
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
 			if (MatchManager.role(player) != Role.NONE) {
 				player.getInventory().clearContent();
@@ -489,6 +494,12 @@ public final class Match {
 
 	private static void end(MinecraftServer server) {
 		Townsfolk.payHidden(server);
+		if (!Tutorial.active()) {
+			// Survivor points add up from match to match: perks open with them.
+			Map<UUID, Integer> scores = new HashMap<>();
+			PEOPLE.forEach((id, p) -> scores.put(id, p.score));
+			Perks.award(server, scores);
+		}
 		state = State.ENDED;
 		int civilians = 0;
 		int escapes = 0;

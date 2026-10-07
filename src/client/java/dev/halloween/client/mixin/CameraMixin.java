@@ -29,6 +29,28 @@ public abstract class CameraMixin {
 	@Shadow
 	protected abstract void setPosition(Vec3 position);
 
+	@Shadow
+	protected abstract void setRotation(float yRot, float xRot);
+
+	@Shadow
+	public abstract float yRot();
+
+	@Shadow
+	public abstract float xRot();
+
+	/** Panic: the view shakes (see ClientPanic). */
+	@Inject(method = "alignWithEntity", at = @At("TAIL"))
+	private void halloween$panicShake(float partialTicks, CallbackInfo ci) {
+		Minecraft mc = Minecraft.getInstance();
+		if (this.detached || mc.level == null) {
+			return;
+		}
+		float[] shake = dev.halloween.client.ClientPanic.shake(mc.level.getGameTime() + partialTicks);
+		if (shake != null) {
+			this.setRotation(this.yRot() + shake[0], this.xRot() + shake[1]);
+		}
+	}
+
 	@Inject(method = "alignWithEntity", at = @At("TAIL"))
 	private void halloween$shoulder(float partialTicks, CallbackInfo ci) {
 		float offset = ClientState.shoulderOffset();

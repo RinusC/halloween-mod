@@ -61,6 +61,7 @@ public final class HwHud {
 			}
 			beams(g, hud, w, h);
 			impulseSpots(g, mc, w, h, partial);
+			noises(g, mc, w, h, partial);
 			if (hud.sense()) {
 				victimMarkers(g, mc, w, h, partial);
 			}
@@ -435,6 +436,31 @@ public final class HwHud {
 			}
 			g.fillGradient(x - half, y0, x + half, y1, 0x00FFD24A, 0xA0FFD24A);
 			g.fillGradient(x - half / 3 - 1, y0, x + half / 3 + 1, y1, 0x00FFF2C0, 0xD0FFF2C0);
+		}
+	}
+
+	/**
+	 * Footsteps he hears (game.Noise): rings spreading where they came from, louder ones bigger and paler; out of
+	 * view, a small arrow round the crosshair shows which way.
+	 */
+	private static void noises(GuiGraphicsExtractor g, Minecraft mc, int w, int h, float partial) {
+		long now = mc.level.getGameTime();
+		ClientState.NOISES.removeIf(n -> now - n.at() > 30);
+		for (ClientState.NoiseMark n : ClientState.NOISES) {
+			float age = now - n.at() + partial;
+			int alpha = (int) (220 * Mth.clamp(1 - age / 30f, 0, 1));
+			int color = (alpha << 24) | (n.loud() ? 0xFFE6B0 : 0xC8C8C8);
+			Projection.Point p = Projection.toScreen(n.pos().add(0, 0.3, 0), w, h);
+			if (p != null && p.x() >= 0 && p.x() <= w && p.y() >= 0 && p.y() <= h) {
+				float base = (float) Mth.clamp(160 / Math.max(4, p.distance()), 4, 22) * (n.loud() ? 1.4f : 1f);
+				ring(g, p.x(), p.y(), base + age * 0.6f, 2, 0f, 1f, color);
+				ring(g, p.x(), p.y(), base * 0.5f + age * 0.3f, 1, 0f, 1f, color);
+				continue;
+			}
+			Vec3 to = n.pos().subtract(mc.player.position());
+			double angle = Math.toRadians(Mth.wrapDegrees(Math.toDegrees(Math.atan2(to.z, to.x)) - 90 - mc.player.getYRot()));
+			int r = 36;
+			arrow(g, w / 2 + (int) Math.round(Math.sin(angle) * r), h / 2 - (int) Math.round(Math.cos(angle) * r), angle, color);
 		}
 	}
 

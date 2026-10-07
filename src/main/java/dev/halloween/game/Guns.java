@@ -277,6 +277,8 @@ public final class Guns {
 		} else if (speed > 0.03) {
 			spread += cfg.moveSpread;
 		}
+		// A panicking hand shakes.
+		spread += Panic.value(shooter) * cfg.panicSpread;
 		return spread;
 	}
 

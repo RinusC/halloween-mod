@@ -429,6 +429,36 @@ public class HwConfig {
 	/** Run dry: no running until this much is back. */
 	public double staminaRecoverFraction = 0.34;
 	public float staminaPantVolume = 0.8f;
+	/** Footsteps Michael hears (a burst on his screen): running, running on a loud surface (gravel, leaf piles, broken glass), walking on one. */
+	public double noiseRunRange = 10;
+	public double noiseLoudRunRange = 28;
+	public double noiseLoudWalkRange = 10;
+	/** At most one burst per survivor this often. */
+	public int noiseEveryTicks = 20;
+	/** Panic: how far (lit / dark) and how wide survivors see Michael to panic; seconds of watching to full panic (twice as fast this close). */
+	public double panicSeeRange = 24;
+	public double panicSeeDarkRange = 10;
+	public float panicSeeFovDeg = 60f;
+	public float panicSeeSeconds = 6f;
+	public double panicNearDistance = 8;
+	/** It ebbs away (over this many seconds from full) once he is further than this and no body is near. */
+	public double panicCalmDistance = 24;
+	public double panicBodyRange = 12;
+	public float panicCalmSeconds = 12f;
+	/** Shocks: struck, grabbed, a body found. */
+	public float panicOnHit = 0.25f;
+	public float panicOnGrab = 0.4f;
+	public float panicOnBody = 0.5f;
+	/** At full panic the breath comes back this much slower; heavy breathing from this much panic; extra gun spread (degrees) at full panic. */
+	public float panicRegenPenalty = 0.5f;
+	public float panicBreathOn = 0.5f;
+	public float panicSpread = 4f;
+	/** Perks open at this many survivor points over all matches: quick search, more breath, quiet steps, tough. */
+	public int[] perkUnlockPoints = {1000, 2500, 4000, 6000};
+	public float perkQuickSearchFactor = 0.6f;
+	public double perkStaminaFactor = 1.2;
+	public double perkQuietNoiseFactor = 0.5;
+	public float perkToughHealth = 2f;
 	/** How often a match night is clear, foggy, rainy (weights). */
 	public int[] weatherWeights = {40, 35, 25};
 	/** How far townsfolk, bots and police notice the Shape in fog and in rain, against a clear night. */

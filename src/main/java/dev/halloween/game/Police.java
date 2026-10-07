@@ -127,6 +127,16 @@ public final class Police {
 	}
 
 	/** Bodies lying about, found or not (tests, debugging). */
+	/** Is there a body (found or not) this close? */
+	public static boolean bodyNear(Vec3 at, double radius) {
+		for (Body b : BODIES) {
+			if (b.pos.distanceTo(at) <= radius) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	public static int bodies() {
 		return BODIES.size();
 	}
@@ -339,6 +349,7 @@ public final class Police {
 		HwConfig cfg = HwConfig.get();
 		body.found = true;
 		AiStats.add(finder, "body.found");
+		Panic.add(finder, cfg.panicOnBody);
 		Component who = finder.getDisplayName();
 		HwNet.Alert alert = new HwNet.Alert(body.pos, cfg.alertTicks);
 		for (ServerPlayer player : level.players()) {
