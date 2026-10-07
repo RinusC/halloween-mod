@@ -6,6 +6,7 @@
 		"AbstractClientPlayerMixin",
 		"AtmosphericFogMixin",
 		"BiomeRainMixin",
+		"LocalPlayerSprintMixin",
 		"LightmapExtractorMixin",
 		"CameraMixin",
 		"EntityMixin",

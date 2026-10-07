@@ -125,6 +125,12 @@ public class HalloweenClient implements ClientModInitializer {
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.MinimapSync.TYPE, (payload, ctx) -> ClientMinimap.apply(payload));
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.MusicMood.TYPE, (payload, ctx) -> ClientMusic.set(payload.mood(), payload.variant()));
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.Anim.TYPE, (payload, ctx) -> ClientAnims.receive(payload));
+		ClientPlayNetworking.registerGlobalReceiver(HwNet.StaminaSync.TYPE, (payload, ctx) -> {
+			ClientState.stamina = payload.value();
+			ClientState.staminaExhausted = payload.exhausted();
+		});
+		dev.halloween.game.SprintRules.clientSurvivor = e -> e == net.minecraft.client.Minecraft.getInstance().player && ClientState.myRole().survivor();
+		dev.halloween.game.SprintRules.clientExhausted = e -> e == net.minecraft.client.Minecraft.getInstance().player && ClientState.staminaExhausted;
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.MatchWeather.TYPE, (payload, ctx) -> ClientWeather.kind = payload.kind());
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.DoorSync.TYPE, (payload, ctx) -> {
 			ClientState.LOCKED_DOORS.clear();

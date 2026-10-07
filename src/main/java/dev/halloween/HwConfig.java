@@ -420,6 +420,15 @@ public class HwConfig {
 	public float flashlightFaceDeg = 70f;
 	public int flashlightLightLevel = 12;
 	/** A battery lasts this long switched on; spare batteries are found in containers. */
+	/** Stamina: ticks of running from full to empty; ticks to fill back up walking, and standing or hiding. */
+	public int staminaRunTicks = 160;
+	public int staminaWalkRegenTicks = 200;
+	public int staminaRestRegenTicks = 100;
+	/** It starts coming back this long after the run stops. */
+	public int staminaRegenDelayTicks = 20;
+	/** Run dry: no running until this much is back. */
+	public double staminaRecoverFraction = 0.34;
+	public float staminaPantVolume = 0.8f;
 	/** How often a match night is clear, foggy, rainy (weights). */
 	public int[] weatherWeights = {40, 35, 25};
 	/** How far townsfolk, bots and police notice the Shape in fog and in rain, against a clear night. */

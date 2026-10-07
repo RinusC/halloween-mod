@@ -311,6 +311,20 @@ public final class HwNet {
 		}
 	}
 
+	/** This survivor's stamina (0..1) and whether they are out of breath (see game.Stamina). */
+	public record StaminaSync(float value, boolean exhausted) implements CustomPacketPayload {
+		public static final Type<StaminaSync> TYPE = payloadType("stamina");
+		public static final StreamCodec<RegistryFriendlyByteBuf, StaminaSync> CODEC = StreamCodec.of((buf, v) -> {
+			buf.writeFloat(v.value);
+			buf.writeBoolean(v.exhausted);
+		}, buf -> new StaminaSync(buf.readFloat(), buf.readBoolean()));
+
+		@Override
+		public Type<StaminaSync> type() {
+			return TYPE;
+		}
+	}
+
 	/** The match's weather (see game.Weather). */
 	public record MatchWeather(int kind) implements CustomPacketPayload {
 		public static final Type<MatchWeather> TYPE = payloadType("weather");
@@ -783,6 +797,7 @@ public final class HwNet {
 		PayloadTypeRegistry.clientboundPlay().register(MusicMood.TYPE, MusicMood.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(Anim.TYPE, Anim.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(MatchWeather.TYPE, MatchWeather.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(StaminaSync.TYPE, StaminaSync.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(MinimapSync.TYPE, MinimapSync.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(MatchSync.TYPE, MatchSync.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(MatchEnd.TYPE, MatchEnd.CODEC);

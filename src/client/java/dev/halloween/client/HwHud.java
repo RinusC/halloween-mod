@@ -932,13 +932,20 @@ public final class HwHud {
 	}
 
 
+	/** Health (in four parts), and just above it, thinner, the stamina (red and blinking while out of breath). */
 	private static void healthBar(GuiGraphicsExtractor g, Minecraft mc, int w, int h) {
 		int x = w - 110;
 		int y = h - 22;
-		g.fill(x - 4, y - 14, x + 106, h - 6, 0x99000000);
-		g.text(mc.font, Component.translatable("halloween.hud.health"), x, y - 10, TEXT, true);
+		g.fill(x - 4, y - 21, x + 106, h - 6, 0x99000000);
+		g.text(mc.font, Component.translatable("halloween.hud.health"), x, y - 17, TEXT, true);
+		boolean out = ClientState.staminaExhausted;
+		boolean blink = out && (System.currentTimeMillis() / 250) % 2 == 0;
+		bar(g, x, y - 6, 100, 3, ClientState.stamina, out ? (blink ? 0xFFB02020 : 0xFF701818) : 0xFF8FB0C8);
 		float frac = mc.player.getHealth() / Math.max(1f, mc.player.getMaxHealth());
 		bar(g, x, y, 100, 6, frac, frac < 0.35f ? BLOOD : 0xFFD8D2C4);
+		for (int i = 1; i < 4; i++) {
+			g.fill(x + i * 25, y, x + i * 25 + 1, y + 6, 0xFF1A1A1A);
+		}
 	}
 
 	// ---------------------------------------------------------------- drawing helpers

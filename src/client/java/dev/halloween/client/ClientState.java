@@ -32,6 +32,9 @@ public final class ClientState {
 	/** Final scoreboard and when it arrived (ms). */
 	public static HwNet.MatchEnd matchEnd;
 	public static long matchEndAt;
+	/** This survivor's stamina (see game.Stamina). */
+	public static float stamina = 1f;
+	public static boolean staminaExhausted;
 
 	/** Locked doors and doors with a broken lock (lower halves). */
 	public static final Set<net.minecraft.core.BlockPos> LOCKED_DOORS = new HashSet<>();
@@ -191,6 +194,8 @@ public final class ClientState {
 		ClientMinimap.clear();
 		BloodParticles.clear();
 		ClientAnims.clear();
+		stamina = 1f;
+		staminaExhausted = false;
 		ClientWeather.kind = dev.halloween.game.Weather.CLEAR;
 		shapeEntityId = -1;
 		shapeShadow = false;

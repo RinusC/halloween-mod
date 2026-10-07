@@ -266,6 +266,7 @@ public final class MatchManager {
 		MapJob.tick(server);
 		Match.tick(server);
 		Tutorial.tick(server);
+		Stamina.tick(server);
 		Holds.tick(server);
 		Fight.tick(server);
 		Gear.tick(server);
