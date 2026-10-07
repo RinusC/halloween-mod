@@ -495,9 +495,14 @@ public final class Match {
 	private static void end(MinecraftServer server) {
 		Townsfolk.payHidden(server);
 		if (!Tutorial.active()) {
-			// Survivor points add up from match to match: perks open with them.
+			// Match points go into everybody's purse, survivors' and Michael's alike: perks are bought with them.
 			Map<UUID, Integer> scores = new HashMap<>();
 			PEOPLE.forEach((id, p) -> scores.put(id, p.score));
+			ServerPlayer theShape = shapeId == null ? null : server.getPlayerList().getPlayer(shapeId);
+			ShapeState theState = theShape == null ? null : MatchManager.shapeState(theShape);
+			if (theState != null) {
+				scores.merge(shapeId, theState.score, Integer::sum);
+			}
 			Perks.award(server, scores);
 		}
 		state = State.ENDED;

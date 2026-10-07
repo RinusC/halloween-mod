@@ -381,25 +381,25 @@ public class HwConfig {
 
 	private static java.util.Map<String, Integer> defaultPerkCosts() {
 		java.util.Map<String, Integer> c = new java.util.LinkedHashMap<>();
-		c.put("quick_search", 2000);
-		c.put("stamina", 3000);
-		c.put("quiet", 3750);
-		c.put("tough", 5000);
-		c.put("adrenaline", 3000);
-		c.put("barricade", 2500);
-		c.put("glass_walker", 2000);
-		c.put("brimstone", 2000);
-		c.put("contender", 3750);
-		c.put("lethal_pitch", 3000);
-		c.put("elusory", 5000);
-		c.put("field_triage", 2000);
-		c.put("slippery", 6250);
-		c.put("unphased", 2500);
-		c.put("stubborn", 3000);
-		c.put("repair_expert", 2500);
-		c.put("trespasser", 2000);
-		c.put("smooth_talker", 2500);
-		c.put("witness", 3750);
+		c.put("quick_search", 1200);
+		c.put("stamina", 1800);
+		c.put("quiet", 2250);
+		c.put("tough", 3000);
+		c.put("adrenaline", 1800);
+		c.put("barricade", 1500);
+		c.put("glass_walker", 1200);
+		c.put("brimstone", 1200);
+		c.put("contender", 2250);
+		c.put("lethal_pitch", 1800);
+		c.put("elusory", 3000);
+		c.put("field_triage", 1200);
+		c.put("slippery", 3750);
+		c.put("unphased", 1500);
+		c.put("stubborn", 1800);
+		c.put("repair_expert", 1500);
+		c.put("trespasser", 1200);
+		c.put("smooth_talker", 1500);
+		c.put("witness", 2250);
 		return c;
 	}
 

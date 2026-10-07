@@ -31,43 +31,43 @@ import net.minecraft.world.level.saveddata.SavedDataType;
 public final class Perks extends SavedData {
 	public enum Perk {
 		/** Searching furniture takes less time. */
-		QUICK_SEARCH(2000),
+		QUICK_SEARCH(1200),
 		/** Runs longer before running out of breath. */
-		STAMINA(3000),
+		STAMINA(1800),
 		/** Footsteps carry half as far. */
-		QUIET(3750),
+		QUIET(2250),
 		/** A little more health. */
-		TOUGH(5000),
+		TOUGH(3000),
 		/** The breath comes back faster. */
-		ADRENALINE(3000),
+		ADRENALINE(1800),
 		/** Doors you lock take more blows to break. */
-		BARRICADE(2500),
+		BARRICADE(1500),
 		/** Less cut by glass climbing through windows. */
-		GLASS_WALKER(2000),
+		GLASS_WALKER(1200),
 		/** Firecrackers blind Michael longer. */
-		BRIMSTONE(2000),
+		BRIMSTONE(1200),
 		/** Melee blows stun him more. */
-		CONTENDER(3750),
+		CONTENDER(2250),
 		/** Thrown things stun him more. */
-		LETHAL_PITCH(3000),
+		LETHAL_PITCH(1800),
 		/** He stalks you more slowly. */
-		ELUSORY(5000),
+		ELUSORY(3000),
 		/** Med kits work faster, the spray heals more. */
-		FIELD_TRIAGE(2000),
+		FIELD_TRIAGE(1200),
 		/** In his grab, your zone is wider. */
-		SLIPPERY(6250),
+		SLIPPERY(3750),
 		/** Panic builds up more slowly. */
-		UNPHASED(2500),
+		UNPHASED(1500),
 		/** Wounded, you move faster. */
-		STUBBORN(3000),
+		STUBBORN(1800),
 		/** Fixing something may leave the repair kit whole. */
-		REPAIR_EXPERT(2500),
+		REPAIR_EXPERT(1500),
 		/** Unlocking doors takes half the time. */
-		TRESPASSER(2000),
+		TRESPASSER(1200),
 		/** Talking townsfolk round and calling the police go faster. */
-		SMOOTH_TALKER(2500),
+		SMOOTH_TALKER(1500),
 		/** Other survivors close by show through walls. */
-		WITNESS(3750);
+		WITNESS(2250);
 
 		private final int defaultCost;
 

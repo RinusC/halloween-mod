@@ -129,16 +129,16 @@ public class PanicPerksClientTest implements FabricClientGameTest {
 
 			// Perks: bought with points, kept for good, up to three in the build.
 			server.runOnServer(s -> {
-				Perks.give(s, player(s).getUUID(), 12500);
+				Perks.give(s, player(s).getUUID(), 7500);
 				Perks.sync(player(s));
 			});
 			ctx.waitTicks(5);
-			check(ctx.computeOnClient(mc -> ClientState.perkPoints >= 12500), "points reach the client");
+			check(ctx.computeOnClient(mc -> ClientState.perkPoints >= 7500), "points reach the client");
 			for (String key : new String[]{"quick_search", "tough", "glass_walker", "barricade", "slippery"}) {
 				ctx.runOnClient(mc -> ClientPlayNetworking.send(new HwNet.PerkAction(key, Perks.BUY)));
 				ctx.waitTicks(3);
 			}
-			check(server.computeOnServer(s -> Perks.points(s, player(s).getUUID())) == 1000, "four perks bought, the points spent (1000 left)");
+			check(server.computeOnServer(s -> Perks.points(s, player(s).getUUID())) == 600, "four perks bought, the points spent (600 left)");
 			check(server.computeOnServer(s -> !Perks.owns(s, player(s).getUUID(), Perks.Perk.SLIPPERY)), "one too dear can't be bought");
 			check(server.computeOnServer(s -> Perks.equipped(s, player(s).getUUID()).equals(java.util.EnumSet.of(Perks.Perk.QUICK_SEARCH, Perks.Perk.TOUGH, Perks.Perk.GLASS_WALKER))),
 				"the first three went into the build");
