@@ -42,7 +42,7 @@ public abstract class CameraMixin {
 	@Inject(method = "alignWithEntity", at = @At("TAIL"))
 	private void halloween$panicShake(float partialTicks, CallbackInfo ci) {
 		Minecraft mc = Minecraft.getInstance();
-		if (this.detached || mc.level == null) {
+		if (this.detached || mc.level == null || dev.halloween.client.Cutscene.active()) {
 			return;
 		}
 		float[] shake = dev.halloween.client.ClientPanic.shake(mc.level.getGameTime() + partialTicks);
@@ -53,6 +53,14 @@ public abstract class CameraMixin {
 
 	@Inject(method = "alignWithEntity", at = @At("TAIL"))
 	private void halloween$shoulder(float partialTicks, CallbackInfo ci) {
+		// The opening scene takes the camera.
+		double[] cut = dev.halloween.client.Cutscene.camera(partialTicks);
+		if (cut != null) {
+			this.detached = dev.halloween.client.Cutscene.showsBody();
+			this.setPosition(new Vec3(cut[0], cut[1], cut[2]));
+			this.setRotation((float) cut[3], (float) cut[4]);
+			return;
+		}
 		float offset = ClientState.shoulderOffset();
 		Minecraft mc = Minecraft.getInstance();
 		if (!this.detached || offset == 0 || mc.level == null || mc.player == null) {

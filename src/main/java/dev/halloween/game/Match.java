@@ -222,6 +222,7 @@ public final class Match {
 		}
 		state = State.COUNTDOWN;
 		countdown = cfg.countdownSeconds * 20;
+		Cutscenes.send(server, countdown, shape, players, center);
 		startedAt = server.getTickCount();
 		ticksLeft = cfg.matchSeconds * 20;
 		dirty = true;
@@ -295,12 +296,7 @@ public final class Match {
 		ServerLevel level = server.overworld();
 		tickCounter++;
 		if (state == State.COUNTDOWN) {
-			if (countdown % 20 == 0) {
-				int s = countdown / 20;
-				for (ServerPlayer p : server.getPlayerList().getPlayers()) {
-					p.connection.send(new ClientboundSetTitleTextPacket(Component.literal(s > 0 ? String.valueOf(s) : "").withStyle(ChatFormatting.DARK_RED)));
-				}
-			}
+			// The opening scenes play meanwhile (no numbers counting down).
 			if (--countdown <= 0) {
 				state = State.RUNNING;
 				runningAt = server.getTickCount();

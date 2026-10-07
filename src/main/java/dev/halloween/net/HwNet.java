@@ -326,6 +326,23 @@ public final class HwNet {
 		}
 	}
 
+	/** The opening scene to play while the match counts down (see game.Cutscenes; a, b, c depend on the kind). */
+	public record Cutscene(int kind, int ticks, Vec3 a, Vec3 b, Vec3 c) implements CustomPacketPayload {
+		public static final Type<Cutscene> TYPE = payloadType("cutscene");
+		public static final StreamCodec<RegistryFriendlyByteBuf, Cutscene> CODEC = StreamCodec.of((buf, v) -> {
+			buf.writeVarInt(v.kind);
+			buf.writeVarInt(v.ticks);
+			writeVec(buf, v.a);
+			writeVec(buf, v.b);
+			writeVec(buf, v.c);
+		}, buf -> new Cutscene(buf.readVarInt(), buf.readVarInt(), readVec(buf), readVec(buf), readVec(buf)));
+
+		@Override
+		public Type<Cutscene> type() {
+			return TYPE;
+		}
+	}
+
 	/** Michael hears footsteps: where they came from, and whether off a loud surface (see game.Noise). */
 	public record NoiseBurst(Vec3 pos, boolean loud) implements CustomPacketPayload {
 		public static final Type<NoiseBurst> TYPE = payloadType("noise");
@@ -876,6 +893,7 @@ public final class HwNet {
 		PayloadTypeRegistry.clientboundPlay().register(StaminaSync.TYPE, StaminaSync.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(Pant.TYPE, Pant.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(NoiseBurst.TYPE, NoiseBurst.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(Cutscene.TYPE, Cutscene.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(PerkSync.TYPE, PerkSync.CODEC);
 		PayloadTypeRegistry.serverboundPlay().register(PerkAction.TYPE, PerkAction.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(MinimapSync.TYPE, MinimapSync.CODEC);

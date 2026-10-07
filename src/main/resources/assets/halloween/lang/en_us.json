@@ -1,4 +1,8 @@
 {
+	"halloween.cutscene.date": "October 31, 1978",
+	"halloween.cutscene.shape": "He came home",
+	"halloween.cutscene.survivor": "Find a way out. Don't let him see you.",
+	"halloween.cutscene.town": "Haddonfield, Illinois",
 	"halloween.perk.smooth_talker.desc": "Talking townsfolk round and calling the police 30% faster",
 	"halloween.perk.buy": "Buy · %s",
 	"halloween.perk.field_triage": "Field triage",

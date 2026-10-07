@@ -181,7 +181,8 @@ public class HwConfig {
 
 	// --- Match ---
 	public int matchSeconds = 1200;
-	public int countdownSeconds = 10;
+	/** The opening scenes before a match starts (everyone stands still meanwhile; under 3 s plays none). */
+	public int countdownSeconds = 15;
 	/** Back gates can be opened only during the last this many seconds (0: any time, as in the original). */
 	public int gateOpenLastSeconds = 0;
 	public int policeArriveSeconds = 120;

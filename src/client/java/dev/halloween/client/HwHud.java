@@ -40,6 +40,10 @@ public final class HwHud {
 		if (mc.player == null || mc.level == null) {
 			return;
 		}
+		if (Cutscene.overlay(g, delta)) {
+			// The opening scene: nothing else on screen.
+			return;
+		}
 		// The whole match HUD is drawn a little smaller than the GUI scale.
 		float scale = (float) HwConfig.get().hudScale;
 		g.pose().pushMatrix();

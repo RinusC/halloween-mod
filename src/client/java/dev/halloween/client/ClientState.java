@@ -217,6 +217,7 @@ public final class ClientState {
 		panic = 0f;
 		NOISES.clear();
 		ClientPanting.clear();
+		Cutscene.clear();
 		ClientWeather.kind = dev.halloween.game.Weather.CLEAR;
 		shapeEntityId = -1;
 		shapeShadow = false;
