@@ -5,6 +5,7 @@
 	"client": [
 		"AbstractClientPlayerMixin",
 		"AtmosphericFogMixin",
+		"BiomeRainMixin",
 		"LightmapExtractorMixin",
 		"CameraMixin",
 		"EntityMixin",

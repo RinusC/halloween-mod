@@ -34,7 +34,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.EntityTypes;
-import net.minecraft.world.entity.decoration.GlowItemFrame;
+import net.minecraft.world.entity.decoration.ItemFrame;
 import net.minecraft.world.entity.decoration.Mannequin;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Block;
@@ -114,13 +114,13 @@ public class NewMechanicsClientTest implements FabricClientGameTest {
 			ctx.waitTicks(60);
 			String boardCheck = server.computeOnServer(s -> {
 				var level = s.overworld();
-				List<GlowItemFrame> frames = level.getEntities(EntityTypes.GLOW_ITEM_FRAME, new AABB(board).inflate(5), f -> f.entityTags().contains(MapBoards.TAG));
+				List<ItemFrame> frames = level.getEntitiesOfClass(ItemFrame.class, new AABB(board).inflate(5), f -> f.entityTags().contains(MapBoards.TAG));
 				if (frames.size() != MapBoards.TX * MapBoards.TY) {
 					return frames.size() + " frames";
 				}
 				int red = 0;
 				int brown = 0;
-				for (GlowItemFrame f : frames) {
+				for (ItemFrame f : frames) {
 					MapItemSavedData data = level.getMapData(f.getItem().get(DataComponents.MAP_ID));
 					for (byte c : data.colors) {
 						red += c == MapColor.COLOR_RED.getPackedId(MapColor.Brightness.HIGH) ? 1 : 0;

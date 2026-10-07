@@ -13,6 +13,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.decoration.GlowItemFrame;
+import net.minecraft.world.entity.decoration.ItemFrame;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.SignBlockEntity;
 import net.minecraft.world.level.block.entity.SignText;
@@ -157,7 +158,13 @@ public final class MapBoards {
 	}
 
 	private static byte c(MapColor color, MapColor.Brightness b) {
-		return color.getPackedId(b);
+		// One shade darker throughout: an old paper map on a street board at night, not a lit screen.
+		MapColor.Brightness dim = switch (b) {
+			case HIGH -> MapColor.Brightness.NORMAL;
+			case NORMAL -> MapColor.Brightness.LOW;
+			default -> MapColor.Brightness.LOWEST;
+		};
+		return color.getPackedId(dim);
 	}
 
 	private static void put(byte[] img, int x, int y, byte color) {
@@ -387,15 +394,18 @@ public final class MapBoards {
 	// ---------------------------------------------------------------- the board
 
 	/**
-	 * The board's twelve glow frames (top row first, west to east), each with its own map; made the first time,
-	 * found again after. {@code board}: the lower west square of the board, the frames hang on its south face.
+	 * The board's twelve frames (top row first, west to east), each with its own map; made the first time,
+	 * found again after. Plain frames, not glowing ones: the map is lit like the street around it (by an unseen
+	 * light in front of the board), not shining in the dark (a dim light in front). Boards from before (glow frames) are made anew.
+	 * {@code board}: the lower west square of the board, the frames hang on its south face.
 	 */
 	private static List<MapId> frames(ServerLevel level, BlockPos board) {
-		List<GlowItemFrame> found = level.getEntities(EntityTypes.GLOW_ITEM_FRAME, new AABB(board).inflate(5), f -> f.entityTags().contains(TAG));
+		List<ItemFrame> found = level.getEntitiesOfClass(ItemFrame.class, new AABB(board).inflate(5), f -> f.entityTags().contains(TAG));
 		List<MapId> ids = new ArrayList<>();
-		if (found.size() == TX * TY) {
+		lanterns(level, board);
+		if (found.size() == TX * TY && found.stream().noneMatch(f -> f instanceof GlowItemFrame)) {
 			found.sort((a, b) -> a.getBlockY() != b.getBlockY() ? Integer.compare(b.getBlockY(), a.getBlockY()) : Integer.compare(a.getBlockX(), b.getBlockX()));
-			for (GlowItemFrame f : found) {
+			for (ItemFrame f : found) {
 				MapId id = f.getItem().get(DataComponents.MAP_ID);
 				if (id == null || level.getMapData(id) == null) {
 					ids.clear();
@@ -417,11 +427,22 @@ public final class MapBoards {
 				ids.add(id);
 				BlockPos at = board.offset(tx, TY - 1 - ty, 1);
 				level.getServer().getCommands().performPrefixedCommand(console, String.format(Locale.ROOT,
-					"summon minecraft:glow_item_frame %d %d %d {Facing:3b,Fixed:1b,Invisible:1b,Tags:[\"%s\"],Item:{id:\"minecraft:filled_map\",count:1,components:{\"minecraft:map_id\":%d}}}",
+					"summon minecraft:item_frame %d %d %d {Facing:3b,Fixed:1b,Invisible:1b,Tags:[\"%s\"],Item:{id:\"minecraft:filled_map\",count:1,components:{\"minecraft:map_id\":%d}}}",
 					at.getX(), at.getY(), at.getZ(), TAG, id.id()));
 			}
 		}
 		return ids;
+	}
+
+	/** A dim, unseen light in front of the board (two light blocks): the map can just be read at night. */
+	private static void lanterns(ServerLevel level, BlockPos board) {
+		CommandSourceStack console = level.getServer().createCommandSourceStack().withLevel(level).withSuppressedOutput();
+		for (BlockPos at : new BlockPos[]{board.offset(1, 1, 2), board.offset(TX - 2, 1, 2)}) {
+			if (level.getBlockState(at).isAir()) {
+				level.getServer().getCommands().performPrefixedCommand(console, String.format(Locale.ROOT,
+					"setblock %d %d %d minecraft:light[level=10]", at.getX(), at.getY(), at.getZ()));
+			}
+		}
 	}
 
 	/** The legend sign on the west post (in the player's language). */
@@ -435,7 +456,7 @@ public final class MapBoards {
 			.setMessage(1, Component.translatable("halloween.board.cellar").withStyle(s -> s.withColor(TextColor.fromRgb(0x8B5A2B))))
 			.setMessage(2, Component.translatable("halloween.board.gate").withStyle(ChatFormatting.DARK_GRAY))
 			.setMessage(3, Component.translatable("halloween.board.here").withStyle(ChatFormatting.DARK_RED))
-			.setHasGlowingText(true);
+			.setHasGlowingText(false);
 		sign.setText(text, true);
 		sign.setChanged();
 		level.sendBlockUpdated(at, level.getBlockState(at), level.getBlockState(at), 3);

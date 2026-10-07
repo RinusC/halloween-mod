@@ -18,7 +18,7 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EntityTypes;
-import net.minecraft.world.entity.decoration.GlowItemFrame;
+import net.minecraft.world.entity.decoration.ItemFrame;
 import net.minecraft.world.level.material.MapColor;
 import net.minecraft.world.level.saveddata.maps.MapItemSavedData;
 import net.minecraft.world.phys.AABB;
@@ -46,15 +46,15 @@ public class BoardShotClientTest implements FabricClientGameTest {
 				busy = server.computeOnServer(s -> MapJob.busy());
 			}
 			server.runOnServer(s -> HwConfig.get().countdownSeconds = 2);
+			server.runOnServer(s -> dev.halloween.game.Weather.forced = dev.halloween.game.Weather.RAIN);
 			server.runCommand("hw start");
 			ctx.waitTicks(80);
-			server.runCommand("time set noon");
 			List<BlockPos> boards = server.computeOnServer(s -> MapPoints.get(s.overworld()).list(MapPoints.Type.MAP_BOARD));
 			LOG.info("Boards at {}", boards);
 			for (int b = 0; b < boards.size(); b++) {
 				BlockPos board = boards.get(b);
 				int[] argb = server.computeOnServer(s -> {
-					List<GlowItemFrame> frames = s.overworld().getEntities(EntityTypes.GLOW_ITEM_FRAME, new AABB(board).inflate(3), f -> f.entityTags().contains(MapBoards.TAG));
+					List<ItemFrame> frames = s.overworld().getEntitiesOfClass(ItemFrame.class, new AABB(board).inflate(3), f -> f.entityTags().contains(MapBoards.TAG));
 					frames.sort((x, y) -> x.getBlockY() != y.getBlockY() ? Integer.compare(y.getBlockY(), x.getBlockY()) : Integer.compare(x.getBlockX(), y.getBlockX()));
 					int[] px = new int[MapBoards.TX * 128 * MapBoards.TY * 128];
 					for (int t = 0; t < frames.size() && t < MapBoards.TX * MapBoards.TY; t++) {
@@ -84,6 +84,12 @@ public class BoardShotClientTest implements FabricClientGameTest {
 				ctx.waitTicks(60);
 				ctx.takeScreenshot("board_" + b);
 			}
+			boolean rain = ctx.computeOnClient(mc -> mc.level.isRaining() && mc.level.getBiome(mc.player.blockPosition()).value().getPrecipitationAt(mc.player.blockPosition(), mc.level.getSeaLevel()) == net.minecraft.world.level.biome.Biome.Precipitation.RAIN);
+			LOG.info("Rain in Haddonfield: {}", rain);
+			if (!rain) {
+				throw new AssertionError("FAILED: it rains in Haddonfield");
+			}
+			server.runOnServer(s -> dev.halloween.game.Weather.forced = -1);
 			server.runCommand("hw stop");
 			ctx.waitTicks(5);
 			server.runOnServer(s -> HwConfig.get().countdownSeconds = new HwConfig().countdownSeconds);
