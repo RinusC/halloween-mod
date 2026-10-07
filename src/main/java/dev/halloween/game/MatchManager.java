@@ -718,6 +718,11 @@ public final class MatchManager {
 		state.shadowTicks = 0;
 		state.jumpCooldownMax = HwConfig.at(cfg.shapeJumpCooldownByTier, state.tier());
 		state.jumpCooldown = state.jumpCooldownMax;
+		// Out of Shape Jump he can't speed up at once.
+		if (state.dashCooldown < cfg.dashAfterShadowTicks) {
+			state.dashCooldown = cfg.dashAfterShadowTicks;
+			state.dashCooldownMax = cfg.dashAfterShadowTicks;
+		}
 		player.setInvisible(false);
 		player.setSilent(false);
 		ServerLevel level = player.level();

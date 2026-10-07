@@ -62,6 +62,8 @@ public class HwConfig {
 	public int dashTicks = 30;
 	public double dashSpeedModifier = 0.9;
 	public int[] dashCooldownByTier = {180, 160, 140};
+	/** After Shape Jump ends, he can't speed up for this long. */
+	public int dashAfterShadowTicks = 40;
 
 	// --- Stalk ---
 	/** Passive stalking (just watching) can raise a victim to this level at most. */

@@ -42,7 +42,8 @@ import net.minecraft.world.phys.Vec3;
  */
 public final class Townsfolk {
 	public static final String TAG = "hw_npc";
-	private static final String[] SKINS = {"alex", "ari", "efe", "kai", "makena", "noor", "steve", "sunny", "zuri"};
+	/** The townsfolk's own looks (textures/entity/townsfolk): eight women, eight men of 1978. */
+	private static final int SKINS_EACH = 8;
 
 	private enum State {
 		HOME, PANIC, HIDE, CALL, FOLLOW, HIDDEN, LOCKING, TALK
@@ -140,11 +141,12 @@ public final class Townsfolk {
 		for (int i = 0; i < Math.min(points.size(), cfg.npcMax); i++) {
 			BlockPos p = points.get(i);
 			String name = names.isEmpty() ? "Neighbour" : names.get(i % names.size());
-			String skin = SKINS[random.nextInt(SKINS.length)];
-			boolean slim = random.nextBoolean();
+			// A woman's look for Mrs., Miss and Ms., a man's for the rest (their voices go the same way).
+			boolean slim = name.startsWith("Mrs") || name.startsWith("Miss") || name.startsWith("Ms");
+			String skin = (slim ? "w" : "m") + (1 + random.nextInt(SKINS_EACH));
 			String snbt = String.format(Locale.ROOT,
-				"{Tags:[\"%s\",\"%s\"],hide_description:1b,CustomName:\"%s\",profile:{texture:\"minecraft:entity/player/%s/%s\",model:\"%s\"},Rotation:[%d.0f,0f]}",
-				MatchManager.VICTIM_TAG, TAG, name.replace("\"", ""), slim ? "slim" : "wide", skin, slim ? "slim" : "wide", random.nextInt(360));
+				"{Tags:[\"%s\",\"%s\"],hide_description:1b,CustomName:\"%s\",profile:{texture:\"halloween:entity/townsfolk/%s\",model:\"%s\"},Rotation:[%d.0f,0f]}",
+				MatchManager.VICTIM_TAG, TAG, name.replace("\"", ""), skin, slim ? "slim" : "wide", random.nextInt(360));
 			Entity entity;
 			try {
 				// Not through /summon: inside /hw start that would only run after the command is over.
