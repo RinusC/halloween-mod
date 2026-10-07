@@ -10,7 +10,11 @@ import net.minecraft.sounds.SoundEvent;
  */
 public final class HwSounds {
 	public static final SoundEvent SENSE_BREATH = register("shape.sense_breath");
+	/** Shape Jump: going in, coming out, the drone and the wind inside (synthesised, sounds/shape/). */
 	public static final SoundEvent SHADOW_ENTER = register("shape.shadow_enter");
+	public static final SoundEvent SHADOW_EXIT = register("shape.shadow_exit");
+	public static final SoundEvent SHADOW_DRONE = register("shape.shadow_drone");
+	public static final SoundEvent SHADOW_WIND = register("shape.shadow_wind");
 	public static final SoundEvent STINGER = register("shape.stinger");
 	public static final SoundEvent TIER_UP = register("shape.tier_up");
 	public static final SoundEvent STAB = register("shape.stab");

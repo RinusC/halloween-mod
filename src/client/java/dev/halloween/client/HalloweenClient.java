@@ -46,7 +46,6 @@ public class HalloweenClient implements ClientModInitializer {
 	private static boolean attackWasDown;
 	private static int chargeTicks;
 	private static int lastLevel;
-	private static boolean lastShadow;
 	private static Identifier ourEffect;
 	private static LoopSound breath;
 
@@ -196,6 +195,7 @@ public class HalloweenClient implements ClientModInitializer {
 			return;
 		}
 		ClientInteractions.tick(mc);
+		ShapeJumpAudio.tick(mc);
 		Role role = ClientState.myRole();
 		CameraType wanted = role == Role.SHAPE ? CameraType.THIRD_PERSON_BACK : CameraType.FIRST_PERSON;
 		if (role != Role.NONE && mc.options.getCameraType() != wanted) {
@@ -313,11 +313,6 @@ public class HalloweenClient implements ClientModInitializer {
 			mc.getSoundManager().play(SimpleSoundInstance.forUI(HwSounds.TIER_UP, 1f));
 		}
 		lastLevel = level;
-		boolean shadow = hud.shadowTicks() > 0;
-		if (shadow && !lastShadow) {
-			mc.getSoundManager().play(SimpleSoundInstance.forUI(HwSounds.SHADOW_ENTER, 1f));
-		}
-		lastShadow = shadow;
 	}
 
 	/** Shape Jump and Killer Sense colour the whole world through post-processing shaders. */

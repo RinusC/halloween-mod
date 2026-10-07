@@ -9,8 +9,11 @@
 		"EntityRenderDispatcherMixin",
 		"GameRendererAccessor",
 		"MinecraftMixin",
+		"ChannelAccessor",
 		"RecipeToastMixin",
-		"SoundBufferLibraryMixin"
+		"SoundBufferLibraryMixin",
+		"SoundEngineAccessor",
+		"SoundManagerAccessor"
 	],
 	"injectors": {
 		"defaultRequire": 1
