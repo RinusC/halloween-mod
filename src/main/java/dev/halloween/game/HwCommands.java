@@ -77,7 +77,13 @@ public final class HwCommands {
 			.then(Commands.literal("start")
 				.executes(ctx -> start(ctx, null))
 				.then(Commands.argument("shape", EntityArgument.player()).executes(ctx -> start(ctx, EntityArgument.getPlayer(ctx, "shape")))))
+			.then(Commands.literal("tutorial").executes(ctx -> {
+				Component result = Tutorial.start(ctx.getSource().getServer(), ctx.getSource().getPlayerOrException());
+				ctx.getSource().sendSuccess(() -> result, false);
+				return 1;
+			}))
 			.then(Commands.literal("stop").executes(ctx -> {
+				Tutorial.stop();
 				Match.stop(ctx.getSource().getServer());
 				ctx.getSource().sendSuccess(() -> Component.translatable("halloween.cmd.stopped"), true);
 				return 1;

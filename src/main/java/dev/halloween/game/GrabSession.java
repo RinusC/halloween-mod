@@ -6,6 +6,7 @@ import dev.halloween.net.HwNet;
 import java.util.Set;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.BlockPos;
+import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -253,6 +254,8 @@ public final class GrabSession {
 		anim(this.victim, stab ? HwNet.Anim.STAB : HwNet.Anim.BREAK_FREE);
 		anim(this.shape, stab ? HwNet.Anim.STABBED : HwNet.Anim.STAGGER);
 		AiStats.add(this.victim, "grab.escaped");
+		Match.chronicle(this.shape.level().getServer(), Component.translatable(stab ? "halloween.chronicle.stab_free" : "halloween.chronicle.break_free",
+			this.victim.getDisplayName()).withStyle(ChatFormatting.YELLOW));
 		HwConfig cfg = this.cfg();
 		this.state.recoverTicks = cfg.escapeShapeRecoverTicks;
 		this.state.grabCooldown = HwConfig.at(cfg.grabCooldownByTier, this.state.tier());

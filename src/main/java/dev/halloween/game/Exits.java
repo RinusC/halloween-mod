@@ -253,6 +253,7 @@ public final class Exits {
 						setNearby(level, cellar, true);
 						level.playSound(null, cellar, SoundEvents.CHAIN_BREAK, SoundSource.BLOCKS, 1.5f, 0.8f);
 						Match.score(p, cfg.scoreExitProgress, Component.translatable("halloween.score.cellar_open"));
+						Match.chronicle(level.getServer(), Component.translatable("halloween.chronicle.cellar_open", p.getDisplayName()).withStyle(ChatFormatting.GREEN));
 					}, true);
 			}
 			if (c.state == OPEN && civilian) {

@@ -311,6 +311,18 @@ public final class HwNet {
 		}
 	}
 
+	/** The match's weather (see game.Weather). */
+	public record MatchWeather(int kind) implements CustomPacketPayload {
+		public static final Type<MatchWeather> TYPE = payloadType("weather");
+		public static final StreamCodec<RegistryFriendlyByteBuf, MatchWeather> CODEC = StreamCodec.of((buf, v) -> buf.writeVarInt(v.kind),
+			buf -> new MatchWeather(buf.readVarInt()));
+
+		@Override
+		public Type<MatchWeather> type() {
+			return TYPE;
+		}
+	}
+
 	public record MusicMood(int mood, int variant) implements CustomPacketPayload {
 		public static final Type<MusicMood> TYPE = payloadType("music");
 		public static final StreamCodec<RegistryFriendlyByteBuf, MusicMood> CODEC = StreamCodec.of((buf, v) -> {
@@ -617,23 +629,30 @@ public final class HwNet {
 		}
 	}
 
-	public record MatchEnd(boolean shapeWon, List<Component> lines) implements CustomPacketPayload {
+	/** The match is over: the tally (who won, who got out and how, points, the best moment) and the chronicle. */
+	public record MatchEnd(boolean shapeWon, List<Component> lines, List<Component> chronicle) implements CustomPacketPayload {
 		public static final Type<MatchEnd> TYPE = payloadType("match_end");
 		public static final StreamCodec<RegistryFriendlyByteBuf, MatchEnd> CODEC = StreamCodec.of((buf, v) -> {
 			buf.writeBoolean(v.shapeWon);
-			buf.writeVarInt(v.lines.size());
-			for (Component c : v.lines) {
+			writeLines(buf, v.lines);
+			writeLines(buf, v.chronicle);
+		}, buf -> new MatchEnd(buf.readBoolean(), readLines(buf), readLines(buf)));
+
+		private static void writeLines(RegistryFriendlyByteBuf buf, List<Component> lines) {
+			buf.writeVarInt(lines.size());
+			for (Component c : lines) {
 				ComponentSerialization.TRUSTED_STREAM_CODEC.encode(buf, c);
 			}
-		}, buf -> {
-			boolean shapeWon = buf.readBoolean();
+		}
+
+		private static List<Component> readLines(RegistryFriendlyByteBuf buf) {
 			int n = buf.readVarInt();
 			List<Component> lines = new ArrayList<>(n);
 			for (int i = 0; i < n; i++) {
 				lines.add(ComponentSerialization.TRUSTED_STREAM_CODEC.decode(buf));
 			}
-			return new MatchEnd(shapeWon, lines);
-		});
+			return lines;
+		}
 
 		@Override
 		public Type<MatchEnd> type() {
@@ -763,6 +782,7 @@ public final class HwNet {
 		PayloadTypeRegistry.clientboundPlay().register(Skins.TYPE, Skins.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(MusicMood.TYPE, MusicMood.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(Anim.TYPE, Anim.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(MatchWeather.TYPE, MatchWeather.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(MinimapSync.TYPE, MinimapSync.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(MatchSync.TYPE, MatchSync.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(MatchEnd.TYPE, MatchEnd.CODEC);

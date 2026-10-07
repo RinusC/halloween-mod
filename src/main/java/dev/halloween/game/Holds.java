@@ -125,6 +125,7 @@ public final class Holds {
 				SkillChecks.stop(player);
 				ServerPlayNetworking.send(player, HwNet.Progress.NONE);
 				work.hold.done().run(player);
+				Tutorial.holdDone(player, work.hold.label());
 				Match.markDirty();
 			} else if (work.ticks % 2 == 0) {
 				ServerPlayNetworking.send(player, new HwNet.Progress(work.hold.label(), work.ticks / (float) work.hold.ticks(), work.hold.danger()));

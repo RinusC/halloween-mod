@@ -253,9 +253,37 @@ public final class Fight {
 				player.level().playSound(null, player.getX(), player.getEyeY(), player.getZ(), SoundEvents.LEVER_CLICK, SoundSource.PLAYERS, 0.4f, 1.2f);
 				continue;
 			}
+			// The battery about done: the light flickers, dropping out for a tick or a few.
+			int left = HwItems.charge(player.getMainHandItem());
+			if (left <= HwConfig.get().flashlightFlickerTicks && flickersOff(player, left)) {
+				BlockPos lit = LIGHTS.remove(player.getUUID());
+				if (lit != null) {
+					removeLight(player.level(), lit);
+				}
+				AiStats.add(player, "flashlight.flicker");
+				continue;
+			}
 			shine(player);
 		}
 	}
+
+	/** Off this tick? The less charge, the more often and the longer it drops out. */
+	private static boolean flickersOff(ServerPlayer player, int left) {
+		Integer until = FLICKER.get(player.getUUID());
+		int now = player.level().getServer().getTickCount();
+		if (until != null && now < until) {
+			return true;
+		}
+		float weak = 1f - left / (float) Math.max(1, HwConfig.get().flashlightFlickerTicks);
+		if (player.getRandom().nextFloat() < 0.04f + 0.18f * weak) {
+			FLICKER.put(player.getUUID(), now + 1 + player.getRandom().nextInt(2 + (int) (weak * 6)));
+			player.level().playSound(null, player.getX(), player.getEyeY(), player.getZ(), SoundEvents.LEVER_CLICK, SoundSource.PLAYERS, 0.15f, 1.8f);
+			return true;
+		}
+		return false;
+	}
+
+	private static final Map<UUID, Integer> FLICKER = new java.util.HashMap<>();
 
 	private static boolean holdsLight(ServerPlayer player) {
 		return SWITCHED_ON.contains(player.getUUID()) && MatchManager.role(player).survivor() && !player.isSpectator()

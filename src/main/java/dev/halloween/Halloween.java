@@ -76,6 +76,7 @@ public class Halloween implements ModInitializer {
 			MatchManager.markDirty();
 			DoorLocks.syncTo(handler.player);
 			dev.halloween.game.Skins.syncTo(handler.player);
+			dev.halloween.game.Weather.syncTo(handler.player);
 			dev.halloween.game.Music.forget(handler.player);
 			dev.halloween.game.Minimap.syncTo(handler.player);
 			dev.halloween.game.Match.markDirty();

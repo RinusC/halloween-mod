@@ -265,6 +265,7 @@ public final class MatchManager {
 		HwConfig cfg = HwConfig.get();
 		MapJob.tick(server);
 		Match.tick(server);
+		Tutorial.tick(server);
 		Holds.tick(server);
 		Fight.tick(server);
 		Gear.tick(server);
@@ -543,6 +544,9 @@ public final class MatchManager {
 	private static void score(ServerPlayer player, ShapeState state, int points, Component... lines) {
 		state.score += points;
 		ServerPlayNetworking.send(player, new HwNet.ScoreEvent(points, List.of(lines)));
+		if (lines.length > 0) {
+			Match.noteBest(player.getDisplayName(), points, lines[0]);
+		}
 	}
 
 	/** Nobody jumps in a match: the game is on foot, and the maps are built for it. */
@@ -1001,6 +1005,8 @@ public final class MatchManager {
 		float yaw = victim.getYRot();
 
 		AiStats.add(victim, "killed." + kind.name().toLowerCase(Locale.ROOT));
+		Tutorial.killed(shape);
+		Match.noteKill(level.getServer(), name, Police.isOfficer(victim) ? "officer" : kind == KillKind.WINDOW ? "window" : "knife");
 		gainBloodthirst(shape, state, cfg.bloodthirstPerKill + (kind == KillKind.WINDOW ? cfg.bloodthirstPerWindowKill : 0));
 		bleed(level, victim, bloody ? 80 : 40);
 		List<Component> lines = new ArrayList<>();
@@ -1045,6 +1051,7 @@ public final class MatchManager {
 		float yaw = victim.getYRot();
 		Component name = victim.getDisplayName();
 		AiStats.add(victim, "killed.shot");
+		Match.chronicle(level.getServer(), Component.translatable("halloween.chronicle.shot", name).withStyle(ChatFormatting.RED));
 		bleed(level, victim, 40);
 		String profile = corpseProfile(victim);
 		eliminate(victim);

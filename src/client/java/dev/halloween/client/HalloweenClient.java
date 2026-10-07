@@ -125,6 +125,7 @@ public class HalloweenClient implements ClientModInitializer {
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.MinimapSync.TYPE, (payload, ctx) -> ClientMinimap.apply(payload));
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.MusicMood.TYPE, (payload, ctx) -> ClientMusic.set(payload.mood(), payload.variant()));
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.Anim.TYPE, (payload, ctx) -> ClientAnims.receive(payload));
+		ClientPlayNetworking.registerGlobalReceiver(HwNet.MatchWeather.TYPE, (payload, ctx) -> ClientWeather.kind = payload.kind());
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.DoorSync.TYPE, (payload, ctx) -> {
 			ClientState.LOCKED_DOORS.clear();
 			ClientState.LOCKED_DOORS.addAll(payload.locked());
@@ -136,6 +137,7 @@ public class HalloweenClient implements ClientModInitializer {
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.MatchEnd.TYPE, (payload, ctx) -> {
 			ClientState.matchEnd = payload;
 			ClientState.matchEndAt = System.currentTimeMillis();
+			MatchEndScreen.open(payload);
 		});
 		UseBlockCallback.EVENT.register(ClientInteractions::onUseBlock);
 		// The local Shape walks through doors during Shape Jump (the server agrees, see DoorPass).
@@ -204,6 +206,7 @@ public class HalloweenClient implements ClientModInitializer {
 		BloodParticles.tick(mc);
 		DashSteps.tick(mc);
 		ShapeBreath.tick(mc);
+		ClientWeather.tick();
 		Role role = ClientState.myRole();
 		CameraType wanted = role == Role.SHAPE ? CameraType.THIRD_PERSON_BACK : CameraType.FIRST_PERSON;
 		if (role != Role.NONE && mc.options.getCameraType() != wanted) {

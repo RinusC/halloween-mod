@@ -14,6 +14,9 @@ public final class Senses {
 
 	/** The Shape this body can see right now, or null. Inside Shape Jump he can't be seen at all. */
 	public static ServerPlayer seenShape(LivingEntity viewer, double range, double darkRange, double fovDeg) {
+		// Fog (or rain) shortens everyone's sight.
+		range *= Weather.sight();
+		darkRange *= Weather.sight();
 		ServerLevel level = (ServerLevel) viewer.level();
 		Vec3 eye = viewer.getEyePosition();
 		Vec3 look = viewer.getViewVector(1f);

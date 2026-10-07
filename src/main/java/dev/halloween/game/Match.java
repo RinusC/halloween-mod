@@ -40,6 +40,9 @@ public final class Match {
 		boolean died;
 		boolean finalOut;
 		int respawnAt = -1;
+		/** Which way they got out (null: they did not). */
+		Component exit;
+		boolean deputy;
 
 		Participant(String name) {
 			this.name = name;
@@ -55,6 +58,15 @@ public final class Match {
 	private static boolean dirty;
 	private static int tickCounter;
 	private static int startedAt;
+	/** Server tick the match proper (after the countdown) began at. */
+	private static int runningAt;
+	/** What happened this match, in order, with the minute it happened (for the summary screen). */
+	private static final List<Component> CHRONICLE = new ArrayList<>();
+	private static final int CHRONICLE_MAX = 80;
+	/** The biggest single moment for points this match: who, how many, what for. */
+	private static Component best;
+	private static int bestPoints;
+	private static int kills;
 
 	private Match() {
 	}
@@ -143,6 +155,7 @@ public final class Match {
 		Windows.clear(server);
 		Holds.clear();
 		Fight.clear(server);
+		Weather.clear(server);
 		Gear.clear(server);
 		Exits.setup(level, level.getRandom());
 		Lockers.clear(server);
@@ -165,8 +178,13 @@ public final class Match {
 			"kill @e[type=minecraft:mannequin,tag=" + MatchManager.VICTIM_TAG + ",tag=!" + Townsfolk.TAG + "]"}) {
 			server.getCommands().performPrefixedCommand(console, command);
 		}
+		Weather.setup(level, level.getRandom());
 
 		PEOPLE.clear();
+		CHRONICLE.clear();
+		best = null;
+		bestPoints = 0;
+		kills = 0;
 		Skins.clear();
 		Music.clear();
 		deputiesUsed = 0;
@@ -242,6 +260,7 @@ public final class Match {
 		Loot.clear();
 		Holds.clear();
 		Fight.clear(server);
+		Weather.clear(server);
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
 			if (MatchManager.role(player) != Role.NONE) {
 				player.getInventory().clearContent();
@@ -277,6 +296,7 @@ public final class Match {
 			}
 			if (--countdown <= 0) {
 				state = State.RUNNING;
+				runningAt = server.getTickCount();
 				announce(server, Component.translatable("halloween.match.begin").withStyle(ChatFormatting.DARK_RED));
 			}
 		} else if (state == State.RUNNING) {
@@ -295,7 +315,7 @@ public final class Match {
 					}
 				}
 			}
-			if (ticksLeft <= 0 || nobodyLeft(server)) {
+			if (ticksLeft <= 0 || nobodyLeft(server) && !Tutorial.keepsMatch()) {
 				end(server);
 			}
 		}
@@ -343,6 +363,7 @@ public final class Match {
 		}
 		p.score += points;
 		ServerPlayNetworking.send(player, new HwNet.ScoreEvent(points, List.of(reason)));
+		noteBest(player.getDisplayName(), points, reason);
 		dirty = true;
 	}
 
@@ -354,11 +375,17 @@ public final class Match {
 		}
 		score(player, HwConfig.get().scoreEscape, Component.translatable("halloween.score.escape", exit));
 		p.escaped = true;
+		p.exit = exit;
 		AiStats.add(player, "escaped");
 		Inventory.dropAll(player);
 		player.setGameMode(GameType.SPECTATOR);
 		player.connection.send(new ClientboundSetTitleTextPacket(Component.translatable("halloween.match.you_escaped").withStyle(ChatFormatting.GREEN)));
 		announce(player.level().getServer(), Component.translatable("halloween.match.escaped", player.getDisplayName(), exit).withStyle(ChatFormatting.GREEN));
+		if (Tutorial.active()) {
+			// Practice: getting out ends the survivor part, nobody comes back as a deputy.
+			p.finalOut = true;
+			return;
+		}
 		scheduleDeputy(player, p);
 	}
 
@@ -408,6 +435,10 @@ public final class Match {
 			spawn = points.first(MapPoints.Type.SPAWN_CIVILIAN);
 		}
 		MatchManager.applyRole(player, Role.DEPUTY);
+		Participant p = PEOPLE.get(player.getUUID());
+		if (p != null) {
+			p.deputy = true;
+		}
 		Inventory.give(player, HwItems.create(HwItems.Kind.REVOLVER));
 		Inventory.give(player, HwItems.create(HwItems.Kind.BATON));
 		Inventory.give(player, HwItems.create(HwItems.Kind.FLASHLIGHT));
@@ -421,6 +452,34 @@ public final class Match {
 	public static void announce(MinecraftServer server, Component message) {
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
 			Notices.send(player, message);
+		}
+		chronicle(server, message);
+	}
+
+	/** Writes a line in the match's chronicle, with the minute and second of the match it happened at. */
+	public static void chronicle(MinecraftServer server, Component what) {
+		if (state != State.RUNNING || CHRONICLE.size() >= CHRONICLE_MAX) {
+			return;
+		}
+		int t = Math.max(0, server.getTickCount() - runningAt) / 20;
+		CHRONICLE.add(Component.literal(String.format(java.util.Locale.ROOT, "%d:%02d  ", t / 60, t % 60)).withStyle(ChatFormatting.DARK_GRAY)
+			.append(what.copy()));
+	}
+
+	/** The Shape took a life: counted, and written in the chronicle. */
+	public static void noteKill(MinecraftServer server, Component victim, String how) {
+		if (state != State.RUNNING) {
+			return;
+		}
+		kills++;
+		chronicle(server, Component.translatable("halloween.chronicle.kill." + how, victim).withStyle(ChatFormatting.RED));
+	}
+
+	/** Remembers the match's best moment for points (anyone's, the Shape's too). */
+	public static void noteBest(Component who, int points, Component reason) {
+		if (state == State.RUNNING && points > bestPoints) {
+			bestPoints = points;
+			best = Component.translatable("halloween.match.best", who, points, reason);
 		}
 	}
 
@@ -449,10 +508,27 @@ public final class Match {
 		}
 		lines.add(Component.translatable("halloween.match.line_civilians", civilians, escapes));
 		for (Participant p : PEOPLE.values()) {
-			String status = p.escaped ? "halloween.match.status_escaped" : p.died ? "halloween.match.status_dead" : "halloween.match.status_alive";
-			lines.add(Component.translatable("halloween.match.line_civilian", p.name, p.score, Component.translatable(status)));
+			Component status;
+			if (p.escaped) {
+				status = Component.translatable("halloween.match.status_escaped_by", p.exit == null ? Component.literal("?") : p.exit).withStyle(ChatFormatting.GREEN);
+			} else if (p.died && p.finalOut) {
+				status = Component.translatable(p.deputy ? "halloween.match.status_dead_deputy" : "halloween.match.status_dead").withStyle(ChatFormatting.RED);
+			} else if (p.deputy) {
+				status = Component.translatable("halloween.match.status_deputy").withStyle(ChatFormatting.BLUE);
+			} else {
+				status = Component.translatable(p.died ? "halloween.match.status_dead" : "halloween.match.status_alive")
+					.withStyle(p.died ? ChatFormatting.RED : ChatFormatting.WHITE);
+			}
+			lines.add(Component.translatable("halloween.match.line_civilian", p.name, p.score, status));
 		}
-		HwNet.MatchEnd payload = new HwNet.MatchEnd(shapeWon, lines);
+		int elapsed = Math.max(0, server.getTickCount() - runningAt) / 20;
+		lines.add(Component.empty());
+		lines.add(Component.translatable("halloween.match.line_night", String.format(java.util.Locale.ROOT, "%d:%02d", elapsed / 60, elapsed % 60),
+			Component.translatable("halloween.weather.short." + Weather.key()), kills).withStyle(ChatFormatting.GRAY));
+		if (best != null) {
+			lines.add(best.copy().withStyle(ChatFormatting.GOLD));
+		}
+		HwNet.MatchEnd payload = new HwNet.MatchEnd(shapeWon, lines, List.copyOf(CHRONICLE));
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
 			ServerPlayNetworking.send(player, payload);
 		}
@@ -460,6 +536,7 @@ public final class Match {
 		stopQuietly(server);
 		state = State.IDLE;
 		syncAll(server);
+		Tutorial.matchEnded(server);
 	}
 
 	/** Hands the Shape's place in the final tally to {@code shape} (the AI simulation gives the role to a bot). */

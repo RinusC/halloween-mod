@@ -420,7 +420,14 @@ public class HwConfig {
 	public float flashlightFaceDeg = 70f;
 	public int flashlightLightLevel = 12;
 	/** A battery lasts this long switched on; spare batteries are found in containers. */
+	/** How often a match night is clear, foggy, rainy (weights). */
+	public int[] weatherWeights = {40, 35, 25};
+	/** How far townsfolk, bots and police notice the Shape in fog and in rain, against a clear night. */
+	public double fogSightFactor = 0.55;
+	public double rainSightFactor = 0.8;
 	public int flashlightChargeTicks = 200;
+	/** With this little charge left the flashlight starts to flicker. */
+	public int flashlightFlickerTicks = 60;
 
 	// --- Civilian score ---
 	public int scoreEscape = 500;

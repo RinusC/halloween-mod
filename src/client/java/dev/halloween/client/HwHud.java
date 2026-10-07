@@ -104,7 +104,7 @@ public final class HwHud {
 		matchTimer(g, mc, w);
 		int noticesTop = minimapAndWanted(g, mc, w, partialTicks(delta));
 		notices(g, mc.font, w, noticesTop);
-		endScreen(g, mc, w, h);
+		// The match summary is a screen of its own now (MatchEndScreen).
 	}
 
 	/** Corner notices (match news, callouts, deaths), newest on top, fading after a few seconds. */

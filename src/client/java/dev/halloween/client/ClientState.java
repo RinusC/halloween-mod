@@ -191,6 +191,7 @@ public final class ClientState {
 		ClientMinimap.clear();
 		BloodParticles.clear();
 		ClientAnims.clear();
+		ClientWeather.kind = dev.halloween.game.Weather.CLEAR;
 		shapeEntityId = -1;
 		shapeShadow = false;
 		hud = null;
