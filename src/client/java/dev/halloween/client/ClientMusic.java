@@ -80,6 +80,11 @@ public final class ClientMusic {
 		}
 	}
 
+	/** For tests: the composition playing now, or null. */
+	public static SoundInstance track() {
+		return current;
+	}
+
 	public static void set(int newMood, int newVariant) {
 		mood = newMood;
 		variant = newVariant;
@@ -102,9 +107,11 @@ public final class ClientMusic {
 			// Our music only: no vanilla tune over it.
 			mc.getMusicManager().stopPlaying();
 		}
-		// A playlist part that ran out: on to the next one.
-		if (current != null && !current.isLooping() && current.age > 60 && !mc.getSoundManager().isActive(current)) {
-			if (current.mood == Music.AMBIENCE) {
+		// A playlist part that ran out: on to the next one. A loop that stopped (its stream broke): start it again.
+		if (current != null && current.age > 60 && !mc.getSoundManager().isActive(current)) {
+			if (current.isLooping()) {
+				// Same part again, below.
+			} else if (current.mood == Music.AMBIENCE) {
 				ambiencePart = (ambiencePart + 1) % HwSounds.MUSIC_AMBIENCE.length;
 			} else if (current.mood == Music.BEING_STALKED) {
 				stalkedPart = (stalkedPart + 1) % HwSounds.MUSIC_BEING_STALKED.length;

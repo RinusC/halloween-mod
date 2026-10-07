@@ -28,7 +28,8 @@ public final class ShapeJumpAudio {
 
 	private static boolean wasShadow;
 	private static float muffle;
-	private static boolean filtered;
+	/** OpenAL sources that carry the filter now: a source outlives its sound and gets reused, so it must be cleared. */
+	private static final java.util.Set<Integer> FILTERED = java.util.concurrent.ConcurrentHashMap.newKeySet();
 	private static int filter = -1;
 	private static volatile boolean efxBroken;
 	private static LoopSound drone;
@@ -77,9 +78,12 @@ public final class ShapeJumpAudio {
 		return id.getNamespace().equals("halloween") && id.getPath().startsWith("shape.shadow_");
 	}
 
-	/** Sets the low-pass on every playing world sound (new ones get it on the next tick). */
+	/**
+	 * Sets the low-pass on every playing world sound (new ones get it on the next tick), and takes it off any
+	 * source that still carries it once the sound there is one that should be clear.
+	 */
 	private static void applyMuffle(Minecraft mc) {
-		if (efxBroken || muffle == 0 && !filtered) {
+		if (efxBroken || muffle == 0 && FILTERED.isEmpty()) {
 			return;
 		}
 		SoundEngineAccessor engine = (SoundEngineAccessor) ((SoundManagerAccessor) mc.getSoundManager()).halloween$soundEngine();
@@ -103,7 +107,8 @@ public final class ShapeJumpAudio {
 						EXTEfx.alFilterf(filter, EXTEfx.AL_LOWPASS_GAIN, gain);
 						EXTEfx.alFilterf(filter, EXTEfx.AL_LOWPASS_GAINHF, gainHf);
 						AL10.alSourcei(source, EXTEfx.AL_DIRECT_FILTER, filter);
-					} else {
+						FILTERED.add(source);
+					} else if (FILTERED.remove(source)) {
 						AL10.alSourcei(source, EXTEfx.AL_DIRECT_FILTER, EXTEfx.AL_FILTER_NULL);
 					}
 				} catch (Throwable t) {
@@ -112,7 +117,6 @@ public final class ShapeJumpAudio {
 				}
 			});
 		}
-		filtered = on;
 	}
 
 	/** For tests: how muffled the world is now (0..1), or -1 if the sound device has no filters. */
