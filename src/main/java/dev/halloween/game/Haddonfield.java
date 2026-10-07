@@ -77,6 +77,17 @@ public final class Haddonfield extends MapPlan {
 		this.welcome(FENCE - 9, ORANGE_GROVE + 8, Direction.WEST);
 		this.boundary();
 		this.autumn();
+		this.clearCarSpots();
+	}
+
+	/** Parking is kept clear (no pumpkins or leaves where the car is built at match start: 7x3, three high). */
+	private void clearCarSpots() {
+		for (Object[] p : this.points) {
+			if (p[0] == MapPoints.Type.CAR) {
+				net.minecraft.core.BlockPos at = (net.minecraft.core.BlockPos) p[1];
+				this.fill(at.getX() - 3, at.getY(), at.getZ() - 1, at.getX() + 3, at.getY() + 2, at.getZ() + 1, AIR);
+			}
+		}
 	}
 
 	/** One lot: x range, the street edge and which way the house faces (true: south, the street is at the lot's south side). */
@@ -1324,7 +1335,8 @@ public final class Haddonfield extends MapPlan {
 			this.set(x, 2, zRoad - 6, b("iron_chain"));
 		}
 		this.wallSign(shopMid, 3, zf + 1, Direction.SOUTH, "", "GAS & SNACKS", "", "");
-		this.point(MapPoints.Type.CAR, x1 - 6, 0, zRoad - 12);
+		// The car stands at the east pump, under the canopy (it doesn't fit between the canopy and the shop).
+		this.point(MapPoints.Type.CAR, x1 - 5, 0, zRoad - 6);
 	}
 
 	// ---------------------------------------------------------------- the big places

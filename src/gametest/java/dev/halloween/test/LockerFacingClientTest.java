@@ -77,6 +77,46 @@ public class LockerFacingClientTest implements FabricClientGameTest {
 				throw new AssertionError("FAILED: " + bad.size() + " lockers face a wall");
 			}
 			LOG.info("PASS: every locker opens onto the room");
+			// Every car spot has room for the car; one blocked is moved to free ground next to it.
+			List<String> cars = server.computeOnServer(s -> {
+				List<String> out = new ArrayList<>();
+				for (BlockPos p : MapPoints.get(s.overworld()).list(MapPoints.Type.CAR)) {
+					if (!dev.halloween.game.Exits.carFits(s.overworld(), p)) {
+						StringBuilder why = new StringBuilder();
+						for (int u = -3; u <= 3; u++) {
+							for (int w = -1; w <= 1; w++) {
+								BlockPos q = p.offset(u, 0, w);
+								if (!s.overworld().getBlockState(q.below()).isSolidRender()) {
+									why.append(" ground(").append(u).append(",").append(w).append(")=").append(name(s.overworld(), q.below()));
+								}
+								for (int y = 0; y < 3; y++) {
+									if (!s.overworld().getBlockState(q.above(y)).canBeReplaced()) {
+										why.append(" (").append(u).append(",").append(y).append(",").append(w).append(")=").append(name(s.overworld(), q.above(y)));
+									}
+								}
+							}
+						}
+						out.add(p.toShortString() + why);
+					}
+				}
+				return out;
+			});
+			LOG.info("Car spots blocked: {}", cars);
+			if (!cars.isEmpty()) {
+				throw new AssertionError("FAILED: the car doesn't fit at " + cars);
+			}
+			LOG.info("PASS: the car fits at every spot");
+			boolean moved = server.computeOnServer(s -> {
+				BlockPos p = MapPoints.get(s.overworld()).list(MapPoints.Type.CAR).get(0);
+				s.overworld().setBlock(p.offset(2, 1, 1), net.minecraft.world.level.block.Blocks.STONE.defaultBlockState(), 2);
+				BlockPos spot = dev.halloween.game.Exits.clearSpot(s.overworld(), p);
+				s.overworld().setBlock(p.offset(2, 1, 1), net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 2);
+				return !spot.equals(p) && spot.distManhattan(p) <= 8;
+			});
+			if (!moved) {
+				throw new AssertionError("FAILED: a blocked car spot moves the car next to it");
+			}
+			LOG.info("PASS: a blocked car spot moves the car to free ground next to it");
 			// A town built before the fix: one wardrobe turned to face a wall gets turned back when a match starts.
 			BlockPos turned = server.computeOnServer(s -> {
 				ServerLevel level = s.overworld();

@@ -126,6 +126,7 @@ public final class Exits {
 			buildCellar(level, c.pos);
 		}
 		if (car != null) {
+			car = clearSpot(level, car);
 			buildCar(level, car);
 		}
 		if (gate != null) {
@@ -794,6 +795,44 @@ public final class Exits {
 	 * chrome bumpers, headlights and tail lights, a low hood and trunk, dark windows (not glass: nobody
 	 * climbs through a car) and a vinyl roof.
 	 */
+	/**
+	 * Where the car fits: its spot if nothing stands there, else the nearest free spot close by (a town built
+	 * before a fix had the gas station's car half inside the shop).
+	 */
+	public static BlockPos clearSpot(ServerLevel level, BlockPos at) {
+		if (carFits(level, at)) {
+			return at;
+		}
+		for (int r = 1; r <= 6; r++) {
+			for (int dx = -r; dx <= r; dx++) {
+				for (int dz = -r; dz <= r; dz++) {
+					if (Math.max(Math.abs(dx), Math.abs(dz)) == r && carFits(level, at.offset(dx, 0, dz))) {
+						return at.offset(dx, 0, dz);
+					}
+				}
+			}
+		}
+		return at;
+	}
+
+	/** The car's 7x3 footprint, three high, is empty and stands on solid ground. */
+	public static boolean carFits(ServerLevel level, BlockPos at) {
+		for (int u = -3; u <= 3; u++) {
+			for (int w = -1; w <= 1; w++) {
+				BlockPos p = at.offset(u, 0, w);
+				if (!level.getBlockState(p.below()).isSolidRender()) {
+					return false;
+				}
+				for (int y = 0; y < 3; y++) {
+					if (!level.getBlockState(p.above(y)).canBeReplaced()) {
+						return false;
+					}
+				}
+			}
+		}
+		return true;
+	}
+
 	private static void buildCar(ServerLevel level, BlockPos at) {
 		BlockState body = block("waxed_cut_copper");
 		BlockState low = block("waxed_cut_copper_slab");
