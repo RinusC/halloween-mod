@@ -1,7 +1,6 @@
 package dev.halloween.game;
 
 import dev.halloween.HwConfig;
-import dev.halloween.HwSounds;
 import dev.halloween.net.HwNet;
 import java.util.HashMap;
 import java.util.Map;
@@ -9,20 +8,19 @@ import java.util.UUID;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Entity;
 
 /**
  * Survivors' (and bots') stamina: running burns it ({@link HwConfig#staminaRunTicks} from full to empty),
  * it comes back a second after the run stops, faster standing still or hiding than walking. Run dry and you
- * are out of breath: no running until a third of it is back, and you pant (heard by anyone near, Michael too).
+ * are out of breath: no running until a third of it is back, and you pant (heard by anyone near, Michael too; see client.ClientPanting).
  */
 public final class Stamina {
 	private static final class State {
 		float value = 1f;
 		boolean exhausted;
 		int restAt;
-		int pantAt;
+		boolean panting;
 		double lastX;
 		double lastZ;
 		float sent = -1f;
@@ -63,6 +61,9 @@ public final class Stamina {
 			if (!on || !MatchManager.role(p).survivor() || p.isSpectator()) {
 				State gone = STATES.remove(p.getUUID());
 				if (gone != null) {
+					if (gone.panting) {
+						pant(p, false);
+					}
 					sync(p, new State());
 				}
 				continue;
@@ -80,7 +81,6 @@ public final class Stamina {
 					s.value = 0f;
 					if (!s.exhausted) {
 						s.exhausted = true;
-						s.pantAt = now;
 						AiStats.add(p, "stamina.out");
 					}
 					p.setSprinting(false);
@@ -92,14 +92,24 @@ public final class Stamina {
 			if (s.exhausted && s.value >= cfg.staminaRecoverFraction) {
 				s.exhausted = false;
 			}
-			if (s.exhausted && now >= s.pantAt) {
-				// Out of breath: heavy panting, over and over until it is caught again.
-				float pitch = (Voices.female(p) ? 1.12f : 0.94f) + p.getRandom().nextFloat() * 0.04f;
-				p.level().playSound(null, p.getX(), p.getEyeY(), p.getZ(), HwSounds.VOICE_PANT, SoundSource.VOICE, cfg.staminaPantVolume, pitch);
-				s.pantAt = now + (int) (52 / pitch);
-				AiStats.add(p, "stamina.pant");
+			if (s.exhausted != s.panting) {
+				// Out of breath: everyone near hears the panting until it is caught (then it fades, a deep breath out).
+				s.panting = s.exhausted;
+				pant(p, s.panting);
+				if (s.panting) {
+					AiStats.add(p, "stamina.pant");
+				}
 			}
 			sync(p, s);
+		}
+	}
+
+	private static void pant(ServerPlayer who, boolean on) {
+		HwNet.Pant payload = new HwNet.Pant(who.getId(), on, Voices.female(who), HwConfig.get().staminaPantVolume);
+		for (ServerPlayer p : who.level().getServer().getPlayerList().getPlayers()) {
+			if (!Bots.isBot(p) && p.level() == who.level() && p.distanceToSqr(who) < 48 * 48) {
+				ServerPlayNetworking.send(p, payload);
+			}
 		}
 	}
 

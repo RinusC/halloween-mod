@@ -196,6 +196,7 @@ public final class ClientState {
 		ClientAnims.clear();
 		stamina = 1f;
 		staminaExhausted = false;
+		ClientPanting.clear();
 		ClientWeather.kind = dev.halloween.game.Weather.CLEAR;
 		shapeEntityId = -1;
 		shapeShadow = false;

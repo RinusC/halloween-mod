@@ -325,6 +325,22 @@ public final class HwNet {
 		}
 	}
 
+	/** Someone is out of breath (on) or has caught it (off): clients play the panting (see client.ClientPanting). */
+	public record Pant(int entityId, boolean on, boolean female, float volume) implements CustomPacketPayload {
+		public static final Type<Pant> TYPE = payloadType("pant");
+		public static final StreamCodec<RegistryFriendlyByteBuf, Pant> CODEC = StreamCodec.of((buf, v) -> {
+			buf.writeVarInt(v.entityId);
+			buf.writeBoolean(v.on);
+			buf.writeBoolean(v.female);
+			buf.writeFloat(v.volume);
+		}, buf -> new Pant(buf.readVarInt(), buf.readBoolean(), buf.readBoolean(), buf.readFloat()));
+
+		@Override
+		public Type<Pant> type() {
+			return TYPE;
+		}
+	}
+
 	/** The match's weather (see game.Weather). */
 	public record MatchWeather(int kind) implements CustomPacketPayload {
 		public static final Type<MatchWeather> TYPE = payloadType("weather");
@@ -798,6 +814,7 @@ public final class HwNet {
 		PayloadTypeRegistry.clientboundPlay().register(Anim.TYPE, Anim.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(MatchWeather.TYPE, MatchWeather.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(StaminaSync.TYPE, StaminaSync.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(Pant.TYPE, Pant.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(MinimapSync.TYPE, MinimapSync.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(MatchSync.TYPE, MatchSync.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(MatchEnd.TYPE, MatchEnd.CODEC);

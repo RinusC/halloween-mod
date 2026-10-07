@@ -59,6 +59,7 @@ public class StaminaClientTest implements FabricClientGameTest {
 			check(server.computeOnServer(s -> Stamina.exhausted(player(s)) && !player(s).isSprinting()), "run dry: out of breath, running stops");
 			check(ctx.computeOnClient(mc -> ClientState.staminaExhausted && !mc.player.isSprinting()), "the client can't run either");
 			check(server.computeOnServer(s -> AiStats.snapshot().getOrDefault("*total", java.util.Map.of()).getOrDefault("stamina.pant", 0) > 0), "and pants");
+			check(ctx.computeOnClient(mc -> dev.halloween.client.ClientPanting.panting(mc.player.getId())), "the panting plays (one long take)");
 			ctx.takeScreenshot("stamina_out");
 			ctx.getInput().releaseKey(o -> o.keySprint);
 			ctx.getInput().releaseKey(o -> o.keyUp);
@@ -68,6 +69,7 @@ public class StaminaClientTest implements FabricClientGameTest {
 			check(server.computeOnServer(s -> Stamina.exhausted(player(s))), "still out of breath a second later");
 			ctx.waitTicks(50);
 			check(server.computeOnServer(s -> !Stamina.exhausted(player(s))), "caught their breath after ~3.5 s standing");
+			check(ctx.computeOnClient(mc -> !dev.halloween.client.ClientPanting.panting(mc.player.getId())), "and fades out once the breath is caught");
 			ctx.takeScreenshot("stamina_back");
 
 			// Bots too.

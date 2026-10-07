@@ -125,6 +125,7 @@ public class HalloweenClient implements ClientModInitializer {
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.MinimapSync.TYPE, (payload, ctx) -> ClientMinimap.apply(payload));
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.MusicMood.TYPE, (payload, ctx) -> ClientMusic.set(payload.mood(), payload.variant()));
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.Anim.TYPE, (payload, ctx) -> ClientAnims.receive(payload));
+		ClientPlayNetworking.registerGlobalReceiver(HwNet.Pant.TYPE, (payload, ctx) -> ClientPanting.receive(payload));
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.StaminaSync.TYPE, (payload, ctx) -> {
 			ClientState.stamina = payload.value();
 			ClientState.staminaExhausted = payload.exhausted();
@@ -213,6 +214,7 @@ public class HalloweenClient implements ClientModInitializer {
 		DashSteps.tick(mc);
 		ShapeBreath.tick(mc);
 		ClientWeather.tick();
+		ClientPanting.tick(mc);
 		Role role = ClientState.myRole();
 		CameraType wanted = role == Role.SHAPE ? CameraType.THIRD_PERSON_BACK : CameraType.FIRST_PERSON;
 		if (role != Role.NONE && mc.options.getCameraType() != wanted) {
