@@ -5,7 +5,7 @@
 	"name": "Halloween slice tests",
 	"environment": "*",
 	"entrypoints": {
-		"fabric-client-gametest": ["dev.halloween.test.SliceOneClientTest", "dev.halloween.test.MatchClientTest", "dev.halloween.test.BotsClientTest", "dev.halloween.test.GearClientTest", "dev.halloween.test.SimClientTest", "dev.halloween.test.HaddonfieldClientTest", "dev.halloween.test.SkinsClientTest", "dev.halloween.test.MusicClientTest", "dev.halloween.test.CommandsClientTest", "dev.halloween.test.VoicesClientTest"]
+		"fabric-client-gametest": ["dev.halloween.test.SliceOneClientTest", "dev.halloween.test.MatchClientTest", "dev.halloween.test.BotsClientTest", "dev.halloween.test.GearClientTest", "dev.halloween.test.SimClientTest", "dev.halloween.test.HaddonfieldClientTest", "dev.halloween.test.SkinsClientTest", "dev.halloween.test.MusicClientTest", "dev.halloween.test.CommandsClientTest", "dev.halloween.test.VoicesClientTest", "dev.halloween.test.FurnitureClientTest"]
 	},
 	"depends": {
 		"halloween": "*"

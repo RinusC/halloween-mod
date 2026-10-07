@@ -1,0 +1,17 @@
+{
+  "parent": "minecraft:block/block",
+  "textures": {
+    "front": "halloween:block/furniture/cardboard_box_front",
+    "side": "halloween:block/furniture/cardboard_box_side",
+    "inside": "halloween:block/furniture/cardboard_box_inside",
+    "flap": "halloween:block/furniture/cardboard_box_flap_inner",
+    "particle": "halloween:block/furniture/cardboard_box_side"
+  },
+  "elements": [
+    {"from": [2, 0, 2], "to": [14, 10, 14], "faces": {"north": {"uv": [2, 6, 14, 16], "texture": "#front"}, "south": {"uv": [2, 6, 14, 16], "texture": "#front"}, "east": {"uv": [2, 6, 14, 16], "texture": "#side"}, "west": {"uv": [2, 6, 14, 16], "texture": "#side"}, "up": {"uv": [2, 2, 14, 14], "texture": "#inside"}, "down": {"uv": [2, 2, 14, 14], "texture": "#side"}}},
+    {"from": [2, 10, 2], "to": [14, 16, 2.5], "rotation": {"origin": [8, 10, 2], "axis": "x", "angle": -45}, "faces": {"north": {"uv": [2, 0, 14, 6], "texture": "#front"}, "south": {"uv": [2, 0, 14, 6], "texture": "#flap"}, "east": {"uv": [13.5, 0, 14, 6], "texture": "#flap"}, "west": {"uv": [2, 0, 2.5, 6], "texture": "#flap"}, "up": {"uv": [2, 2, 14, 2.5], "texture": "#flap"}, "down": {"uv": [2, 13.5, 14, 14], "texture": "#flap"}}},
+    {"from": [2, 10, 13.5], "to": [14, 16, 14], "rotation": {"origin": [8, 10, 14], "axis": "x", "angle": 45}, "faces": {"south": {"uv": [2, 0, 14, 6], "texture": "#front"}, "north": {"uv": [2, 0, 14, 6], "texture": "#flap"}, "east": {"uv": [2, 0, 2.5, 6], "texture": "#flap"}, "west": {"uv": [13.5, 0, 14, 6], "texture": "#flap"}, "up": {"uv": [2, 13.5, 14, 14], "texture": "#flap"}, "down": {"uv": [2, 2, 14, 2.5], "texture": "#flap"}}},
+    {"from": [2, 10, 2.5], "to": [2.5, 16, 13.5], "rotation": {"origin": [2, 10, 8], "axis": "z", "angle": 45}, "faces": {"west": {"uv": [2.5, 0, 13.5, 6], "texture": "#side"}, "east": {"uv": [2.5, 0, 13.5, 6], "texture": "#flap"}, "north": {"uv": [13.5, 0, 14, 6], "texture": "#flap"}, "south": {"uv": [2, 0, 2.5, 6], "texture": "#flap"}, "up": {"uv": [2, 2.5, 2.5, 13.5], "texture": "#flap"}, "down": {"uv": [2, 2.5, 2.5, 13.5], "texture": "#flap"}}},
+    {"from": [13.5, 10, 2.5], "to": [14, 16, 13.5], "rotation": {"origin": [14, 10, 8], "axis": "z", "angle": -45}, "faces": {"east": {"uv": [2.5, 0, 13.5, 6], "texture": "#side"}, "west": {"uv": [2.5, 0, 13.5, 6], "texture": "#flap"}, "north": {"uv": [2, 0, 2.5, 6], "texture": "#flap"}, "south": {"uv": [13.5, 0, 14, 6], "texture": "#flap"}, "up": {"uv": [13.5, 2.5, 14, 13.5], "texture": "#flap"}, "down": {"uv": [13.5, 2.5, 14, 13.5], "texture": "#flap"}}}
+  ]
+}

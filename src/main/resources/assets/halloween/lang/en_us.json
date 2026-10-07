@@ -1,4 +1,11 @@
 {
+  "block.halloween.dresser": "Dresser",
+  "block.halloween.nightstand": "Nightstand",
+  "block.halloween.kitchen_cabinet": "Kitchen Cabinet",
+  "block.halloween.cardboard_box": "Cardboard Box",
+  "block.halloween.crate": "Crate",
+  "block.halloween.tool_cabinet": "Tool Chest",
+  "block.halloween.filing_cabinet": "Filing Cabinet",
 	"key.category.halloween.main": "Halloween",
 	"key.halloween.killer_sense": "Killer Sense (Shape) / reload (civilian)",
 	"key.halloween.shape_jump": "Shape Jump",

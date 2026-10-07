@@ -21,6 +21,15 @@ public final class HwBlocks {
 		new dev.halloween.game.LockerBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.SPRUCE_PLANKS).strength(-1f, 3600000f).noOcclusion()
 			.isSuffocating((s, l, p) -> false).isViewBlocking((s, l, p) -> false).setId(key("locker"))));
 
+	/** Furniture to search (see game.SearchBlock); boxes are in pixels for the piece facing north. */
+	public static final Block DRESSER = search("dresser", Blocks.DARK_OAK_PLANKS, dev.halloween.game.SearchBlock.Stuff.WOOD, 0, 0, 2, 16, 16, 16);
+	public static final Block NIGHTSTAND = search("nightstand", Blocks.OAK_PLANKS, dev.halloween.game.SearchBlock.Stuff.WOOD, 2, 0, 3, 14, 12, 15);
+	public static final Block KITCHEN_CABINET = search("kitchen_cabinet", Blocks.SPRUCE_PLANKS, dev.halloween.game.SearchBlock.Stuff.WOOD, 0, 0, 0, 16, 16, 16);
+	public static final Block CARDBOARD_BOX = search("cardboard_box", Blocks.OAK_PLANKS, dev.halloween.game.SearchBlock.Stuff.CARDBOARD, 2, 0, 2, 14, 10, 14);
+	public static final Block CRATE = search("crate", Blocks.OAK_PLANKS, dev.halloween.game.SearchBlock.Stuff.WOOD, 1, 0, 1, 15, 14, 15);
+	public static final Block TOOL_CABINET = search("tool_cabinet", Blocks.IRON_BLOCK, dev.halloween.game.SearchBlock.Stuff.METAL, 1, 0, 2, 15, 16, 15);
+	public static final Block FILING_CABINET = search("filing_cabinet", Blocks.IRON_BLOCK, dev.halloween.game.SearchBlock.Stuff.METAL, 2, 0, 1, 14, 16, 15);
+
 	private HwBlocks() {
 	}
 
@@ -31,6 +40,12 @@ public final class HwBlocks {
 	private static Block register(String path) {
 		ResourceKey<Block> key = ResourceKey.create(Registries.BLOCK, Halloween.id(path));
 		return Registry.register(BuiltInRegistries.BLOCK, key, new IronBarsBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.GLASS_PANE).setId(key)));
+	}
+
+	private static Block search(String path, Block like, dev.halloween.game.SearchBlock.Stuff stuff, double... box) {
+		ResourceKey<Block> key = key(path);
+		return Registry.register(BuiltInRegistries.BLOCK, key, new dev.halloween.game.SearchBlock(stuff, box,
+			BlockBehaviour.Properties.ofFullCopy(like).strength(-1f, 3600000f).noOcclusion().setId(key)));
 	}
 
 	public static void init() {

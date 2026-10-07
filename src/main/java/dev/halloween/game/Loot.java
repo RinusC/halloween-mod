@@ -22,7 +22,8 @@ import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.minecraft.world.level.chunk.LevelChunk;
 
 /**
- * Chests and barrels around the map centre are containers. At the start the items the exits need are
+ * Furniture to search ({@link SearchBlock}: dressers, nightstands, kitchen cabinets, boxes, crates, tool chests,
+ * filing cabinets), and chests and barrels on other maps, around the map centre are containers. At the start the items the exits need are
  * hidden in random ones, every match (fuse, gate key, gas can, sedan keys, padlock key, bolt cutters, two
  * repair kits); then ammunition, the relics that turned up this match, and for a share of the rest a find
  * drawn by how common it is in the original (see {@link HwConfig#lootWeights}). Survivors search them by
@@ -62,6 +63,31 @@ public final class Loot {
 		for (int x = cx - cr; x <= cx + cr; x++) {
 			for (int z = cz - cr; z <= cz + cr; z++) {
 				LevelChunk chunk = level.getChunk(x, z);
+				// Furniture: closed again for the new match.
+				for (int i = 0; i < chunk.getSections().length; i++) {
+					net.minecraft.world.level.chunk.LevelChunkSection section = chunk.getSections()[i];
+					if (section.hasOnlyAir() || !section.maybeHas(SearchBlock::is)) {
+						continue;
+					}
+					int y0 = net.minecraft.core.SectionPos.sectionToBlockCoord(chunk.getSectionYFromSectionIndex(i));
+					for (int ly = 0; ly < 16; ly++) {
+						for (int lz = 0; lz < 16; lz++) {
+							for (int lx = 0; lx < 16; lx++) {
+								net.minecraft.world.level.block.state.BlockState state = section.getBlockState(lx, ly, lz);
+								if (!SearchBlock.is(state)) {
+									continue;
+								}
+								BlockPos pos = new BlockPos(chunk.getPos().getMinBlockX() + lx, y0 + ly, chunk.getPos().getMinBlockZ() + lz);
+								if (pos.closerThan(center, circle) || Math.abs(pos.getX() - center.getX()) <= sq && Math.abs(pos.getZ() - center.getZ()) <= sq) {
+									CONTAINERS.add(pos);
+									if (state.getValue(SearchBlock.OPEN)) {
+										level.setBlock(pos, state.setValue(SearchBlock.OPEN, false), net.minecraft.world.level.block.Block.UPDATE_CLIENTS);
+									}
+								}
+							}
+						}
+					}
+				}
 				for (BlockEntity be : chunk.getBlockEntities().values()) {
 					if ((be instanceof ChestBlockEntity || be instanceof BarrelBlockEntity) && (be.getBlockPos().closerThan(center, circle)
 						|| Math.abs(be.getBlockPos().getX() - center.getX()) <= sq && Math.abs(be.getBlockPos().getZ() - center.getZ()) <= sq)
@@ -178,11 +204,17 @@ public final class Loot {
 			if (p.level().getRandom().nextFloat() < HwConfig.get().revolverFindChance) {
 				Component gun = Component.translatable("halloween.item.revolver");
 				Inventory.give(p, HwItems.create(HwItems.Kind.REVOLVER));
-				p.level().playSound(null, at, SoundEvents.BARREL_OPEN, SoundSource.BLOCKS, 0.8f, 1.1f);
 				Notices.send(p, Component.translatable("halloween.hint.found", gun).withStyle(ChatFormatting.GOLD));
 				AiStats.add(p, "found.revolver");
 			}
-			p.level().playSound(null, at, SoundEvents.BARREL_OPEN, SoundSource.BLOCKS, 0.8f, 1.1f);
+			// The drawer stays pulled out, the door open, the flaps up.
+			net.minecraft.world.level.block.state.BlockState state = p.level().getBlockState(at);
+			if (state.getBlock() instanceof SearchBlock furniture) {
+				p.level().playSound(null, at, furniture.stuff().sound, SoundSource.BLOCKS, 0.8f, furniture.stuff().pitch);
+				p.level().setBlock(at, state.setValue(SearchBlock.OPEN, true), net.minecraft.world.level.block.Block.UPDATE_CLIENTS);
+			} else {
+				p.level().playSound(null, at, SoundEvents.BARREL_OPEN, SoundSource.BLOCKS, 0.8f, 1.1f);
+			}
 			if (kind == null) {
 				p.sendOverlayMessage(Component.translatable("halloween.hint.empty").withStyle(ChatFormatting.GRAY));
 				return;

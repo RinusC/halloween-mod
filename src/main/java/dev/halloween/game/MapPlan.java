@@ -84,6 +84,11 @@ public class MapPlan {
 		return b(id).setValue(BlockStateProperties.HORIZONTAL_FACING, facing);
 	}
 
+	/** A piece of furniture to search, its front facing {@code facing}. */
+	static BlockState search(Block block, Direction facing) {
+		return block.defaultBlockState().setValue(SearchBlock.FACING, facing);
+	}
+
 	static BlockState leaves(String id) {
 		return b(id).setValue(BlockStateProperties.PERSISTENT, true);
 	}

@@ -1,0 +1,12 @@
+{
+  "variants": {
+    "facing=north,open=false": { "model": "halloween:block/furniture/nightstand" },
+    "facing=east,open=false": { "model": "halloween:block/furniture/nightstand", "y": 90 },
+    "facing=south,open=false": { "model": "halloween:block/furniture/nightstand", "y": 180 },
+    "facing=west,open=false": { "model": "halloween:block/furniture/nightstand", "y": 270 },
+    "facing=north,open=true": { "model": "halloween:block/furniture/nightstand_open" },
+    "facing=east,open=true": { "model": "halloween:block/furniture/nightstand_open", "y": 90 },
+    "facing=south,open=true": { "model": "halloween:block/furniture/nightstand_open", "y": 180 },
+    "facing=west,open=true": { "model": "halloween:block/furniture/nightstand_open", "y": 270 }
+  }
+}

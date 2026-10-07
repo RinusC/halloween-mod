@@ -1,4 +1,11 @@
 {
+  "block.halloween.dresser": "Комод",
+  "block.halloween.nightstand": "Тумбочка",
+  "block.halloween.kitchen_cabinet": "Кухонная тумба",
+  "block.halloween.cardboard_box": "Картонная коробка",
+  "block.halloween.crate": "Деревянный ящик",
+  "block.halloween.tool_cabinet": "Инструментальный шкаф",
+  "block.halloween.filing_cabinet": "Картотека",
 	"key.category.halloween.main": "Halloween",
 	"key.halloween.killer_sense": "Чутьё убийцы (Майкл) / перезарядка (житель)",
 	"key.halloween.shape_jump": "Поступь Призрака",

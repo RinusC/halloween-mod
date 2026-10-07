@@ -1,0 +1,15 @@
+{
+  "parent": "minecraft:block/block",
+  "textures": {
+    "front": "halloween:block/furniture/kitchen_cabinet_front",
+    "side": "halloween:block/furniture/kitchen_cabinet_side",
+    "counter": "minecraft:block/polished_andesite",
+    "kick": "minecraft:block/dark_oak_planks",
+    "particle": "halloween:block/furniture/kitchen_cabinet_side"
+  },
+  "elements": [
+    {"from": [0, 0, 2], "to": [16, 1, 16], "faces": {"north": {"uv": [0, 15, 16, 16], "texture": "#kick"}, "east": {"uv": [0, 15, 14, 16], "texture": "#kick"}, "south": {"uv": [0, 15, 16, 16], "texture": "#kick"}, "west": {"uv": [2, 15, 16, 16], "texture": "#kick"}, "up": {"uv": [0, 2, 16, 16], "texture": "#kick"}, "down": {"uv": [0, 0, 16, 14], "texture": "#kick"}}},
+    {"from": [0, 1, 1], "to": [16, 14, 16], "faces": {"north": {"uv": [0, 2, 16, 15], "texture": "#front"}, "east": {"uv": [0, 2, 15, 15], "texture": "#side"}, "south": {"uv": [0, 2, 16, 15], "texture": "#side"}, "west": {"uv": [1, 2, 16, 15], "texture": "#side"}, "up": {"uv": [0, 1, 16, 16], "texture": "#side"}, "down": {"uv": [0, 0, 16, 15], "texture": "#side"}}},
+    {"from": [0, 14, 0], "to": [16, 16, 16], "faces": {"north": {"uv": [0, 0, 16, 2], "texture": "#counter"}, "east": {"uv": [0, 0, 16, 2], "texture": "#counter"}, "south": {"uv": [0, 0, 16, 2], "texture": "#counter"}, "west": {"uv": [0, 0, 16, 2], "texture": "#counter"}, "up": {"uv": [0, 0, 16, 16], "texture": "#counter"}, "down": {"uv": [0, 0, 16, 16], "texture": "#counter"}}}
+  ]
+}

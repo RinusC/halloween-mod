@@ -1,5 +1,6 @@
 package dev.halloween.game;
 
+import dev.halloween.HwBlocks;
 import java.util.Random;
 import net.minecraft.core.Direction;
 import net.minecraft.world.level.block.state.BlockState;
@@ -278,7 +279,7 @@ public final class Haddonfield extends MapPlan {
 			this.breaker(f.x(w - 1), 1, f.z(mid), Direction.EAST);
 		}
 
-		// Living room: a sofa against the dividing wall facing the front, a coffee table, a bookcase, a chest,
+		// Living room: a sofa against the dividing wall facing the front, a coffee table, a bookcase, a dresser,
 		// and either a television or a fireplace; curtains by the front windows, a picture over the sofa.
 		boolean fireplace = this.random.nextBoolean();
 		for (int u = 4; u <= 6; u++) {
@@ -287,7 +288,7 @@ public final class Haddonfield extends MapPlan {
 		f.set(5, 0, mid - 3, slab("dark_oak_slab", SlabType.BOTTOM));
 		f.set(w - 2, 0, mid - 1, b("bookshelf"));
 		f.set(w - 2, 1, mid - 1, b("bookshelf"));
-		f.set(w - 2, 0, 1, facing("chest", Direction.WEST));
+		f.set(w - 2, 0, 1, search(HwBlocks.DRESSER, Direction.WEST));
 		f.set(4, 0, 1, b(this.pick("potted_fern", "potted_red_tulip", "potted_orange_tulip", "potted_dead_bush")));
 		if (fireplace) {
 			// A brick hearth on the east wall, its chimney up the outside.
@@ -317,7 +318,7 @@ public final class Haddonfield extends MapPlan {
 		f.set(5, 2, mid - 1, b(this.pick("orange", "yellow", "light_blue", "lime", "purple") + "_wall_banner").setValue(BlockStateProperties.HORIZONTAL_FACING, f.front()));
 		f.point(MapPoints.Type.NPC, w / 2, 0, 2);
 
-		// Kitchen: counters along the back wall (sink, stove, the phone), cupboards over them, a fridge, a barrel,
+		// Kitchen: counters along the back wall (sink, stove, the phone), cupboards over them, a fridge, a cabinet,
 		// a table with a candle and two chairs, a checked floor, the wardrobe to hide in.
 		for (int u = 1; u <= w - 2; u++) {
 			for (int v = mid + 1; v <= d - 2; v++) {
@@ -332,7 +333,7 @@ public final class Haddonfield extends MapPlan {
 		f.set(4, 0, d - 2, facing("smoker", f.front()));
 		f.set(w - 6, 1, d - 2, b(this.pick("potted_fern", "potted_spruce_sapling", "potted_red_tulip")));
 		f.fill(w - 5, 0, d - 2, w - 5, 1, d - 2, b("quartz_pillar"));
-		f.set(1, 0, d - 2, b("barrel"));
+		f.set(1, 0, d - 2, search(HwBlocks.KITCHEN_CABINET, f.front()));
 		f.set(2, 1, d - 2, dev.halloween.HwBlocks.PHONE.defaultBlockState());
 		f.point(MapPoints.Type.PHONE, 2, 1, d - 2);
 		int tableU = w / 2 - 1;
@@ -387,9 +388,9 @@ public final class Haddonfield extends MapPlan {
 			f.set(3, 5, 1, b("chiseled_bookshelf").setValue(BlockStateProperties.HORIZONTAL_FACING, f.back()));
 			f.fill(w / 2 - 1, 4, 3, w / 2 + 1, 4, 4, b(s.rug()));
 			f.set(w / 2, 7, 1, b(this.pick("pink", "cyan", "lime", "orange") + "_wall_banner").setValue(BlockStateProperties.HORIZONTAL_FACING, f.back()));
-			// Back bedroom: a bed against the back wall, a chest, a bookcase, a desk.
+			// Back bedroom: a bed against the back wall, a nightstand or a dresser, a bookcase, a desk.
 			this.bed(f, w - 2, 5, d - 3, f.back(), abandoned ? "white" : this.pick("red", "blue", "green", "purple", "orange"));
-			f.set(1, 5, d - 2, facing("chest", Direction.EAST));
+			f.set(1, 5, d - 2, search(this.random.nextBoolean() ? HwBlocks.NIGHTSTAND : HwBlocks.DRESSER, Direction.EAST));
 			f.set(1, 5, mid + 2, b("bookshelf"));
 			f.set(1, 6, mid + 2, b("bookshelf"));
 			f.set(w / 2, 5, d - 2, slab("spruce_slab", SlabType.TOP));
@@ -678,7 +679,7 @@ public final class Haddonfield extends MapPlan {
 				this.fill(x, 1, zFront, x, 2, zFront, b("glass_pane"));
 			}
 		}
-		// Shelves: rows of spruce shelving with barrels (things to search) at the ends.
+		// Shelves: rows of spruce shelving with cardboard boxes (things to search) at the ends.
 		for (int row = 0; row < 3; row++) {
 			int z = zFront - 5 - row * 3;
 			for (int x = x0 + 4; x <= x1 - 4; x++) {
@@ -689,8 +690,8 @@ public final class Haddonfield extends MapPlan {
 				this.set(x, 1, z, this.goods());
 				this.set(x, 2, z, slab("spruce_slab", SlabType.BOTTOM));
 			}
-			this.set(x0 + 3, 0, z, b("barrel"));
-			this.set(x1 - 3, 0, z, b("barrel"));
+			this.set(x0 + 3, 0, z, search(HwBlocks.CARDBOARD_BOX, Direction.WEST));
+			this.set(x1 - 3, 0, z, search(HwBlocks.CARDBOARD_BOX, Direction.EAST));
 		}
 		// Counter by the door with the phone.
 		this.fill(x0 + 2, 0, zFront - 3, x0 + 4, 0, zFront - 3, b("dark_oak_planks"));
@@ -700,8 +701,8 @@ public final class Haddonfield extends MapPlan {
 		int zStore = zBack + 5;
 		this.fill(x0 + 1, 0, zStore, x1 - 1, 3, zStore, b("bricks"));
 		this.fill((x0 + x1) / 2, 0, zStore, (x0 + x1) / 2 + 1, 2, zStore, AIR);
-		this.set(x0 + 2, 0, zBack + 1, b("chest").setValue(BlockStateProperties.HORIZONTAL_FACING, Direction.SOUTH));
-		this.set(x1 - 2, 0, zBack + 1, b("barrel"));
+		this.set(x0 + 2, 0, zBack + 1, search(HwBlocks.TOOL_CABINET, Direction.SOUTH));
+		this.set(x1 - 2, 0, zBack + 1, search(HwBlocks.CRATE, Direction.SOUTH));
 		this.point(MapPoints.Type.GUN_CASE, x0 + 5, 0, zBack + 1);
 		this.door(x1 - 3, 0, zBack, Direction.SOUTH, "spruce_door");
 		this.locker(x0 + 1, 0, zBack + 3, Direction.EAST);
@@ -772,8 +773,8 @@ public final class Haddonfield extends MapPlan {
 		}
 		this.set(x0 + 3, 1, zBack + 4, dev.halloween.HwBlocks.PHONE.defaultBlockState());
 		this.point(MapPoints.Type.PHONE, x0 + 3, 1, zBack + 4);
-		this.set(x0 + 1, 0, zBack + 1, b("barrel"));
-		this.set(x1 - 1, 0, zBack + 1, b("chest").setValue(BlockStateProperties.HORIZONTAL_FACING, Direction.SOUTH));
+		this.set(x0 + 1, 0, zBack + 1, search(HwBlocks.KITCHEN_CABINET, Direction.SOUTH));
+		this.set(x1 - 1, 0, zBack + 1, search(HwBlocks.CARDBOARD_BOX, Direction.SOUTH));
 		this.door(x1 - 2, 0, zBack, Direction.SOUTH, "birch_door");
 		this.bulb(x0 + 6, 4, zFront - 6);
 		this.bulb(x1 - 6, 4, zFront - 6);
@@ -859,8 +860,8 @@ public final class Haddonfield extends MapPlan {
 		this.fill(sx0 + 2, 0, zb + 3, sx0 + 5, 0, zb + 3, b("spruce_planks"));
 		this.set(sx0 + 3, 1, zb + 3, dev.halloween.HwBlocks.PHONE.defaultBlockState());
 		this.point(MapPoints.Type.PHONE, sx0 + 3, 1, zb + 3);
-		this.set(sx1 - 1, 0, zb + 1, b("barrel"));
-		this.set(sx1 - 1, 0, zb + 2, b("barrel"));
+		this.set(sx1 - 1, 0, zb + 1, search(HwBlocks.TOOL_CABINET, Direction.WEST));
+		this.set(sx1 - 1, 0, zb + 2, search(HwBlocks.CARDBOARD_BOX, Direction.WEST));
 		this.locker(sx0 + 1, 0, zb + 1, Direction.SOUTH);
 		this.bulb((sx0 + sx1) / 2, 4, zb + 4);
 		this.bulb(sx0 + 4, 4, zf - 2);
@@ -920,7 +921,7 @@ public final class Haddonfield extends MapPlan {
 				// Doorways from the corridor.
 				this.fill(dx, 0, zc - 3, dx + 1, 2, zc - 3, AIR);
 				this.fill(dx, 0, zc + 3, dx + 1, 2, zc + 3, AIR);
-				// Desks in rows, the teacher's desk with a chest, a blackboard.
+				// Desks in rows, the teacher's desk with a filing cabinet, a blackboard.
 				for (int[] side : new int[][]{{zBack + 2, zc - 5}, {zc + 5, zFront - 2}}) {
 					for (int z = side[0] + 2; z <= side[1] - 1; z += 3) {
 						for (int xx = x + 2; xx <= x + roomW - 3; xx += 3) {
@@ -949,8 +950,8 @@ public final class Haddonfield extends MapPlan {
 				}
 				this.set(x + 6, 2, zBack + 1, b(this.pick("orange", "yellow", "lime", "light_blue") + "_wall_banner")
 					.setValue(BlockStateProperties.HORIZONTAL_FACING, Direction.SOUTH));
-				this.set(x + 2, 0, zBack + 2, facing("chest", Direction.SOUTH));
-				this.set(x + 2, 0, zFront - 2, facing("chest", Direction.NORTH));
+				this.set(x + 2, 0, zBack + 2, search(HwBlocks.FILING_CABINET, Direction.SOUTH));
+				this.set(x + 2, 0, zFront - 2, search(HwBlocks.FILING_CABINET, Direction.NORTH));
 				// Blackboards on the corridor wall, clear of the doorway.
 				this.fill(x + 2, 1, zc - 4, x + 5, 2, zc - 4, b("black_concrete"));
 				this.fill(x + 2, 1, zc + 4, x + 5, 2, zc + 4, b("black_concrete"));
@@ -1019,8 +1020,8 @@ public final class Haddonfield extends MapPlan {
 		this.set(5, 1, zc + 5, dev.halloween.HwBlocks.PHONE.defaultBlockState());
 		this.point(MapPoints.Type.PHONE, 5, 1, zc + 5);
 		this.point(MapPoints.Type.GUN_CASE, x1 - 3, 0, zBack + 3);
-		this.set(x1 - 2, 0, zBack + 2, b("barrel"));
-		this.set(x1 - 2, 0, zBack + 4, b("barrel"));
+		this.set(x1 - 2, 0, zBack + 2, search(HwBlocks.TOOL_CABINET, Direction.WEST));
+		this.set(x1 - 2, 0, zBack + 4, search(HwBlocks.CARDBOARD_BOX, Direction.WEST));
 		this.point(MapPoints.Type.NPC, x1 - 6, 0, zBack + 3);
 		this.sign(-5, 0, zFront + 4, 0, "HADDONFIELD", "ELEMENTARY", "SCHOOL", "");
 		// Flagpole, playground (swings, a slide, a climbing frame) and the car park east of the school.
@@ -1084,7 +1085,7 @@ public final class Haddonfield extends MapPlan {
 		this.set(cx - 1, 0, cz + 6, b("stone_bricks"));
 		this.set(cx + 1, 1, cz + 6, b("soul_lantern"));
 		this.set(cx + 1, 0, cz + 6, b("stone_bricks"));
-		this.set(cx, 0, cz - 3, facing("chest", Direction.SOUTH));
+		this.set(cx, 0, cz - 3, search(HwBlocks.CRATE, Direction.SOUTH));
 		this.fill(cx - 2, 0, cz - 1, cx + 2, 0, cz - 1, b("polished_andesite"));
 		for (int i = 0; i < 9; i++) {
 			int x = x0 + 6 + this.random.nextInt(x1 - x0 - 12);
@@ -1158,7 +1159,7 @@ public final class Haddonfield extends MapPlan {
 				this.set(x + 1, 0, cz - 1, stairs("oak_stairs", Direction.SOUTH));
 			}
 		}
-		// The groundskeeper's shed with a chest; a storm cellar behind it.
+		// The groundskeeper's shed with a tool chest and a crate; a storm cellar behind it.
 		int sx = x0 + 10;
 		int sz = z1 - 16;
 		this.fill(sx, -1, sz, sx + 6, -1, sz + 5, b("spruce_planks"));
@@ -1168,8 +1169,8 @@ public final class Haddonfield extends MapPlan {
 		this.door(sx + 3, 0, sz, Direction.SOUTH, "spruce_door");
 		this.set(sx + 1, 1, sz + 2, b("glass_pane"));
 		this.set(sx + 1, 2, sz + 2, b("glass_pane"));
-		this.set(sx + 5, 0, sz + 4, facing("chest", Direction.WEST));
-		this.set(sx + 5, 0, sz + 1, b("barrel"));
+		this.set(sx + 5, 0, sz + 4, search(HwBlocks.TOOL_CABINET, Direction.WEST));
+		this.set(sx + 5, 0, sz + 1, search(HwBlocks.CRATE, Direction.WEST));
 		this.point(MapPoints.Type.CELLAR, sx + 3, 0, sz + 9);
 		// Trees all over the lawns.
 		for (int i = 0; i < 60; i++) {
@@ -1285,7 +1286,7 @@ public final class Haddonfield extends MapPlan {
 		}
 		this.fill(-3, 0, z1 - 4, 3, 0, z1 - 4, b("polished_diorite"));
 
-		this.set(-4, 0, z1 - 2, facing("chest", Direction.NORTH));
+		this.set(-4, 0, z1 - 2, search(HwBlocks.DRESSER, Direction.NORTH));
 		this.set(x1 - 1, 1, z1 - 2, dev.halloween.HwBlocks.PHONE.defaultBlockState());
 		this.set(x1 - 1, 0, z1 - 2, b("dark_oak_planks"));
 		this.point(MapPoints.Type.PHONE, x1 - 1, 1, z1 - 2);
@@ -1330,8 +1331,8 @@ public final class Haddonfield extends MapPlan {
 		this.fill(sx + 1, 0, sz + 1, sx + 5, 2, sz + 4, AIR);
 		this.fill(sx, 4, sz, sx + 6, 4, sz + 5, slab("spruce_slab", SlabType.BOTTOM));
 		this.door(sx + 3, 0, sz + 5, Direction.NORTH, "spruce_door");
-		this.set(sx + 1, 0, sz + 1, facing("chest", Direction.SOUTH));
-		this.set(sx + 5, 0, sz + 1, b("barrel"));
+		this.set(sx + 1, 0, sz + 1, search(HwBlocks.CRATE, Direction.SOUTH));
+		this.set(sx + 5, 0, sz + 1, search(HwBlocks.TOOL_CABINET, Direction.SOUTH));
 		this.set(sx + 1, 1, sz + 3, b("glass_pane"));
 		this.set(sx + 1, 2, sz + 3, b("glass_pane"));
 	}

@@ -120,13 +120,14 @@ public final class ArenaBuilder {
 			points.add(MapPoints.Type.GUN_CASE, this.at(c[0], 0, c[1]));
 		}
 
-		// Containers: chests and barrels indoors and around the yards.
+		// Containers: dressers, crates and boxes indoors and around the yards.
 		for (int[] c : new int[][]{{-22, 15}, {1, 15}, {18, -15}, {-14, 20}, {24, 12}, {-26, -20}, {6, -24}}) {
-			this.set(c[0], 0, c[1], b("chest"));
+			this.set(c[0], 0, c[1], dev.halloween.HwBlocks.DRESSER.defaultBlockState());
 		}
+		int n = 0;
 		for (int[] c : new int[][]{{-25, 10}, {-1, 15}, {15, -10}, {-28, 23}, {26, -24}, {12, 25}, {-18, -28}, {30, 20},
 			{-8, 12}, {8, 14}, {-20, -12}, {22, 8}, {-2, -12}, {10, -22}}) {
-			this.set(c[0], 0, c[1], b("barrel"));
+			this.set(c[0], 0, c[1], (n++ % 2 == 0 ? dev.halloween.HwBlocks.CRATE : dev.halloween.HwBlocks.CARDBOARD_BOX).defaultBlockState());
 		}
 	}
 
