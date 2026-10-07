@@ -37,9 +37,11 @@ public final class ClientState {
 	public static boolean staminaExhausted;
 	/** This survivor's panic (see game.Panic). */
 	public static float panic;
-	/** Survivor points over all matches and the perk picked (see game.Perks). */
+	/** The purse, the perks owned, the build and how many it holds (see game.Perks). */
 	public static int perkPoints;
-	public static String perkChosen = "";
+	public static java.util.List<String> perkOwned = java.util.List.of();
+	public static java.util.List<String> perkEquipped = java.util.List.of();
+	public static int perkSlots = 3;
 	/** Footsteps Michael heard (see game.Noise), newest last. */
 	public static final java.util.List<NoiseMark> NOISES = new java.util.ArrayList<>();
 
@@ -147,6 +149,12 @@ public final class ClientState {
 
 	/** Outline colour the Shape sees for an entity, or -1 for none. */
 	public static int outlineColor(Entity entity) {
+		if (myRole().survivor() && match.state() == 2 && perkEquipped.contains("witness") && entity != Minecraft.getInstance().player
+			&& ROLES.getOrDefault(entity.getUUID(), Role.NONE).survivor() && !entity.isSpectator()
+			&& entity.distanceTo(Minecraft.getInstance().player) <= dev.halloween.HwConfig.get().perkWitnessRange) {
+			// Witness: the others close by show through walls.
+			return 0x6FB7FF;
+		}
 		if (myRole() != Role.SHAPE || hud == null) {
 			return -1;
 		}

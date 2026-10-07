@@ -323,6 +323,10 @@ public final class MatchManager {
 						speed = HwConfig.at(cfg.speedByStalk, vs.level()) + (vs.staggerTicks > 0 ? cfg.staggerSpeedModifier : 0);
 					}
 				}
+				if (speed > -1 && Perks.has(player, Perks.Perk.STUBBORN) && player.getHealth() < player.getMaxHealth() * cfg.perkStubbornBelow) {
+					// Wounded and stubborn: pushing on harder.
+					speed += cfg.perkStubbornSpeed;
+				}
 				if (speed > -1 && Guns.aiming(player)) {
 					// Gun raised: careful steps.
 					speed = Math.max(-1, speed + cfg.aimSpeedModifier);
@@ -494,6 +498,9 @@ public final class MatchManager {
 				if (state.focusActive()) {
 					multiplier *= cfg.focusMultiplier;
 				}
+			}
+			if (Perks.has(target, Perks.Perk.ELUSORY)) {
+				multiplier *= cfg.perkElusoryFactor;
 			}
 			int before = vs.level();
 			vs.stalk = Math.min(cap, vs.stalk + rate / 20f * multiplier);

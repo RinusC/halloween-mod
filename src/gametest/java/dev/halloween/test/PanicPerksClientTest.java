@@ -108,16 +108,24 @@ public class PanicPerksClientTest implements FabricClientGameTest {
 			server.runCommand("hw stop");
 			ctx.waitTicks(5);
 
-			// Perks.
-			server.runOnServer(s -> Perks.award(s, Map.of(player(s).getUUID(), 1200)));
+			// Perks: bought with points, kept for good, up to three in the build.
+			server.runOnServer(s -> {
+				Perks.give(s, player(s).getUUID(), 5000);
+				Perks.sync(player(s));
+			});
 			ctx.waitTicks(5);
-			check(ctx.computeOnClient(mc -> ClientState.perkPoints >= 1200), "points add up and reach the client");
-			ctx.runOnClient(mc -> ClientPlayNetworking.send(new HwNet.ChoosePerk("quick_search")));
-			ctx.waitTicks(5);
-			check(server.computeOnServer(s -> Perks.chosen(s, player(s).getUUID()) == Perks.Perk.QUICK_SEARCH), "the opened perk can be picked");
-			ctx.runOnClient(mc -> ClientPlayNetworking.send(new HwNet.ChoosePerk("tough")));
-			ctx.waitTicks(5);
-			check(server.computeOnServer(s -> Perks.chosen(s, player(s).getUUID()) == Perks.Perk.QUICK_SEARCH), "a locked one can't");
+			check(ctx.computeOnClient(mc -> ClientState.perkPoints >= 5000), "points reach the client");
+			for (String key : new String[]{"quick_search", "tough", "glass_walker", "barricade", "slippery"}) {
+				ctx.runOnClient(mc -> ClientPlayNetworking.send(new HwNet.PerkAction(key, Perks.BUY)));
+				ctx.waitTicks(3);
+			}
+			check(server.computeOnServer(s -> Perks.points(s, player(s).getUUID())) == 400, "four perks bought, the points spent (400 left)");
+			check(server.computeOnServer(s -> !Perks.owns(s, player(s).getUUID(), Perks.Perk.SLIPPERY)), "one too dear can't be bought");
+			check(server.computeOnServer(s -> Perks.equipped(s, player(s).getUUID()).equals(java.util.EnumSet.of(Perks.Perk.QUICK_SEARCH, Perks.Perk.TOUGH, Perks.Perk.GLASS_WALKER))),
+				"the first three went into the build");
+			ctx.runOnClient(mc -> ClientPlayNetworking.send(new HwNet.PerkAction("barricade", Perks.EQUIP)));
+			ctx.waitTicks(3);
+			check(server.computeOnServer(s -> !Perks.equipped(s, player(s).getUUID()).contains(Perks.Perk.BARRICADE)), "no fourth in the build");
 			ctx.runOnClient(mc -> mc.gui.setScreen(new PerkScreen()));
 			ctx.waitTicks(5);
 			ctx.takeScreenshot("perks");
@@ -130,14 +138,12 @@ public class PanicPerksClientTest implements FabricClientGameTest {
 				return hold == null ? -1 : hold.ticks();
 			});
 			check(searchTicks == Math.round(HwConfig.get().searchTicks * HwConfig.get().perkQuickSearchFactor), "quick search: " + searchTicks + " ticks");
-			server.runCommand("hw stop");
-			ctx.waitTicks(5);
-			server.runOnServer(s -> Perks.award(s, Map.of(player(s).getUUID(), 6000)));
-			ctx.runOnClient(mc -> ClientPlayNetworking.send(new HwNet.ChoosePerk("tough")));
-			ctx.waitTicks(5);
-			server.runCommand("hw start");
-			ctx.waitTicks(40);
 			check(server.computeOnServer(s -> player(s).getMaxHealth() == 22f), "tough: 22 health");
+			check(server.computeOnServer(s -> Math.abs(dev.halloween.game.Windows.cutDamage(player(s)) - 22f * HwConfig.get().vaultDamageFraction * 0.5f) < 1e-3),
+				"glass walker: half the cuts");
+			ctx.runOnClient(mc -> ClientPlayNetworking.send(new HwNet.PerkAction("tough", Perks.UNEQUIP)));
+			ctx.waitTicks(3);
+			check(server.computeOnServer(s -> Perks.equipped(s, player(s).getUUID()).contains(Perks.Perk.TOUGH)), "the build stays put during a match");
 			server.runCommand("hw stop");
 			ctx.waitTicks(5);
 			server.runOnServer(s -> {

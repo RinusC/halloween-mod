@@ -135,7 +135,7 @@ public final class Fight {
 			return InteractionResult.FAIL;
 		}
 		attacker.level().playSound(null, shape.getX(), shape.getY(), shape.getZ(), SoundEvents.PLAYER_ATTACK_STRONG, SoundSource.PLAYERS, 1.2f, 0.8f);
-		stun(shape, kind.stun, attacker);
+		stun(shape, kind.stun * (Perks.has(attacker, Perks.Perk.CONTENDER) ? HwConfig.get().perkContenderStun : 1f), attacker);
 		if (HwItems.wear(weapon)) {
 			attacker.level().playSound(null, attacker.getX(), attacker.getY(), attacker.getZ(), SoundEvents.ITEM_BREAK.value(), SoundSource.PLAYERS, 1f, 1f);
 		}
@@ -209,7 +209,8 @@ public final class Fight {
 	public static void onShapeHurt(ServerPlayer shape, DamageSource source) {
 		Entity direct = source.getDirectEntity();
 		if (direct != null && direct.entityTags().contains(DART_TAG)) {
-			stun(shape, HwItems.Kind.DART.stun, source.getEntity() instanceof ServerPlayer thrower ? thrower : null);
+			ServerPlayer thrower = source.getEntity() instanceof ServerPlayer p ? p : null;
+			stun(shape, HwItems.Kind.DART.stun * (thrower != null && Perks.has(thrower, Perks.Perk.LETHAL_PITCH) ? HwConfig.get().perkLethalPitchStun : 1f), thrower);
 			direct.discard();
 		}
 	}

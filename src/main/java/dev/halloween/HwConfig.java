@@ -379,6 +379,30 @@ public class HwConfig {
 		return w;
 	}
 
+	private static java.util.Map<String, Integer> defaultPerkCosts() {
+		java.util.Map<String, Integer> c = new java.util.LinkedHashMap<>();
+		c.put("quick_search", 800);
+		c.put("stamina", 1200);
+		c.put("quiet", 1500);
+		c.put("tough", 2000);
+		c.put("adrenaline", 1200);
+		c.put("barricade", 1000);
+		c.put("glass_walker", 800);
+		c.put("brimstone", 800);
+		c.put("contender", 1500);
+		c.put("lethal_pitch", 1200);
+		c.put("elusory", 2000);
+		c.put("field_triage", 800);
+		c.put("slippery", 2500);
+		c.put("unphased", 1000);
+		c.put("stubborn", 1200);
+		c.put("repair_expert", 1000);
+		c.put("trespasser", 800);
+		c.put("smooth_talker", 1000);
+		c.put("witness", 1500);
+		return c;
+	}
+
 	// --- Hold-to-interact durations (ticks) ---
 	public int searchTicks = 30;
 	/** Walking while rummaging through a container. */
@@ -453,12 +477,39 @@ public class HwConfig {
 	public float panicRegenPenalty = 0.5f;
 	public float panicBreathOn = 0.5f;
 	public float panicSpread = 4f;
-	/** Perks open at this many survivor points over all matches: quick search, more breath, quiet steps, tough. */
-	public int[] perkUnlockPoints = {1000, 2500, 4000, 6000};
+	/** Perks a survivor takes into a match, and what each costs (points over all matches, spent; see game.Perks). */
+	public int perkSlots = 3;
+	public java.util.Map<String, Integer> perkCosts = defaultPerkCosts();
 	public float perkQuickSearchFactor = 0.6f;
 	public double perkStaminaFactor = 1.2;
 	public double perkQuietNoiseFactor = 0.5;
 	public float perkToughHealth = 2f;
+	/** Adrenaline: the breath comes back this much faster. Barricade: blows a door you locked takes, times this. */
+	public float perkAdrenalineRegen = 1.3f;
+	public double perkBarricadeFactor = 1.5;
+	/** Glass walker: window cuts times this. Brimstone: firecracker blinding times this. */
+	public float perkGlassWalkerFactor = 0.5f;
+	public float perkBrimstoneBlindFactor = 2f;
+	/** Contender: melee stun times this. Lethal pitch: thrown stun times this. */
+	public float perkContenderStun = 1.25f;
+	public float perkLethalPitchStun = 1.3f;
+	/** Elusory: stalking on you times this. */
+	public float perkElusoryFactor = 0.75f;
+	/** Field triage: med kit time times this, the spray heals this much more. */
+	public float perkTriageMedKitFactor = 0.6f;
+	public float perkTriageSprayFactor = 1.5f;
+	/** Slippery: your zone in his grab this much wider. Unphased: panic builds up times this. */
+	public float perkSlipperyZone = 0.04f;
+	public float perkUnphasedFactor = 0.65f;
+	/** Stubborn: this much faster below this share of health. */
+	public double perkStubbornSpeed = 0.1;
+	public float perkStubbornBelow = 0.5f;
+	/** Repair expert: chance the repair kit stays whole. Trespasser: unlocking time times this. Smooth talker: talks and calls times this. */
+	public float perkRepairKeepChance = 0.4f;
+	public float perkTrespasserFactor = 0.5f;
+	public float perkTalkerFactor = 0.7f;
+	/** Witness: other survivors this close show through walls. */
+	public double perkWitnessRange = 24;
 	/** How often a match night is clear, foggy, rainy (weights). */
 	public int[] weatherWeights = {40, 35, 25};
 	/** How far townsfolk, bots and police notice the Shape in fog and in rain, against a clear night. */

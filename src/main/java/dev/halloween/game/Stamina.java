@@ -90,7 +90,7 @@ public final class Stamina {
 			} else if (now >= s.restAt && s.value < 1f) {
 				boolean still = moved < 0.02 || Lockers.isInside(p);
 				// Panic takes the breath away: it comes back slower.
-				float calm = 1f - cfg.panicRegenPenalty * Panic.value(p);
+				float calm = (1f - cfg.panicRegenPenalty * Panic.value(p)) * (Perks.has(p, Perks.Perk.ADRENALINE) ? cfg.perkAdrenalineRegen : 1f);
 				s.value = Math.min(1f, s.value + calm / Math.max(1, still ? cfg.staminaRestRegenTicks : cfg.staminaWalkRegenTicks));
 			}
 			if (s.exhausted && s.value >= cfg.staminaRecoverFraction) {

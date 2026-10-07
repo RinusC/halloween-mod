@@ -200,9 +200,18 @@ public final class Exits {
 			&& Inventory.has(player, HwItems.Kind.REPAIR_KIT);
 	}
 
+	/** The repair kit is used up, unless a repair expert's hands leave it whole. */
+	private static void useRepairKit(ServerPlayer player) {
+		if (Perks.has(player, Perks.Perk.REPAIR_EXPERT) && player.getRandom().nextFloat() < HwConfig.get().perkRepairKeepChance) {
+			Notices.send(player, Component.translatable("halloween.perk.kit_kept").withStyle(ChatFormatting.GREEN));
+			return;
+		}
+		Inventory.consume(player, HwItems.Kind.REPAIR_KIT);
+	}
+
 	/** Uses up the repair kit: the car is ready to start. */
 	public static void repairCar(ServerPlayer player) {
-		Inventory.consume(player, HwItems.Kind.REPAIR_KIT);
+		useRepairKit(player);
 		carFlags |= CAR_REPAIRED;
 		player.level().playSound(null, car, SoundEvents.ANVIL_USE, SoundSource.BLOCKS, 0.6f, 1.1f);
 		Match.score(player, HwConfig.get().scoreExitProgress, Component.translatable("halloween.score.car_repair"));
@@ -570,7 +579,7 @@ public final class Exits {
 			}
 			return new Holds.Hold(phone, "halloween.hud.progress.repair_phone", false, cfg.repairPhoneTicks,
 				p -> CUT_PHONES.contains(phone) && Inventory.has(p, HwItems.Kind.REPAIR_KIT), p -> {
-					Inventory.consume(p, HwItems.Kind.REPAIR_KIT);
+					useRepairKit(p);
 					CUT_PHONES.remove(phone);
 					Match.score(p, cfg.scoreExitProgress, Component.translatable("halloween.score.phone_repair"));
 				});
@@ -580,7 +589,8 @@ public final class Exits {
 			hint(player, "halloween.hint.police_no_body");
 			return null;
 		}
-		return new Holds.Hold(phone, "halloween.hud.progress.call_police", false, cfg.callPoliceTicks,
+		int callTicks = Perks.has(player, Perks.Perk.SMOOTH_TALKER) ? Math.round(cfg.callPoliceTicks * cfg.perkTalkerFactor) : cfg.callPoliceTicks;
+		return new Holds.Hold(phone, "halloween.hud.progress.call_police", false, callTicks,
 			p -> !CUT_PHONES.contains(phone) && Police.callable(), p -> {
 				Match.score(p, cfg.scoreCallPolice, Component.translatable("halloween.score.police_called"));
 				callPolice(level, Component.translatable("halloween.match.police_called"));

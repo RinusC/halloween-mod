@@ -138,7 +138,9 @@ public class HalloweenClient implements ClientModInitializer {
 		});
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.PerkSync.TYPE, (payload, ctx) -> {
 			ClientState.perkPoints = payload.points();
-			ClientState.perkChosen = payload.perk();
+			ClientState.perkOwned = payload.owned();
+			ClientState.perkEquipped = payload.equipped();
+			ClientState.perkSlots = payload.slots();
 			Minecraft mc = Minecraft.getInstance();
 			mc.execute(() -> {
 				if (mc.gui.screen() instanceof PerkScreen perks) {

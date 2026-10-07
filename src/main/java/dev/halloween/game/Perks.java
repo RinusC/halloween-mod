@@ -6,10 +6,12 @@ import dev.halloween.Halloween;
 import dev.halloween.HwConfig;
 import dev.halloween.net.HwNet;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.ChatFormatting;
@@ -21,27 +23,64 @@ import net.minecraft.world.level.saveddata.SavedData;
 import net.minecraft.world.level.saveddata.SavedDataType;
 
 /**
- * Survivor perks. Everything a player scores as a survivor adds up from match to match (kept with the world);
- * at {@link HwConfig#perkUnlockPoints} points each perk opens. Between matches each player picks one (the perk
- * screen, key P); it holds for the whole next match.
+ * Survivor perks. What a player scores as a survivor goes into their purse (kept with the world, match after
+ * match); perks are bought with it and stay theirs for good. Between matches each player puts up to
+ * {@link HwConfig#perkSlots} of their perks into the build (the perk screen, key P); the build holds for the
+ * whole next match.
  */
 public final class Perks extends SavedData {
 	public enum Perk {
 		/** Searching furniture takes less time. */
-		QUICK_SEARCH,
-		/** More breath for running. */
-		STAMINA,
+		QUICK_SEARCH(800),
+		/** Runs longer before running out of breath. */
+		STAMINA(1200),
 		/** Footsteps carry half as far. */
-		QUIET,
+		QUIET(1500),
 		/** A little more health. */
-		TOUGH;
+		TOUGH(2000),
+		/** The breath comes back faster. */
+		ADRENALINE(1200),
+		/** Doors you lock take more blows to break. */
+		BARRICADE(1000),
+		/** Less cut by glass climbing through windows. */
+		GLASS_WALKER(800),
+		/** Firecrackers blind Michael longer. */
+		BRIMSTONE(800),
+		/** Melee blows stun him more. */
+		CONTENDER(1500),
+		/** Thrown things stun him more. */
+		LETHAL_PITCH(1200),
+		/** He stalks you more slowly. */
+		ELUSORY(2000),
+		/** Med kits work faster, the spray heals more. */
+		FIELD_TRIAGE(800),
+		/** In his grab, your zone is wider. */
+		SLIPPERY(2500),
+		/** Panic builds up more slowly. */
+		UNPHASED(1000),
+		/** Wounded, you move faster. */
+		STUBBORN(1200),
+		/** Fixing something may leave the repair kit whole. */
+		REPAIR_EXPERT(1000),
+		/** Unlocking doors takes half the time. */
+		TRESPASSER(800),
+		/** Talking townsfolk round and calling the police go faster. */
+		SMOOTH_TALKER(1000),
+		/** Other survivors close by show through walls. */
+		WITNESS(1500);
+
+		private final int defaultCost;
+
+		Perk(int defaultCost) {
+			this.defaultCost = defaultCost;
+		}
 
 		public String key() {
 			return this.name().toLowerCase(Locale.ROOT);
 		}
 
 		public int cost() {
-			return HwConfig.at(HwConfig.get().perkUnlockPoints, this.ordinal());
+			return HwConfig.get().perkCosts.getOrDefault(this.key(), this.defaultCost);
 		}
 
 		public static Perk byKey(String key) {
@@ -54,16 +93,22 @@ public final class Perks extends SavedData {
 		}
 	}
 
-	private record Profile(int points, String perk) {
+	/** Buy, put into the build, take out of the build. */
+	public static final int BUY = 0;
+	public static final int EQUIP = 1;
+	public static final int UNEQUIP = 2;
+
+	private record Profile(int points, List<String> owned, List<String> equipped) {
 		static final Codec<Profile> CODEC = RecordCodecBuilder.create(i -> i.group(
 			Codec.INT.fieldOf("points").forGetter(Profile::points),
-			Codec.STRING.optionalFieldOf("perk", "").forGetter(Profile::perk)).apply(i, Profile::new));
+			Codec.STRING.listOf().optionalFieldOf("owned", List.of()).forGetter(Profile::owned),
+			Codec.STRING.listOf().optionalFieldOf("equipped", List.of()).forGetter(Profile::equipped)).apply(i, Profile::new));
 	}
 
 	private static final Codec<Perks> CODEC = Codec.unboundedMap(Codec.STRING, Profile.CODEC).xmap(Perks::fromMap, p -> Map.copyOf(p.profiles));
 	public static final SavedDataType<Perks> TYPE = new SavedDataType<>(Halloween.id("perks"), Perks::new, CODEC, DataFixTypes.SAVED_DATA_COMMAND_STORAGE);
-	/** Who plays the current match with which perk. */
-	private static final Map<UUID, Perk> ACTIVE = new HashMap<>();
+	/** Who plays the current match with which perks. */
+	private static final Map<UUID, Set<Perk>> ACTIVE = new HashMap<>();
 
 	private final Map<String, Profile> profiles = new HashMap<>();
 
@@ -81,22 +126,44 @@ public final class Perks extends SavedData {
 	}
 
 	private Profile profile(UUID id) {
-		return this.profiles.getOrDefault(id.toString(), new Profile(0, ""));
+		return this.profiles.getOrDefault(id.toString(), new Profile(0, List.of(), List.of()));
+	}
+
+	private void put(UUID id, Profile profile) {
+		this.profiles.put(id.toString(), profile);
+		this.setDirty();
 	}
 
 	public static int points(MinecraftServer server, UUID id) {
 		return get(server).profile(id).points();
 	}
 
-	public static Perk chosen(MinecraftServer server, UUID id) {
+	/** The perks this player has put into their build (bought ones only). */
+	public static Set<Perk> equipped(MinecraftServer server, UUID id) {
 		Profile profile = get(server).profile(id);
-		Perk perk = Perk.byKey(profile.perk());
-		return perk != null && profile.points() >= perk.cost() ? perk : null;
+		Set<Perk> out = EnumSet.noneOf(Perk.class);
+		for (String key : profile.equipped()) {
+			Perk perk = Perk.byKey(key);
+			if (perk != null && profile.owned().contains(key)) {
+				out.add(perk);
+			}
+		}
+		return out;
+	}
+
+	public static boolean owns(MinecraftServer server, UUID id, Perk perk) {
+		return get(server).profile(id).owned().contains(perk.key());
 	}
 
 	/** Does this survivor play the current match with this perk? */
-	public static boolean has(ServerPlayer player, Perk perk) {
-		return ACTIVE.get(player.getUUID()) == perk;
+	public static boolean has(net.minecraft.world.entity.Entity who, Perk perk) {
+		Set<Perk> set = ACTIVE.get(who.getUUID());
+		return set != null && set.contains(perk);
+	}
+
+	public static boolean has(UUID id, Perk perk) {
+		Set<Perk> set = id == null ? null : ACTIVE.get(id);
+		return set != null && set.contains(perk);
 	}
 
 	/** Extra health the perk gives (0 without it). */
@@ -104,14 +171,17 @@ public final class Perks extends SavedData {
 		return has(player, Perk.TOUGH) ? HwConfig.get().perkToughHealth : 0f;
 	}
 
-	/** At the start of a match: everybody's chosen perk holds until it ends (bots have none). */
+	/** At the start of a match: everybody's build holds until it ends (bots have none). */
 	public static void begin(MinecraftServer server, List<ServerPlayer> players) {
 		ACTIVE.clear();
 		for (ServerPlayer p : players) {
-			Perk perk = Bots.isBot(p) ? null : chosen(server, p.getUUID());
-			if (perk != null) {
-				ACTIVE.put(p.getUUID(), perk);
-				AiStats.add(p, "perk." + perk.key());
+			if (Bots.isBot(p)) {
+				continue;
+			}
+			Set<Perk> build = equipped(server, p.getUUID());
+			if (!build.isEmpty()) {
+				ACTIVE.put(p.getUUID(), build);
+				build.forEach(perk -> AiStats.add(p, "perk." + perk.key()));
 			}
 		}
 	}
@@ -120,27 +190,67 @@ public final class Perks extends SavedData {
 		ACTIVE.clear();
 	}
 
-	/** Picks a perk between matches; null takes it off. */
-	public static void choose(ServerPlayer player, String key) {
+	/** For tests: plays the current match with these perks. */
+	public static void activate(ServerPlayer player, Perk... perks) {
+		Set<Perk> set = EnumSet.noneOf(Perk.class);
+		set.addAll(List.of(perks));
+		ACTIVE.put(player.getUUID(), set);
+	}
+
+	/** Buys a perk, or puts one into the build or takes it out (the build only between matches). */
+	public static void act(ServerPlayer player, String key, int action) {
 		MinecraftServer server = player.level().getServer();
-		if (Match.running() || Match.frozen()) {
-			Notices.send(player, Component.translatable("halloween.perk.not_now").withStyle(ChatFormatting.GRAY));
-			sync(player);
-			return;
-		}
 		Perk perk = Perk.byKey(key);
-		Perks data = get(server);
-		Profile profile = data.profile(player.getUUID());
-		if (perk != null && profile.points() < perk.cost()) {
+		if (perk == null) {
 			sync(player);
 			return;
 		}
-		data.profiles.put(player.getUUID().toString(), new Profile(profile.points(), perk == null ? "" : perk.key()));
-		data.setDirty();
+		Perks data = get(server);
+		Profile p = data.profile(player.getUUID());
+		List<String> owned = new ArrayList<>(p.owned());
+		List<String> equipped = new ArrayList<>(p.equipped());
+		int points = p.points();
+		switch (action) {
+			case BUY -> {
+				if (owned.contains(perk.key()) || points < perk.cost()) {
+					sync(player);
+					return;
+				}
+				points -= perk.cost();
+				owned.add(perk.key());
+				Notices.send(player, Component.translatable("halloween.perk.bought", Component.translatable("halloween.perk." + perk.key()))
+					.withStyle(ChatFormatting.GREEN));
+				// A free slot: straight into the build (between matches).
+				if (!Match.running() && !Match.frozen() && equipped.size() < HwConfig.get().perkSlots) {
+					equipped.add(perk.key());
+				}
+			}
+			case EQUIP, UNEQUIP -> {
+				if (Match.running() || Match.frozen()) {
+					Notices.send(player, Component.translatable("halloween.perk.not_now").withStyle(ChatFormatting.GRAY));
+					sync(player);
+					return;
+				}
+				if (action == EQUIP) {
+					if (!owned.contains(perk.key()) || equipped.contains(perk.key()) || equipped.size() >= HwConfig.get().perkSlots) {
+						sync(player);
+						return;
+					}
+					equipped.add(perk.key());
+				} else {
+					equipped.remove(perk.key());
+				}
+			}
+			default -> {
+				sync(player);
+				return;
+			}
+		}
+		data.put(player.getUUID(), new Profile(points, owned, equipped));
 		sync(player);
 	}
 
-	/** The match is over: each person's survivor score adds to their total; newly opened perks are announced. */
+	/** The match is over: each person's survivor score goes into their purse. */
 	public static void award(MinecraftServer server, Map<UUID, Integer> scores) {
 		Perks data = get(server);
 		for (Map.Entry<UUID, Integer> e : scores.entrySet()) {
@@ -150,29 +260,25 @@ public final class Perks extends SavedData {
 			}
 			Profile before = data.profile(e.getKey());
 			int total = before.points() + e.getValue();
-			data.profiles.put(e.getKey().toString(), new Profile(total, before.perk()));
+			data.put(e.getKey(), new Profile(total, before.owned(), before.equipped()));
 			Notices.send(player, Component.translatable("halloween.perk.points", total, e.getValue()).withStyle(ChatFormatting.GOLD));
-			List<Component> opened = new ArrayList<>();
-			for (Perk perk : Perk.values()) {
-				if (before.points() < perk.cost() && total >= perk.cost()) {
-					opened.add(Component.translatable("halloween.perk." + perk.key()));
-				}
-			}
-			for (Component name : opened) {
-				Notices.send(player, Component.translatable("halloween.perk.opened", name).withStyle(ChatFormatting.GREEN));
-			}
 			sync(player);
 		}
-		data.setDirty();
+	}
+
+	/** For tests: puts points into a purse. */
+	public static void give(MinecraftServer server, UUID id, int points) {
+		Perks data = get(server);
+		Profile p = data.profile(id);
+		data.put(id, new Profile(p.points() + points, p.owned(), p.equipped()));
 	}
 
 	public static void sync(ServerPlayer player) {
 		if (Bots.isBot(player)) {
 			return;
 		}
-		MinecraftServer server = player.level().getServer();
-		Perks data = get(server);
-		Profile profile = data.profile(player.getUUID());
-		ServerPlayNetworking.send(player, new HwNet.PerkSync(profile.points(), profile.perk()));
+		Profile profile = get(player.level().getServer()).profile(player.getUUID());
+		ServerPlayNetworking.send(player, new HwNet.PerkSync(profile.points(), List.copyOf(profile.owned()), List.copyOf(profile.equipped()),
+			HwConfig.get().perkSlots));
 	}
 }

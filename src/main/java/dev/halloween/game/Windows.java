@@ -86,7 +86,7 @@ public final class Windows {
 
 	/** Shards cut for a fifth of max health. */
 	public static float cutDamage(ServerPlayer player) {
-		return player.getMaxHealth() * HwConfig.get().vaultDamageFraction;
+		return player.getMaxHealth() * HwConfig.get().vaultDamageFraction * (Perks.has(player, Perks.Perk.GLASS_WALKER) ? HwConfig.get().perkGlassWalkerFactor : 1f);
 	}
 
 	// ---------------------------------------------------------------- start

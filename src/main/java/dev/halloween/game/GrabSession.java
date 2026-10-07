@@ -105,7 +105,8 @@ public final class GrabSession {
 		t.roundStart = this.level().getGameTime() + delay;
 		t.zoneWidth = Math.max(0.08f, cfg.victimZoneWidth
 			- HwConfig.at(cfg.victimZoneShrinkByTier, this.state.tier())
-			- HwConfig.at(cfg.victimZoneShrinkByStalk, this.victimState.level()));
+			- HwConfig.at(cfg.victimZoneShrinkByStalk, this.victimState.level())
+			+ (Perks.has(this.victim, Perks.Perk.SLIPPERY) ? cfg.perkSlipperyZone : 0f));
 		t.zoneStart = 0.1f + this.random.nextFloat() * (0.8f - t.zoneWidth);
 		t.open = true;
 		// Simulated victims (bots, townsfolk) find a narrower zone harder to hit, like a person does.

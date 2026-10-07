@@ -30,7 +30,8 @@ public final class Panic {
 	/** A shock: a blow, a grab, a body found. */
 	public static void add(LivingEntity who, float amount) {
 		if (who instanceof ServerPlayer p && MatchManager.role(p).survivor() && Match.running()) {
-			VALUES.merge(p.getUUID(), amount, (a, b) -> Math.min(1f, a + b));
+			float shock = amount * (Perks.has(p, Perks.Perk.UNPHASED) ? HwConfig.get().perkUnphasedFactor : 1f);
+			VALUES.merge(p.getUUID(), shock, (a, b) -> Math.min(1f, a + b));
 			AiStats.add(p, "panic.shock");
 		}
 	}
@@ -60,7 +61,7 @@ public final class Panic {
 				: Senses.seenShape(p, cfg.panicSeeRange, cfg.panicSeeDarkRange, cfg.panicSeeFovDeg);
 			double nearest = nearestShape((ServerLevel) p.level(), p);
 			if (seen != null) {
-				float rate = 1f / Math.max(1, cfg.panicSeeSeconds * 20f);
+				float rate = 1f / Math.max(1, cfg.panicSeeSeconds * 20f) * (Perks.has(p, Perks.Perk.UNPHASED) ? cfg.perkUnphasedFactor : 1f);
 				v += p.distanceTo(seen) < cfg.panicNearDistance ? rate * 2 : rate;
 			} else if (nearest > cfg.panicCalmDistance && !Police.bodyNear(p.position(), cfg.panicBodyRange) && !MatchManager.isGrabbed(p)) {
 				v -= 1f / Math.max(1, cfg.panicCalmSeconds * 20f);

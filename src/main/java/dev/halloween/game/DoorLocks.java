@@ -39,6 +39,8 @@ public final class DoorLocks {
 	private static final Set<BlockPos> LOCKED = new HashSet<>();
 	private static final Set<BlockPos> BROKEN = new HashSet<>();
 	private static final Map<BlockPos, Integer> DAMAGE = new HashMap<>();
+	/** Who locked each door (a Barricade perk makes it tougher). */
+	private static final Map<BlockPos, UUID> LOCKED_BY = new HashMap<>();
 	private static final Map<UUID, Work> WORK = new HashMap<>();
 
 	/** A civilian holding use on a door. */
@@ -80,6 +82,7 @@ public final class DoorLocks {
 
 	public static void clear(MinecraftServer server) {
 		LOCKED.clear();
+		LOCKED_BY.clear();
 		BROKEN.clear();
 		DAMAGE.clear();
 		for (UUID id : WORK.keySet()) {
@@ -143,7 +146,8 @@ public final class DoorLocks {
 			// Locking pulls the door shut first.
 			setOpen(level, door, false);
 		}
-		WORK.put(player.getUUID(), new Work(door, unlocking, unlocking ? cfg.unlockTicks : cfg.lockTicks, now));
+		int unlock = Perks.has(player, Perks.Perk.TRESPASSER) ? Math.round(cfg.unlockTicks * cfg.perkTrespasserFactor) : cfg.unlockTicks;
+		WORK.put(player.getUUID(), new Work(door, unlocking, unlocking ? unlock : cfg.lockTicks, now));
 	}
 
 	private static boolean close(ServerPlayer player, BlockPos door) {
@@ -180,9 +184,11 @@ public final class DoorLocks {
 				ServerLevel level = player.level();
 				if (work.unlocking) {
 					LOCKED.remove(work.door);
+					LOCKED_BY.remove(work.door);
 				} else {
 					setOpen(level, work.door, false);
 					LOCKED.add(work.door);
+					LOCKED_BY.put(work.door, player.getUUID());
 					DAMAGE.remove(work.door);
 				}
 				level.playSound(null, work.door, work.unlocking ? HwSounds.UNLOCK : HwSounds.LOCK, SoundSource.BLOCKS, 1f, 1f);
@@ -214,8 +220,10 @@ public final class DoorLocks {
 		Bots.alert(Vec3.atCenterOf(door), level.getServer().getTickCount());
 		Townsfolk.hearNoise(level, Vec3.atCenterOf(door), level.getServer().getTickCount());
 		level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, level.getBlockState(door)), c.x, c.y - 0.5, c.z, 12, 0.3, 0.6, 0.3, 0.1);
-		if (damage >= cfg.doorBreakPoints) {
+		int needed = Perks.has(LOCKED_BY.get(door), Perks.Perk.BARRICADE) ? (int) Math.ceil(cfg.doorBreakPoints * cfg.perkBarricadeFactor) : cfg.doorBreakPoints;
+		if (damage >= needed) {
 			LOCKED.remove(door);
+			LOCKED_BY.remove(door);
 			BROKEN.add(door);
 			DAMAGE.remove(door);
 			setOpen(level, door, true);
@@ -224,7 +232,7 @@ public final class DoorLocks {
 			sync(level.getServer());
 		} else {
 			level.playSound(null, door, HwSounds.DOOR_HIT, SoundSource.BLOCKS, 1.8f, 1f);
-			shape.sendOverlayMessage(Component.translatable("halloween.msg.door_hits", cfg.doorBreakPoints - damage));
+			shape.sendOverlayMessage(Component.translatable("halloween.msg.door_hits", needed - damage));
 		}
 		return true;
 	}

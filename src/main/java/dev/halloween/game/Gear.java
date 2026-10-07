@@ -203,7 +203,7 @@ public final class Gear {
 			}
 			default -> {
 				if (shape != null) {
-					Fight.stun(shape, flying.kind.stun, credit);
+					Fight.stun(shape, flying.kind.stun * (credit != null && Perks.has(credit, Perks.Perk.LETHAL_PITCH) ? cfg.perkLethalPitchStun : 1f), credit);
 					state.pushedTicks = Math.max(state.pushedTicks, cfg.throwStaggerTicks);
 					level.playSound(null, shape.getX(), shape.getEyeY(), shape.getZ(), SoundEvents.PLAYER_ATTACK_STRONG, SoundSource.PLAYERS, 1.1f, 1.1f);
 					AiStats.add(thrower, "throw.hit");
@@ -264,7 +264,8 @@ public final class Gear {
 			// Close by, the flash and the bang knock him off balance; looking at it, they blind him.
 			Fight.stun(p, cfg.firecrackerStun, credit);
 			if (Sight.angleTo(p.getEyePosition(), p.getViewVector(1f), at) <= 70) {
-				state.blindTicks = Math.max(state.blindTicks, cfg.firecrackerBlindTicks);
+				state.blindTicks = Math.max(state.blindTicks, Math.round(cfg.firecrackerBlindTicks
+					* (credit != null && Perks.has(credit, Perks.Perk.BRIMSTONE) ? cfg.perkBrimstoneBlindFactor : 1f)));
 				state.senseHeld = false;
 			}
 			AiStats.add(thrower, "firecracker.hit");
@@ -287,7 +288,7 @@ public final class Gear {
 			player.sendOverlayMessage(Component.translatable("halloween.hint.healthy").withStyle(ChatFormatting.GRAY));
 			return;
 		}
-		patient.setHealth(Math.min(patient.getMaxHealth(), patient.getHealth() + cfg.sprayHeal));
+		patient.setHealth(Math.min(patient.getMaxHealth(), patient.getHealth() + cfg.sprayHeal * (Perks.has(player, Perks.Perk.FIELD_TRIAGE) ? cfg.perkTriageSprayFactor : 1f)));
 		NEXT_SPRAY.put(player.getUUID(), now + cfg.sprayCooldownTicks);
 		ServerLevel level = player.level();
 		level.playSound(null, patient.getX(), patient.getEyeY(), patient.getZ(), SoundEvents.FIRE_EXTINGUISH, SoundSource.PLAYERS, 0.4f, 1.9f);
@@ -481,7 +482,8 @@ public final class Gear {
 				}
 				continue;
 			}
-			if (++c.ticks >= cfg.medKitTicks) {
+			int medKit = Perks.has(player, Perks.Perk.FIELD_TRIAGE) ? Math.round(cfg.medKitTicks * cfg.perkTriageMedKitFactor) : cfg.medKitTicks;
+			if (++c.ticks >= medKit) {
 				it.remove();
 				player.setHealth(player.getMaxHealth());
 				player.getMainHandItem().shrink(1);
@@ -489,7 +491,7 @@ public final class Gear {
 				ServerPlayNetworking.send(player, HwNet.Progress.NONE);
 				AiStats.add(player, "heal.med_kit");
 			} else if (c.ticks % 2 == 0) {
-				ServerPlayNetworking.send(player, new HwNet.Progress("halloween.hud.progress.med_kit", c.ticks / (float) cfg.medKitTicks, false));
+				ServerPlayNetworking.send(player, new HwNet.Progress("halloween.hud.progress.med_kit", c.ticks / (float) medKit, false));
 			}
 		}
 	}

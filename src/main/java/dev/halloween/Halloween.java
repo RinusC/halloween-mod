@@ -50,7 +50,7 @@ public class Halloween implements ModInitializer {
 				}
 			}
 		});
-		ServerPlayNetworking.registerGlobalReceiver(HwNet.ChoosePerk.TYPE, (payload, ctx) -> dev.halloween.game.Perks.choose(ctx.player(), payload.perk()));
+		ServerPlayNetworking.registerGlobalReceiver(HwNet.PerkAction.TYPE, (payload, ctx) -> dev.halloween.game.Perks.act(ctx.player(), payload.perk(), payload.action()));
 		ServerPlayNetworking.registerGlobalReceiver(HwNet.NpcTalk.TYPE, (payload, ctx) -> dev.halloween.game.Talks.request(ctx.player(), payload.entityId(), payload.option()));
 		ServerPlayNetworking.registerGlobalReceiver(HwNet.MinigameResult.TYPE, (payload, ctx) -> dev.halloween.game.Minigames.result(ctx.player(), payload));
 		ServerPlayNetworking.registerGlobalReceiver(HwNet.GunFire.TYPE, (payload, ctx) -> dev.halloween.game.Guns.fire(ctx.player(), payload.yaw(), payload.pitch()));

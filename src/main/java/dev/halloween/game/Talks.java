@@ -112,7 +112,8 @@ public final class Talks {
 				// Spoken to, the townsperson asks what it is.
 				Dialogue.greet(body, player);
 			}
-			if (talk.progress >= cfg.talkTicks) {
+			int needed = Perks.has(player, Perks.Perk.SMOOTH_TALKER) ? Math.round(cfg.talkTicks * cfg.perkTalkerFactor) : cfg.talkTicks;
+			if (talk.progress >= needed) {
 				TALKS.remove(player.getUUID());
 				SkillChecks.stop(player);
 				ServerPlayNetworking.send(player, HwNet.Progress.NONE);
@@ -123,7 +124,7 @@ public final class Talks {
 				AiStats.add(player, "talk.done");
 			} else if (talk.progress % 2 == 0) {
 				ServerPlayNetworking.send(player, new HwNet.Progress("halloween.hud.progress.talk." + talk.option,
-					talk.progress / (float) cfg.talkTicks, false));
+					talk.progress / (float) needed, false));
 			}
 		}
 	}

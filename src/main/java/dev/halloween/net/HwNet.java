@@ -340,13 +340,30 @@ public final class HwNet {
 		}
 	}
 
-	/** This player's survivor points over all matches and the perk they picked (see game.Perks). */
-	public record PerkSync(int points, String perk) implements CustomPacketPayload {
+	/** This player's purse, the perks they own and the ones in their build, and how many the build holds (see game.Perks). */
+	public record PerkSync(int points, List<String> owned, List<String> equipped, int slots) implements CustomPacketPayload {
 		public static final Type<PerkSync> TYPE = payloadType("perk_sync");
 		public static final StreamCodec<RegistryFriendlyByteBuf, PerkSync> CODEC = StreamCodec.of((buf, v) -> {
 			buf.writeVarInt(v.points);
-			buf.writeUtf(v.perk);
-		}, buf -> new PerkSync(buf.readVarInt(), buf.readUtf()));
+			buf.writeVarInt(v.owned.size());
+			v.owned.forEach(buf::writeUtf);
+			buf.writeVarInt(v.equipped.size());
+			v.equipped.forEach(buf::writeUtf);
+			buf.writeVarInt(v.slots);
+		}, buf -> {
+			int points = buf.readVarInt();
+			int n = buf.readVarInt();
+			List<String> owned = new ArrayList<>(n);
+			for (int i = 0; i < n; i++) {
+				owned.add(buf.readUtf());
+			}
+			int m = buf.readVarInt();
+			List<String> equipped = new ArrayList<>(m);
+			for (int i = 0; i < m; i++) {
+				equipped.add(buf.readUtf());
+			}
+			return new PerkSync(points, owned, equipped, buf.readVarInt());
+		});
 
 		@Override
 		public Type<PerkSync> type() {
@@ -354,14 +371,16 @@ public final class HwNet {
 		}
 	}
 
-	/** Client: pick this perk for the next match ("" takes it off). */
-	public record ChoosePerk(String perk) implements CustomPacketPayload {
-		public static final Type<ChoosePerk> TYPE = payloadType("choose_perk");
-		public static final StreamCodec<RegistryFriendlyByteBuf, ChoosePerk> CODEC = StreamCodec.of((buf, v) -> buf.writeUtf(v.perk),
-			buf -> new ChoosePerk(buf.readUtf()));
+	/** Client: buy a perk, put it into the build or take it out (game.Perks.BUY / EQUIP / UNEQUIP). */
+	public record PerkAction(String perk, int action) implements CustomPacketPayload {
+		public static final Type<PerkAction> TYPE = payloadType("perk_action");
+		public static final StreamCodec<RegistryFriendlyByteBuf, PerkAction> CODEC = StreamCodec.of((buf, v) -> {
+			buf.writeUtf(v.perk);
+			buf.writeVarInt(v.action);
+		}, buf -> new PerkAction(buf.readUtf(), buf.readVarInt()));
 
 		@Override
-		public Type<ChoosePerk> type() {
+		public Type<PerkAction> type() {
 			return TYPE;
 		}
 	}
@@ -858,7 +877,7 @@ public final class HwNet {
 		PayloadTypeRegistry.clientboundPlay().register(Pant.TYPE, Pant.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(NoiseBurst.TYPE, NoiseBurst.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(PerkSync.TYPE, PerkSync.CODEC);
-		PayloadTypeRegistry.serverboundPlay().register(ChoosePerk.TYPE, ChoosePerk.CODEC);
+		PayloadTypeRegistry.serverboundPlay().register(PerkAction.TYPE, PerkAction.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(MinimapSync.TYPE, MinimapSync.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(MatchSync.TYPE, MatchSync.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(MatchEnd.TYPE, MatchEnd.CODEC);
