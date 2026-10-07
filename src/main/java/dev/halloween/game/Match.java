@@ -64,6 +64,40 @@ public final class Match {
 		return startedAt;
 	}
 
+	/** Every match starts in a town as it was: breakers on (lights back), doors shut. */
+	private static void restoreTown(ServerLevel level, BlockPos center, int radius) {
+		for (int cx = (center.getX() - radius) >> 4; cx <= (center.getX() + radius) >> 4; cx++) {
+			for (int cz = (center.getZ() - radius) >> 4; cz <= (center.getZ() + radius) >> 4; cz++) {
+				net.minecraft.world.level.chunk.LevelChunk chunk = level.getChunk(cx, cz);
+				for (int i = 0; i < chunk.getSections().length; i++) {
+					net.minecraft.world.level.chunk.LevelChunkSection section = chunk.getSections()[i];
+					if (section.hasOnlyAir() || !section.maybeHas(s -> s.is(net.minecraft.world.level.block.Blocks.LEVER)
+						|| s.getBlock() instanceof net.minecraft.world.level.block.DoorBlock)) {
+						continue;
+					}
+					int y0 = net.minecraft.core.SectionPos.sectionToBlockCoord(chunk.getSectionYFromSectionIndex(i));
+					for (int ly = 0; ly < 16; ly++) {
+						for (int lz = 0; lz < 16; lz++) {
+							for (int lx = 0; lx < 16; lx++) {
+								net.minecraft.world.level.block.state.BlockState state = section.getBlockState(lx, ly, lz);
+								BlockPos pos = new BlockPos(chunk.getPos().getMinBlockX() + lx, y0 + ly, chunk.getPos().getMinBlockZ() + lz);
+								if (state.is(net.minecraft.world.level.block.Blocks.LEVER) && !state.getValue(net.minecraft.world.level.block.LeverBlock.POWERED)
+									&& LightSystem.isBreaker(level, pos)) {
+									level.setBlock(pos, state.setValue(net.minecraft.world.level.block.LeverBlock.POWERED, true), net.minecraft.world.level.block.Block.UPDATE_CLIENTS);
+									LightSystem.setLights(level, pos, true);
+								} else if (state.getBlock() instanceof net.minecraft.world.level.block.DoorBlock
+									&& state.getValue(net.minecraft.world.level.block.DoorBlock.OPEN)) {
+									level.setBlock(pos, state.setValue(net.minecraft.world.level.block.DoorBlock.OPEN, false),
+										net.minecraft.world.level.block.Block.UPDATE_CLIENTS | net.minecraft.world.level.block.Block.UPDATE_KNOWN_SHAPE);
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
 	public static boolean running() {
 		return state == State.RUNNING;
 	}
@@ -110,16 +144,6 @@ public final class Match {
 		Holds.clear();
 		Fight.clear(server);
 		Gear.clear(server);
-		Gear.clear(server);
-		Gear.clear(server);
-		Gear.clear(server);
-		Gear.clear(server);
-		Gear.clear(server);
-		Gear.clear(server);
-		Gear.clear(server);
-		Gear.clear(server);
-		Gear.clear(server);
-		Gear.clear(server);
 		Exits.setup(level, level.getRandom());
 		Lockers.clear(server);
 		Talks.clear();
@@ -129,6 +153,7 @@ public final class Match {
 		Nav.setArea(area(points));
 		GunCase.setup(level, level.getRandom());
 		Loot.setup(level, center, level.getRandom());
+		restoreTown(level, center, Loot.radius());
 		Minimap.bake(level, area(points), center);
 
 		CommandSourceStack console = server.createCommandSourceStack().withLevel(level).withSuppressedOutput();
