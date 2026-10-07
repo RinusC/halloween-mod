@@ -76,7 +76,7 @@ public final class Match {
 		return startedAt;
 	}
 
-	/** Every match starts in a town as it was: breakers on (lights back), doors shut. */
+	/** Every match starts in a town as it was: breakers on (lights back), doors shut, wardrobes opening onto the room. */
 	private static void restoreTown(ServerLevel level, BlockPos center, int radius) {
 		for (int cx = (center.getX() - radius) >> 4; cx <= (center.getX() + radius) >> 4; cx++) {
 			for (int cz = (center.getZ() - radius) >> 4; cz <= (center.getZ() + radius) >> 4; cz++) {
@@ -84,7 +84,7 @@ public final class Match {
 				for (int i = 0; i < chunk.getSections().length; i++) {
 					net.minecraft.world.level.chunk.LevelChunkSection section = chunk.getSections()[i];
 					if (section.hasOnlyAir() || !section.maybeHas(s -> s.is(net.minecraft.world.level.block.Blocks.LEVER)
-						|| s.getBlock() instanceof net.minecraft.world.level.block.DoorBlock)) {
+						|| s.getBlock() instanceof net.minecraft.world.level.block.DoorBlock || LockerBlock.is(s))) {
 						continue;
 					}
 					int y0 = net.minecraft.core.SectionPos.sectionToBlockCoord(chunk.getSectionYFromSectionIndex(i));
@@ -101,6 +101,8 @@ public final class Match {
 									&& state.getValue(net.minecraft.world.level.block.DoorBlock.OPEN)) {
 									level.setBlock(pos, state.setValue(net.minecraft.world.level.block.DoorBlock.OPEN, false),
 										net.minecraft.world.level.block.Block.UPDATE_CLIENTS | net.minecraft.world.level.block.Block.UPDATE_KNOWN_SHAPE);
+								} else if (LockerBlock.is(state) && state.getValue(LockerBlock.HALF) == net.minecraft.world.level.block.state.properties.DoubleBlockHalf.LOWER) {
+									Lockers.faceTheRoom(level, pos, state);
 								}
 							}
 						}

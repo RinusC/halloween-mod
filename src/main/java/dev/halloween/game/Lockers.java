@@ -22,6 +22,7 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Relative;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
@@ -80,6 +81,35 @@ public final class Lockers {
 
 	private static Vec3 center(BlockPos base) {
 		return Vec3.atBottomCenterOf(base);
+	}
+
+	/**
+	 * A wardrobe whose door is up against something (a town built before a fix: one stood facing the fridge)
+	 * is turned to a side that is free, the back to a wall where it can.
+	 */
+	public static void faceTheRoom(ServerLevel level, BlockPos base, BlockState state) {
+		Direction facing = state.getValue(LockerBlock.FACING);
+		if (free(level, base.relative(facing))) {
+			return;
+		}
+		Direction best = null;
+		for (Direction d : Direction.Plane.HORIZONTAL) {
+			if (d != facing && free(level, base.relative(d)) && (best == null || !free(level, base.relative(d.getOpposite())))) {
+				best = d;
+			}
+		}
+		if (best == null) {
+			return;
+		}
+		level.setBlock(base, state.setValue(LockerBlock.FACING, best), Block.UPDATE_CLIENTS);
+		BlockState upper = level.getBlockState(base.above());
+		if (LockerBlock.is(upper)) {
+			level.setBlock(base.above(), upper.setValue(LockerBlock.FACING, best), Block.UPDATE_CLIENTS);
+		}
+	}
+
+	private static boolean free(ServerLevel level, BlockPos pos) {
+		return level.getBlockState(pos).getCollisionShape(level, pos).isEmpty() && level.getBlockState(pos.above()).getCollisionShape(level, pos.above()).isEmpty();
 	}
 
 	/** Where you stand to get in, and where you come out. */

@@ -650,7 +650,8 @@ public final class Haddonfield extends MapPlan {
 			f.set(7, 0, d - 2, b("cauldron"));
 		}
 		f.fill(w - 3, 0, d - 2, w - 3, 1, d - 2, b("quartz_pillar"));
-		f.locker(w - 2, d - 2, Direction.WEST);
+		// In the corner past the fridge: it opens towards the front of the house, not into the fridge.
+		f.locker(w - 2, d - 2, f.front());
 		f.set(lc, 0, mid + 2, b("dark_oak_fence"));
 		f.set(lc, 1, mid + 2, b("candle"));
 		f.set(lc - 1, 0, mid + 2, stairs("oak_stairs", Direction.WEST));
