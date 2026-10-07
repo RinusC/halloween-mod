@@ -35,7 +35,8 @@ public final class HwSounds {
 	public static final SoundEvent QTE_MISS = register("qte.miss");
 	public static final SoundEvent ESCAPE = register("qte.escape");
 	public static final SoundEvent BREAKER = register("world.breaker");
-	public static final SoundEvent HEAVY_STEP = register("shape.heavy_step");
+	/** Michael's breathing, all match long (synthesised, sounds/shape/breath; heard within two blocks). */
+	public static final SoundEvent SHAPE_BREATH = register("shape.breath");
 	public static final SoundEvent PUSH = register("shape.push");
 	public static final SoundEvent IMPULSE = register("shape.impulse");
 	public static final SoundEvent SWING = register("shape.swing");

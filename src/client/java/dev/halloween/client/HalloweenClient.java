@@ -202,6 +202,7 @@ public class HalloweenClient implements ClientModInitializer {
 		ShapeJumpAudio.tick(mc);
 		BloodParticles.tick(mc);
 		DashSteps.tick(mc);
+		ShapeBreath.tick(mc);
 		Role role = ClientState.myRole();
 		CameraType wanted = role == Role.SHAPE ? CameraType.THIRD_PERSON_BACK : CameraType.FIRST_PERSON;
 		if (role != Role.NONE && mc.options.getCameraType() != wanted) {

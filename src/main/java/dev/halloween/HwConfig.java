@@ -62,7 +62,6 @@ public class HwConfig {
 	public int dashTicks = 30;
 	public double dashSpeedModifier = 0.9;
 	public int[] dashCooldownByTier = {180, 160, 140};
-	public float dashStepVolume = 2.2f;
 
 	// --- Stalk ---
 	/** Passive stalking (just watching) can raise a victim to this level at most. */

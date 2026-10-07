@@ -3,6 +3,7 @@ package dev.halloween.test;
 import com.mojang.blaze3d.audio.SoundBuffer;
 import dev.halloween.HwConfig;
 import dev.halloween.client.ClientState;
+import dev.halloween.client.ShapeBreath;
 import dev.halloween.client.ShapeJumpAudio;
 import dev.halloween.client.mixin.SoundEngineAccessor;
 import dev.halloween.client.mixin.SoundManagerAccessor;
@@ -63,6 +64,7 @@ public class ShapeJumpAudioClientTest implements FabricClientGameTest {
 			ctx.waitTicks(60);
 			// Something in the world to hear muffled.
 			ctx.runOnClient(mc -> mc.getSoundManager().play(new dev.halloween.client.LoopSound(net.minecraft.sounds.SoundEvents.PORTAL_AMBIENT, net.minecraft.sounds.SoundSource.BLOCKS, 1f, () -> 1)));
+			check(ctx.computeOnClient(mc -> ShapeBreath.playingFor() == mc.player.getId()), "Michael breathes, and hears it himself");
 			server.runOnServer(s -> MatchManager.shapeState(player(s)).shadowTicks = 1);
 			ctx.waitTicks(30);
 			check(ctx.computeOnClient(mc -> ClientState.shadowActive()), "the Shape is in Shape Jump");

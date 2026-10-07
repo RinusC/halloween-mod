@@ -378,9 +378,6 @@ public final class MatchManager {
 
 		if (state.dashTicks > 0) {
 			state.dashTicks--;
-			if (state.dashTicks % 5 == 0) {
-				player.level().playSound(null, player.getX(), player.getY(), player.getZ(), HwSounds.HEAVY_STEP, SoundSource.HOSTILE, cfg.dashStepVolume, 1f);
-			}
 			if (state.dashTicks == 0 || state.busy() || state.shadowTicks > 0) {
 				state.dashTicks = 0;
 			}
