@@ -811,23 +811,31 @@ public final class HwHud {
 			boolean survivor = icon[1] == 1;
 			switch (icon[0]) {
 				case 0 -> {
-					int c = survivor ? 0xFFC02828 : 0xFF8A2A2A;
-					g.fill(x - 3, y - 4, x + 4, y + 5, c);
-					g.fill(x - 4, y - 3, x + 5, y + 4, c);
-					g.fill(x - 1, y - 1, x + 2, y + 2, 0xFF2A0A0A);
+					// Still in it: a white diamond.
+					diamond(g, x, y, 4, survivor ? 0xFFF2F2F2 : 0xFFC8C8C8);
+					diamond(g, x, y, 2, survivor ? 0xFFFFFFFF : 0xFFE0E0E0);
 				}
 				case 1 -> {
-					g.fill(x - 3, y - 4, x + 4, y + 5, 0xFFE8E2D4);
-					g.fill(x - 2, y - 3, x + 3, y + 5, 0xFF2A2A2A);
-					g.fill(x + 1, y, x + 2, y + 1, 0xFFE8E2D4);
+					// Got out: a see-through white door.
+					g.fill(x - 3, y - 4, x + 4, y + 5, 0x80FFFFFF);
+					g.fill(x - 2, y - 3, x + 3, y + 5, 0x40202020);
+					g.fill(x + 1, y, x + 2, y + 1, 0x90FFFFFF);
 				}
-				default -> {
-					diamond(g, x, y, 4, 0xFF8A8A8A);
-					diamond(g, x, y, 2, 0xFFD8D8D8);
-				}
+				default -> skull(g, x, y, survivor ? 0xFFD02020 : 0xFFA02020);
 			}
 			x += step;
 		}
+	}
+
+	/** Dead: a little red skull (round top, two eye holes, teeth). */
+	private static void skull(GuiGraphicsExtractor g, int x, int y, int c) {
+		g.fill(x - 2, y - 4, x + 3, y - 3, c);
+		g.fill(x - 3, y - 3, x + 4, y + 2, c);
+		g.fill(x - 2, y + 2, x + 3, y + 4, c);
+		g.fill(x - 2, y - 1, x, y + 1, 0xFF1A0A0A);
+		g.fill(x + 1, y - 1, x + 3, y + 1, 0xFF1A0A0A);
+		g.fill(x - 1, y + 3, x, y + 4, 0xFF1A0A0A);
+		g.fill(x + 1, y + 3, x + 2, y + 4, 0xFF1A0A0A);
 	}
 
 	/** A step of a way out: ticked off when done, plain while still to do. */
