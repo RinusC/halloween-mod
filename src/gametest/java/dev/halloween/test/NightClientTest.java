@@ -112,6 +112,37 @@ public class NightClientTest implements FabricClientGameTest {
 			server.runOnServer(s -> Lockers.leave(player(s), false));
 			ctx.waitTicks(5);
 			check(server.computeOnServer(s -> Tutorial.step() == Tutorial.Step.WINDOW), "out: the window next");
+			// Skip to locking a door (the window is checked elsewhere) and lock one.
+			BlockPos door = server.computeOnServer(s -> {
+				try {
+					var f = Tutorial.class.getDeclaredField("step");
+					f.setAccessible(true);
+					f.set(null, Tutorial.Step.LOCK);
+				} catch (Exception e) {
+					throw new RuntimeException(e);
+				}
+				BlockPos c = player(s).blockPosition();
+				for (BlockPos p : BlockPos.betweenClosed(c.offset(-40, -2, -40), c.offset(40, 3, 40))) {
+					var st = s.overworld().getBlockState(p);
+					if (st.getBlock() instanceof net.minecraft.world.level.block.DoorBlock
+						&& st.getValue(net.minecraft.world.level.block.DoorBlock.HALF) == net.minecraft.world.level.block.state.properties.DoubleBlockHalf.LOWER) {
+						return p.immutable();
+					}
+				}
+				return null;
+			});
+			server.runOnServer(s -> {
+				var facing = s.overworld().getBlockState(door).getValue(net.minecraft.world.level.block.DoorBlock.FACING);
+				BlockPos at = door.relative(facing.getOpposite());
+				player(s).teleportTo(s.overworld(), at.getX() + 0.5, at.getY(), at.getZ() + 0.5, java.util.Set.of(), facing.toYRot(), 20f, false);
+				player(s).setShiftKeyDown(true);
+			});
+			for (int i = 0; i < 20; i++) {
+				server.runOnServer(s -> dev.halloween.game.DoorLocks.ping(player(s), door));
+				ctx.waitTicks(4);
+			}
+			server.runOnServer(s -> player(s).setShiftKeyDown(false));
+			check(server.computeOnServer(s -> Tutorial.step() == Tutorial.Step.CELLAR), "a locked door moves the practice on (to the cellar)");
 			server.runOnServer(s -> Match.escape(player(s), Component.translatable("halloween.exit.cellar")));
 			ctx.waitTicks(20);
 			check(ctx.computeOnClient(mc -> mc.gui.screen() instanceof MatchEndScreen), "the survivor part ends with the summary");

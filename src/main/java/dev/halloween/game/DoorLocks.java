@@ -190,6 +190,7 @@ public final class DoorLocks {
 					LOCKED.add(work.door);
 					LOCKED_BY.put(work.door, player.getUUID());
 					DAMAGE.remove(work.door);
+					Tutorial.holdDone(player, "halloween.hud.progress.lock");
 				}
 				level.playSound(null, work.door, work.unlocking ? HwSounds.UNLOCK : HwSounds.LOCK, SoundSource.BLOCKS, 1f, 1f);
 				ServerPlayNetworking.send(player, HwNet.Progress.NONE);
