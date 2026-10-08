@@ -94,6 +94,29 @@ public final class Townsfolk {
 	private Townsfolk() {
 	}
 
+	/** This match's townsfolk: how many were put out, how many got away. */
+	private static int spawnedCount;
+	private static int rescuedCount;
+
+	public static int spawned() {
+		return spawnedCount;
+	}
+
+	public static int rescued() {
+		return rescuedCount;
+	}
+
+	/** Where the townsfolk are now (for the opening scene). */
+	public static List<Mannequin> bodies() {
+		List<Mannequin> out = new ArrayList<>();
+		for (Npc npc : NPCS.values()) {
+			if (!npc.body.isRemoved()) {
+				out.add(npc.body);
+			}
+		}
+		return out;
+	}
+
 	public static boolean isNpc(Entity entity) {
 		return entity != null && entity.entityTags().contains(TAG);
 	}
@@ -163,11 +186,14 @@ public final class Townsfolk {
 				npc.walker.closeDoors = false;
 				npc.nextStroll = level.getServer().getTickCount() + random.nextInt(100);
 				NPCS.put(body.getUUID(), npc);
+				spawnedCount++;
 			}
 		}
 	}
 
 	public static void clear(MinecraftServer server) {
+		spawnedCount = 0;
+		rescuedCount = 0;
 		for (Npc npc : NPCS.values()) {
 			npc.body.discard();
 		}
@@ -784,6 +810,7 @@ public final class Townsfolk {
 		Mannequin body = npc.body;
 		level.sendParticles(ParticleTypes.HAPPY_VILLAGER, body.getX(), body.getY() + 1, body.getZ(), 15, 0.4, 0.6, 0.4, 0);
 		Match.score(leader, cfg.scoreRescueNpc, Component.translatable("halloween.score.npc_rescued", npc.name));
+		rescuedCount++;
 		Match.announce(level.getServer(), Component.translatable("halloween.match.npc_rescued", leader.getDisplayName(), npc.name, exit).withStyle(ChatFormatting.GREEN));
 		AiStats.add(body, "npc.rescued");
 		NPCS.remove(body.getUUID());

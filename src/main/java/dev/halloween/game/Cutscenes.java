@@ -55,9 +55,27 @@ public final class Cutscenes {
 				}
 			}
 		}
-		// A lit window: by the survivor nearest to him, else any near him; an unlit one only if there is no other.
+		// A lit window with somebody behind it: a townsperson at home, the nearest one to him; else by the nearest
+		// survivor, else any lit window near him.
 		BlockPos window = null;
-		if (nearest != null && best < WINDOW_REACH) {
+		Vec3 inside = null;
+		net.minecraft.world.entity.decoration.Mannequin home = null;
+		double homeDist = WINDOW_REACH;
+		for (net.minecraft.world.entity.decoration.Mannequin npc : Townsfolk.bodies()) {
+			double d = npc.distanceTo(shape);
+			if (d < homeDist) {
+				BlockPos w = windowNear(level, npc.blockPosition(), 7, true);
+				if (w != null) {
+					homeDist = d;
+					home = npc;
+					window = w;
+				}
+			}
+		}
+		if (home != null) {
+			inside = home.getEyePosition();
+		}
+		if (window == null && nearest != null && best < WINDOW_REACH) {
 			window = windowNear(level, nearest.blockPosition(), 14, true);
 		}
 		if (window == null) {
@@ -77,9 +95,9 @@ public final class Cutscenes {
 		// He stops a step from the glass, at eye height (the lowest pane sits a block above the floor).
 		Vec3 o = new Vec3(out.getStepX(), 0, out.getStepZ());
 		Vec3 pane = Vec3.atCenterOf(window);
-		Vec3 end = pane.add(o.scale(1.4)).add(0, 0.12, 0);
+		Vec3 end = pane.add(o.scale(2.6)).add(0, 0.12, 0);
 		Vec3 start = end.add(o.scale(11));
-		Vec3 look = pane.subtract(o.scale(3)).add(0, -0.1, 0);
+		Vec3 look = inside != null ? inside : pane.subtract(o.scale(3)).add(0, -0.1, 0);
 		return new HwNet.Cutscene(SHAPE, ticks, start, end, look);
 	}
 

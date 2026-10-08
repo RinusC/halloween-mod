@@ -185,7 +185,11 @@ public final class Cutscene {
 		int h = g.guiHeight();
 		if (scene.kind() == Cutscenes.SHAPE) {
 			if (f < 0.92f) {
-				mask(g, w, h);
+				// Letterboxed, a dark vignette round the edges: a film shot through his eyes.
+				int bar = Math.round(h * 0.11f);
+				g.fill(0, 0, w, bar, 0xFF000000);
+				g.fill(0, h - bar, w, h, 0xFF000000);
+				vignette(g, w, h, bar);
 				float title = fade(f, 0.32f, 0.8f, 0.06f);
 				if (title > 0) {
 					bigText(g, mc, Component.translatable("halloween.cutscene.shape"), w / 2, h * 3 / 4, 1.6f, alpha(title, 0xB01818));
@@ -216,33 +220,14 @@ public final class Cutscene {
 		return true;
 	}
 
-	/** The mask: dark all round, two ragged eye holes with soft edges. */
-	private static void mask(GuiGraphicsExtractor g, int w, int h) {
-		float cy = h * 0.47f;
-		float rx = w * 0.17f;
-		float ry = h * 0.2f;
-		float[] cx = {w * 0.5f - w * 0.16f, w * 0.5f + w * 0.16f};
-		for (int y = 0; y < h; y++) {
-			float dy = (y - cy) / ry;
-			int x = 0;
-			for (float hole : cx) {
-				float half = dy * dy < 1 ? (float) (rx * Math.sqrt(1 - dy * dy)) : -1;
-				if (half <= 0) {
-					continue;
-				}
-				int x0 = Math.round(hole - half);
-				int x1 = Math.round(hole + half);
-				if (x0 > x) {
-					g.fill(x, y, x0, y + 1, 0xF2000000);
-				}
-				// A soft rim.
-				g.fill(x0, y, Math.min(x1, x0 + 4), y + 1, 0x90000000);
-				g.fill(Math.max(x0, x1 - 4), y, x1, y + 1, 0x90000000);
-				x = Math.max(x, x1);
-			}
-			if (x < w) {
-				g.fill(x, y, w, y + 1, 0xF2000000);
-			}
+	/** Darker towards the sides. */
+	private static void vignette(GuiGraphicsExtractor g, int w, int h, int bar) {
+		int steps = 12;
+		int band = w / 5 / steps;
+		for (int i = 0; i < steps; i++) {
+			int a = (int) (150 * (1f - i / (float) steps));
+			g.fill(i * band, bar, (i + 1) * band, h - bar, a << 24);
+			g.fill(w - (i + 1) * band, bar, w - i * band, h - bar, a << 24);
 		}
 	}
 

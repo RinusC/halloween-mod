@@ -327,8 +327,8 @@ public final class HwNet {
 	}
 
 	/** The survivors of this match and how each is doing: 0 still in it, 1 got out, 2 dead (for the goals panel). */
-	public record Roster(List<String> names, List<Integer> states) implements CustomPacketPayload {
-		public static final Roster EMPTY = new Roster(List.of(), List.of());
+	public record Roster(List<String> names, List<Integer> states, int npcAlive, int npcRescued, int npcDead) implements CustomPacketPayload {
+		public static final Roster EMPTY = new Roster(List.of(), List.of(), 0, 0, 0);
 		public static final Type<Roster> TYPE = payloadType("roster");
 		public static final StreamCodec<RegistryFriendlyByteBuf, Roster> CODEC = StreamCodec.of((buf, v) -> {
 			buf.writeVarInt(v.names.size());
@@ -336,6 +336,9 @@ public final class HwNet {
 				buf.writeUtf(v.names.get(i));
 				buf.writeVarInt(v.states.get(i));
 			}
+			buf.writeVarInt(v.npcAlive);
+			buf.writeVarInt(v.npcRescued);
+			buf.writeVarInt(v.npcDead);
 		}, buf -> {
 			int n = buf.readVarInt();
 			List<String> names = new ArrayList<>(n);
@@ -344,7 +347,7 @@ public final class HwNet {
 				names.add(buf.readUtf());
 				states.add(buf.readVarInt());
 			}
-			return new Roster(names, states);
+			return new Roster(names, states, buf.readVarInt(), buf.readVarInt(), buf.readVarInt());
 		});
 
 		@Override

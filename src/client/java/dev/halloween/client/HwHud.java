@@ -140,12 +140,8 @@ public final class HwHud {
 				}
 			}
 			int gy = goals(g, mc, false);
-			// The ways out, under their own heading.
-			if (ClientState.match.state() == 2) {
-				header(g, mc.font, 10, gy, Component.translatable("halloween.goal.escape"), true);
-				gy += 14;
-			}
-			exitLines(g, mc.font, 16, gy);
+			// The ways out, each with its steps.
+			escapeSteps(g, mc, gy);
 			feed(g, mc.font, h);
 		}
 		matchTimer(g, mc, w);
@@ -192,6 +188,7 @@ public final class HwHud {
 			int color = m.ticksLeft() < 60 * 20 ? BLOOD : TEXT;
 			g.centeredText(mc.font, clock(m.ticksLeft()), 0, 0, color);
 			g.pose().popMatrix();
+			rosterBar(g, w / 2, 22);
 			if (ClientState.myRole().survivor()) {
 				Component score = Component.translatable("halloween.hud.my_score", m.myScore());
 				g.text(mc.font, score, w - 10 - mc.font.width(score), 10, TEXT, true);
@@ -787,6 +784,178 @@ public final class HwHud {
 			y += 12;
 		}
 		return y;
+	}
+
+	/**
+	 * Who is left, under the clock: survivors first, then the townsfolk. A red disc: still in it; a door: got
+	 * out; a grey diamond: dead.
+	 */
+	private static void rosterBar(GuiGraphicsExtractor g, int cx, int y) {
+		HwNet.Roster r = ClientState.roster;
+		java.util.List<int[]> icons = new java.util.ArrayList<>();
+		for (int s : r.states()) {
+			icons.add(new int[]{s, 1});
+		}
+		for (int i = 0; i < r.npcAlive(); i++) {
+			icons.add(new int[]{0, 0});
+		}
+		for (int i = 0; i < r.npcRescued(); i++) {
+			icons.add(new int[]{1, 0});
+		}
+		for (int i = 0; i < r.npcDead(); i++) {
+			icons.add(new int[]{2, 0});
+		}
+		int step = 11;
+		int x = cx - (icons.size() * step) / 2 + step / 2;
+		for (int[] icon : icons) {
+			boolean survivor = icon[1] == 1;
+			switch (icon[0]) {
+				case 0 -> {
+					int c = survivor ? 0xFFC02828 : 0xFF8A2A2A;
+					g.fill(x - 3, y - 4, x + 4, y + 5, c);
+					g.fill(x - 4, y - 3, x + 5, y + 4, c);
+					g.fill(x - 1, y - 1, x + 2, y + 2, 0xFF2A0A0A);
+				}
+				case 1 -> {
+					g.fill(x - 3, y - 4, x + 4, y + 5, 0xFFE8E2D4);
+					g.fill(x - 2, y - 3, x + 3, y + 5, 0xFF2A2A2A);
+					g.fill(x + 1, y, x + 2, y + 1, 0xFFE8E2D4);
+				}
+				default -> {
+					diamond(g, x, y, 4, 0xFF8A8A8A);
+					diamond(g, x, y, 2, 0xFFD8D8D8);
+				}
+			}
+			x += step;
+		}
+	}
+
+	/** A step of a way out: ticked off when done, plain while still to do. */
+	private static int step(GuiGraphicsExtractor g, Font font, int y, Component text, boolean done) {
+		int cx = 26;
+		int cy = y + 4;
+		diamond(g, cx, cy, 4, done ? 0xFFB8B2A6 : 0xFF9A968E);
+		diamond(g, cx, cy, 3, 0xF0181818);
+		if (done) {
+			g.text(font, Component.literal("✔"), cx - 3, cy - 4, 0xFFE8E2D4, false);
+		}
+		g.text(font, text, cx + 9, y, done ? 0xFF7A766E : 0xFFD8D2C4, true);
+		return y + 11;
+	}
+
+	private static boolean carrying(Minecraft mc, dev.halloween.game.HwItems.Kind... kinds) {
+		var inv = mc.player.getInventory();
+		for (int i = 0; i < dev.halloween.game.Inventory.SLOTS; i++) {
+			dev.halloween.game.HwItems.Kind k = dev.halloween.game.HwItems.kindOf(inv.getItem(i));
+			for (dev.halloween.game.HwItems.Kind want : kinds) {
+				if (k == want) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Survivors: "escape with your life", then each way out with its steps, ticked off as they are done. A way out
+	 * nobody has started on (and you carry nothing for) shows just its heading and what it needs.
+	 */
+	private static void escapeSteps(GuiGraphicsExtractor g, Minecraft mc, int y) {
+		HwNet.MatchSync m = ClientState.match;
+		if (m.state() != 2) {
+			return;
+		}
+		Font font = mc.font;
+		header(g, font, 10, y, Component.translatable("halloween.goal.escape"), true);
+		y += 15;
+		java.util.List<HwNet.ExitInfo> cellars = new java.util.ArrayList<>();
+		for (HwNet.ExitInfo e : m.exits()) {
+			if (e.type() == 0) {
+				cellars.add(e);
+			}
+		}
+		if (!cellars.isEmpty()) {
+			boolean opened = cellars.stream().anyMatch(e -> e.state() >= 1);
+			long free = cellars.stream().filter(e -> e.state() != 2).count();
+			header(g, font, 10, y, Component.translatable("halloween.escape.cellar", free), false);
+			y += 13;
+			if (opened || carrying(mc, dev.halloween.game.HwItems.Kind.BOLT_CUTTERS, dev.halloween.game.HwItems.Kind.PADLOCK_KEY)) {
+				y = step(g, font, y, Component.translatable("halloween.escape.cellar.1"), opened);
+				y = step(g, font, y, Component.translatable("halloween.escape.cellar.2"), false);
+			} else {
+				y = needs(g, font, y, "halloween.escape.cellar.need");
+			}
+		}
+		int gateSeconds = dev.halloween.HwConfig.get().gateOpenLastSeconds * 20;
+		for (HwNet.ExitInfo e : m.exits()) {
+			int s = e.state();
+			switch (e.type()) {
+				case 1 -> {
+					boolean gone = (s & 4) != 0;
+					boolean running = (s & 8) != 0;
+					header(g, font, 10, y, Component.translatable(gone ? "halloween.escape.car.gone" : "halloween.escape.car"), false);
+					y += 13;
+					if (gone) {
+						break;
+					}
+					if ((s & 3) != 0 || running || carrying(mc, dev.halloween.game.HwItems.Kind.REPAIR_KIT, dev.halloween.game.HwItems.Kind.GAS_CAN,
+						dev.halloween.game.HwItems.Kind.SEDAN_KEYS)) {
+						y = step(g, font, y, Component.translatable("halloween.escape.car.1"), (s & 2) != 0);
+						y = step(g, font, y, Component.translatable("halloween.escape.car.2"), (s & 1) != 0);
+						y = step(g, font, y, Component.translatable("halloween.escape.car.3"), running);
+						y = step(g, font, y, running ? Component.translatable("halloween.escape.car.4.seats", e.extra())
+							: Component.translatable("halloween.escape.car.4"), false);
+					} else {
+						y = needs(g, font, y, "halloween.escape.car.need");
+					}
+				}
+				case 2 -> {
+					header(g, font, 10, y, Component.translatable(s == 3 ? "halloween.escape.police.gone" : "halloween.escape.police"), false);
+					y += 13;
+					if (s == 3 || s == 4) {
+						break;
+					}
+					boolean found = s != 5;
+					boolean called = s == 1 || s == 2;
+					y = step(g, font, y, Component.translatable("halloween.escape.police.1"), found);
+					if (found) {
+						y = step(g, font, y, Component.translatable("halloween.escape.police.2"), called);
+						y = step(g, font, y, s == 1 ? Component.translatable("halloween.escape.police.3.eta", clock(e.extra()))
+							: Component.translatable("halloween.escape.police.3"), s == 2);
+						y = step(g, font, y, s == 2 ? Component.translatable("halloween.escape.police.4.left", clock(e.extra()))
+							: Component.translatable("halloween.escape.police.4"), false);
+					}
+				}
+				case 3 -> {
+					header(g, font, 10, y, Component.translatable("halloween.escape.gate"), false);
+					y += 13;
+					int wait = gateSeconds > 0 ? m.ticksLeft() - gateSeconds : 0;
+					if (wait > 0) {
+						y = needs(g, font, y, Component.translatable("halloween.escape.gate.later", clock(wait)));
+					} else if (s >= 1 || e.extra() > 0 || carrying(mc, dev.halloween.game.HwItems.Kind.FUSE, dev.halloween.game.HwItems.Kind.GATE_KEY)) {
+						y = step(g, font, y, Component.translatable("halloween.escape.gate.1"), s >= 1 || e.extra() > 0);
+						y = step(g, font, y, Component.translatable("halloween.escape.gate.2"), s >= 1);
+						y = step(g, font, y, Component.translatable("halloween.escape.gate.3"), false);
+					} else {
+						y = needs(g, font, y, "halloween.escape.gate.need");
+					}
+				}
+				default -> {
+				}
+			}
+		}
+		if (!m.cutPhones().isEmpty()) {
+			g.text(font, Component.translatable("halloween.hud.phones_cut", m.cutPhones().size()), 22, y, 0xFFE07070, true);
+		}
+	}
+
+	private static int needs(GuiGraphicsExtractor g, Font font, int y, String key) {
+		return needs(g, font, y, Component.translatable(key));
+	}
+
+	private static int needs(GuiGraphicsExtractor g, Font font, int y, Component text) {
+		g.text(font, text, 26, y, 0xFF8A847A, true);
+		return y + 11;
 	}
 
 	/** A goal's heading: a white diamond in a grey one, capitals. */
