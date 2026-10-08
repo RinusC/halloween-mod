@@ -577,9 +577,9 @@ public final class Match {
 			names.add(p.name);
 			states.add(p.escaped ? 1 : p.died && (p.finalOut || p.respawnAt >= 0) ? 2 : 0);
 		}
-		int alive = Townsfolk.count();
 		int rescued = Townsfolk.rescued();
-		HwNet.Roster roster = new HwNet.Roster(names, states, alive, rescued, Math.max(0, Townsfolk.spawned() - alive - rescued));
+		int dead = Townsfolk.dead();
+		HwNet.Roster roster = new HwNet.Roster(names, states, Math.max(0, Townsfolk.spawned() - rescued - dead), rescued, dead);
 		List<HwNet.ExitInfo> exits = Exits.infos();
 		List<BlockPos> containers = Loot.containers();
 		List<BlockPos> searched = Loot.searched();

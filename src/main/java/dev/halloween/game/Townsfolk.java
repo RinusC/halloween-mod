@@ -97,6 +97,18 @@ public final class Townsfolk {
 	/** This match's townsfolk: how many were put out, how many got away. */
 	private static int spawnedCount;
 	private static int rescuedCount;
+	private static int deadCount;
+
+	/** A townsperson was killed (counted here: one in an unloaded chunk is not dead). */
+	public static void died(Entity who) {
+		if (isNpc(who)) {
+			deadCount++;
+		}
+	}
+
+	public static int dead() {
+		return deadCount;
+	}
 
 	public static int spawned() {
 		return spawnedCount;
@@ -194,6 +206,7 @@ public final class Townsfolk {
 	public static void clear(MinecraftServer server) {
 		spawnedCount = 0;
 		rescuedCount = 0;
+		deadCount = 0;
 		for (Npc npc : NPCS.values()) {
 			npc.body.discard();
 		}

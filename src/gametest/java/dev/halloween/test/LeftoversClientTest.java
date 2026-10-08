@@ -37,6 +37,8 @@ public class LeftoversClientTest implements FabricClientGameTest {
 			});
 			server.runCommand("hw start");
 			ctx.waitTicks(40);
+			check(ctx.computeOnClient(mc -> dev.halloween.client.ClientState.roster.npcDead() == 0 && dev.halloween.client.ClientState.roster.npcAlive() > 0),
+				"at the start nobody is dead (" + ctx.computeOnClient(mc -> dev.halloween.client.ClientState.roster.npcAlive()) + " townsfolk)");
 			ItemEntity item = server.computeOnServer(s -> {
 				ServerPlayer p = player(s);
 				ItemEntity e = new ItemEntity(s.overworld(), p.getX() + 2, p.getY(), p.getZ(), HwItems.create(HwItems.Kind.BRICK));

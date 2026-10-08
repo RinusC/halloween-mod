@@ -1020,6 +1020,7 @@ public final class MatchManager {
 		float yaw = victim.getYRot();
 
 		AiStats.add(victim, "killed." + kind.name().toLowerCase(Locale.ROOT));
+		Townsfolk.died(victim);
 		Tutorial.killed(shape);
 		Match.noteKill(level.getServer(), name, Police.isOfficer(victim) ? "officer" : kind == KillKind.WINDOW ? "window" : "knife");
 		gainBloodthirst(shape, state, cfg.bloodthirstPerKill + (kind == KillKind.WINDOW ? cfg.bloodthirstPerWindowKill : 0));
@@ -1066,6 +1067,7 @@ public final class MatchManager {
 		float yaw = victim.getYRot();
 		Component name = victim.getDisplayName();
 		AiStats.add(victim, "killed.shot");
+		Townsfolk.died(victim);
 		Match.chronicle(level.getServer(), Component.translatable("halloween.chronicle.shot", name).withStyle(ChatFormatting.RED));
 		bleed(level, victim, 40);
 		String profile = corpseProfile(victim);
