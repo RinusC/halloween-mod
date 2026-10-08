@@ -129,6 +129,11 @@ public final class Townsfolk {
 		return out;
 	}
 
+	/** Is this townsperson one of this match's (not one left over, with no mind)? */
+	public static boolean registered(Entity entity) {
+		return NPCS.containsKey(entity.getUUID());
+	}
+
 	public static boolean isNpc(Entity entity) {
 		return entity != null && entity.entityTags().contains(TAG);
 	}

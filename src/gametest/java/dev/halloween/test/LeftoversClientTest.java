@@ -63,6 +63,17 @@ public class LeftoversClientTest implements FabricClientGameTest {
 			ctx.waitTicks(3);
 			check(server.computeOnServer(s -> item.isRemoved()), "the last match's item is cleared away");
 			check(server.computeOnServer(s -> stray.isRemoved()), "and a mindless townsperson too");
+			// One that slipped through as this match's (loaded while the match was being set up): the sweep catches it.
+			Mannequin dummy = server.computeOnServer(s -> {
+				Mannequin m = EntityTypes.MANNEQUIN.create(s.overworld(), net.minecraft.world.entity.EntitySpawnReason.COMMAND);
+				m.addTag(Townsfolk.TAG);
+				m.setPos(player(s).position().add(-3, 0, 0));
+				s.overworld().addFreshEntity(m);
+				return m;
+			});
+			ctx.waitTicks(25);
+			check(server.computeOnServer(s -> dummy.isRemoved()), "a townsperson the match doesn't run is swept away");
+			check(server.computeOnServer(s -> Townsfolk.count() > 0), "while the match's own townsfolk stay");
 			server.runCommand("hw stop");
 			ctx.waitTicks(5);
 			server.runOnServer(s -> {

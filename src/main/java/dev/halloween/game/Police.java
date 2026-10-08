@@ -108,6 +108,11 @@ public final class Police {
 		}
 	}
 
+	/** Is this officer one the police here are running (not one left over from before)? */
+	public static boolean registered(Entity entity) {
+		return OFFICERS.containsKey(entity.getUUID());
+	}
+
 	public static boolean isOfficer(Entity entity) {
 		return entity != null && entity.entityTags().contains(TAG);
 	}

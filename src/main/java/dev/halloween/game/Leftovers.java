@@ -74,7 +74,24 @@ public final class Leftovers {
 		DOOMED.add(e);
 	}
 
+	/**
+	 * Townsfolk and officers that nobody runs: whatever their tags say (one loaded while a match was being set up
+	 * passes for new), a townsperson or officer the match doesn't know is a leftover with no mind, and goes.
+	 */
+	private static void sweep(MinecraftServer server) {
+		net.minecraft.server.level.ServerLevel level = server.overworld();
+		for (net.minecraft.world.entity.decoration.Mannequin m : level.getEntities(net.minecraft.world.entity.EntityTypes.MANNEQUIN,
+			m -> m.entityTags().contains(Townsfolk.TAG) && !Townsfolk.registered(m) || m.entityTags().contains(Police.TAG) && !Police.registered(m))) {
+			if (!Lobby.contains(server, m.position())) {
+				DOOMED.add(m);
+			}
+		}
+	}
+
 	public static void tick(MinecraftServer server) {
+		if (server.getTickCount() % 20 == 0) {
+			sweep(server);
+		}
 		if (DOOMED.isEmpty()) {
 			return;
 		}
