@@ -123,8 +123,8 @@ public class NewMechanicsClientTest implements FabricClientGameTest {
 				for (ItemFrame f : frames) {
 					MapItemSavedData data = level.getMapData(f.getItem().get(DataComponents.MAP_ID));
 					for (byte c : data.colors) {
-						red += c == MapColor.COLOR_RED.getPackedId(MapColor.Brightness.HIGH) ? 1 : 0;
-						brown += c == MapColor.COLOR_BROWN.getPackedId(MapColor.Brightness.HIGH) ? 1 : 0;
+						red += c == MapColor.COLOR_RED.getPackedId(MapColor.Brightness.NORMAL) ? 1 : 0;
+						brown += c == MapColor.COLOR_BROWN.getPackedId(MapColor.Brightness.NORMAL) ? 1 : 0;
 					}
 				}
 				return red > 5 && brown > 20 ? "ok" : "red " + red + ", brown " + brown;

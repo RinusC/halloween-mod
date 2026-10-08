@@ -54,7 +54,7 @@ public class StaminaClientTest implements FabricClientGameTest {
 			check(ctx.computeOnClient(mc -> ClientState.stamina < 0.99f), "and the HUD knows");
 
 			// Run dry: out of breath, no running, panting.
-			server.runOnServer(s -> Stamina.set(player(s), 0.02f));
+			server.runOnServer(s -> Stamina.set(player(s), 0f));
 			ctx.waitTicks(15);
 			check(server.computeOnServer(s -> Stamina.exhausted(player(s)) && !player(s).isSprinting()), "run dry: out of breath, running stops");
 			check(ctx.computeOnClient(mc -> ClientState.staminaExhausted && !mc.player.isSprinting()), "the client can't run either");

@@ -1098,8 +1098,8 @@ public final class MatchManager {
 	private static void spawnCorpse(ServerLevel level, Vec3 pos, float yaw, String profile) {
 		CommandSourceStack console = level.getServer().createCommandSourceStack().withLevel(level).withSuppressedOutput();
 		String command = String.format(Locale.ROOT,
-			"summon minecraft:mannequin %.2f %.2f %.2f {Tags:[\"%s\"],pose:\"sleeping\",immovable:1b,Invulnerable:1b,hide_description:1b,Rotation:[%.1ff,0f]%s}",
-			pos.x, pos.y, pos.z, CORPSE_TAG, yaw, profile == null ? "" : ",profile:" + profile);
+			"summon minecraft:mannequin %.2f %.2f %.2f {Tags:[\"%s\",\"%s\"],pose:\"sleeping\",immovable:1b,Invulnerable:1b,hide_description:1b,Rotation:[%.1ff,0f]%s}",
+			pos.x, pos.y, pos.z, CORPSE_TAG, Leftovers.stamp(), yaw, profile == null ? "" : ",profile:" + profile);
 		level.getServer().getCommands().performPrefixedCommand(console, command);
 	}
 

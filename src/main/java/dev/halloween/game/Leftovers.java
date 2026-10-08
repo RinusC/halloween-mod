@@ -16,6 +16,7 @@ import net.minecraft.world.entity.item.ItemEntity;
  */
 public final class Leftovers {
 	private static final String PREFIX = "hw_m";
+	private static final String FREE = PREFIX + "free";
 	private static String current;
 	private static final List<Entity> DOOMED = new ArrayList<>();
 
@@ -29,6 +30,11 @@ public final class Leftovers {
 
 	public static void end() {
 		current = null;
+	}
+
+	/** The tag for something made now: this match's, or (no match on: a sandbox kill, a test) one that is never tidied. */
+	public static String stamp() {
+		return current != null ? current : FREE;
 	}
 
 	private static boolean ours(Entity e) {
@@ -50,7 +56,7 @@ public final class Leftovers {
 				mine = t;
 			}
 		}
-		if (mine != null && mine.equals(current)) {
+		if (mine != null && (mine.equals(current) || mine.equals(FREE))) {
 			return;
 		}
 		if (mine == null) {
@@ -60,7 +66,7 @@ public final class Leftovers {
 				e.addTag(current);
 				return;
 			}
-			if (current == null && e instanceof ItemEntity) {
+			if (current == null && (e instanceof ItemEntity || e.entityTags().contains(Fight.DART_TAG) || e.entityTags().contains(Gear.THROW_TAG))) {
 				// Dropped between matches (in the lobby or wherever): not ours to tidy.
 				return;
 			}

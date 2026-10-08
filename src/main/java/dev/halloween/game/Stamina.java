@@ -48,6 +48,8 @@ public final class Stamina {
 		State s = STATES.computeIfAbsent(player.getUUID(), k -> new State());
 		s.value = value;
 		s.exhausted = value <= 0f;
+		// As if they had just stopped running.
+		s.restAt = player.level().getServer().getTickCount() + HwConfig.get().staminaRegenDelayTicks;
 	}
 
 	public static void clear() {
