@@ -453,6 +453,8 @@ public class HwConfig {
 	public int staminaRegenDelayTicks = 20;
 	/** Run dry: no running until this much is back. */
 	public double staminaRecoverFraction = 0.34;
+	/** A shove or a melee blow takes this much stamina (not possible with less). */
+	public float staminaActionCost = 0.2f;
 	public float staminaPantVolume = 0.8f;
 	/** Footsteps Michael hears (a burst on his screen): running, running on a loud surface (gravel, leaf piles, broken glass), walking on one. */
 	public double noiseRunRange = 10;

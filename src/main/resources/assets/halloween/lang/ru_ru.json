@@ -1,4 +1,11 @@
 {
+	"halloween.goal.escape": "СПОСОБЫ ПОБЕГА",
+	"halloween.goal.escaped": " (сбежал)",
+	"halloween.goal.help": "ПОМОГИТЕ ЖИТЕЛЯМ СБЕЖАТЬ",
+	"halloween.goal.kill_all": "УБЕЙТЕ ВСЕХ ЖИТЕЛЕЙ",
+	"halloween.goal.save": "СПАСИТЕ ОСОБЫЕ ЦЕЛИ",
+	"halloween.goal.targets": "ОСОБЫЕ ЦЕЛИ",
+	"halloween.msg.no_breath": "Нет сил — сначала отдышись",
 	"halloween.cmd.lobby_built": "Лобби построено",
 	"halloween.lobby.all_ready": "Все готовы — через десять секунд начинаем",
 	"halloween.lobby.gym": "Спортзал",

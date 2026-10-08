@@ -129,6 +129,10 @@ public final class Fight {
 		if (last != null && now - last < pause) {
 			return InteractionResult.FAIL;
 		}
+		// A swing takes breath.
+		if (!Stamina.spend(attacker)) {
+			return InteractionResult.FAIL;
+		}
 		LAST_HIT.put(attacker.getUUID(), now);
 		ShapeState state = MatchManager.shapeState(shape);
 		if (state != null && state.shadowTicks > 0) {
@@ -158,6 +162,10 @@ public final class Fight {
 	public static boolean survivorPush(ServerPlayer player) {
 		HwConfig cfg = HwConfig.get();
 		if (!MatchManager.role(player).survivor() || player.isSpectator() || MatchManager.isGrabbed(player) || pushCooldown(player) > 0) {
+			return false;
+		}
+		// So does a shove.
+		if (!Stamina.spend(player)) {
 			return false;
 		}
 		player.swing(net.minecraft.world.InteractionHand.OFF_HAND, true);

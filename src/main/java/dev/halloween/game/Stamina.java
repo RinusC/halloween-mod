@@ -56,6 +56,29 @@ public final class Stamina {
 		STATES.clear();
 	}
 
+	/**
+	 * A shove or a blow costs breath ({@link HwConfig#staminaActionCost}): false (and a word to them) when there
+	 * isn't enough. Outside a match it costs nothing.
+	 */
+	public static boolean spend(ServerPlayer player) {
+		State s = STATES.get(player.getUUID());
+		if (s == null) {
+			return true;
+		}
+		HwConfig cfg = HwConfig.get();
+		if (s.value < cfg.staminaActionCost - 1e-4f) {
+			player.sendOverlayMessage(net.minecraft.network.chat.Component.translatable("halloween.msg.no_breath")
+				.withStyle(net.minecraft.ChatFormatting.GRAY));
+			return false;
+		}
+		s.value = Math.max(0f, s.value - cfg.staminaActionCost);
+		s.restAt = player.level().getServer().getTickCount() + cfg.staminaRegenDelayTicks;
+		if (s.value <= 0f) {
+			s.exhausted = true;
+		}
+		return true;
+	}
+
 	public static void tick(MinecraftServer server) {
 		HwConfig cfg = HwConfig.get();
 		int now = server.getTickCount();

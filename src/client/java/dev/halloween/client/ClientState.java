@@ -31,6 +31,8 @@ public final class ClientState {
 	public static HwNet.MatchSync match = HwNet.MatchSync.IDLE;
 	/** In the lobby: its status line and the stand at hand (see game.Lobby). */
 	public static HwNet.LobbyInfo lobby = HwNet.LobbyInfo.NONE;
+	/** This match's survivors and how each is doing (see HwNet.Roster). */
+	public static HwNet.Roster roster = HwNet.Roster.EMPTY;
 	/** Final scoreboard and when it arrived (ms). */
 	public static HwNet.MatchEnd matchEnd;
 	public static long matchEndAt;

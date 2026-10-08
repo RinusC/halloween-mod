@@ -110,7 +110,7 @@ public final class HwHud {
 			if (ClientState.qte.active() && ClientState.qte.forShape()) {
 				shapeGrab(g, mc, w, h, partial);
 			}
-			int y = objectives(g, mc.font, hud);
+			int y = goals(g, mc, true);
 			exitLines(g, mc.font, 10, y + 4);
 			feed(g, mc.font, h);
 			bloodthirstRing(g, mc.font, hud, h);
@@ -139,7 +139,13 @@ public final class HwHud {
 					victimQte(g, mc, w, h, partial);
 				}
 			}
-			exitLines(g, mc.font, 10, 26);
+			int gy = goals(g, mc, false);
+			// The ways out, under their own heading.
+			if (ClientState.match.state() == 2) {
+				header(g, mc.font, 10, gy, Component.translatable("halloween.goal.escape"), true);
+				gy += 14;
+			}
+			exitLines(g, mc.font, 16, gy);
 			feed(g, mc.font, h);
 		}
 		matchTimer(g, mc, w);
@@ -735,6 +741,69 @@ public final class HwHud {
 	}
 
 	// ---------------------------------------------------------------- panels
+
+	/**
+	 * The goals, top left. Michael: kill all the residents; the special targets (the survivors), ticked off as he
+	 * gets them. Survivors: help the residents escape; save the special targets (the others), ticked off as they
+	 * get out, crossed out if they don't.
+	 */
+	private static int goals(GuiGraphicsExtractor g, Minecraft mc, boolean shape) {
+		Font font = mc.font;
+		int y = ClientState.match.state() == 2 ? 26 : 10;
+		header(g, font, 10, y, Component.translatable(shape ? "halloween.goal.kill_all" : "halloween.goal.help"), false);
+		y += 14;
+		HwNet.Roster roster = ClientState.roster;
+		java.util.List<Integer> rows = new java.util.ArrayList<>();
+		for (int i = 0; i < roster.names().size(); i++) {
+			if (shape || !roster.names().get(i).equals(mc.player.getScoreboardName())) {
+				rows.add(i);
+			}
+		}
+		if (rows.isEmpty()) {
+			return y;
+		}
+		header(g, font, 10, y, Component.translatable(shape ? "halloween.goal.targets" : "halloween.goal.save"), false);
+		y += 13;
+		for (int i : rows) {
+			int state = roster.states().get(i);
+			// Michael ticks off the dead; survivors tick off who got out (and cross out who didn't).
+			boolean done = shape ? state == 2 : state == 1;
+			boolean lost = !shape && state == 2;
+			int cx = 26;
+			int cy = y + 4;
+			diamond(g, cx, cy, 4, done ? 0xFFB8B2A6 : lost ? 0xFF6A3A3A : 0xFF9A968E);
+			diamond(g, cx, cy, 3, 0xF0181818);
+			if (done) {
+				g.text(font, Component.literal("✔"), cx - 3, cy - 4, 0xFFE8E2D4, false);
+			} else if (lost) {
+				g.text(font, Component.literal("✘"), cx - 3, cy - 4, 0xFFB04040, false);
+			}
+			int color = done || lost ? 0xFF7A766E : (shape && state == 1 ? 0xFF6A665E : 0xFFD8D2C4);
+			Component name = Component.literal(roster.names().get(i));
+			if (shape && state == 1) {
+				name = name.copy().append(Component.translatable("halloween.goal.escaped"));
+			}
+			g.text(font, name, cx + 9, y, color, true);
+			y += 12;
+		}
+		return y;
+	}
+
+	/** A goal's heading: a white diamond in a grey one, capitals. */
+	private static void header(GuiGraphicsExtractor g, Font font, int x, int y, Component text, boolean exits) {
+		int cx = x + 5;
+		int cy = y + 4;
+		if (exits) {
+			g.fill(cx - 4, cy - 4, cx + 4, cy + 5, 0xFF9A968E);
+			g.fill(cx - 3, cy - 3, cx + 3, cy + 4, 0xF0181818);
+			g.fill(cx - 1, cy - 1, cx + 1, cy + 1, 0xFFE8E2D4);
+		} else {
+			diamond(g, cx, cy, 5, 0xFF9A968E);
+			diamond(g, cx, cy, 4, 0xF0181818);
+			diamond(g, cx, cy, 2, 0xFFE8E2D4);
+		}
+		g.text(font, text.copy().withStyle(net.minecraft.ChatFormatting.BOLD), x + 14, y, 0xFFE8E2D4, true);
+	}
 
 	private static int objectives(GuiGraphicsExtractor g, Font font, HwNet.ShapeHud hud) {
 		int y = ClientState.match.state() == 2 ? 26 : 10;

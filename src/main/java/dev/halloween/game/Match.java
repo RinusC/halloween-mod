@@ -571,6 +571,13 @@ public final class Match {
 	// ---------------------------------------------------------------- sync
 
 	private static void syncAll(MinecraftServer server) {
+		List<String> names = new ArrayList<>();
+		List<Integer> states = new ArrayList<>();
+		for (Participant p : PEOPLE.values()) {
+			names.add(p.name);
+			states.add(p.escaped ? 1 : p.died && (p.finalOut || p.respawnAt >= 0) ? 2 : 0);
+		}
+		HwNet.Roster roster = new HwNet.Roster(names, states);
 		List<HwNet.ExitInfo> exits = Exits.infos();
 		List<BlockPos> containers = Loot.containers();
 		List<BlockPos> searched = Loot.searched();
@@ -581,6 +588,7 @@ public final class Match {
 			if (Bots.isBot(player)) {
 				continue;
 			}
+			ServerPlayNetworking.send(player, roster);
 			Participant p = PEOPLE.get(player.getUUID());
 			int respawn = p != null && p.respawnAt >= 0 ? Math.max(0, p.respawnAt - tickCounter) : 0;
 			ServerPlayNetworking.send(player, new HwNet.MatchSync(state.ordinal(), ticksLeft, countdown, exits, containers, searched,

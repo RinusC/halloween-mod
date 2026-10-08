@@ -1,4 +1,11 @@
 {
+	"halloween.goal.escape": "WAYS TO ESCAPE",
+	"halloween.goal.escaped": " (escaped)",
+	"halloween.goal.help": "HELP RESIDENTS ESCAPE",
+	"halloween.goal.kill_all": "KILL ALL THE RESIDENTS",
+	"halloween.goal.save": "SAVE SPECIAL TARGETS",
+	"halloween.goal.targets": "SPECIAL TARGETS",
+	"halloween.msg.no_breath": "No strength left: catch your breath first",
 	"halloween.cmd.lobby_built": "The lobby is built",
 	"halloween.lobby.all_ready": "Everyone's ready! The match starts in 10 seconds",
 	"halloween.lobby.gym": "Gym",

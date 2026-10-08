@@ -326,6 +326,33 @@ public final class HwNet {
 		}
 	}
 
+	/** The survivors of this match and how each is doing: 0 still in it, 1 got out, 2 dead (for the goals panel). */
+	public record Roster(List<String> names, List<Integer> states) implements CustomPacketPayload {
+		public static final Roster EMPTY = new Roster(List.of(), List.of());
+		public static final Type<Roster> TYPE = payloadType("roster");
+		public static final StreamCodec<RegistryFriendlyByteBuf, Roster> CODEC = StreamCodec.of((buf, v) -> {
+			buf.writeVarInt(v.names.size());
+			for (int i = 0; i < v.names.size(); i++) {
+				buf.writeUtf(v.names.get(i));
+				buf.writeVarInt(v.states.get(i));
+			}
+		}, buf -> {
+			int n = buf.readVarInt();
+			List<String> names = new ArrayList<>(n);
+			List<Integer> states = new ArrayList<>(n);
+			for (int i = 0; i < n; i++) {
+				names.add(buf.readUtf());
+				states.add(buf.readVarInt());
+			}
+			return new Roster(names, states);
+		});
+
+		@Override
+		public Type<Roster> type() {
+			return TYPE;
+		}
+	}
+
 	/** In the lobby (see game.Lobby): the line at the top (ready, countdown, parkour clock) and what the stand at hand says. */
 	public record LobbyInfo(boolean inLobby, Component status, List<Component> panel) implements CustomPacketPayload {
 		public static final LobbyInfo NONE = new LobbyInfo(false, Component.empty(), List.of());
@@ -923,6 +950,7 @@ public final class HwNet {
 		PayloadTypeRegistry.clientboundPlay().register(NoiseBurst.TYPE, NoiseBurst.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(Cutscene.TYPE, Cutscene.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(LobbyInfo.TYPE, LobbyInfo.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(Roster.TYPE, Roster.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(PerkSync.TYPE, PerkSync.CODEC);
 		PayloadTypeRegistry.serverboundPlay().register(PerkAction.TYPE, PerkAction.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(MinimapSync.TYPE, MinimapSync.CODEC);
