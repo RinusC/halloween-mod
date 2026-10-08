@@ -98,7 +98,8 @@ public final class Stamina {
 			}
 			// Out of breath, or panicking: everyone near hears the heavy breathing until it is caught (then it fades).
 			float panic = Panic.value(p);
-			boolean breathing = s.exhausted || panic >= cfg.panicBreathOn || s.panting && panic >= cfg.panicBreathOn - 0.15f;
+			// In his grab the choking takes over: no panting on top of it (it comes back after, if still out of breath).
+			boolean breathing = !MatchManager.isGrabbed(p) && (s.exhausted || panic >= cfg.panicBreathOn || s.panting && panic >= cfg.panicBreathOn - 0.15f);
 			if (breathing != s.panting) {
 				s.panting = breathing;
 				pant(p, s.panting);

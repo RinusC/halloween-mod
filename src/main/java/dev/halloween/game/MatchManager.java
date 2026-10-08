@@ -267,6 +267,7 @@ public final class MatchManager {
 		Match.tick(server);
 		Tutorial.tick(server);
 		Lobby.tick(server);
+		Leftovers.tick(server);
 		Noise.tick(server);
 		Panic.tick(server);
 		Stamina.tick(server);

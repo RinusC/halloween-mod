@@ -145,6 +145,8 @@ public final class Match {
 		}
 		stopQuietly(server);
 		Bots.removeAll(server);
+		// What appears from here on belongs to this match (see Leftovers).
+		Leftovers.begin(server);
 		List<ServerPlayer> players = new ArrayList<>(server.getPlayerList().getPlayers());
 		if (players.isEmpty()) {
 			return Component.translatable("halloween.cmd.no_players");
@@ -268,6 +270,7 @@ public final class Match {
 		Weather.clear(server);
 		Perks.end();
 		Noise.clear();
+		Leftovers.end();
 		Panic.clear();
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
 			if (MatchManager.role(player) != Role.NONE) {

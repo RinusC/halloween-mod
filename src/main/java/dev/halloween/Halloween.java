@@ -73,6 +73,7 @@ public class Halloween implements ModInitializer {
 		});
 
 		ServerTickEvents.END_SERVER_TICK.register(MatchManager::tick);
+		net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents.ENTITY_LOAD.register(dev.halloween.game.Leftovers::onLoad);
 		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
 			MatchManager.markDirty();
 			DoorLocks.syncTo(handler.player);

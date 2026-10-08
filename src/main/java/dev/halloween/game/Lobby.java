@@ -125,6 +125,18 @@ public final class Lobby extends SavedData {
 		return new Vec3(o.getX() + W / 2.0 + 0.5, o.getY(), o.getZ() + 3.5);
 	}
 
+	/** Is this spot in the gym? */
+	public static boolean contains(MinecraftServer server, Vec3 at) {
+		BlockPos o = origin(server);
+		if (o == null) {
+			return false;
+		}
+		double x = at.x - o.getX();
+		double y = at.y - o.getY();
+		double z = at.z - o.getZ();
+		return x >= -1 && x <= W + 1 && z >= -1 && z <= D + 1 && y >= -2 && y <= H + 2;
+	}
+
 	public static boolean inside(ServerPlayer p) {
 		BlockPos o = origin(p.level().getServer());
 		if (o == null) {
