@@ -25,6 +25,10 @@ public final class ShapeBreath {
 		Entity shape = mc.level == null || ClientState.match.state() == 0 || ClientState.shapeEntityId < 0 ? null
 			: mc.level.getEntity(ClientState.shapeEntityId);
 		boolean own = shape != null && shape == mc.player;
+		// In Shape Jump nobody else hears him breathe (he still hears himself).
+		if (!own && ClientState.shapeShadow) {
+			shape = null;
+		}
 		if (playing != null && (playing.isStopped() || shape == null || playing.entityId != shape.getId() || playing.own != own)) {
 			mc.getSoundManager().stop(playing);
 			playing = null;

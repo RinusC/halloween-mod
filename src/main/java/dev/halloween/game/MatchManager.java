@@ -725,7 +725,8 @@ public final class MatchManager {
 		state.dashTicks = 0;
 		player.setInvisible(true);
 		player.setSilent(true);
-		player.level().sendParticles(ParticleTypes.LARGE_SMOKE, player.getX(), player.getY() + 1, player.getZ(), 12, 0.3, 0.6, 0.3, 0.01);
+		// The smoke as he goes is for his eyes only: to everyone else he is simply gone, without a trace or a sound.
+		player.level().sendParticles(player, ParticleTypes.LARGE_SMOKE, false, false, player.getX(), player.getY() + 1, player.getZ(), 12, 0.3, 0.6, 0.3, 0.01);
 		dirty = true;
 	}
 
