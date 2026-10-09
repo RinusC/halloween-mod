@@ -212,6 +212,14 @@ public class TownClientTest implements FabricClientGameTest {
 			}
 		}
 		List<String> out = new ArrayList<>();
+		// A floor of carpet is no floor: you sink almost a block into it.
+		int sunken = 0;
+		for (long l : seen) {
+			BlockPos p = BlockPos.of(l);
+			if (p.getY() == c.getY() && level.getBlockState(p.below()).getBlock() instanceof net.minecraft.world.level.block.CarpetBlock && sunken++ < 5) {
+				out.add("carpet for a floor at " + p.below().toShortString());
+			}
+		}
 		for (BlockPos p : MapPoints.get(level).list(MapPoints.Type.NPC)) {
 			if (!seen.contains(p.asLong())) {
 				out.add("townsperson at " + p.toShortString());

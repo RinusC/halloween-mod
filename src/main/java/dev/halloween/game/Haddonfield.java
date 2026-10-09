@@ -3232,7 +3232,7 @@ public final class Haddonfield extends MapPlan {
 		Lot lot = close(lot0);
 		int w = Math.min(lot.width() - 4, 22);
 		int d = 18;
-		Frame f = this.box(lot, lot.cx() - w / 2, w, d, 7, "red_terracotta", "red_carpet", false);
+		Frame f = this.box(lot, lot.cx() - w / 2, w, d, 7, "red_terracotta", "red_wool", false);
 		BlockState wall = b("red_terracotta");
 		int doorU = w / 2;
 		f.door(doorU - 1, 0, 0, f.back());
