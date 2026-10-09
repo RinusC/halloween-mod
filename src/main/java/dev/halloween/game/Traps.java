@@ -69,6 +69,36 @@ public final class Traps {
 		}
 		HwConfig cfg = HwConfig.get();
 		ServerLevel level = server.overworld();
+		// The Runt sets them off too: the bear trap holds him, the cans give him away.
+		for (ServerPlayer runt : Runt.all(server)) {
+			Runt.State rs = Runt.state(runt);
+			if (rs == null || rs.outTicks > 0 || rs.holding != null) {
+				continue;
+			}
+			Iterator<Map.Entry<BlockPos, Trap>> it = TRAPS.entrySet().iterator();
+			while (it.hasNext()) {
+				Map.Entry<BlockPos, Trap> e = it.next();
+				Vec3 c = Vec3.atBottomCenterOf(e.getKey());
+				if (Math.abs(runt.getX() - c.x) > 0.75 || Math.abs(runt.getZ() - c.z) > 0.75 || Math.abs(runt.getY() - c.y) > 1) {
+					continue;
+				}
+				it.remove();
+				restore(level, e.getKey(), e.getValue());
+				if (e.getValue().kind() == Kind.BEAR_TRAP) {
+					Runt.trap(runt);
+					level.playSound(null, e.getKey(), SoundEvents.IRON_TRAPDOOR_CLOSE, SoundSource.BLOCKS, 1.6f, 0.7f);
+				} else {
+					level.playSound(null, e.getKey(), SoundEvents.CHAIN_BREAK, SoundSource.BLOCKS, 2f, 1.3f);
+					HwNet.Alert alert = new HwNet.Alert(c, cfg.alertTicks);
+					for (ServerPlayer p : level.players()) {
+						if (MatchManager.role(p).survivor() && !Bots.isBot(p)) {
+							ServerPlayNetworking.send(p, alert);
+						}
+					}
+				}
+				AiStats.add(runt, "runt.trap");
+			}
+		}
 		for (ServerPlayer shape : level.players()) {
 			ShapeState state = MatchManager.role(shape) == Role.SHAPE ? MatchManager.shapeState(shape) : null;
 			if (state == null || state.shadowTicks > 0 || shape.isSpectator()) {

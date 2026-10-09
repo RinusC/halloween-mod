@@ -30,6 +30,23 @@ public final class HwCommands {
 		dispatcher.register(Commands.literal("hw")
 			.requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
 			.then(Commands.literal("role").then(role))
+			.then(Commands.literal("runt")
+				.then(Commands.literal("bot").executes(ctx -> {
+					Runt.chooseBot();
+					ctx.getSource().sendSuccess(() -> Component.translatable("halloween.cmd.runt_bot"), true);
+					return 1;
+				}))
+				.then(Commands.literal("off").executes(ctx -> {
+					Runt.disable();
+					ctx.getSource().sendSuccess(() -> Component.translatable("halloween.cmd.runt_off"), true);
+					return 1;
+				}))
+				.then(Commands.argument("player", EntityArgument.player()).executes(ctx -> {
+					ServerPlayer p = EntityArgument.getPlayer(ctx, "player");
+					Runt.choose(p.getUUID());
+					ctx.getSource().sendSuccess(() -> Component.translatable("halloween.cmd.runt_player", p.getDisplayName()), true);
+					return 1;
+				})))
 			.then(Commands.literal("arena").executes(HwCommands::arena))
 			.then(Commands.literal("map").then(Commands.literal("haddonfield").executes(ctx -> {
 				CommandSourceStack src = ctx.getSource();

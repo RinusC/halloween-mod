@@ -102,6 +102,7 @@ public final class HwHud {
 			}
 			beams(g, hud, w, h);
 			impulseSpots(g, mc, w, h, partial);
+			runtForMichael(g, mc, w, h, partial);
 			noises(g, mc, w, h, partial);
 			if (hud.sense()) {
 				victimMarkers(g, mc, w, h, partial);
@@ -119,6 +120,8 @@ public final class HwHud {
 			prompts(g, mc, w, h);
 			progressBar(g, mc, w, h);
 			stunAndBlind(g, mc, hud, w, h);
+		} else if (role == Role.RUNT) {
+			runtView(g, mc, w, h, partial);
 		} else if (role.survivor()) {
 			if (mc.player.isSpectator()) {
 				int respawn = ClientState.match.respawnTicks();
@@ -1117,6 +1120,132 @@ public final class HwHud {
 		int lw = font.width(label) + 6;
 		g.fill(cx - lw / 2, cy + 15, cx + lw / 2, cy + 25, 0xE0E8E2D6);
 		g.centeredText(font, label, cx, cy + 16, 0xFF101010);
+	}
+
+	// ---------------------------------------------------------------- the Runt
+
+	private static final int RUNT_PURPLE = 0xFFB98CFF;
+
+	/** A marker over somebody, seen through walls: a diamond and, if given, a word above it. */
+	private static void markEntity(GuiGraphicsExtractor g, Minecraft mc, int id, float partial, int w, int h, Component label, int color, int size) {
+		Entity e = id < 0 ? null : mc.level.getEntity(id);
+		if (e == null || e == mc.player) {
+			return;
+		}
+		Vec3 head = e.getPosition(partial).add(0, e.getBbHeight() + 0.35, 0);
+		Projection.Point p = Projection.toScreen(head, w, h);
+		if (p == null) {
+			return;
+		}
+		diamond(g, (int) p.x(), (int) p.y(), size + 1, 0xFF0C0C0C);
+		diamond(g, (int) p.x(), (int) p.y(), size, color);
+		if (label != null) {
+			g.centeredText(mc.font, label, (int) p.x(), (int) p.y() - size - 11, color);
+		}
+	}
+
+	/** Michael's view of his Runt: where it is, whom it smells, whom it is holding for him. */
+	private static void runtForMichael(GuiGraphicsExtractor g, Minecraft mc, int w, int h, float partial) {
+		HwNet.RuntInfo info = ClientState.runtInfo;
+		if (info == null || mc.level.getGameTime() - ClientState.runtInfoAt > 40) {
+			return;
+		}
+		if (!info.out()) {
+			markEntity(g, mc, info.runtId(), partial, w, h, null, RUNT_PURPLE, 3);
+		}
+		for (int id : info.scent()) {
+			markEntity(g, mc, id, partial, w, h, null, 0xC0B98CFF, 2);
+		}
+		if (info.holdingId() >= 0) {
+			markEntity(g, mc, info.holdingId(), partial, w, h, Component.translatable("halloween.hud.runt.held"), BLOOD, 4);
+		}
+	}
+
+	/**
+	 * The Runt's screen: what to do, Michael and the smelt survivors marked, the fear meter with its three
+	 * levels, the gifts he has and the two to pick from when a level comes, his keys and their cooldowns.
+	 */
+	private static void runtView(GuiGraphicsExtractor g, Minecraft mc, int w, int h, float partial) {
+		HwNet.RuntHud hud = ClientState.runtHud;
+		Font font = mc.font;
+		g.text(font, Component.translatable("halloween.hud.runt.goal1"), 10, 10, TEXT, true);
+		g.text(font, Component.translatable("halloween.hud.runt.goal2"), 10, 22, TEXT, true);
+		feed(g, font, h);
+		if (hud == null) {
+			return;
+		}
+		markEntity(g, mc, hud.michaelId(), partial, w, h, Component.translatable("halloween.hud.runt.michael"), BLOOD, 4);
+		for (int id : hud.scent()) {
+			markEntity(g, mc, id, partial, w, h, null, RUNT_PURPLE, 3);
+		}
+		// Fear: three segments, one per level.
+		int cx = 34;
+		int cy = h - 34;
+		for (int i = 0; i < 3; i++) {
+			ring(g, cx, cy, 20, 5, i / 3f + 0.015f, (i + 1) / 3f - 0.015f, 0xC0303030);
+		}
+		for (int i = 0; i < Math.min(3, hud.level()); i++) {
+			ring(g, cx, cy, 20, 5, i / 3f + 0.015f, (i + 1) / 3f - 0.015f, RUNT_PURPLE);
+		}
+		if (hud.level() < 3 && hud.nextFear() > hud.prevFear()) {
+			float part = Mth.clamp((hud.fear() - hud.prevFear()) / (hud.nextFear() - hud.prevFear()), 0, 1);
+			float from = hud.level() / 3f + 0.015f;
+			float to = (hud.level() + 1) / 3f - 0.015f;
+			ring(g, cx, cy, 20, 5, from, from + (to - from) * part, TEXT);
+		}
+		g.centeredText(font, String.valueOf(hud.level()), cx, cy - 4, RUNT_PURPLE);
+		// The gifts he has, above the meter.
+		int gy = h - 70;
+		for (int i = 0; i < 3; i++) {
+			int pick = hud.picks().get(i);
+			if (pick >= 0) {
+				String gift = dev.halloween.game.Runt.GIFTS[i][pick];
+				g.text(font, Component.translatable("halloween.runt.gift." + gift), 10, gy, RUNT_PURPLE, true);
+				gy -= 11;
+			}
+		}
+		// A gift waiting: the two to pick from, keys 1 and 2.
+		if (hud.pending() >= 0) {
+			int lvl = hud.pending();
+			int py = h / 2 + 30;
+			g.centeredText(font, Component.translatable("halloween.hud.runt.pick", lvl + 1), w / 2, py, RUNT_PURPLE);
+			for (int k = 0; k < 2; k++) {
+				String gift = dev.halloween.game.Runt.GIFTS[lvl][k];
+				g.centeredText(font, Component.translatable("halloween.hud.runt.option", k + 1, Component.translatable("halloween.runt.gift." + gift)),
+					w / 2, py + 14 + k * 24, TEXT);
+				g.centeredText(font, Component.translatable("halloween.runt.gift." + gift + ".desc"), w / 2, py + 25 + k * 24, DIM);
+			}
+		}
+		// Keys, bottom right: frighten (attack), his special, his tricks.
+		int baseY = h - 28;
+		float scare = hud.scareCooldown() == 0 ? 1f : 1f - (float) hud.scareCooldown() / Math.max(1, hud.scareMax());
+		diamond(g, w - 26, baseY, 13, 0xFF0C0C0C);
+		diamond(g, w - 26, baseY, 12, hud.scareCooldown() == 0 ? DARK_FILL : RED_FILL);
+		if (scare < 1f) {
+			diamond(g, w - 26, baseY, Math.max(1, (int) (11 * scare)), 0xFF606060);
+		}
+		g.centeredText(font, "!", w - 26, baseY - 4, TEXT);
+		g.centeredText(font, mc.options.keyAttack.getTranslatedKeyMessage(), w - 26, baseY + 16, DIM);
+		int sy = baseY - 40;
+		boolean swap = hud.picks().get(2) == 1;
+		boolean mischief = hud.picks().get(1) == 1;
+		if (swap) {
+			smallAction(g, font, w - 10, sy, Component.translatable("halloween.runt.gift.swap"), HalloweenClient.KEY_SHAPE_JUMP.getTranslatedKeyMessage(),
+				hud.specialCooldown());
+			sy -= 11;
+		}
+		if (mischief) {
+			smallAction(g, font, w - 10, sy, Component.translatable("halloween.runt.gift.mischief"), mc.options.keyUse.getTranslatedKeyMessage(),
+				hud.trickCooldown());
+		}
+		// Down, trapped, chased off, holding on.
+		if (hud.out() > 0) {
+			g.centeredText(font, Component.translatable("halloween.hud.runt.out", seconds(hud.out())), w / 2, h - 60, BLOOD);
+		} else if (hud.stunned() > 0) {
+			g.centeredText(font, Component.translatable("halloween.hud.runt.stunned"), w / 2, h - 60, BLOOD);
+		} else if (hud.holding() > 0) {
+			g.centeredText(font, Component.translatable("halloween.hud.runt.holding", seconds(hud.holding())), w / 2, h - 60, RUNT_PURPLE);
+		}
 	}
 
 	private static void smallAction(GuiGraphicsExtractor g, Font font, int x, int y, Component name, Component key, int cooldown) {

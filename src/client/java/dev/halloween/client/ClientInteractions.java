@@ -84,6 +84,16 @@ public final class ClientInteractions {
 		BlockPos pos = hit.getBlockPos();
 		BlockState state = level.getBlockState(pos);
 		boolean door = state.getBlock() instanceof DoorBlock;
+		if (role == Role.RUNT) {
+			// His tricks: a locked door, a phone, a breaker (the server knows if he has the gift).
+			boolean trick = state.is(dev.halloween.HwBlocks.PHONE) || state.is(net.minecraft.world.level.block.Blocks.LEVER)
+				|| door && ClientState.LOCKED_DOORS.contains(doorBase(level, pos));
+			if (trick) {
+				ClientPlayNetworking.send(new HwNet.UseAction(HwNet.UseAction.RUNT_MISCHIEF, pos));
+				return InteractionResult.FAIL;
+			}
+			return door ? InteractionResult.PASS : InteractionResult.FAIL;
+		}
 		if (role.survivor()) {
 			if (state.getBlock() instanceof dev.halloween.game.LockerBlock) {
 				// Held like a search: slow and quiet, or at once (and loud) on the run. FAIL sends no vanilla
@@ -169,7 +179,7 @@ public final class ClientInteractions {
 		}
 		useWasDown = useDown;
 		// Michael has his knife and nothing else: one slot.
-		if (mc.player != null && ClientState.myRole() == Role.SHAPE && mc.player.getInventory().getSelectedSlot() != 0) {
+		if (mc.player != null && (ClientState.myRole() == Role.SHAPE || ClientState.myRole() == Role.RUNT) && mc.player.getInventory().getSelectedSlot() != 0) {
 			mc.player.getInventory().setSelectedSlot(0);
 		}
 		// Survivors have a hand and three pockets: the selection wraps around slots 0-3.

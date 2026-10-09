@@ -197,7 +197,9 @@ public final class Match {
 		List<BlockPos> spawns = new ArrayList<>(points.list(MapPoints.Type.SPAWN_CIVILIAN));
 		Collections.shuffle(spawns, new java.util.Random(level.getRandom().nextLong()));
 		// Bots make up the civilians' side when people are missing (a lone civilian gets company too).
-		int civilians = players.size() - (shape == null ? 0 : 1);
+		// The Runt: a person if one was picked (/hw runt), else a bot (spawned once the civilians are made up).
+		ServerPlayer runt = Runt.humanFor(players, shape);
+		int civilians = players.size() - (shape == null ? 0 : 1) - (runt == null ? 0 : 1);
 		if (cfg.botsFillTo > civilians) {
 			List<String> names = new ArrayList<>(List.of(cfg.botNames));
 			Collections.shuffle(names, new java.util.Random(level.getRandom().nextLong()));
@@ -217,10 +219,23 @@ public final class Match {
 				MatchManager.applyRole(player, Role.SHAPE);
 				BlockPos spawn = points.first(MapPoints.Type.SPAWN_SHAPE);
 				teleport(player, spawn != null ? spawn : center);
+			} else if (player == runt) {
+				MatchManager.applyRole(player, Role.RUNT);
+				BlockPos spawn = points.first(MapPoints.Type.SPAWN_SHAPE);
+				teleport(player, spawn != null ? spawn : center);
 			} else {
 				MatchManager.applyRole(player, Role.CIVILIAN);
 				PEOPLE.put(player.getUUID(), new Participant(player.getScoreboardName()));
 				teleport(player, spawns.get(i++ % spawns.size()));
+			}
+		}
+		if (runt == null) {
+			BlockPos lair = points.first(MapPoints.Type.SPAWN_SHAPE);
+			ServerPlayer bot = Runt.botFor(server, lair != null ? lair : center);
+			if (bot != null) {
+				Inventory.dropAll(bot);
+				MatchManager.applyRole(bot, Role.RUNT);
+				teleport(bot, lair != null ? lair : center);
 			}
 		}
 		state = State.COUNTDOWN;
@@ -281,6 +296,7 @@ public final class Match {
 				MatchManager.applyRole(player, Role.NONE);
 			}
 		}
+		Runt.clear(server);
 		Lockers.clear(server);
 		Talks.clear();
 		Minigames.clear();
@@ -505,6 +521,11 @@ public final class Match {
 			if (theState != null) {
 				scores.merge(shapeId, theState.score, Integer::sum);
 			}
+			Runt.scores().forEach((id, pts) -> {
+				if (!(server.getPlayerList().getPlayer(id) instanceof BotPlayer)) {
+					scores.merge(id, pts, Integer::sum);
+				}
+			});
 			Perks.award(server, scores);
 		}
 		state = State.ENDED;
@@ -520,11 +541,16 @@ public final class Match {
 		ServerPlayer shape = shapeId == null ? null : server.getPlayerList().getPlayer(shapeId);
 		ShapeState shapeState = shape == null ? null : MatchManager.shapeState(shape);
 		int shapeScore = shapeState == null ? 0 : shapeState.score;
-		boolean shapeWon = shapeId != null && shapeScore > civilians;
+		// Michael's side: his points and his Runt's.
+		boolean shapeWon = shapeId != null && shapeScore + Runt.totalScore() > civilians;
 		lines.add(Component.translatable(shapeWon ? "halloween.match.shape_wins" : "halloween.match.civilians_win")
 			.withStyle(shapeWon ? ChatFormatting.DARK_RED : ChatFormatting.GREEN));
 		if (shapeId != null) {
 			lines.add(Component.translatable("halloween.match.line_shape", shape == null ? "?" : shape.getScoreboardName(), shapeScore));
+		}
+		for (ServerPlayer r : Runt.all(server)) {
+			Runt.State rs = Runt.state(r);
+			lines.add(Component.translatable("halloween.match.line_runt", r.getScoreboardName(), rs == null ? 0 : rs.score, rs == null ? 0 : rs.level));
 		}
 		lines.add(Component.translatable("halloween.match.line_civilians", civilians, escapes));
 		for (Participant p : PEOPLE.values()) {

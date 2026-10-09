@@ -178,6 +178,14 @@ final class BotBrain {
 			return;
 		}
 		this.grabbedSince = -1;
+		if (Runt.heldBy(this.bot) != null) {
+			// The Runt is on our back: shake him off.
+			this.walker.halt();
+			if (now % 4 == 0) {
+				Runt.struggle(this.bot);
+			}
+			return;
+		}
 		if (Windows.isVaulting(this.bot)) {
 			this.walker.halt();
 			this.wasVaulting = true;
@@ -314,6 +322,22 @@ final class BotBrain {
 		if (this.lockDoor != null) {
 			this.tickLock(now);
 			return;
+		}
+		for (ServerPlayer runt : Runt.all(this.level().getServer())) {
+			Runt.State rs = Runt.state(runt);
+			if (rs != null && rs.outTicks == 0 && this.bot.distanceTo(runt) < 2.4 && Fight.pushCooldown(this.bot) == 0) {
+				// The little one is at us: a weapon if we have one, else a shove.
+				this.walker.face(runt.getBoundingBox().getCenter());
+				if (this.meleeSlot() >= 0 && now >= this.nextHit) {
+					this.nextHit = now + cfg.survivorHitCooldownTicks + 4;
+					this.bot.getInventory().setSelectedSlot(this.meleeSlot());
+					this.bot.swing(InteractionHand.MAIN_HAND, true);
+					Fight.onSurvivorAttack(this.bot, runt);
+				} else {
+					Fight.survivorPush(this.bot);
+				}
+				AiStats.add(this.bot, "runt.fought");
+			}
 		}
 		ServerPlayer onUs = Senses.shape(this.level());
 		if (onUs != null && this.bot.distanceTo(onUs) < 2.4 && (this.meleeSlot() < 0 || now < this.nextHit) && Fight.pushCooldown(this.bot) == 0) {

@@ -444,6 +444,18 @@ public final class Townsfolk {
 		Bots.alert(where, now);
 	}
 
+	/** The Runt jumps out at a townsperson: a scream (if it has the breath), and it runs. */
+	public static void frighten(Entity entity, ServerPlayer by, int now) {
+		Npc npc = NPCS.get(entity.getUUID());
+		if (npc == null || npc.state == State.TALK) {
+			return;
+		}
+		if (now >= npc.screamReadyAt) {
+			scream(npc, now, by);
+		}
+		panic(npc, now);
+	}
+
 	public static void hearNoise(ServerLevel level, Vec3 pos, int now) {
 		hearNoise(level, pos, now, null);
 	}

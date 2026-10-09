@@ -38,6 +38,7 @@ public final class Skins {
 		Role role = MatchManager.role(player);
 		return switch (role) {
 			case SHAPE -> "michael";
+			case RUNT -> "runt";
 			case DEPUTY -> "police";
 			case CIVILIAN -> survivor(player);
 			default -> null;

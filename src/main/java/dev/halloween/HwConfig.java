@@ -296,6 +296,50 @@ public class HwConfig {
 	public int maxDeputies = 2;
 	/** Containers are looked for this far around the map centre. */
 	public int lootRadius = 96;
+	/** The Runt (game.Runt): in every match unless switched off; a bot plays him unless /hw runt picked someone. */
+	public boolean runtEnabled = true;
+	public float runtScale = 0.55f;
+	/** His walking speed (the movement attribute: 0.1 is a person walking, 4.3 m/s): quicker than a walk, slower than a run. */
+	public float runtSpeed = 0.115f;
+	public float runtScareReach = 2.6f;
+	public int runtScareCooldownTicks = 300;
+	public float runtScarePanic = 0.35f;
+	public int runtStaggerTicks = 25;
+	public int runtScareRevealTicks = 100;
+	/** Fear it takes to reach levels 1, 2, 3; what feeds it. */
+	public int[] runtLevelFear = {30, 80, 150};
+	public float runtFearScare = 10f;
+	public float runtFearNpc = 5f;
+	public float runtFearMischief = 4f;
+	public float runtFearHeldForMichael = 15f;
+	public int runtFearPassiveTicks = 200;
+	public float runtScorePerFear = 10f;
+	/** Clinger: how long he holds on, how many shoves shake him off, the pause after. */
+	public int runtHoldTicks = 100;
+	public int runtHoldBreakPresses = 6;
+	public int runtHoldCooldownTicks = 500;
+	/** Hex: how long no breath comes back and no healing works (the breath comes back at this rate meanwhile). */
+	public int runtHexTicks = 600;
+	public float runtHexRegen = 0.2f;
+	public int runtScentRange = 16;
+	public int runtMischiefCooldownTicks = 400;
+	/** Dread: how far it reaches, the panic it gives every second, how much shorter his pause between frights. */
+	public int runtDreadRange = 8;
+	public float runtDreadPanic = 0.03f;
+	public float runtDreadCooldownFactor = 0.5f;
+	public int runtSwapCooldownTicks = 2400;
+	/** Fighting him off: a shove's push and how long it floors him, a blow, how many blows (or how heavy a one) chase him off, for how long. */
+	public double runtShoveStrength = 1.4;
+	public int runtShoveStunTicks = 60;
+	public int runtHitStunTicks = 80;
+	public int runtHitsToChase = 2;
+	public int runtHitWindowTicks = 400;
+	public float runtChaseForce = 0.44f;
+	public int runtOutTicks = 900;
+	public int runtTrappedTicks = 80;
+	public int scoreHitRunt = 50;
+	public int scoreChaseRunt = 150;
+	public int scoreShakeRunt = 75;
 	/** Hand-to-hand weapons are found out of doors (see StreetWeapons): how many a match, how far apart at least. */
 	public int streetWeapons = 24;
 	public int streetWeaponSpacing = 12;

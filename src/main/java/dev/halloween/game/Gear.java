@@ -171,6 +171,15 @@ public final class Gear {
 			shape = null;
 			state = null;
 		}
+		ServerPlayer runtHit = target instanceof ServerPlayer rp && MatchManager.role(rp) == Role.RUNT ? rp : null;
+		if (runtHit != null) {
+			// The little one: a flare chases him off, anything else floors him like a blow.
+			if (flying.kind == HwItems.Kind.FLARE_GUN) {
+				Runt.chaseOff(runtHit, thrower);
+			} else if (flying.kind.stun > 0) {
+				Runt.hit(runtHit, thrower, flying.kind.stun);
+			}
+		}
 		Vec3 at = hit.getLocation();
 		BlockPos spot = hit instanceof BlockHitResult bh ? bh.getBlockPos().relative(bh.getDirection()) : BlockPos.containing(at);
 		ServerPlayer credit = thrower != null && !Bots.isBot(thrower) ? thrower : null;
@@ -280,6 +289,10 @@ public final class Gear {
 	/** One spray: on whoever we look at up close (survivors, townsfolk), else on ourselves. */
 	private static void spray(ServerPlayer player, ItemStack stack) {
 		HwConfig cfg = HwConfig.get();
+		if (Runt.hexed(player)) {
+			player.sendOverlayMessage(Component.translatable("halloween.runt.hex_no_heal").withStyle(ChatFormatting.DARK_PURPLE));
+			return;
+		}
 		int now = player.level().getServer().getTickCount();
 		if (now < NEXT_SPRAY.getOrDefault(player.getUUID(), 0)) {
 			return;
@@ -319,6 +332,10 @@ public final class Gear {
 	}
 
 	private static void startMedKit(ServerPlayer player) {
+		if (Runt.hexed(player)) {
+			player.sendOverlayMessage(Component.translatable("halloween.runt.hex_no_heal").withStyle(ChatFormatting.DARK_PURPLE));
+			return;
+		}
 		if (player.getHealth() >= player.getMaxHealth()) {
 			player.sendOverlayMessage(Component.translatable("halloween.hint.healthy").withStyle(ChatFormatting.GRAY));
 			return;

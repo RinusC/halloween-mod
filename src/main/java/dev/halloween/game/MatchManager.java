@@ -147,6 +147,9 @@ public final class MatchManager {
 			player.setInvisible(false);
 			player.setSilent(false);
 		}
+		if (old == Role.RUNT && role != Role.RUNT) {
+			Runt.leave(player);
+		}
 		VictimState vs = VICTIMS.remove(player.getUUID());
 		if (vs != null) {
 			releaseGrabsOf(vs.entity);
@@ -191,6 +194,12 @@ public final class MatchManager {
 				maxHealth.setBaseValue(cfg.civilianMaxHealth + Perks.extraHealth(player));
 				camera.setBaseValue(camera.getAttribute().value().getDefaultValue());
 				player.setHealth(player.getMaxHealth());
+				scoreboard.addPlayerToTeam(player.getScoreboardName(), team);
+			}
+			case RUNT -> {
+				ROLES.put(player.getUUID(), role);
+				Runt.become(player);
+				camera.setBaseValue(camera.getAttribute().value().getDefaultValue());
 				scoreboard.addPlayerToTeam(player.getScoreboardName(), team);
 			}
 			case NONE -> {
@@ -270,6 +279,7 @@ public final class MatchManager {
 		Leftovers.tick(server);
 		Noise.tick(server);
 		Traps.tick(server);
+		Runt.tick(server);
 		Panic.tick(server);
 		Stamina.tick(server);
 		Holds.tick(server);
@@ -810,8 +820,13 @@ public final class MatchManager {
 		if (role == Role.SHAPE) {
 			return InteractionResult.FAIL;
 		}
+		if (role == Role.RUNT) {
+			// He can't hurt anyone: his blow is a fright.
+			Runt.scare(player, target);
+			return InteractionResult.FAIL;
+		}
 		if (role.survivor()) {
-			if (target instanceof ServerPlayer other && role(other) == Role.SHAPE) {
+			if (target instanceof ServerPlayer other && (role(other) == Role.SHAPE || role(other) == Role.RUNT)) {
 				return Fight.onSurvivorAttack(player, target);
 			}
 			return isVictim(target) || target instanceof Player ? InteractionResult.FAIL : InteractionResult.PASS;
@@ -921,7 +936,7 @@ public final class MatchManager {
 		if (StreetWeapons.take(player, target)) {
 			return InteractionResult.SUCCESS;
 		}
-		if (role(player) == Role.SHAPE) {
+		if (role(player) == Role.SHAPE || role(player) == Role.RUNT) {
 			return InteractionResult.FAIL;
 		}
 		if (role(player).survivor() && Townsfolk.isNpc(target)) {
@@ -1136,6 +1151,9 @@ public final class MatchManager {
 	 * or a hard fall; civilians can't hurt each other.
 	 */
 	public static boolean allowDamage(LivingEntity entity, DamageSource source) {
+		if (entity instanceof ServerPlayer runt && role(runt) == Role.RUNT) {
+			return false;
+		}
 		if (entity instanceof ServerPlayer player && role(player) == Role.SHAPE) {
 			ShapeState state = SHAPES.get(player.getUUID());
 			Fight.onShapeHurt(player, source);
@@ -1152,7 +1170,7 @@ public final class MatchManager {
 	public static boolean allowDeath(LivingEntity entity) {
 		if (entity instanceof ServerPlayer player) {
 			Role role = role(player);
-			if (role == Role.SHAPE) {
+			if (role == Role.SHAPE || role == Role.RUNT) {
 				player.setHealth(player.getMaxHealth());
 				return false;
 			}

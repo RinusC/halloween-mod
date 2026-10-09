@@ -66,6 +66,11 @@ public class HalloweenClient implements ClientModInitializer {
 			ClientState.shapeEntityId = payload.shapeEntityId();
 			ClientState.shapeShadow = payload.shadow();
 		});
+		ClientPlayNetworking.registerGlobalReceiver(HwNet.RuntHud.TYPE, (payload, ctx) -> ClientState.runtHud = payload);
+		ClientPlayNetworking.registerGlobalReceiver(HwNet.RuntInfo.TYPE, (payload, ctx) -> {
+			ClientState.runtInfo = payload;
+			ClientState.runtInfoAt = ctx.client().level == null ? 0 : ctx.client().level.getGameTime();
+		});
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.ShapeHud.TYPE, (payload, ctx) -> {
 			ClientState.hud = payload;
 			ClientState.VICTIMS.clear();
@@ -262,6 +267,8 @@ public class HalloweenClient implements ClientModInitializer {
 
 		if (role == Role.SHAPE) {
 			tickShape(mc);
+		} else if (role == Role.RUNT) {
+			tickRunt(mc);
 		} else {
 			if (sentSense || sentFocus) {
 				sentSense = false;
@@ -308,6 +315,32 @@ public class HalloweenClient implements ClientModInitializer {
 			ClientState.pushReadyAt = mc.level.getGameTime() + HwConfig.get().survivorPushCooldownTicks;
 		}
 		return false;
+	}
+
+	private static final boolean[] PICK_KEYS_DOWN = new boolean[2];
+
+	/** The Runt: no running (he scurries as he is), V trades places with Michael, 1 and 2 pick a gift when one is waiting. */
+	private static void tickRunt(Minecraft mc) {
+		while (mc.options.keySprint.consumeClick()) {
+			// Nothing: he has no breath to run with.
+		}
+		mc.options.keySprint.setDown(false);
+		mc.player.setSprinting(false);
+		while (KEY_SHAPE_JUMP.consumeClick()) {
+			ClientPlayNetworking.send(new HwNet.ActionPress(HwNet.Action.RUNT_SPECIAL));
+		}
+		while (KEY_IMPULSE.consumeClick()) {
+			// Michael's key: nothing for the Runt.
+		}
+		HwNet.RuntHud hud = ClientState.runtHud;
+		int pending = hud == null ? -1 : hud.pending();
+		for (int k = 0; k < 2; k++) {
+			boolean down = mc.options.keyHotbarSlots[k].isDown() && mc.gui.screen() == null;
+			if (down && !PICK_KEYS_DOWN[k] && pending >= 0) {
+				ClientPlayNetworking.send(new HwNet.RuntPick(pending, k));
+			}
+			PICK_KEYS_DOWN[k] = down;
+		}
 	}
 
 	private static void tickShape(Minecraft mc) {

@@ -835,6 +835,8 @@ public final class HwNet {
 		public static final int INTERACT = 3;
 		/** A locker: survivors climb in or out, the Shape throws it open. */
 		public static final int LOCKER = 4;
+		/** The Runt's mischief on a door, a phone or a breaker. */
+		public static final int RUNT_MISCHIEF = 5;
 		public static final Type<UseAction> TYPE = payloadType("use_action");
 		public static final StreamCodec<RegistryFriendlyByteBuf, UseAction> CODEC = StreamCodec.of(
 			(buf, v) -> {
@@ -917,11 +919,90 @@ public final class HwNet {
 		/** Right click with an item in hand (throw it, spray, med kit, flare gun). */
 		ITEM_USE,
 		/** Held by the Shape: stab him with a knife and break free. */
-		STAB;
+		STAB,
+		/** The Runt's own key (trading places with Michael). */
+		RUNT_SPECIAL;
 
 		static Action byId(int id) {
 			Action[] values = values();
 			return id >= 0 && id < values.length ? values[id] : QTE_PRESS;
+		}
+	}
+
+	private static void writeIds(RegistryFriendlyByteBuf buf, List<Integer> ids) {
+		buf.writeVarInt(ids.size());
+		for (int id : ids) {
+			buf.writeVarInt(id + 1);
+		}
+	}
+
+	private static List<Integer> readIds(RegistryFriendlyByteBuf buf) {
+		int n = buf.readVarInt();
+		List<Integer> ids = new ArrayList<>(n);
+		for (int i = 0; i < n; i++) {
+			ids.add(buf.readVarInt() - 1);
+		}
+		return ids;
+	}
+
+	/** To whoever plays the Runt: his fear and level, the gifts picked (-1 none) and the level waiting for one, cooldowns, state. */
+	public record RuntHud(float fear, int level, float prevFear, float nextFear, int scareCooldown, int scareMax, int specialCooldown, int specialMax,
+		int trickCooldown, int trickMax, List<Integer> picks, int pending, int stunned, int out, int holding, int michaelId, List<Integer> scent) implements CustomPacketPayload {
+		public static final Type<RuntHud> TYPE = payloadType("runt_hud");
+		public static final StreamCodec<RegistryFriendlyByteBuf, RuntHud> CODEC = StreamCodec.of((buf, v) -> {
+			buf.writeFloat(v.fear);
+			buf.writeVarInt(v.level);
+			buf.writeFloat(v.prevFear);
+			buf.writeFloat(v.nextFear);
+			buf.writeVarInt(v.scareCooldown);
+			buf.writeVarInt(v.scareMax);
+			buf.writeVarInt(v.specialCooldown);
+			buf.writeVarInt(v.specialMax);
+			buf.writeVarInt(v.trickCooldown);
+			buf.writeVarInt(v.trickMax);
+			writeIds(buf, v.picks);
+			buf.writeVarInt(v.pending + 1);
+			buf.writeVarInt(v.stunned);
+			buf.writeVarInt(v.out);
+			buf.writeVarInt(v.holding);
+			buf.writeVarInt(v.michaelId + 1);
+			writeIds(buf, v.scent);
+		}, buf -> new RuntHud(buf.readFloat(), buf.readVarInt(), buf.readFloat(), buf.readFloat(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt(),
+			buf.readVarInt(), buf.readVarInt(), buf.readVarInt(), readIds(buf), buf.readVarInt() - 1, buf.readVarInt(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt() - 1, readIds(buf)));
+
+		@Override
+		public Type<RuntHud> type() {
+			return TYPE;
+		}
+	}
+
+	/** To Michael: his Runt (to see him through walls), who it smells near it, whom it is holding (-1 nobody). */
+	public record RuntInfo(int runtId, List<Integer> scent, boolean out, int holdingId) implements CustomPacketPayload {
+		public static final Type<RuntInfo> TYPE = payloadType("runt_info");
+		public static final StreamCodec<RegistryFriendlyByteBuf, RuntInfo> CODEC = StreamCodec.of((buf, v) -> {
+			buf.writeVarInt(v.runtId);
+			writeIds(buf, v.scent);
+			buf.writeBoolean(v.out);
+			buf.writeVarInt(v.holdingId + 1);
+		}, buf -> new RuntInfo(buf.readVarInt(), readIds(buf), buf.readBoolean(), buf.readVarInt() - 1));
+
+		@Override
+		public Type<RuntInfo> type() {
+			return TYPE;
+		}
+	}
+
+	/** Client: the Runt picks one of the two gifts of a level he has reached. */
+	public record RuntPick(int level, int option) implements CustomPacketPayload {
+		public static final Type<RuntPick> TYPE = payloadType("runt_pick");
+		public static final StreamCodec<RegistryFriendlyByteBuf, RuntPick> CODEC = StreamCodec.of((buf, v) -> {
+			buf.writeVarInt(v.level);
+			buf.writeVarInt(v.option);
+		}, buf -> new RuntPick(buf.readVarInt(), buf.readVarInt()));
+
+		@Override
+		public Type<RuntPick> type() {
+			return TYPE;
 		}
 	}
 
@@ -940,6 +1021,9 @@ public final class HwNet {
 	public static void registerPayloads() {
 		PayloadTypeRegistry.clientboundPlay().register(WorldSync.TYPE, WorldSync.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(ShapeHud.TYPE, ShapeHud.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(RuntHud.TYPE, RuntHud.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(RuntInfo.TYPE, RuntInfo.CODEC);
+		PayloadTypeRegistry.serverboundPlay().register(RuntPick.TYPE, RuntPick.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(Qte.TYPE, Qte.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(ScoreEvent.TYPE, ScoreEvent.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(Impulse.TYPE, Impulse.CODEC);

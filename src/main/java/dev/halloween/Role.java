@@ -6,7 +6,9 @@ public enum Role {
 	SHAPE,
 	CIVILIAN,
 	/** A civilian back in the match after escaping or dying: can't escape, carries a baton and a flashlight. */
-	DEPUTY;
+	DEPUTY,
+	/** The Runt: Michael's small horror, on his side, frightens and holds but can't kill (see game.Runt). */
+	RUNT;
 
 	public static Role byId(int id) {
 		Role[] values = values();

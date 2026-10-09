@@ -62,6 +62,12 @@ public final class StreetWeapons {
 		for (How how : How.values()) {
 			found.put(how, new ArrayList<>());
 		}
+		// Not where anybody starts the match (the centre, the spawns): you find them, you don't start on them.
+		List<BlockPos> starts = new ArrayList<>();
+		starts.add(center);
+		for (MapPoints.Type t : new MapPoints.Type[]{MapPoints.Type.SPAWN_CIVILIAN, MapPoints.Type.SPAWN_SHAPE, MapPoints.Type.SPAWN_DEPUTY}) {
+			starts.addAll(MapPoints.get(level).list(t));
+		}
 		int y = center.getY();
 		BlockPos.MutableBlockPos p = new BlockPos.MutableBlockPos();
 		for (int x = center.getX() - radius; x <= center.getX() + radius; x++) {
@@ -119,6 +125,9 @@ public final class StreetWeapons {
 				boolean apart = true;
 				for (BlockPos t : taken) {
 					apart &= t.distSqr(c.pos) >= (double) spacing * spacing;
+				}
+				for (BlockPos s : starts) {
+					apart &= s.distSqr(c.pos) >= 8 * 8;
 				}
 				if (apart) {
 					pick = c;

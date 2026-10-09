@@ -996,6 +996,13 @@ public final class Exits {
 		return new HwNet.ExitInfo(POLICE, police, vanOutcome == 0 ? POLICE_GONE : vanOutcome, 0);
 	}
 
+	/** The Runt's trick: the line goes dead at once (a repair kit mends it, as after Michael). */
+	public static void cutPhone(ServerLevel level, BlockPos phone) {
+		if (CUT_PHONES.add(phone.immutable())) {
+			level.playSound(null, phone, SoundEvents.SHEEP_SHEAR, SoundSource.BLOCKS, 1f, 0.6f);
+		}
+	}
+
 	public static List<BlockPos> cutPhones() {
 		return new ArrayList<>(CUT_PHONES);
 	}

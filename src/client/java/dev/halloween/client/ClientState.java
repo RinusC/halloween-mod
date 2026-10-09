@@ -25,6 +25,11 @@ public final class ClientState {
 	public static int shapeEntityId = -1;
 	public static boolean shapeShadow;
 	public static HwNet.ShapeHud hud;
+	/** Playing the Runt: his meter, gifts, cooldowns (see game.Runt). */
+	public static HwNet.RuntHud runtHud;
+	/** Playing Michael: where his Runt is and whom it smells; when that last came. */
+	public static HwNet.RuntInfo runtInfo;
+	public static long runtInfoAt;
 	public static final Map<Integer, HwNet.VictimInfo> VICTIMS = new HashMap<>();
 	public static HwNet.Qte qte = HwNet.Qte.INACTIVE;
 	/** Current match, as last synced. */
@@ -211,6 +216,8 @@ public final class ClientState {
 
 	public static void reset() {
 		ROLES.clear();
+		runtHud = null;
+		runtInfo = null;
 		ClientSkins.clear();
 		ClientMusic.reset();
 		ClientMinimap.clear();

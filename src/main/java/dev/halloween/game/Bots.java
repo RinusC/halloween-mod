@@ -54,6 +54,27 @@ public final class Bots {
 		return bot;
 	}
 
+	/**
+	 * A bot body with no civilian's mind and not counted with the others (the Runt's: game.Runt drives it and
+	 * takes it off the server again).
+	 */
+	public static BotPlayer spawnLoose(MinecraftServer server, String name, BlockPos pos) {
+		ServerLevel level = server.overworld();
+		UUID id = UUID.nameUUIDFromBytes(("halloween-bot:" + name).getBytes(StandardCharsets.UTF_8));
+		ServerPlayer existing = server.getPlayerList().getPlayer(id);
+		if (existing instanceof BotPlayer bot) {
+			return bot;
+		}
+		GameProfile profile = new GameProfile(id, name);
+		BotPlayer bot = new BotPlayer(server, level, profile);
+		bot.snapTo(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, 0f, 0f);
+		server.getPlayerList().placeNewPlayer(new BotPlayer.NowhereConnection(), bot, CommonListenerCookie.createInitial(profile, false));
+		bot.connection.handleAcceptPlayerLoad(new ServerboundPlayerLoadedPacket());
+		bot.teleportTo(level, pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, java.util.Set.of(), 0f, 0f, false);
+		Halloween.LOGGER.info("Bot {} joined (loose)", name);
+		return bot;
+	}
+
 	/** Takes a bot off the server at the end of the tick (it escaped or died and won't come back). */
 	public static void leaveLater(ServerPlayer player) {
 		if (player instanceof BotPlayer bot && !LEAVING.contains(bot)) {

@@ -350,6 +350,8 @@ public final class Guns {
 				if (hit.entity instanceof ServerPlayer shape && MatchManager.role(shape) == Role.SHAPE) {
 					shapeHit = shape;
 					stun += (float) (cfg.shotgunPelletStun * force);
+				} else if (hit.entity instanceof ServerPlayer runt && MatchManager.role(runt) == Role.RUNT) {
+					Runt.chaseOff(runt, shooter instanceof ServerPlayer sp ? sp : null);
 				} else if (force > 0 && hit.entity.isAlive()) {
 					wound(hit.entity, (float) (cfg.shotgunPelletDamage * force));
 				}
@@ -369,6 +371,10 @@ public final class Guns {
 					AiStats.add(shooter, "shot.hit_shape");
 					Fight.stun(shape, kind == HwItems.Kind.RIFLE ? cfg.rifleStun : cfg.revolverStun, credit);
 					Bots.alert(shape.position(), level.getServer().getTickCount());
+				} else if (hit.entity instanceof ServerPlayer runt && MatchManager.role(runt) == Role.RUNT) {
+					// A shot sends the little one running.
+					AiStats.add(shooter, "shot.hit_runt");
+					Runt.chaseOff(runt, shooter instanceof ServerPlayer sp ? sp : null);
 				} else {
 					AiStats.add(shooter, "shot.hit_friend");
 					wound(hit.entity, kind == HwItems.Kind.RIFLE ? cfg.rifleDamage : cfg.revolverDamage);

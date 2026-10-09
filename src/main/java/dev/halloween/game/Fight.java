@@ -114,7 +114,7 @@ public final class Fight {
 
 	/** A survivor's melee swing at the Shape. Always cancels vanilla damage. */
 	public static InteractionResult onSurvivorAttack(ServerPlayer attacker, Entity target) {
-		if (!(target instanceof ServerPlayer shape) || MatchManager.role(shape) != Role.SHAPE) {
+		if (!(target instanceof ServerPlayer shape) || MatchManager.role(shape) != Role.SHAPE && MatchManager.role(shape) != Role.RUNT) {
 			return InteractionResult.FAIL;
 		}
 		ItemStack weapon = attacker.getMainHandItem();
@@ -134,6 +134,14 @@ public final class Fight {
 			return InteractionResult.FAIL;
 		}
 		LAST_HIT.put(attacker.getUUID(), now);
+		if (MatchManager.role(shape) == Role.RUNT) {
+			// The little one: a blow floors him, two (or a heavy one) chase him off.
+			Runt.hit(shape, attacker, kind.stun * (Perks.has(attacker, Perks.Perk.CONTENDER) ? HwConfig.get().perkContenderStun : 1f));
+			if (HwItems.wear(weapon)) {
+				attacker.level().playSound(null, attacker.getX(), attacker.getY(), attacker.getZ(), SoundEvents.ITEM_BREAK.value(), SoundSource.PLAYERS, 1f, 1f);
+			}
+			return InteractionResult.SUCCESS;
+		}
 		ShapeState state = MatchManager.shapeState(shape);
 		if (state != null && state.shadowTicks > 0) {
 			return InteractionResult.FAIL;
@@ -161,6 +169,10 @@ public final class Fight {
 	 */
 	public static boolean survivorPush(ServerPlayer player) {
 		HwConfig cfg = HwConfig.get();
+		if (MatchManager.role(player).survivor() && !player.isSpectator() && Runt.struggle(player)) {
+			// The Runt is on our back: every shove is a struggle to throw him off.
+			return true;
+		}
 		if (!MatchManager.role(player).survivor() || player.isSpectator() || MatchManager.isGrabbed(player) || pushCooldown(player) > 0) {
 			return false;
 		}
@@ -190,6 +202,19 @@ public final class Fight {
 			state.pushedTicks = cfg.pushedSlowTicks;
 			player.level().playSound(null, shape.getX(), shape.getY(), shape.getZ(), HwSounds.PUSH, SoundSource.PLAYERS, 1.2f, 0.9f);
 			AiStats.add(player, "push");
+			return true;
+		}
+		for (ServerPlayer runt : Runt.all(player.level().getServer())) {
+			Runt.State rs = Runt.state(runt);
+			if (rs == null || rs.outTicks > 0 || runt.isSpectator()) {
+				continue;
+			}
+			Vec3 body = runt.getBoundingBox().getCenter();
+			if (eye.distanceTo(body) > cfg.survivorPushRange + 0.5 || Sight.angleTo(eye, look, body) > 60 || !Sight.canSee(player.level(), eye, body, player)) {
+				continue;
+			}
+			LAST_PUSH.put(player.getUUID(), player.level().getServer().getTickCount());
+			Runt.shove(runt, player);
 			return true;
 		}
 		// Shoved at thin air: a short pause before trying again.
