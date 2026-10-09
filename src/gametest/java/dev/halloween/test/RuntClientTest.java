@@ -111,6 +111,16 @@ public class RuntClientTest implements FabricClientGameTest {
 				ctx.waitTicks(3);
 			}
 			check(server.computeOnServer(s -> Runt.state(player(s)).stunTicks > 0 || Runt.state(player(s)).holding != null), "a second miss floors him (unless it landed on somebody)");
+			check(server.computeOnServer(s -> Runt.state(player(s)).pounceCooldown > HwConfig.get().runtPounceCooldownTicks - 200
+				&& Runt.state(player(s)).pounceCooldownMax == HwConfig.get().runtPounceCooldownTicks), "then a pause before the next pounce");
+			server.runOnServer(s -> {
+				Runt.State st = Runt.state(player(s));
+				st.stunTicks = 0;
+				st.crouch = HwConfig.get().runtPounceChargeTicks / 2;
+			});
+			ctx.waitTicks(3);
+			check(server.computeOnServer(s -> Runt.state(player(s)).leapTicks == 0), "no leap while it lasts");
+			server.runOnServer(s -> Runt.state(player(s)).pounceCooldown = 0);
 			// Right on them: on their back, hands at their throat, for as long as it takes them to tear the hands off.
 			server.runOnServer(s -> {
 				Runt.State st = Runt.state(player(s));
@@ -136,10 +146,10 @@ public class RuntClientTest implements FabricClientGameTest {
 			check(server.computeOnServer(s -> {
 				ServerPlayer friend = s.getPlayerList().getPlayers().stream().filter(p -> p instanceof BotPlayer && MatchManager.role(p) == Role.CIVILIAN
 					&& !p.getScoreboardName().equals(victim)).findFirst().orElseThrow();
-				Runt.chaseOff(player(s), friend);
+				Runt.shot(player(s), friend);
 				Runt.State st = Runt.state(player(s));
-				return st.outTicks == 0 && st.holding == null && st.stunTicks > 0;
-			}), "a shot or a blow from a friend knocks him off their back but doesn't chase him off");
+				return st.holding == null && st.stunTicks > 0 && !player(s).isInvisible();
+			}), "a shot from a friend knocks him off their back (and only down)");
 			ctx.waitTicks(10);
 			check(ctx.computeOnClient(mc -> mc.options.getCameraType() == net.minecraft.client.CameraType.FIRST_PERSON), "off their back: his own eyes again");
 			server.runOnServer(s -> {
@@ -241,7 +251,7 @@ public class RuntClientTest implements FabricClientGameTest {
 			for (int i = 0; i < 40 && server.computeOnServer(s -> Runt.state(player(s)).holding != null); i++) {
 				ctx.waitTicks(5);
 			}
-			// A shove floors him; two blows with something chase him off.
+			// A shove floors him; blows and shots floor him too, for longer, but never send him out of the game.
 			server.runOnServer(s -> {
 				Runt.State st = Runt.state(player(s));
 				st.stunTicks = 0;
@@ -256,20 +266,31 @@ public class RuntClientTest implements FabricClientGameTest {
 				return Runt.state(runt).stunTicks > 0;
 			});
 			check(shoved, "a shove floors him");
-			boolean chased = server.computeOnServer(s -> {
+			boolean onlyDown = server.computeOnServer(s -> {
 				ServerPlayer bot = s.getPlayerList().getPlayerByName(victim);
 				ServerPlayer runt = player(s);
+				Runt.State st = Runt.state(runt);
+				st.stunTicks = 0;
 				Runt.hit(runt, bot, HwItems.Kind.KITCHEN_KNIFE.stun);
 				Runt.hit(runt, bot, HwItems.Kind.KITCHEN_KNIFE.stun);
-				return Runt.state(runt).outTicks > 0 && runt.isInvisible();
+				boolean blows = st.stunTicks == HwConfig.get().runtHitStunTicks;
+				Runt.shot(runt, bot);
+				return blows && st.stunTicks == HwConfig.get().runtShotStunTicks && !runt.isInvisible() && Runt.statusOf(runt) == 6;
 			});
-			check(chased, "two blows chase him off for a while");
-			server.runOnServer(s -> {
-				Runt.State st = Runt.state(player(s));
-				st.outTicks = 2;
-			});
-			ctx.waitTicks(5);
-			check(server.computeOnServer(s -> Runt.state(player(s)).outTicks == 0 && !player(s).isInvisible()), "and he comes back");
+			check(onlyDown, "two blows and a shot only floor him: never out of the game");
+			// In mid-pounce there is no shoving or striking him.
+			check(server.computeOnServer(s -> {
+				ServerPlayer bot = s.getPlayerList().getPlayerByName(victim);
+				ServerPlayer runt = player(s);
+				Runt.State st = Runt.state(runt);
+				st.stunTicks = 0;
+				st.leapTicks = 2;
+				Runt.shove(runt, bot);
+				Runt.hit(runt, bot, HwItems.Kind.KITCHEN_KNIFE.stun);
+				boolean untouched = st.stunTicks == 0;
+				st.leapTicks = 0;
+				return untouched;
+			}), "no shoving or striking him in mid-pounce");
 			// Hex: no breath, no healing.
 			check(server.computeOnServer(s -> {
 				ServerPlayer bot = s.getPlayerList().getPlayerByName(victim);
@@ -446,6 +467,8 @@ public class RuntClientTest implements FabricClientGameTest {
 				int st = Runt.statusOf(Runt.all(s).getFirst());
 				return st == 2 || st == 5;
 			}), "\"attack\": it goes for that one");
+			// (No leap in it for now, or at his heels it could go straight for whoever is near.)
+			server.runOnServer(s -> Runt.state(Runt.all(s).getFirst()).pounceCooldown = 400);
 			ctx.runOnClient(mc -> mc.gui.setScreen(new dev.halloween.client.RuntOrderScreen(-1, mc.player.blockPosition())));
 			ctx.waitTicks(3);
 			ctx.runOnClient(mc -> {
@@ -458,6 +481,34 @@ public class RuntClientTest implements FabricClientGameTest {
 				int st = Runt.statusOf(Runt.all(s).getFirst());
 				return st == 0 || st >= 5;
 			}), "\"heel\": back to him");
+			// At his heels it still leaps at a townsperson who comes close (then back to him).
+			int leapsBefore = server.computeOnServer(s -> AiStats.snapshot().getOrDefault("*total", Map.of()).getOrDefault("runt.pounce", 0));
+			boolean snapped = false;
+			for (int i = 0; i < 24 && !snapped; i++) {
+				server.runOnServer(s -> {
+					ServerPlayer runt = Runt.all(s).getFirst();
+					Runt.State st = Runt.state(runt);
+					if (st.holding != null || st.leapTicks > 0) {
+						return;
+					}
+					st.stunTicks = 0;
+					st.pounceCooldown = 0;
+					BlockPos c = dev.halloween.game.MapPoints.get(s.overworld()).first(dev.halloween.game.MapPoints.Type.CENTER);
+					player(s).teleportTo(s.overworld(), c.getX() + 0.5, c.getY(), c.getZ() - 1.5, java.util.Set.of(), 0f, 0f, false);
+					runt.teleportTo(s.overworld(), c.getX() + 0.5, c.getY(), c.getZ() + 0.5, java.util.Set.of(), 0f, 0f, false);
+					// Survivors well out of the way: the one close is a townsperson.
+					for (ServerPlayer p : s.getPlayerList().getPlayers()) {
+						if (MatchManager.role(p) == Role.CIVILIAN && p.distanceTo(runt) < 16) {
+							p.teleportTo(s.overworld(), c.getX() + 30.5, c.getY(), c.getZ() + 30.5, java.util.Set.of(), 0f, 0f, false);
+						}
+					}
+					dev.halloween.game.Townsfolk.bodies().stream().filter(m -> !dev.halloween.game.Lockers.isInside(m) && !MatchManager.isHeld(m)).findFirst()
+						.ifPresent(m -> m.teleportTo(c.getX() + 0.5, c.getY(), c.getZ() + 5.5));
+				});
+				ctx.waitTicks(10);
+				snapped = server.computeOnServer(s -> AiStats.snapshot().getOrDefault("*total", Map.of()).getOrDefault("runt.pounce", 0) > leapsBefore);
+			}
+			check(snapped, "at his heels it still leaps at a townsperson who comes close");
 			server.runCommand("hw stop");
 			ctx.waitTicks(5);
 			server.runOnServer(s -> {

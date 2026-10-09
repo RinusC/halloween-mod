@@ -173,9 +173,9 @@ public final class Gear {
 		}
 		ServerPlayer runtHit = target instanceof ServerPlayer rp && MatchManager.role(rp) == Role.RUNT ? rp : null;
 		if (runtHit != null) {
-			// The little one: a flare chases him off, anything else floors him like a blow.
+			// The little one: a flare floors him like a shot, anything else like a blow.
 			if (flying.kind == HwItems.Kind.FLARE_GUN) {
-				Runt.chaseOff(runtHit, thrower);
+				Runt.shot(runtHit, thrower);
 			} else if (flying.kind.stun > 0) {
 				Runt.hit(runtHit, thrower, flying.kind.stun);
 			}

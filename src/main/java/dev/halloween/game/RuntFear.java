@@ -2,19 +2,9 @@ package dev.halloween.game;
 
 import dev.halloween.HwConfig;
 import dev.halloween.HwSounds;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
-import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Holder;
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.network.chat.Component;
-import net.minecraft.network.protocol.game.ClientboundSoundPacket;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.sounds.SoundEvent;
-import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.level.block.DoorBlock;
 import net.minecraft.world.level.block.state.BlockState;
@@ -42,8 +32,13 @@ final class RuntFear {
 		}
 		s.knockCooldown = cfg.runtKnockCooldownTicks;
 		Vec3 c = Vec3.atCenterOf(pos);
-		for (int i = 0; i < 3; i++) {
-			level.playSound(null, c.x, c.y, c.z, door ? HwSounds.DOOR_HIT : SoundEvents.GLASS_HIT, SoundSource.HOSTILE, door ? 0.9f : 1.2f, door ? 1.25f : 1.4f);
+		if (door) {
+			for (int i = 0; i < 3; i++) {
+				level.playSound(null, c.x, c.y, c.z, HwSounds.DOOR_HIT, SoundSource.HOSTILE, 0.9f, 1.25f);
+			}
+		} else {
+			// A blow on the glass sounds like Michael smashing a window (the pane holds, though).
+			level.playSound(null, c.x, c.y, c.z, HwSounds.WINDOW_SMASH, SoundSource.BLOCKS, 2.5f, 0.9f);
 		}
 		int heard = 0;
 		for (ServerPlayer v : level.players()) {

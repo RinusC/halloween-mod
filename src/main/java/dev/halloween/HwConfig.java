@@ -316,12 +316,13 @@ public class HwConfig {
 	public float runtScorePerFear = 10f;
 	/** Clinger: how long he holds on, how many shoves shake him off, the pause after. */
 	public int runtHoldTicks = 100;
-	/** The pounce: crouch to wind up (at least, at most), how far it carries then, how long he lies after a miss. */
+	/** The pounce: crouch to wind up (at least, at most), how far it carries then, how long he lies after a miss, the pause before the next. */
 	public int runtPounceMinChargeTicks = 8;
 	public int runtPounceChargeTicks = 30;
 	public double runtPounceMinDistance = 3;
 	public double runtPounceMaxDistance = 9;
 	public int runtPounceMissStunTicks = 100;
+	public int runtPounceCooldownTicks = 280;
 	public float runtFearPounce = 12f;
 	public float runtFearPounceNpc = 8f;
 	/** A bot he holds tears his hands off in this many ticks, give or take. */
@@ -353,17 +354,13 @@ public class HwConfig {
 	public float runtDreadPanic = 0.03f;
 	public float runtDreadCooldownFactor = 0.5f;
 	public int runtSwapCooldownTicks = 2400;
-	/** Fighting him off: a shove's push and how long it floors him, a blow, how many blows (or how heavy a one) chase him off, for how long. */
+	/** Fighting him off (he is never sent out of the game): a shove's push and how long it floors him, a blow, a shot or a flare. */
 	public double runtShoveStrength = 1.4;
 	public int runtShoveStunTicks = 60;
 	public int runtHitStunTicks = 80;
-	public int runtHitsToChase = 2;
-	public int runtHitWindowTicks = 400;
-	public float runtChaseForce = 0.44f;
-	public int runtOutTicks = 900;
+	public int runtShotStunTicks = 140;
 	public int runtTrappedTicks = 80;
 	public int scoreHitRunt = 50;
-	public int scoreChaseRunt = 150;
 	public int scoreShakeRunt = 75;
 	/** Hand-to-hand weapons are found out of doors (see StreetWeapons): how many a match, how far apart at least. */
 	public int streetWeapons = 24;

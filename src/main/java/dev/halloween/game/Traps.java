@@ -82,7 +82,7 @@ public final class Traps {
 		// The Runt sets them off too: the bear trap holds him, the cans give him away.
 		for (ServerPlayer runt : Runt.all(server)) {
 			Runt.State rs = Runt.state(runt);
-			if (rs == null || rs.outTicks > 0 || rs.holding != null) {
+			if (rs == null || rs.holding != null) {
 				continue;
 			}
 			Iterator<Map.Entry<BlockPos, Trap>> it = TRAPS.entrySet().iterator();

@@ -959,8 +959,8 @@ public final class HwNet {
 
 	/** To whoever plays the Runt: his fear and level, the gifts picked (-1 none) and the level waiting for one, cooldowns, state. */
 	public record RuntHud(float fear, int level, float prevFear, float nextFear, int scareCooldown, int scareMax, int specialCooldown, int specialMax,
-		int trickCooldown, int trickMax, List<Integer> picks, int pending, int stunned, int out, int holding, int michaelId, List<Integer> scent,
-		float charge, int laughCooldown, int laughMax, int knockCooldown) implements CustomPacketPayload {
+		int trickCooldown, int trickMax, List<Integer> picks, int pending, int stunned, int holding, int michaelId, List<Integer> scent,
+		float charge, int pounceCooldown, int pounceMax, int knockCooldown) implements CustomPacketPayload {
 		public static final Type<RuntHud> TYPE = payloadType("runt_hud");
 		public static final StreamCodec<RegistryFriendlyByteBuf, RuntHud> CODEC = StreamCodec.of((buf, v) -> {
 			buf.writeFloat(v.fear);
@@ -976,16 +976,15 @@ public final class HwNet {
 			writeIds(buf, v.picks);
 			buf.writeVarInt(v.pending + 1);
 			buf.writeVarInt(v.stunned);
-			buf.writeVarInt(v.out);
 			buf.writeVarInt(v.holding);
 			buf.writeVarInt(v.michaelId + 1);
 			writeIds(buf, v.scent);
 			buf.writeFloat(v.charge);
-			buf.writeVarInt(v.laughCooldown);
-			buf.writeVarInt(v.laughMax);
+			buf.writeVarInt(v.pounceCooldown);
+			buf.writeVarInt(v.pounceMax);
 			buf.writeVarInt(v.knockCooldown);
 		}, buf -> new RuntHud(buf.readFloat(), buf.readVarInt(), buf.readFloat(), buf.readFloat(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt(),
-			buf.readVarInt(), buf.readVarInt(), buf.readVarInt(), readIds(buf), buf.readVarInt() - 1, buf.readVarInt(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt() - 1, readIds(buf),
+			buf.readVarInt(), buf.readVarInt(), buf.readVarInt(), readIds(buf), buf.readVarInt() - 1, buf.readVarInt(), buf.readVarInt(), buf.readVarInt() - 1, readIds(buf),
 			buf.readFloat(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt()));
 
 		@Override
@@ -995,16 +994,15 @@ public final class HwNet {
 	}
 
 	/** To Michael: his Runt (to see him through walls), who it smells near it, whom it is holding (-1 nobody). */
-	public record RuntInfo(int runtId, List<Integer> scent, boolean out, int holdingId, boolean bot, int status) implements CustomPacketPayload {
+	public record RuntInfo(int runtId, List<Integer> scent, int holdingId, boolean bot, int status) implements CustomPacketPayload {
 		public static final Type<RuntInfo> TYPE = payloadType("runt_info");
 		public static final StreamCodec<RegistryFriendlyByteBuf, RuntInfo> CODEC = StreamCodec.of((buf, v) -> {
 			buf.writeVarInt(v.runtId);
 			writeIds(buf, v.scent);
-			buf.writeBoolean(v.out);
 			buf.writeVarInt(v.holdingId + 1);
 			buf.writeBoolean(v.bot);
 			buf.writeVarInt(v.status);
-		}, buf -> new RuntInfo(buf.readVarInt(), readIds(buf), buf.readBoolean(), buf.readVarInt() - 1, buf.readBoolean(), buf.readVarInt()));
+		}, buf -> new RuntInfo(buf.readVarInt(), readIds(buf), buf.readVarInt() - 1, buf.readBoolean(), buf.readVarInt()));
 
 		@Override
 		public Type<RuntInfo> type() {

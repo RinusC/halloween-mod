@@ -209,7 +209,8 @@ public final class Fight {
 		}
 		for (ServerPlayer runt : Runt.all(player.level().getServer())) {
 			Runt.State rs = Runt.state(runt);
-			if (rs == null || rs.outTicks > 0 || runt.isSpectator()) {
+			if (rs == null || rs.leapTicks > 0 || runt.isSpectator()) {
+				// (No shoving him in mid-pounce.)
 				continue;
 			}
 			Vec3 body = runt.getBoundingBox().getCenter();

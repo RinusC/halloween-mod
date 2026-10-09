@@ -683,13 +683,13 @@ final class BotBrain {
 
 	/**
 	 * The Runt anywhere near, on its feet: knock it down, whatever we are doing (a weapon if we have one, else a
-	 * shove). Off a friend's back too.
+	 * shove). Off a friend's back too. Not in mid-pounce: then there is no catching it.
 	 */
 	private void fightRunt(int now) {
 		HwConfig cfg = this.cfg();
 		for (ServerPlayer runt : Runt.all(this.level().getServer())) {
 			Runt.State rs = Runt.state(runt);
-			if (rs == null || rs.outTicks > 0 || rs.stunTicks > 0 || this.bot.distanceTo(runt) > 2.6 || Fight.pushCooldown(this.bot) > 0) {
+			if (rs == null || rs.leapTicks > 0 || rs.stunTicks > 0 || this.bot.distanceTo(runt) > 2.6 || Fight.pushCooldown(this.bot) > 0) {
 				continue;
 			}
 			this.walker.face(runt.getBoundingBox().getCenter());

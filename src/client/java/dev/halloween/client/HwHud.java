@@ -1150,9 +1150,7 @@ public final class HwHud {
 		if (info == null || mc.level.getGameTime() - ClientState.runtInfoAt > 40) {
 			return;
 		}
-		if (!info.out()) {
-			markEntity(g, mc, info.runtId(), partial, w, h, null, RUNT_PURPLE, 3);
-		}
+		markEntity(g, mc, info.runtId(), partial, w, h, null, RUNT_PURPLE, 3);
 		for (int id : info.scent()) {
 			markEntity(g, mc, id, partial, w, h, null, 0xC0B98CFF, 2);
 		}
@@ -1241,7 +1239,7 @@ public final class HwHud {
 		g.centeredText(font, "!", w - 26, baseY - 4, TEXT);
 		g.centeredText(font, mc.options.keyAttack.getTranslatedKeyMessage(), w - 26, baseY + 16, DIM);
 		int sy = baseY - 40;
-		smallAction(g, font, w - 10, sy, Component.translatable("halloween.hud.runt.pounce"), mc.options.keyShift.getTranslatedKeyMessage(), 0);
+		smallAction(g, font, w - 10, sy, Component.translatable("halloween.hud.runt.pounce"), mc.options.keyShift.getTranslatedKeyMessage(), hud.pounceCooldown());
 		sy -= 11;
 		smallAction(g, font, w - 10, sy, Component.translatable("halloween.hud.runt.knock"), mc.options.keyAttack.getTranslatedKeyMessage(), hud.knockCooldown());
 		sy -= 11;
@@ -1256,10 +1254,8 @@ public final class HwHud {
 			smallAction(g, font, w - 10, sy, Component.translatable("halloween.runt.gift.mischief"), mc.options.keyUse.getTranslatedKeyMessage(),
 				hud.trickCooldown());
 		}
-		// Down, trapped, chased off, holding on.
-		if (hud.out() > 0) {
-			g.centeredText(font, Component.translatable("halloween.hud.runt.out", seconds(hud.out())), w / 2, h - 60, BLOOD);
-		} else if (hud.stunned() > 0) {
+		// Down, trapped, holding on.
+		if (hud.stunned() > 0) {
 			g.centeredText(font, Component.translatable("halloween.hud.runt.stunned"), w / 2, h - 60, BLOOD);
 		} else if (hud.holding() > 0) {
 			g.centeredText(font, Component.translatable("halloween.hud.runt.riding"), w / 2, h - 60, RUNT_PURPLE);

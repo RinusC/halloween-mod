@@ -13,11 +13,12 @@ import net.minecraft.world.phys.Vec3;
 
 /**
  * A bot playing the Runt. With a person playing Michael it is his creature: it keeps at his heels until he gives
- * it an order (search there, go for that one, play tricks there, come back), carries it out and comes back. With
- * no person playing Michael it hunts on its own: whoever Michael isn't already on, nearest first. Either way it
- * pounces from a crouch, winding up as long as the distance needs and leading a runner, frightens people at
- * close quarters, giggles when they can't see it, and with the gifts it has unlocks doors, cuts phones, throws
- * breakers and trades places with Michael.
+ * it an order (search there, go for that one, play tricks there, come back), carries it out and comes back; at
+ * his heels it still leaps at anyone (survivor or townsperson) who comes close enough, then comes back. With no
+ * person playing Michael it hunts on its own: survivors and townsfolk alike, whoever Michael isn't already on,
+ * nearest first. Either way it pounces from a crouch (when the pause between pounces is over), winding up as long
+ * as the distance needs and leading a runner, frightens people at close quarters while it can't pounce, and with
+ * the gifts it has unlocks doors, cuts phones, throws breakers and trades places with Michael.
  */
 final class RuntBrain {
 	private final BotPlayer body;
@@ -35,6 +36,8 @@ final class RuntBrain {
 	private int lookAroundAt;
 	/** Winding up a pounce at {@link #target}. */
 	private boolean charging;
+	/** At Michael's heels it leapt at someone who came close (an order of its own): back to him after the leap. */
+	private boolean snap;
 	/** Survivors it couldn't get to, and until when it leaves them be. */
 	private final Map<UUID, Integer> skip = new HashMap<>();
 
@@ -76,9 +79,10 @@ final class RuntBrain {
 		this.orderTarget = survivor == null ? null : survivor.getUUID();
 		this.orderUntil = now + 20 * 40;
 		this.searchUntil = 0;
+		this.snap = false;
 		if (kind == HwNet.RuntOrder.ATTACK && survivor == null) {
-			// Pointed at a spot, not at anyone: whoever is nearest it, else a search there.
-			ServerPlayer near = this.nearestSurvivor(Vec3.atCenterOf(pos), 10);
+			// Pointed at a spot, not at anyone: whoever is nearest it (a survivor or a townsperson), else a search there.
+			net.minecraft.world.entity.LivingEntity near = this.nearestPrey(Vec3.atCenterOf(pos), 10);
 			if (near != null) {
 				this.orderTarget = near.getUUID();
 			} else {
@@ -90,6 +94,7 @@ final class RuntBrain {
 
 	private void clearOrder() {
 		this.order = -1;
+		this.snap = false;
 		this.orderTarget = null;
 		this.orderPos = null;
 		this.target = null;
@@ -100,7 +105,7 @@ final class RuntBrain {
 			// In the air: nothing to steer.
 			return;
 		}
-		if (s.outTicks > 0 || s.stunTicks > 0 || s.trappedTicks > 0) {
+		if (s.stunTicks > 0 || s.trappedTicks > 0) {
 			this.walker.halt();
 			this.stopCharging();
 			return;
@@ -139,15 +144,43 @@ final class RuntBrain {
 			case HwNet.RuntOrder.SEARCH -> this.tickSearch(now, s);
 			case HwNet.RuntOrder.ATTACK -> {
 				net.minecraft.world.entity.LivingEntity t = this.targetEntity();
-				if (t == null) {
+				if (t == null || this.snap && !pounceReady(s)) {
+					// Gone, or (leapt at someone from his heels) the leap is spent: back to Michael.
 					this.clearOrder();
 					return;
 				}
 				this.hunt(now, s, t);
 			}
 			case HwNet.RuntOrder.TRICKS -> this.tickTricks(now, s);
-			default -> this.heel(now, michael);
+			default -> {
+				if (!this.snapAt(now, s)) {
+					this.heel(now, michael);
+				}
+			}
 		}
+	}
+
+	/** At his heels: someone (a survivor or a townsperson) close and in the open, a leap ready: go for them, then back. */
+	private boolean snapAt(int now, Runt.State s) {
+		if (!pounceReady(s) || now % 5 != 0) {
+			return false;
+		}
+		net.minecraft.world.entity.LivingEntity prey = this.preyInView(HwConfig.get().runtPounceMaxDistance, now);
+		if (prey == null || !this.clearLeap(prey)) {
+			return false;
+		}
+		this.order = HwNet.RuntOrder.ATTACK;
+		this.orderTarget = prey.getUUID();
+		this.target = this.orderTarget;
+		this.orderUntil = now + 20 * 8;
+		this.snap = true;
+		this.hunt(now, s, prey);
+		return true;
+	}
+
+	/** The pause between pounces is over (or the clinger's second go is waiting). */
+	static boolean pounceReady(Runt.State s) {
+		return s.pounceCooldown == 0 || s.secondChance;
 	}
 
 	/** At his heels: a few steps off, never under his feet. */
@@ -172,9 +205,9 @@ final class RuntBrain {
 		}
 	}
 
-	/** Off to the place he showed, looking about on the way and there; whoever it sees, it goes for. */
+	/** Off to the place he showed, looking about on the way and there; whoever it sees (survivor or townsperson), it goes for. */
 	private void tickSearch(int now, Runt.State s) {
-		ServerPlayer seen = this.visibleSurvivor(12);
+		net.minecraft.world.entity.LivingEntity seen = this.preyInView(12, now);
 		if (seen != null) {
 			this.order = HwNet.RuntOrder.ATTACK;
 			this.orderTarget = seen.getUUID();
@@ -250,13 +283,22 @@ final class RuntBrain {
 	}
 
 	/**
-	 * After someone: close in, pounce when the way is clear and the distance right (a crouch as long as the leap
-	 * needs, aimed where they will be), frighten them when right on them.
+	 * After someone (a survivor or a townsperson): close in, pounce when the way is clear, the distance right and
+	 * the pause between pounces over (a crouch as long as the leap needs, aimed where they will be); while it
+	 * can't pounce, frighten them when right on them, else keep a few steps off and wait.
 	 */
 	private void hunt(int now, Runt.State s, net.minecraft.world.entity.LivingEntity t) {
 		HwConfig cfg = HwConfig.get();
 		double d = this.body.distanceTo(t);
 		boolean see = Sight.canSee(this.level(), this.body.getEyePosition(), t.getEyePosition(), this.body);
+		boolean ready = pounceReady(s);
+		if (ready && see && d >= 1.2 && d <= cfg.runtPounceMaxDistance - 0.5 && this.clearLeap(t)) {
+			this.walker.halt();
+			this.charging = true;
+			this.body.setShiftKeyDown(true);
+			this.walker.face(this.lead(t));
+			return;
+		}
 		if (d < cfg.runtScareReach - 0.3 && s.scareCooldown == 0 && see) {
 			this.walker.halt();
 			this.walker.face(t.getEyePosition());
@@ -266,11 +308,10 @@ final class RuntBrain {
 				return;
 			}
 		}
-		if (see && d >= 2.5 && d <= cfg.runtPounceMaxDistance - 0.5 && this.clearLeap(t)) {
+		if (!ready && see && d < 5) {
+			// No leap in it yet: close enough to go the moment it is, not so close they knock it down.
 			this.walker.halt();
-			this.charging = true;
-			this.body.setShiftKeyDown(true);
-			this.walker.face(this.lead(t));
+			this.walker.face(t.getEyePosition());
 			return;
 		}
 		if (now >= this.repathAt || this.walker.idle()) {
@@ -306,7 +347,7 @@ final class RuntBrain {
 	private void tickCharge(Runt.State s) {
 		HwConfig cfg = HwConfig.get();
 		net.minecraft.world.entity.LivingEntity t = this.targetEntity();
-		if (t == null) {
+		if (t == null || !pounceReady(s)) {
 			this.stopCharging();
 			return;
 		}
@@ -360,36 +401,48 @@ final class RuntBrain {
 		this.walker.tick();
 	}
 
-	/** Whoever is worth frightening: near, alone, and not already in Michael's hands or by him. */
+	/**
+	 * Whoever is worth going for: a survivor or a townsperson alike, nearest first (a survivor a little before a
+	 * townsperson, the one it is already after before a new one), not in Michael's hands or by him already.
+	 */
 	private UUID pickTarget(ServerPlayer michael, int now) {
-		ServerPlayer best = null;
+		net.minecraft.world.entity.LivingEntity best = null;
 		double bestScore = Double.MAX_VALUE;
 		for (ServerPlayer p : this.level().players()) {
-			if (!MatchManager.role(p).survivor() || p.isSpectator() || Lockers.isInside(p) || MatchManager.isGrabbed(p)
-				|| this.skip.getOrDefault(p.getUUID(), 0) > now) {
+			if (!MatchManager.role(p).survivor() || p.isSpectator() || Lockers.isInside(p) || MatchManager.isGrabbed(p) || Runt.heldBy(p) != null
+				|| this.skip.getOrDefault(p.getUUID(), 0) > now || p.distanceTo(this.body) > 120) {
 				continue;
 			}
-			double score = p.distanceTo(this.body);
-			if (michael != null && p.distanceTo(michael) < 20) {
-				score += 40;
-			}
-			if (score < bestScore && p.distanceTo(this.body) < 120) {
+			double score = this.preyScore(p, michael);
+			if (score < bestScore) {
 				bestScore = score;
 				best = p;
 			}
 		}
-		if (best != null && best.distanceTo(this.body) < 50) {
-			return best.getUUID();
-		}
-		// No survivor about: a townsperson near will do (fear is fear).
-		net.minecraft.world.entity.decoration.Mannequin npc = null;
 		for (net.minecraft.world.entity.decoration.Mannequin m : Townsfolk.bodies()) {
-			if (!Lockers.isInside(m) && !MatchManager.isHeld(m) && Runt.heldBy(m) == null && this.skip.getOrDefault(m.getUUID(), 0) <= now
-				&& m.distanceTo(this.body) < 40 && (npc == null || m.distanceTo(this.body) < npc.distanceTo(this.body))) {
-				npc = m;
+			if (Lockers.isInside(m) || MatchManager.isHeld(m) || Runt.heldBy(m) != null || this.skip.getOrDefault(m.getUUID(), 0) > now
+				|| m.distanceTo(this.body) > 60) {
+				continue;
+			}
+			double score = this.preyScore(m, michael) + 6;
+			if (score < bestScore) {
+				bestScore = score;
+				best = m;
 			}
 		}
-		return npc != null ? npc.getUUID() : best == null ? null : best.getUUID();
+		return best == null ? null : best.getUUID();
+	}
+
+	private double preyScore(net.minecraft.world.entity.LivingEntity e, ServerPlayer michael) {
+		double score = e.distanceTo(this.body);
+		if (michael != null && e.distanceTo(michael) < 20) {
+			// Michael is on them already.
+			score += 40;
+		}
+		if (e.getUUID().equals(this.target)) {
+			score -= 5;
+		}
+		return score;
 	}
 
 	/** Who it is after: a survivor, or a townsperson (out in the open, not in Michael's hands). */
@@ -406,38 +459,50 @@ final class RuntBrain {
 			&& !MatchManager.isHeld(l) ? l : null;
 	}
 
-	private ServerPlayer nearestSurvivor(Vec3 at, double within) {
-		ServerPlayer best = null;
+	/** The survivor or townsperson nearest a spot (survivors first when both are there). */
+	private net.minecraft.world.entity.LivingEntity nearestPrey(Vec3 at, double within) {
+		net.minecraft.world.entity.LivingEntity best = null;
+		double bestD = within;
 		for (ServerPlayer p : this.level().players()) {
-			if (MatchManager.role(p).survivor() && !p.isSpectator() && p.position().distanceTo(at) < within
-				&& (best == null || p.position().distanceTo(at) < best.position().distanceTo(at))) {
+			if (MatchManager.role(p).survivor() && !p.isSpectator() && p.position().distanceTo(at) < bestD) {
 				best = p;
+				bestD = p.position().distanceTo(at);
+			}
+		}
+		if (best != null) {
+			return best;
+		}
+		for (net.minecraft.world.entity.decoration.Mannequin m : Townsfolk.bodies()) {
+			if (!Lockers.isInside(m) && !MatchManager.isHeld(m) && m.position().distanceTo(at) < bestD) {
+				best = m;
+				bestD = m.position().distanceTo(at);
 			}
 		}
 		return best;
 	}
 
-	private ServerPlayer visibleSurvivor(double within) {
+	/** Someone in view near it to go for: a survivor or a townsperson out in the open, nearest first (survivors a little before). */
+	private net.minecraft.world.entity.LivingEntity preyInView(double within, int now) {
+		net.minecraft.world.entity.LivingEntity best = null;
+		double bestScore = Double.MAX_VALUE;
 		for (ServerPlayer p : this.level().players()) {
-			if (MatchManager.role(p).survivor() && !p.isSpectator() && !Lockers.isInside(p) && p.distanceTo(this.body) < within
+			double d = p.distanceTo(this.body);
+			if (MatchManager.role(p).survivor() && !p.isSpectator() && !Lockers.isInside(p) && !MatchManager.isGrabbed(p) && Runt.heldBy(p) == null
+				&& this.skip.getOrDefault(p.getUUID(), 0) <= now && d < within && d < bestScore
 				&& Sight.canSee(this.level(), this.body.getEyePosition(), p.getEyePosition(), this.body)) {
-				return p;
+				best = p;
+				bestScore = d;
 			}
 		}
-		return null;
-	}
-
-	/** How many survivors near it don't have it in view. */
-	private int unseenBy(double within) {
-		int n = 0;
-		Vec3 me = this.body.getBoundingBox().getCenter();
-		for (ServerPlayer p : this.level().players()) {
-			if (MatchManager.role(p).survivor() && !p.isSpectator() && p.distanceTo(this.body) < within
-				&& (Sight.angleTo(p.getEyePosition(), p.getViewVector(1f), me) > 70 || !Sight.canSee(this.level(), p.getEyePosition(), me, p))) {
-				n++;
+		for (net.minecraft.world.entity.decoration.Mannequin m : Townsfolk.bodies()) {
+			double d = m.distanceTo(this.body);
+			if (!Lockers.isInside(m) && !MatchManager.isHeld(m) && Runt.heldBy(m) == null && this.skip.getOrDefault(m.getUUID(), 0) <= now
+				&& d < within && d + 1.5 < bestScore && Sight.canSee(this.level(), this.body.getEyePosition(), m.getEyePosition(), this.body)) {
+				best = m;
+				bestScore = d + 1.5;
 			}
 		}
-		return n;
+		return best;
 	}
 
 	private ServerPlayer michael() {
