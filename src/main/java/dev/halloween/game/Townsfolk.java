@@ -71,7 +71,8 @@ public final class Townsfolk {
 		UUID hider;
 		boolean wasGrabbed;
 		BlockPos locker;
-		boolean noLocker;
+		/** No locker for it until this tick (one was taken or out of reach, or it is getting its breath back). */
+		int noLockerUntil;
 		BlockPos lockDoor;
 		int lockTicks;
 		/** Where it stood when it last saw the Shape. */
@@ -686,7 +687,7 @@ public final class Townsfolk {
 		}
 		if (!npc.pathSet) {
 			npc.pathSet = true;
-			npc.locker = npc.noLocker ? null
+			npc.locker = now < npc.noLockerUntil || Lockers.needsAir(npc.body) ? null
 				: Lockers.nearestFreeAway(level, npc.body.blockPosition(), 12, npc.seenFrom, HwConfig.get().botLockerAwayFromSighting);
 			if (npc.locker != null) {
 				npc.walker.speed = 1f;
@@ -695,12 +696,23 @@ public final class Townsfolk {
 		}
 		if (npc.locker != null) {
 			if (npc.walker.tick() != Walker.Status.MOVING && Lockers.climbIn(npc.body, npc.locker) < 0) {
-				// Taken or out of reach: a dark corner will do.
+				// Taken, out of reach or still out of breath: a dark corner will do for now.
 				npc.locker = null;
 				npc.pathSet = false;
-				npc.noLocker = true;
+				npc.noLockerUntil = Lockers.needsAir(npc.body) ? Lockers.airBackAt(npc.body) : now + 100;
 			}
 			return;
+		}
+		if (npc.pathSet && now >= npc.noLockerUntil && now % 20 == 0 && !Lockers.needsAir(npc.body)) {
+			// Crouched in a corner, breath back: a free locker nearby is better.
+			BlockPos locker = Lockers.nearestFreeAway(level, npc.body.blockPosition(), 12, npc.seenFrom, HwConfig.get().botLockerAwayFromSighting);
+			if (locker != null) {
+				npc.locker = locker;
+				npc.walker.speed = 1f;
+				npc.walker.follow(Nav.to(level, npc.body.blockPosition(), Lockers.front(level, locker), 0.6, Nav.Options.walker()));
+				npc.body.setPose(Pose.STANDING);
+				return;
+			}
 		}
 		if (!npc.pathSet) {
 			npc.pathSet = true;

@@ -84,6 +84,32 @@ public class TrapsClientTest implements FabricClientGameTest {
 				return in && !Lockers.enter(p, locker);
 			});
 			check(refused, "out for air, no getting back into a locker at once");
+			// A townsperson out for air goes back in once its breath is back (it used to give lockers up for good).
+			server.runOnServer(s -> HwConfig.get().lockerBreathTicks = 60);
+			int npcId = server.computeOnServer(s -> {
+				var npc = s.overworld().getEntities(net.minecraft.world.entity.EntityTypes.MANNEQUIN, dev.halloween.game.Townsfolk::isNpc).stream()
+					.filter(m -> !Lockers.isInside(m)).findFirst().orElseThrow();
+				BlockPos front = Lockers.front(s.overworld(), locker);
+				npc.teleportTo(front.getX() + 0.5, front.getY(), front.getZ() + 0.5);
+				dev.halloween.game.Townsfolk.apply(player(s), npc, dev.halloween.game.Townsfolk.HIDE);
+				return npc.getId();
+			});
+			boolean hid = false;
+			for (int i = 0; i < 20 && !hid; i++) {
+				ctx.waitTicks(10);
+				hid = server.computeOnServer(s -> Lockers.isInside((net.minecraft.world.entity.LivingEntity) s.overworld().getEntity(npcId)));
+			}
+			check(hid, "a townsperson told to hide gets into a locker");
+			server.runOnServer(s -> Lockers.leave((net.minecraft.world.entity.LivingEntity) s.overworld().getEntity(npcId), true));
+			ctx.waitTicks(30);
+			check(server.computeOnServer(s -> !Lockers.isInside((net.minecraft.world.entity.LivingEntity) s.overworld().getEntity(npcId))), "out of air, it stays out a while");
+			boolean back = false;
+			for (int i = 0; i < 20 && !back; i++) {
+				ctx.waitTicks(10);
+				back = server.computeOnServer(s -> Lockers.isInside((net.minecraft.world.entity.LivingEntity) s.overworld().getEntity(npcId)));
+			}
+			check(back, "and climbs back in once its breath is back");
+			server.runOnServer(s -> HwConfig.get().lockerBreathTicks = new HwConfig().lockerBreathTicks);
 			server.runCommand("hw stop");
 			ctx.waitTicks(5);
 			server.runOnServer(s -> {

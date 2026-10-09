@@ -111,6 +111,28 @@ public class TownClientTest implements FabricClientGameTest {
 			shot(ctx, server, c, -110, 25, -25, 160, 40, "town_houses_north");
 			shot(ctx, server, c, -130, 25, 30, 200, 40, "town_houses_west");
 			shot(ctx, server, c, 40, 25, -100, 0, 40, "town_orange_grove");
+			shot(ctx, server, c, -100, 5, 50, 0, 10, "town_shops_street");
+			shot(ctx, server, c, 30, 4, 63, 0, 5, "town_services_street");
+			shot(ctx, server, c, 43, 2, -2, 180, 0, "town_front_mansion");
+			shot(ctx, server, c, -15, 2, -2, 180, 0, "town_front_townhouses");
+			shot(ctx, server, c, 108, 2, -2, 180, 0, "town_front_bungalow");
+			shot(ctx, server, c, 14, 2, 2, 0, 0, "town_front_fire");
+			shot(ctx, server, c, 82, 2, 2, 0, 0, "town_front_clinic");
+			shot(ctx, server, c, -121, 2, 61, 180, 0, "town_front_shops");
+			shot(ctx, server, c, 95, 2, 61, 180, 0, "town_front_cinema");
+			shot(ctx, server, c, -44, 2, 62, 0, 0, "town_front_police");
+			if (System.getenv("HW_PLANS") != null) {
+				// Floor plans: the roofs and the upstairs walls taken off, then the upstairs too, seen from above.
+				int[][] spots = {{-134, -19}, {-44, -19}, {-15, -19}, {43, -19}, {108, -19}, {134, -19}, {-134, 19}, {14, 19}, {43, 19}, {82, 19}, {-134, 50}, {-108, 50}, {82, 50}, {108, 50}, {-44, 73}, {43, 73}, {82, 73}, {108, 83}, {-44, -45}, {43, -45}, {82, -45}, {108, -45}};
+				cut(server, c, 7);
+				for (int[] p : spots) {
+					shot(ctx, server, c, p[0], 24, p[1], 180, 90, "plan_up_" + p[0] + "_" + p[1]);
+				}
+				cut(server, c, 2);
+				for (int[] p : spots) {
+					shot(ctx, server, c, p[0], 20, p[1], 180, 90, "plan_down_" + p[0] + "_" + p[1]);
+				}
+			}
 		}
 		LOG.info("Town client test finished OK");
 	}
@@ -119,6 +141,18 @@ public class TownClientTest implements FabricClientGameTest {
 		server.runCommand("tp @p " + (c.getX() + dx) + " " + (c.getY() + dy) + " " + (c.getZ() + dz) + " " + yaw + " " + pitch);
 		ctx.waitTicks(60);
 		ctx.takeScreenshot(name);
+	}
+
+	/** Takes off everything from {@code dy} above the ground up (bulbs in the ceilings stay out of it: they are higher). */
+	private static void cut(TestServerContext server, BlockPos c, int dy) {
+		server.runOnServer(s -> {
+			ServerLevel level = s.overworld();
+			for (BlockPos p : BlockPos.betweenClosed(c.offset(-150, dy, -70), c.offset(150, 30, 95))) {
+				if (!level.getBlockState(p).isAir()) {
+					level.setBlock(p, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 2 | 16);
+				}
+			}
+		});
 	}
 
 	private static String name(ServerLevel level, BlockPos pos) {

@@ -1114,6 +1114,11 @@ public final class Haddonfield extends MapPlan {
 		this.hardware(lot('E', 3).x0 + 2, lot('E', 4).x1 - 2);
 		this.diner(lot('E', 5));
 		this.gasStation(lot('E', 6));
+		if (this.varied) {
+			// The second town has no flat roofs: the hardware store and the diner get pitched ones.
+			this.gable(lot('E', 3).x0 + 2, lot('E', 4).x1 - 2, MAIN - 12 - 17, MAIN - 12, 5, "dark_oak_stairs", "dark_oak_slab", b("bricks"));
+			this.gable(lot('E', 5).x0 + 2, lot('E', 5).x1 - 2, MAIN - 12 - 13, MAIN - 12, 5, "brick_stairs", "brick_slab", b("white_terracotta"));
+		}
 	}
 
 	/** A plain flat-roofed building on the north side of Main Street; returns nothing, draws the shell only. */
@@ -2393,6 +2398,8 @@ public final class Haddonfield extends MapPlan {
 		final java.util.Set<Long> walls = new java.util.HashSet<>();
 		final java.util.Set<Long> clear = new java.util.HashSet<>();
 		final java.util.Set<Long> used = new java.util.HashSet<>();
+		/** Inside a window: nothing goes there, so it can be climbed through. */
+		final java.util.Set<Long> open = new java.util.HashSet<>();
 
 		static long key(int u, int v) {
 			return ((long) u << 32) ^ (v & 0xffffffffL);
@@ -2400,19 +2407,26 @@ public final class Haddonfield extends MapPlan {
 
 		boolean free(int u, int v) {
 			long k = key(u, v);
-			return !this.walls.contains(k) && !this.clear.contains(k) && !this.used.contains(k);
+			return !this.walls.contains(k) && !this.clear.contains(k) && !this.used.contains(k) && !this.open.contains(k);
+		}
+
+		/** Next to the way through a doorway or a door: furniture there would block it. */
+		boolean nearClear(int u, int v) {
+			return this.clear.contains(key(u + 1, v)) || this.clear.contains(key(u - 1, v)) || this.clear.contains(key(u, v + 1))
+				|| this.clear.contains(key(u, v - 1));
 		}
 	}
 
 	/**
-	 * Splits the floor u0..u1 x v0..v1 into rooms with partition walls (at least three blocks each way), joins
+	 * Splits the floor u0..u1 x v0..v1 into rooms with partition walls (at least four blocks each way, room to walk past the furniture), joins
 	 * every two halves of a split by a doorway (now and then a door in it), and builds the walls (y .. y+h-1).
 	 * {@code keep}: cells no wall may take (stairs, the way in).
 	 */
-	private Layout partition(Frame f, int u0, int v0, int u1, int v1, int y, int h, BlockState wall, java.util.Set<Long> keep) {
+	private Layout partition(Frame f, int u0, int v0, int u1, int v1, int y, int h, BlockState wall, java.util.Set<Long> keep,
+		java.util.Set<Integer> noU, java.util.Set<Integer> noV) {
 		Layout lay = new Layout();
 		java.util.List<Split> splits = new java.util.ArrayList<>();
-		this.split(lay, splits, new Room(u0, v0, u1, v1), keep, 0);
+		this.split(lay, splits, new Room(u0, v0, u1, v1), keep, noU, noV, 0);
 		for (Split s : splits) {
 			java.util.List<Integer> spots = new java.util.ArrayList<>();
 			for (int p = s.from(); p <= s.to(); p++) {
@@ -2422,7 +2436,8 @@ public final class Haddonfield extends MapPlan {
 				int bu = s.wallAlongV() ? u + 1 : u;
 				int av = s.wallAlongV() ? v : v - 1;
 				int bv = s.wallAlongV() ? v : v + 1;
-				if (lay.walls.contains(Layout.key(u, v)) && !lay.walls.contains(Layout.key(au, av)) && !lay.walls.contains(Layout.key(bu, bv))) {
+				if (lay.walls.contains(Layout.key(u, v)) && !lay.walls.contains(Layout.key(au, av)) && !lay.walls.contains(Layout.key(bu, bv))
+					&& !keep.contains(Layout.key(au, av)) && !keep.contains(Layout.key(bu, bv))) {
 					spots.add(p);
 				}
 			}
@@ -2459,11 +2474,25 @@ public final class Haddonfield extends MapPlan {
 		return lay;
 	}
 
-	private void split(Layout lay, java.util.List<Split> splits, Room r, java.util.Set<Long> keep, int depth) {
+	/** {@code noU}, {@code noV}: where no wall may run (by a door in the outer wall, by the stairs). */
+	private void split(Layout lay, java.util.List<Split> splits, Room r, java.util.Set<Long> keep, java.util.Set<Integer> noU, java.util.Set<Integer> noV,
+		int depth) {
 		int w = r.u1 - r.u0 + 1;
 		int d = r.v1 - r.v0 + 1;
-		boolean canU = w >= 7;
-		boolean canV = d >= 7;
+		java.util.List<Integer> us = new java.util.ArrayList<>();
+		for (int p = r.u0 + 4; p <= r.u1 - 4; p++) {
+			if (!noU.contains(p)) {
+				us.add(p);
+			}
+		}
+		java.util.List<Integer> vs = new java.util.ArrayList<>();
+		for (int p = r.v0 + 4; p <= r.v1 - 4; p++) {
+			if (!noV.contains(p)) {
+				vs.add(p);
+			}
+		}
+		boolean canU = !us.isEmpty();
+		boolean canV = !vs.isEmpty();
 		boolean big = w * d > 42;
 		if (!canU && !canV || !big && (depth >= 2 || this.random.nextInt(3) == 0)) {
 			lay.rooms.add(r);
@@ -2471,25 +2500,25 @@ public final class Haddonfield extends MapPlan {
 		}
 		boolean alongV = canU && (!canV || w > d || w == d && this.random.nextBoolean());
 		if (alongV) {
-			int pos = r.u0 + 3 + this.random.nextInt(w - 6);
+			int pos = us.get(this.random.nextInt(us.size()));
 			for (int v = r.v0; v <= r.v1; v++) {
 				if (!keep.contains(Layout.key(pos, v))) {
 					lay.walls.add(Layout.key(pos, v));
 				}
 			}
 			splits.add(new Split(true, pos, r.v0, r.v1));
-			this.split(lay, splits, new Room(r.u0, r.v0, pos - 1, r.v1), keep, depth + 1);
-			this.split(lay, splits, new Room(pos + 1, r.v0, r.u1, r.v1), keep, depth + 1);
+			this.split(lay, splits, new Room(r.u0, r.v0, pos - 1, r.v1), keep, noU, noV, depth + 1);
+			this.split(lay, splits, new Room(pos + 1, r.v0, r.u1, r.v1), keep, noU, noV, depth + 1);
 		} else {
-			int pos = r.v0 + 3 + this.random.nextInt(d - 6);
+			int pos = vs.get(this.random.nextInt(vs.size()));
 			for (int u = r.u0; u <= r.u1; u++) {
 				if (!keep.contains(Layout.key(u, pos))) {
 					lay.walls.add(Layout.key(u, pos));
 				}
 			}
 			splits.add(new Split(false, pos, r.u0, r.u1));
-			this.split(lay, splits, new Room(r.u0, r.v0, r.u1, pos - 1), keep, depth + 1);
-			this.split(lay, splits, new Room(r.u0, pos + 1, r.u1, r.v1), keep, depth + 1);
+			this.split(lay, splits, new Room(r.u0, r.v0, r.u1, pos - 1), keep, noU, noV, depth + 1);
+			this.split(lay, splits, new Room(r.u0, pos + 1, r.u1, r.v1), keep, noU, noV, depth + 1);
 		}
 	}
 
@@ -2548,7 +2577,7 @@ public final class Haddonfield extends MapPlan {
 		}
 		java.util.Collections.shuffle(sides, this.random);
 		out.addAll(sides);
-		out.removeIf(c -> !lay.free(c[0], c[1]));
+		out.removeIf(c -> !lay.free(c[0], c[1]) || lay.nearClear(c[0], c[1]));
 		return out;
 	}
 
@@ -2645,7 +2674,8 @@ public final class Haddonfield extends MapPlan {
 					}
 					break;
 				}
-				if (lay.free(cu, cv)) {
+				if (r.u1 - r.u0 >= 4 && r.v1 - r.v0 >= 4 && lay.free(cu, cv) && !lay.nearClear(cu, cv)) {
+					// A table, only where there is room to walk round it.
 					lay.used.add(Layout.key(cu, cv));
 					f.set(cu, y, cv, b("dark_oak_fence"));
 					f.set(cu, y + 1, cv, b(this.pick("candle", "flower_pot", "white_carpet")));
@@ -2657,7 +2687,7 @@ public final class Haddonfield extends MapPlan {
 					// A bed along a side wall: two cells, the head against it.
 					int nu = c[0];
 					int nv = c[1] == r.v0 ? c[1] + 1 : c[1] == r.v1 ? c[1] - 1 : c[1];
-					if (nv == c[1] || !lay.free(nu, nv) || nv < r.v0 || nv > r.v1) {
+					if (nv == c[1] || !lay.free(nu, nv) || lay.nearClear(nu, nv) || nv < r.v0 || nv > r.v1) {
 						continue;
 					}
 					Direction head = c[1] == r.v0 ? f.front() : f.back();
@@ -2691,48 +2721,65 @@ public final class Haddonfield extends MapPlan {
 		}
 	}
 
-	/** Whether a window may go into the outer wall next to inside cell (u, v): not where a partition meets it, not on a kept cell. */
-	private static boolean glazable(Layout lay, int u, int v) {
-		return lay == null || !lay.walls.contains(Layout.key(u, v)) && !lay.used.contains(Layout.key(u, v)) || lay.clear.contains(Layout.key(u, v));
+	/**
+	 * Whether a window may go into the outer wall in front of inside cell (u, v): no inside wall meets the outer one
+	 * there or a block to either side, nothing kept (stairs, doors) stands there. {@code alongU}: the wall runs along u.
+	 */
+	private static boolean windowOk(Layout lay, int u, int v, boolean alongU) {
+		if (lay == null) {
+			return true;
+		}
+		for (int k = -1; k <= 1; k++) {
+			if (lay.walls.contains(Layout.key(alongU ? u + k : u, alongU ? v : v + k))) {
+				return false;
+			}
+		}
+		return !lay.used.contains(Layout.key(u, v)) && !lay.clear.contains(Layout.key(u, v));
+	}
+
+	/** One window two high at (u, y, v) in the outer wall, its inside cell (iu, iv) kept free to climb through. */
+	private void window(Frame f, Layout lay, int u, int y, int v, int iu, int iv) {
+		f.fill(u, y, v, u, y + 1, v, b("glass_pane"));
+		lay.open.add(Layout.key(iu, iv));
 	}
 
 	/**
-	 * Windows round a home (upstairs too if there is one): none where an inside wall meets the outer one, none by
-	 * the doors or the breaker, none in a wall shared with the next house ({@code solidEnd}: the u = w-1 wall).
+	 * Windows round a home (upstairs too if there is one), every three blocks: none where an inside wall meets the
+	 * outer one, none within two blocks of a door, none by the breaker, none in a wall shared with the next house
+	 * or the garage ({@code solidEnd}: the u = w-1 wall). Returns the u of the front windows downstairs.
 	 */
-	private java.util.Set<Integer> boxWindows(Frame f, int w, int d, Layout ground, Layout upper, int doorU, int backDoorU, boolean solidEnd) {
-		BlockState pane = b("glass_pane");
+	private java.util.Set<Integer> homeWindows(Frame f, int w, int d, Layout ground, Layout upper, int doorU, int backDoorU, int sideDoorV, boolean solidEnd) {
 		java.util.Set<Integer> front = new java.util.HashSet<>();
 		for (int u = 2; u <= w - 3; u += 3) {
-			if (Math.abs(u - doorU) > 1 && !ground.walls.contains(Layout.key(u, 1))) {
-				f.fill(u, 1, 0, u, 2, 0, pane);
+			if (Math.abs(u - doorU) > 2 && windowOk(ground, u, 1, true)) {
+				this.window(f, ground, u, 1, 0, u, 1);
 				front.add(u);
 			}
-			if (upper != null && !upper.walls.contains(Layout.key(u, 1))) {
-				f.fill(u, 6, 0, u, 7, 0, pane);
+			if (upper != null && windowOk(upper, u, 1, true)) {
+				this.window(f, upper, u, 6, 0, u, 1);
 			}
-			if (Math.abs(u - backDoorU) > 1 && !ground.walls.contains(Layout.key(u, d - 2))) {
-				f.fill(u, 1, d - 1, u, 2, d - 1, pane);
+			if (Math.abs(u - backDoorU) > 2 && windowOk(ground, u, d - 2, true)) {
+				this.window(f, ground, u, 1, d - 1, u, d - 2);
 			}
-			if (upper != null && !upper.walls.contains(Layout.key(u, d - 2))) {
-				f.fill(u, 6, d - 1, u, 7, d - 1, pane);
+			if (upper != null && windowOk(upper, u, d - 2, true)) {
+				this.window(f, upper, u, 6, d - 1, u, d - 2);
 			}
 		}
 		for (int v = 2; v <= d - 3; v += 3) {
 			if (Math.abs(v - d / 2) <= 1) {
 				continue;
 			}
-			if (!ground.walls.contains(Layout.key(1, v))) {
-				f.fill(0, 1, v, 0, 2, v, pane);
+			if (windowOk(ground, 1, v, false)) {
+				this.window(f, ground, 0, 1, v, 1, v);
 			}
-			if (!solidEnd && !ground.walls.contains(Layout.key(w - 2, v))) {
-				f.fill(w - 1, 1, v, w - 1, 2, v, pane);
+			if (!solidEnd && Math.abs(v - sideDoorV) > 2 && windowOk(ground, w - 2, v, false)) {
+				this.window(f, ground, w - 1, 1, v, w - 2, v);
 			}
-			if (upper != null && !upper.walls.contains(Layout.key(1, v))) {
-				f.fill(0, 6, v, 0, 7, v, pane);
+			if (upper != null && windowOk(upper, 1, v, false)) {
+				this.window(f, upper, 0, 6, v, 1, v);
 			}
-			if (upper != null && !solidEnd && !upper.walls.contains(Layout.key(w - 2, v))) {
-				f.fill(w - 1, 6, v, w - 1, 7, v, pane);
+			if (upper != null && !solidEnd && windowOk(upper, w - 2, v, false)) {
+				this.window(f, upper, w - 1, 6, v, w - 2, v);
 			}
 		}
 		return front;
@@ -2740,7 +2787,8 @@ public final class Haddonfield extends MapPlan {
 
 	/**
 	 * A home of any size: shell, pitched roof, rooms laid out afresh on each floor, stairs if it has two, the
-	 * porch, the yard. {@code x0}: where it starts (u 0).
+	 * porch, the yard. {@code x0}: where it starts (u 0). {@code yard}: the front garden and the back yard too (the
+	 * second of a pair of townhouses shares the first one's). {@code sideDoorV}: a door in the u = w-1 wall there (-1: none).
 	 */
 	private void home(Lot lot, int x0, int w, int d, boolean two, Style s, boolean mirror, boolean yard, boolean solidEnd, int sideDoorV) {
 		Frame f = new Frame(x0, lot, w, mirror);
@@ -2748,7 +2796,10 @@ public final class Haddonfield extends MapPlan {
 		BlockState floor = b(s.floor());
 		int wallTop = two ? 8 : 3;
 		int top = two ? 9 : 4;
-		int doorU = 2 + this.random.nextInt(Math.max(1, w - 4));
+		int stairV0 = 2;
+		// The front door away from the stairs (they run up the u = 1 wall).
+		int doorU = (two ? 4 : 2) + this.random.nextInt(Math.max(1, w - (two ? 6 : 4)));
+		int backDoorU = 2 + this.random.nextInt(Math.max(1, w - 4));
 		f.fill(-1, -1, -1, w, -1, d, b("stone_bricks"));
 		f.fill(1, -1, 1, w - 2, -1, d - 2, floor);
 		f.fill(0, 0, 0, w - 1, wallTop, d - 1, wall);
@@ -2759,50 +2810,78 @@ public final class Haddonfield extends MapPlan {
 		f.fill(1, 4, 1, w - 2, 4, d - 2, floor);
 		f.fill(0, top, 0, w - 1, top, d - 1, wall);
 		f.fill(1, top, 1, w - 2, top, d - 2, floor);
-		java.util.Set<Long> keep = new java.util.HashSet<>();
-		keep.add(Layout.key(doorU, 1));
-		int backDoorU = 1 + this.random.nextInt(Math.max(1, w - 2));
-		keep.add(Layout.key(backDoorU, d - 2));
+		// Cells no inside wall may take: in front of the doors, the stairs and the way round them.
+		java.util.Set<Long> doors = new java.util.HashSet<>();
+		doors.add(Layout.key(doorU, 1));
+		doors.add(Layout.key(backDoorU, d - 2));
 		if (sideDoorV > 0) {
-			keep.add(Layout.key(w - 2, sideDoorV));
+			doors.add(Layout.key(w - 2, sideDoorV));
 		}
-		int stairV0 = 2;
+		java.util.Set<Long> stairCells = new java.util.HashSet<>();
 		if (two) {
-			// Stairs along the west wall from near the front, up to the landing.
 			for (int k = 0; k <= 4; k++) {
-				keep.add(Layout.key(1, stairV0 + k));
-				keep.add(Layout.key(2, stairV0 + k));
+				stairCells.add(Layout.key(1, stairV0 + k));
+				stairCells.add(Layout.key(2, stairV0 + k));
 			}
-			keep.add(Layout.key(1, stairV0 - 1));
+			stairCells.add(Layout.key(1, stairV0 - 1));
 		}
+		java.util.Set<Long> keep = new java.util.HashSet<>(doors);
+		keep.addAll(stairCells);
+		// No inside wall runs into a door, nor straight down beside the stairs.
+		java.util.Set<Integer> noU = new java.util.HashSet<>();
+		for (int k = -1; k <= 1; k++) {
+			noU.add(doorU + k);
+			noU.add(backDoorU + k);
+		}
+		if (two) {
+			noU.add(3);
+		}
+		java.util.Set<Integer> noV = new java.util.HashSet<>();
+		if (sideDoorV > 0) {
+			for (int k = -1; k <= 1; k++) {
+				noV.add(sideDoorV + k);
+			}
+		}
+		Layout ground = this.partition(f, 1, 1, w - 2, d - 2, 0, 4, wall, keep, noU, noV);
+		Layout upper = null;
+		java.util.Set<Long> keepUp = new java.util.HashSet<>();
+		if (two) {
+			for (int k = 0; k <= 5; k++) {
+				keepUp.add(Layout.key(1, stairV0 + k));
+				keepUp.add(Layout.key(2, stairV0 + k));
+			}
+			upper = this.partition(f, 1, 1, w - 2, d - 2, 5, 4, wall, keepUp, java.util.Set.of(1, 2, 3), java.util.Set.of());
+		}
+		ground.clear.addAll(doors);
+		ground.used.addAll(stairCells);
+		if (upper != null) {
+			upper.used.addAll(keepUp);
+		}
+		java.util.Set<Integer> windows = this.homeWindows(f, w, d, ground, upper, doorU, backDoorU, sideDoorV, solidEnd);
 		int lockersBefore = this.lockers;
-		Layout ground = this.partition(f, 1, 1, w - 2, d - 2, 0, 4, wall, keep);
 		this.assignHome(ground, doorU, 1, false);
-		ground.used.addAll(keep);
 		for (Room r : ground.rooms) {
 			this.furnish(f, ground, r, 0, 4, s, r.kind == RoomKind.LIVING);
 		}
-		Layout upper = null;
+		if (upper != null) {
+			this.assignHome(upper, 1, 1, true);
+			for (Room r : upper.rooms) {
+				this.furnish(f, upper, r, 5, top, s, false);
+			}
+		}
 		if (two) {
+			// Stairs up the u = 1 wall, filled in underneath, a rail round the hole upstairs.
 			for (int k = 0; k <= 4; k++) {
 				f.set(1, k, stairV0 + k, stairs(s.floor().replace("_planks", "_stairs"), f.back()));
+				if (k >= 1) {
+					f.fill(1, 0, stairV0 + k, 1, k - 1, stairV0 + k, floor);
+				}
 				if (k + 1 <= 3) {
 					f.fill(1, k + 1, stairV0 + k, 1, 3, stairV0 + k, AIR);
 				}
 			}
 			f.fill(1, 4, stairV0, 1, 4, stairV0 + 3, AIR);
 			f.fill(2, 5, stairV0, 2, 5, stairV0 + 3, b("dark_oak_fence"));
-			java.util.Set<Long> keepUp = new java.util.HashSet<>();
-			for (int k = 0; k <= 5; k++) {
-				keepUp.add(Layout.key(1, stairV0 + k));
-				keepUp.add(Layout.key(2, stairV0 + k));
-			}
-			upper = this.partition(f, 1, 1, w - 2, d - 2, 5, 4, wall, keepUp);
-			this.assignHome(upper, 1, 1, true);
-			upper.used.addAll(keepUp);
-			for (Room r : upper.rooms) {
-				this.furnish(f, upper, r, 5, top, s, false);
-			}
 		}
 		if (this.lockers == lockersBefore) {
 			// Every home has somewhere to hide: a wardrobe in the living room if no bedroom got one.
@@ -2820,22 +2899,21 @@ public final class Haddonfield extends MapPlan {
 			f.fill(w - 1, 0, sideDoorV, w - 1, 1, sideDoorV, AIR);
 			f.door(w - 1, 0, sideDoorV, plusU(f));
 		}
-		java.util.Set<Integer> windows = this.boxWindows(f, w, d, ground, upper, doorU, backDoorU, solidEnd);
 		if (solidEnd) {
 			// The other side is the next house or the garage: the breaker goes on this end.
 			this.breaker(f.x(0), 1, f.z(d / 2), plusU(f).getOpposite());
 		} else {
 			this.breaker(Math.max(f.x(0), f.x(w - 1)), 1, f.z(d / 2), Direction.EAST);
 		}
-		f.bulb(Math.min(w - 2, doorU + 1), 2, 0);
+		f.bulb(doorU + 1, 2, 0);
 		this.roof(f, w, d, top, s, wall);
-		if (!yard) {
-			return;
-		}
 		this.porch(f, doorU, windows, false);
 		String pathBlock = this.pick("dirt_path", "gravel", "stone_bricks", "bricks");
 		for (int v = -3; v >= -7; v--) {
 			f.set(doorU, -1, v, b(pathBlock));
+		}
+		if (!yard) {
+			return;
 		}
 		this.flowerBed(f, w, doorU);
 		boolean drive = this.driveway(f, w, lot, false);
@@ -2852,8 +2930,8 @@ public final class Haddonfield extends MapPlan {
 
 	/** A small house: one storey, a few small rooms. */
 	private void cottage(Lot lot) {
-		int w = 9 + 2 * this.random.nextInt(2);
-		this.home(lot, lot.cx() - w / 2, w, 9 + this.random.nextInt(2), false, this.anyStyle(), this.random.nextBoolean(), true, false, -1);
+		int w = 11 + 2 * this.random.nextInt(2);
+		this.home(lot, lot.cx() - w / 2, w, 10 + this.random.nextInt(2), false, this.anyStyle(), this.random.nextBoolean(), true, false, -1);
 	}
 
 	/** A wide one-storey house. */
@@ -2878,7 +2956,7 @@ public final class Haddonfield extends MapPlan {
 		g.fill(w, 0, 2, w + 5, 3, 9, AIR);
 		g.fill(w + 1, 0, 1, w + 5, 2, 1, AIR);
 		g.fill(w + 1, 3, 1, w + 5, 3, 1, b("white_concrete"));
-		g.fill(w, 5, 1, w + 6, 5, 10, slab(s.roofSlab(), SlabType.BOTTOM));
+		this.gable(Math.min(g.x(w), g.x(w + 6)), Math.max(g.x(w), g.x(w + 6)), Math.min(g.z(1), g.z(10)), Math.max(g.z(1), g.z(10)), 5, s.roof(), s.roofSlab(), wall);
 		g.set(w + 5, 0, 9, search(HwBlocks.TOOL_CABINET, Direction.WEST));
 		g.set(w + 5, 0, 8, b("crafting_table"));
 		g.set(w + 1, 0, 9, search(HwBlocks.CRATE, Direction.EAST));
@@ -2906,7 +2984,12 @@ public final class Haddonfield extends MapPlan {
 		return new Lot(lot.x0(), lot.x1(), lot.south() ? lot.front() + 5 : lot.front() - 5, lot.south());
 	}
 
-	/** A flat-roofed box: walls {@code h} high, the ceiling at h (lights go in it), the roof over that, a low parapet. */
+	private static final String[][] ROOFING = {
+		{"dark_oak_stairs", "dark_oak_slab"}, {"deepslate_tile_stairs", "deepslate_tile_slab"}, {"brick_stairs", "brick_slab"},
+		{"stone_brick_stairs", "stone_brick_slab"}, {"spruce_stairs", "spruce_slab"}, {"mud_brick_stairs", "mud_brick_slab"},
+	};
+
+	/** A building: walls {@code h} high, the ceiling at h (lights go in it), a pitched roof over it. */
 	private Frame box(Lot lot, int x0, int w, int d, int h, String wallId, String floorId, boolean mirror) {
 		Frame f = new Frame(x0, lot, w, mirror);
 		BlockState wall = b(wallId);
@@ -2915,13 +2998,38 @@ public final class Haddonfield extends MapPlan {
 		f.fill(0, 0, 0, w - 1, h, d - 1, wall);
 		f.fill(1, 0, 1, w - 2, h - 1, d - 2, AIR);
 		f.fill(1, h, 1, w - 2, h, d - 2, b("smooth_stone"));
-		f.fill(0, h + 1, 0, w - 1, h + 1, d - 1, wall);
-		f.fill(1, h + 1, 1, w - 2, h + 1, d - 2, b("gray_concrete"));
-		f.fill(0, h + 2, 0, w - 1, h + 2, 0, wall);
-		f.fill(0, h + 2, d - 1, w - 1, h + 2, d - 1, wall);
-		f.fill(0, h + 2, 0, 0, h + 2, d - 1, wall);
-		f.fill(w - 1, h + 2, 0, w - 1, h + 2, d - 1, wall);
+		String[] roofing = ROOFING[this.random.nextInt(ROOFING.length)];
+		this.gable(Math.min(f.x(0), f.x(w - 1)), Math.max(f.x(0), f.x(w - 1)), Math.min(f.z(0), f.z(d - 1)), Math.max(f.z(0), f.z(d - 1)), h,
+			roofing[0], roofing[1], wall);
 		return f;
+	}
+
+	/**
+	 * A pitched roof over the walls x0..x1, z0..z1 from height y: eaves a block out to the north and south, the
+	 * ridge running east-west, the gable ends walled up.
+	 */
+	private void gable(int x0, int x1, int z0, int z1, int y, String stairsId, String slabId, BlockState wall) {
+		for (int k = 0; ; k++) {
+			int zn = z0 - 1 + k;
+			int zs = z1 + 1 - k;
+			if (zn > zs) {
+				break;
+			}
+			for (int x = x0 - 1; x <= x1 + 1; x++) {
+				if (zn == zs) {
+					this.set(x, y + k, zn, slab(slabId, SlabType.BOTTOM));
+				} else {
+					this.set(x, y + k, zn, stairs(stairsId, Direction.SOUTH));
+					this.set(x, y + k, zs, stairs(stairsId, Direction.NORTH));
+				}
+			}
+			if (k >= 1) {
+				for (int z = zn + 1; z <= zs - 1; z++) {
+					this.set(x0, y + k, z, wall);
+					this.set(x1, y + k, z, wall);
+				}
+			}
+		}
 	}
 
 	/** Lights in the ceiling over a whole floor, every few blocks; breakers on both sides of a wide building. */
@@ -2940,6 +3048,9 @@ public final class Haddonfield extends MapPlan {
 	/** Windows along the sides of a box at one storey. */
 	private void sideWindows(Frame f, int w, int d, int y) {
 		for (int v = 3; v <= d - 3; v += 3) {
+			if (Math.abs(v - d / 2) <= 1) {
+				continue;
+			}
 			f.fill(0, y, v, 0, y + 1, v, b("glass_pane"));
 			f.fill(w - 1, y, v, w - 1, y + 1, v, b("glass_pane"));
 		}
@@ -2960,9 +3071,9 @@ public final class Haddonfield extends MapPlan {
 		BlockState wall = b(wallId);
 		int doorU = w / 2;
 		f.fill(1, 4, 1, w - 2, 4, d - 2, b("spruce_planks"));
-		// Display windows either side of the door.
-		for (int u = 1; u <= w - 2; u++) {
-			if (Math.abs(u - doorU) > 0) {
+		// Display windows either side of the door, a pier of wall between.
+		for (int u = 2; u <= w - 3; u++) {
+			if (Math.abs(u - doorU) > 1) {
 				f.fill(u, 1, 0, u, 2, 0, b("glass_pane"));
 			}
 		}
@@ -3004,9 +3115,9 @@ public final class Haddonfield extends MapPlan {
 			case BAR -> {
 				f.fill(2, 0, cv, w - 3, 0, cv, b("stripped_dark_oak_log"));
 				f.set(doorU, 0, cv, AIR);
-				for (int u = 2; u <= w - 3; u += 2) {
-					if (u != doorU) {
-						f.set(u, 0, cv - 2, b("dark_oak_fence"));
+				for (int u = 2; u <= w - 3; u += 3) {
+					if (Math.abs(u - doorU) > 1) {
+						f.set(u, 0, cv - 1, stairs("dark_oak_stairs", f.back()));
 					}
 				}
 				f.set(2, 0, cv + 1, search(HwBlocks.NIGHTSTAND, f.front()));
@@ -3030,7 +3141,6 @@ public final class Haddonfield extends MapPlan {
 			case BARBER -> {
 				for (int u = 2; u <= w - 3; u += 3) {
 					f.set(u, 0, cv, stairs("red_nether_brick_stairs", f.front()));
-					f.set(u, 1, cv + 1, b("glass_pane"));
 				}
 				f.set(1, 0, cv - 2, search(HwBlocks.DRESSER, Direction.EAST));
 				f.set(w - 2, 0, cv - 2, b("cauldron"));
@@ -3067,9 +3177,17 @@ public final class Haddonfield extends MapPlan {
 			keepUp.add(Layout.key(w - 7 + k, d - 2));
 			keepUp.add(Layout.key(w - 7 + k, d - 3));
 		}
-		Layout up = this.partition(f, 1, 1, w - 2, d - 2, 5, 4, wall, keepUp);
-		this.assignHome(up, 1, 1, true);
+		Layout up = this.partition(f, 1, 1, w - 2, d - 2, 5, 4, wall, keepUp, java.util.Set.of(), java.util.Set.of());
 		up.used.addAll(keepUp);
+		for (int u = 2; u <= w - 3; u += 3) {
+			if (windowOk(up, u, 1, true)) {
+				this.window(f, up, u, 6, 0, u, 1);
+			}
+			if (windowOk(up, u, d - 2, true)) {
+				this.window(f, up, u, 6, d - 1, u, d - 2);
+			}
+		}
+		this.assignHome(up, 1, 1, true);
 		// Someone at home upstairs, in the middle of the first room (kept clear of the furniture).
 		Room home = up.rooms.getFirst();
 		int hu = (home.u0 + home.u1) / 2;
@@ -3078,10 +3196,6 @@ public final class Haddonfield extends MapPlan {
 		f.point(MapPoints.Type.NPC, hu, 5, hv);
 		for (Room r : up.rooms) {
 			this.furnish(f, up, r, 5, 9, STYLES[0], false);
-		}
-		for (int u = 2; u <= w - 3; u += 3) {
-			f.fill(u, 6, 0, u, 7, 0, b("glass_pane"));
-			f.fill(u, 6, d - 1, u, 7, d - 1, b("glass_pane"));
 		}
 		this.lightsAndBreakers(f, w, d, 4);
 	}
@@ -3139,7 +3253,7 @@ public final class Haddonfield extends MapPlan {
 		int doorU = w / 2;
 		f.door(doorU, 0, 0, f.back());
 		for (int u = 2; u <= w - 3; u += 3) {
-			if (Math.abs(u - doorU) > 1) {
+			if (Math.abs(u - doorU) > 2) {
 				f.fill(u, 1, 0, u, 2, 0, b("glass_pane"));
 			}
 		}
@@ -3232,7 +3346,7 @@ public final class Haddonfield extends MapPlan {
 		int doorU = w / 2;
 		f.door(doorU, 0, 0, f.back());
 		for (int u = 2; u <= w - 3; u += 3) {
-			if (Math.abs(u - doorU) > 1) {
+			if (Math.abs(u - doorU) > 2) {
 				f.fill(u, 1, 0, u, 2, 0, b("glass_pane"));
 			}
 		}
@@ -3268,14 +3382,13 @@ public final class Haddonfield extends MapPlan {
 		int doorU = w / 2;
 		f.door(doorU, 0, 0, f.back());
 		for (int u = 2; u <= w - 3; u += 3) {
-			if (Math.abs(u - doorU) > 1) {
+			if (Math.abs(u - doorU) > 2) {
 				f.fill(u, 1, 0, u, 2, 0, b("glass_pane"));
 			}
 		}
 		this.frontSign(f, doorU, 3, "", "HADDONFIELD", "CLINIC", "");
-		f.fill(doorU - 1, 4, -1, doorU + 1, 4, -1, b("red_concrete"));
-		for (int u = 2; u <= 6; u++) {
-			f.set(u, 0, 2, stairs("birch_stairs", f.front()));
+		for (int v = 2; v <= 4; v++) {
+			f.set(1, 0, v, stairs("birch_stairs", Direction.WEST));
 		}
 		f.fill(w - 6, 0, 3, w - 3, 0, 3, b("quartz_block"));
 		f.set(w - 4, 1, 3, dev.halloween.HwBlocks.PHONE.defaultBlockState());
@@ -3293,7 +3406,6 @@ public final class Haddonfield extends MapPlan {
 			f.set(side, 0, d - 3, b("white_wool"));
 			f.set(side, 0, d - 2, b("white_wool"));
 			f.set(side, 0, 8, search(HwBlocks.NIGHTSTAND, in));
-			f.set(side, 1, 9, b("glass_pane"));
 		}
 		f.locker(doorU - 1, d - 2, f.front());
 		f.point(MapPoints.Type.NPC, 3, 0, 4);
@@ -3369,9 +3481,8 @@ public final class Haddonfield extends MapPlan {
 		// The office.
 		f.fill(13, 0, 1, 13, 3, d - 2, wall);
 		f.fill(13, 0, 6, 13, 1, 6, AIR);
-		f.fill(14, 1, 0, 17, 2, 0, b("glass_pane"));
+		f.fill(17, 1, 0, 17, 2, 0, b("glass_pane"));
 		f.door(15, 0, 0, f.back());
-		f.set(15, 2, 0, b("white_terracotta"));
 		f.set(w - 2, 0, 3, b("spruce_planks"));
 		f.set(w - 2, 1, 3, dev.halloween.HwBlocks.PHONE.defaultBlockState());
 		f.point(MapPoints.Type.PHONE, w - 2, 1, 3);

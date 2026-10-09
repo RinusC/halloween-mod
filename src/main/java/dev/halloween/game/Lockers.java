@@ -56,9 +56,15 @@ public final class Lockers {
 	/** Who came out for air, until when they can't get into a locker again (nobody spends a whole match inside). */
 	private static final Map<UUID, Integer> BREATHING = new HashMap<>();
 
-	private static boolean needsAir(LivingEntity who) {
+	public static boolean needsAir(LivingEntity who) {
 		Integer until = BREATHING.get(who.getUUID());
 		return until != null && who.level().getServer().getTickCount() < until;
+	}
+
+	/** The server tick from which they may get into a locker again (0: any time). */
+	public static int airBackAt(LivingEntity who) {
+		Integer until = BREATHING.get(who.getUUID());
+		return until == null ? 0 : until;
 	}
 	private static final Map<UUID, BlockPos> CLIMBING_INTO = new HashMap<>();
 
