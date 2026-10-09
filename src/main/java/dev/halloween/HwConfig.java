@@ -347,7 +347,9 @@ public class HwConfig {
 	/** Hex: how long no breath comes back and no healing works (the breath comes back at this rate meanwhile). */
 	public int runtHexTicks = 600;
 	public float runtHexRegen = 0.2f;
-	public int runtScentRange = 16;
+	/** Shared sight (the "scent" gift): how far and how wide (degrees off the look) each sees for the other. */
+	public int runtScentRange = 48;
+	public double runtSharedSightAngle = 60;
 	public int runtMischiefCooldownTicks = 400;
 	/** Dread: how far it reaches, the panic it gives every second, how much shorter his pause between frights. */
 	public int runtDreadRange = 8;
@@ -682,7 +684,7 @@ public class HwConfig {
 	/** Out of a locker for air: no getting into any locker again for this long. */
 	public int lockerBreathTicks = 400;
 	/** Michael hears whoever is hiding in a locker this close: their breathing, quiet. */
-	public double lockerHearRange = 8;
+	public double lockerHearRange = 2;
 	public float lockerBreathVolume = 0.45f;
 	/** Getting in on the run: the Shape sees where for this long. */
 	public int lockerSlamRevealTicks = 60;
@@ -737,7 +739,7 @@ public class HwConfig {
 
 	/** The file's version: older files get the defaults that changed since moved on (see {@link #migrate}). */
 	public int configVersion;
-	private static final int VERSION = 1;
+	private static final int VERSION = 2;
 
 	public static void load() {
 		Path path = path();
@@ -795,6 +797,16 @@ public class HwConfig {
 			if (this.mannequinQteSuccessChance == 0.35f) {
 				this.mannequinQteSuccessChance = 0.8f;
 			}
+		}
+		if (this.configVersion < 2) {
+			if (this.lockerHearRange == 8) {
+				this.lockerHearRange = 2;
+			}
+			if (this.runtScentRange == 16) {
+				this.runtScentRange = 48;
+			}
+		}
+		if (this.configVersion < VERSION) {
 			Halloween.LOGGER.info("Config moved on to version {}", VERSION);
 		}
 		this.configVersion = VERSION;

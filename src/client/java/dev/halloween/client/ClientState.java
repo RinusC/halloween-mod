@@ -164,6 +164,9 @@ public final class ClientState {
 			// Witness: the others close by show through walls.
 			return 0x6FB7FF;
 		}
+		if (myRole() == Role.RUNT) {
+			return sharedSight(entity);
+		}
 		if (myRole() != Role.SHAPE || hud == null) {
 			return -1;
 		}
@@ -173,7 +176,7 @@ public final class ClientState {
 			return 0xFF9A2E;
 		}
 		if (info == null || !VISIBLE.contains(entity.getId())) {
-			return -1;
+			return sharedSight(entity);
 		}
 		if (info.marked()) {
 			return 0xE0261F;
@@ -182,6 +185,17 @@ public final class ClientState {
 			return 0xF2F2F2;
 		}
 		return -1;
+	}
+
+	/** Shared sight with the Runt (his gift): the survivors the other one has in view right now, in purple. */
+	private static int sharedSight(Entity entity) {
+		List<Integer> ids = null;
+		if (myRole() == Role.RUNT && runtHud != null) {
+			ids = runtHud.scent();
+		} else if (myRole() == Role.SHAPE && runtInfo != null && gameTime() - runtInfoAt <= 20) {
+			ids = runtInfo.scent();
+		}
+		return ids != null && ids.contains(entity.getId()) ? 0xB98CFF : -1;
 	}
 
 	public static void updateVisibility(Minecraft mc) {

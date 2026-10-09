@@ -1151,9 +1151,6 @@ public final class HwHud {
 			return;
 		}
 		markEntity(g, mc, info.runtId(), partial, w, h, null, RUNT_PURPLE, 3);
-		for (int id : info.scent()) {
-			markEntity(g, mc, id, partial, w, h, null, 0xC0B98CFF, 2);
-		}
 		if (info.holdingId() >= 0) {
 			markEntity(g, mc, info.holdingId(), partial, w, h, Component.translatable("halloween.hud.runt.held"), BLOOD, 4);
 		}
@@ -1181,9 +1178,6 @@ public final class HwHud {
 			return;
 		}
 		markEntity(g, mc, hud.michaelId(), partial, w, h, Component.translatable("halloween.hud.runt.michael"), BLOOD, 4);
-		for (int id : hud.scent()) {
-			markEntity(g, mc, id, partial, w, h, null, RUNT_PURPLE, 3);
-		}
 		// Fear: three segments, one per level.
 		int cx = 34;
 		int cy = h - 34;

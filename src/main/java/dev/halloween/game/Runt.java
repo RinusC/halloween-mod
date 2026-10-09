@@ -37,7 +37,7 @@ import net.minecraft.world.phys.Vec3;
  * The Runt: Michael's little horror, a second killer in the same match who can't kill. He frightens
  * (panic, a scream that tells Michael where), and grows nastier as he feeds on fear: at each of three levels he
  * picks one of two gifts (cling on to a survivor and hold them for Michael, or hex them: no breath, no healing;
- * smell out everyone near, or play tricks: unlock doors, cut phones, throw breakers; a dread that hangs round
+ * share sight with Michael (each sees the survivors the other has in view), or play tricks: unlock doors, cut phones, throw breakers; a dread that hangs round
  * him, or trading places with Michael). A shove knocks him off his feet, a blow too, a shot or a flare for longer;
  * nothing sends him out of the game. A player plays him when one was picked (/hw runt), otherwise a bot.
  */
@@ -877,14 +877,21 @@ public final class Runt {
 
 	// ---------------------------------------------------------------- what the screens show
 
-	/** Survivors he can smell (that gift): everyone near him, through walls. */
-	static List<Integer> scent(ServerPlayer runt, State s) {
+	/**
+	 * Shared sight (the "scent" gift): the survivors someone has in view right now, in front of them, nothing in
+	 * between, not too far. Michael sees whom the Runt sees, the Runt whom Michael sees.
+	 */
+	public static List<Integer> inView(ServerLevel level, Vec3 eye, Vec3 look, Entity viewer) {
+		HwConfig cfg = HwConfig.get();
 		List<Integer> out = new ArrayList<>();
-		if (!s.has("scent")) {
-			return out;
-		}
-		for (ServerPlayer v : runt.level().players()) {
-			if (MatchManager.role(v).survivor() && !v.isSpectator() && v.distanceTo(runt) < HwConfig.get().runtScentRange) {
+		for (ServerPlayer v : level.players()) {
+			if (v == viewer || !MatchManager.role(v).survivor() || v.isSpectator() || Lockers.isInside(v) || v.isInvisible()
+				|| v.getEyePosition().distanceTo(eye) > cfg.runtScentRange) {
+				continue;
+			}
+			Vec3 body = FocusPoints.bodyCenter(v);
+			if ((Sight.angleTo(eye, look, body) <= cfg.runtSharedSightAngle || Sight.angleTo(eye, look, v.getEyePosition()) <= cfg.runtSharedSightAngle)
+				&& (Sight.canSee(level, eye, v.getEyePosition(), viewer) || Sight.canSee(level, eye, body, viewer))) {
 				out.add(v.getId());
 			}
 		}
@@ -897,22 +904,26 @@ public final class Runt {
 		float prev = s.level == 0 ? 0 : at[Math.min(s.level, at.length) - 1];
 		float next = s.level >= at.length ? prev : at[s.level];
 		int michael = -1;
-		List<Integer> scent = scent(runt, s);
-		int held = -1;
-		if (s.holding != null) {
-			ServerPlayer v = runt.level().getServer().getPlayerList().getPlayer(s.holding);
-			held = v == null ? -1 : v.getId();
-		}
+		boolean shared = s.has("scent");
+		// Whom he sees, for Michael; whom Michael sees, for him.
+		List<Integer> runtSees = shared ? inView(runt.level(), runt.getEyePosition(), runt.getViewVector(1f), runt) : List.of();
+		List<Integer> michaelSees = List.of();
+		net.minecraft.world.entity.LivingEntity victim = victim(runt, s);
+		int held = victim == null ? -1 : victim.getId();
 		for (ServerPlayer p : runt.level().players()) {
 			if (MatchManager.role(p) == Role.SHAPE) {
 				michael = p.getId();
-				ServerPlayNetworking.send(p, new HwNet.RuntInfo(runt.getId(), scent, held, s.brain != null, status(s)));
+				ShapeState st = MatchManager.shapeState(p);
+				if (shared && st != null && st.shadowTicks == 0) {
+					michaelSees = inView(p.level(), MatchManager.aimOrigin(p, st), MatchManager.aimDirection(p, st), p);
+				}
+				ServerPlayNetworking.send(p, new HwNet.RuntInfo(runt.getId(), runtSees, held, s.brain != null, status(s)));
 			}
 		}
 		if (!(runt instanceof BotPlayer)) {
 			ServerPlayNetworking.send(runt, new HwNet.RuntHud(s.fear, s.level, prev, next, s.scareCooldown, s.scareCooldownMax, s.specialCooldown,
 				s.specialCooldownMax, s.trickCooldown, s.trickCooldownMax, List.of(s.picks[0], s.picks[1], s.picks[2]), s.pending(), Math.max(s.stunTicks, s.trappedTicks),
-				s.holding == null ? 0 : 1, michael, scent, s.charge(), s.pounceCooldown, s.pounceCooldownMax, s.knockCooldown));
+				s.holding == null ? 0 : 1, michael, michaelSees, s.charge(), s.pounceCooldown, s.pounceCooldownMax, s.knockCooldown));
 		}
 	}
 

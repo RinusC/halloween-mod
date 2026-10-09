@@ -51,6 +51,12 @@ public abstract class CameraMixin {
 		}
 	}
 
+	/** How far over the shoulder the camera is now (eased back out after a wall), and when the last frame was. */
+	@org.spongepowered.asm.mixin.Unique
+	private static double halloween$shoulderLen;
+	@org.spongepowered.asm.mixin.Unique
+	private static long halloween$lastFrame;
+
 	@Inject(method = "alignWithEntity", at = @At("TAIL"))
 	private void halloween$shoulder(float partialTicks, CallbackInfo ci) {
 		// The opening scene takes the camera.
@@ -69,13 +75,18 @@ public abstract class CameraMixin {
 		Vec3 from = this.position();
 		Vector3fc left = this.leftVector();
 		Vec3 to = from.subtract(left.x() * offset, left.y() * offset, left.z() * offset);
+		Vec3 dir = to.subtract(from).normalize();
+		double allowed = offset;
 		HitResult hit = mc.level.clip(new ClipContext(from, to, ClipContext.Block.VISUAL, ClipContext.Fluid.NONE, mc.player));
 		if (hit.getType() != HitResult.Type.MISS) {
-			Vec3 dir = to.subtract(from);
-			double len = Math.max(0, hit.getLocation().distanceTo(from) - 0.2);
-			to = from.add(dir.normalize().scale(len));
+			allowed = Math.max(0, hit.getLocation().distanceTo(from) - 0.2);
 		}
-		this.setPosition(to);
+		// In at once (never into the wall), back out gently: running past posts and door frames, the view doesn't jump.
+		long now = System.nanoTime();
+		double dt = halloween$lastFrame == 0 ? 0 : Math.min(0.1, (now - halloween$lastFrame) / 1.0E9);
+		halloween$lastFrame = now;
+		halloween$shoulderLen = allowed < halloween$shoulderLen ? allowed : halloween$shoulderLen + (allowed - halloween$shoulderLen) * Math.min(1, dt * 6);
+		this.setPosition(from.add(dir.scale(Math.min(halloween$shoulderLen, allowed))));
 	}
 
 	@Inject(method = "calculateFov", at = @At("RETURN"), cancellable = true)

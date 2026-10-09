@@ -592,9 +592,12 @@ public final class MatchManager {
 
 	private static void setSpeed(ServerPlayer player, double amount) {
 		AttributeInstance speed = player.getAttribute(Attributes.MOVEMENT_SPEED);
+		AttributeModifier current = speed.getModifier(SPEED_ID);
 		if (amount == 0) {
 			speed.removeModifier(SPEED_ID);
-		} else {
+		} else if (current == null || Math.abs(current.amount() - Math.max(-1, amount)) > 1.0E-6) {
+			// Only when it changes: a new modifier every tick sends his speed to every client every tick, and his
+			// own client, wiping and re-adding it as it lands, steps unevenly.
 			speed.addOrUpdateTransientModifier(new AttributeModifier(SPEED_ID, Math.max(-1, amount), AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
 		}
 	}

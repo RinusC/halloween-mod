@@ -121,6 +121,17 @@ public class RuntClientTest implements FabricClientGameTest {
 			ctx.waitTicks(3);
 			check(server.computeOnServer(s -> Runt.state(player(s)).leapTicks == 0), "no leap while it lasts");
 			server.runOnServer(s -> Runt.state(player(s)).pounceCooldown = 0);
+			// Shared sight: whom he has in view in front of him, not behind his back.
+			check(server.computeOnServer(s -> {
+				ServerPlayer runt = player(s);
+				ServerPlayer bot = s.getPlayerList().getPlayerByName(victim);
+				BlockPos c = dev.halloween.game.MapPoints.get(s.overworld()).first(dev.halloween.game.MapPoints.Type.CENTER);
+				runt.teleportTo(s.overworld(), c.getX() + 0.5, c.getY(), c.getZ() + 0.5, java.util.Set.of(), 0f, 0f, false);
+				bot.teleportTo(s.overworld(), c.getX() + 0.5, c.getY(), c.getZ() + 6.5, java.util.Set.of(), 180f, 0f, false);
+				boolean ahead = Runt.inView(s.overworld(), runt.getEyePosition(), new Vec3(0, 0, 1), runt).contains(bot.getId());
+				boolean behind = Runt.inView(s.overworld(), runt.getEyePosition(), new Vec3(0, 0, -1), runt).contains(bot.getId());
+				return ahead && !behind;
+			}), "shared sight: those in front of him, not behind his back");
 			// Right on them: on their back, hands at their throat, for as long as it takes them to tear the hands off.
 			server.runOnServer(s -> {
 				Runt.State st = Runt.state(player(s));
