@@ -99,6 +99,10 @@ public class TownClientTest implements FabricClientGameTest {
 				return out;
 			});
 			check(cars.isEmpty(), "the car fits at every spot " + cars);
+			// Everything can be walked to from the street: townsfolk, wardrobes, phones, things to search, upstairs too.
+			List<String> cut = server.computeOnServer(s -> unreachable(s.overworld(), MapPoints.get(s.overworld()).first(MapPoints.Type.CENTER)));
+			cut.forEach(b -> LOG.info("UNREACHABLE {}", b));
+			check(cut.isEmpty(), "everything inside can be walked to from the street (" + cut.size() + " cut off)");
 			// A look round.
 			server.runCommand("time set noon");
 			server.runCommand("weather clear");
@@ -141,6 +145,113 @@ public class TownClientTest implements FabricClientGameTest {
 		server.runCommand("tp @p " + (c.getX() + dx) + " " + (c.getY() + dy) + " " + (c.getZ() + dz) + " " + yaw + " " + pitch);
 		ctx.waitTicks(60);
 		ctx.takeScreenshot(name);
+	}
+
+	/** How high the block's collision reaches (0: nothing to bump into); doors count as open. */
+	private static double top(ServerLevel level, BlockPos p) {
+		BlockState st = level.getBlockState(p);
+		if (st.getBlock() instanceof net.minecraft.world.level.block.DoorBlock) {
+			return 0;
+		}
+		var shape = st.getCollisionShape(level, p);
+		return shape.isEmpty() ? 0 : shape.max(net.minecraft.core.Direction.Axis.Y);
+	}
+
+	/** Feet at p: room for a body, something to stand on that isn't a fence or a wall. */
+	private static boolean standable(ServerLevel level, BlockPos p) {
+		double under = top(level, p.below());
+		return top(level, p) == 0 && top(level, p.above()) == 0 && under > 0 && under <= 1.0;
+	}
+
+	/**
+	 * Walks the town from the middle of the street (a step up onto stairs, slabs and beds, a jump up one block
+	 * where there is headroom, a drop of up to three) and lists what can't be reached.
+	 */
+	private static List<String> unreachable(ServerLevel level, BlockPos c) {
+		java.util.Set<Long> seen = new java.util.HashSet<>();
+		java.util.ArrayDeque<BlockPos> queue = new java.util.ArrayDeque<>();
+		BlockPos start = c;
+		for (int dy = -2; dy <= 3 && !standable(level, start); dy++) {
+			start = c.offset(0, dy, 0);
+		}
+		seen.add(start.asLong());
+		queue.add(start);
+		while (!queue.isEmpty()) {
+			BlockPos p = queue.poll();
+			for (Direction d : Direction.Plane.HORIZONTAL) {
+				BlockPos side = p.relative(d);
+				if (Math.abs(side.getX() - c.getX()) > 152 || Math.abs(side.getZ() - c.getZ()) > 152) {
+					continue;
+				}
+				for (int dy = 1; dy >= -3; dy--) {
+					BlockPos q = side.offset(0, dy, 0);
+					if (seen.contains(q.asLong()) || !standable(level, q)) {
+						continue;
+					}
+					if (dy == 1) {
+						BlockState step = level.getBlockState(q.below());
+						boolean low = step.getBlock() instanceof net.minecraft.world.level.block.StairBlock || top(level, q.below()) <= 0.6;
+						if (!low && top(level, p.above(2)) != 0) {
+							continue;
+						}
+					}
+					if (dy < 0) {
+						// Walking off an edge: the way over it must be open.
+						boolean open = true;
+						for (int y = dy + 2; y <= 1 && open; y++) {
+							open = top(level, side.offset(0, y, 0)) == 0;
+						}
+						if (!open) {
+							continue;
+						}
+					}
+					seen.add(q.asLong());
+					queue.add(q);
+					break;
+				}
+			}
+		}
+		List<String> out = new ArrayList<>();
+		for (BlockPos p : MapPoints.get(level).list(MapPoints.Type.NPC)) {
+			if (!seen.contains(p.asLong())) {
+				out.add("townsperson at " + p.toShortString());
+			}
+		}
+		for (BlockPos p : MapPoints.get(level).list(MapPoints.Type.PHONE)) {
+			if (!near(seen, p, 2)) {
+				out.add("phone at " + p.toShortString());
+			}
+		}
+		for (BlockPos p : BlockPos.betweenClosed(c.offset(-150, -2, -150), c.offset(150, 12, 150))) {
+			BlockState st = level.getBlockState(p);
+			if (LockerBlock.is(st) && st.getValue(LockerBlock.HALF) == DoubleBlockHalf.LOWER) {
+				BlockPos front = p.relative(st.getValue(LockerBlock.FACING));
+				if (!seen.contains(front.asLong())) {
+					out.add("wardrobe at " + p.toShortString());
+				}
+			} else if (dev.halloween.game.SearchBlock.is(st) && !near(seen, p, 1)) {
+				out.add(name(level, p) + " at " + p.toShortString() + " beside: " + name(level, p.north()) + "/" + name(level, p.south()) + "/" + name(level, p.east()) + "/" + name(level, p.west()) + " standable S/W: " + standable(level, p.south()) + "/" + standable(level, p.west()) + " walked nearby: " + nearby(seen, p, 6) + " under S: " + name(level, p.south().below()));
+			}
+		}
+		return out;
+	}
+
+	private static int nearby(java.util.Set<Long> seen, BlockPos p, int r) {
+		int n = 0;
+		for (BlockPos q : BlockPos.betweenClosed(p.offset(-r, 0, -r), p.offset(r, 0, r))) {
+			n += seen.contains(q.asLong()) ? 1 : 0;
+		}
+		return n;
+	}
+
+	/** Somewhere to stand within reach: next to it, level with it or a block up or down. */
+	private static boolean near(java.util.Set<Long> seen, BlockPos p, int reach) {
+		for (BlockPos q : BlockPos.betweenClosed(p.offset(-reach, -2, -reach), p.offset(reach, 1, reach))) {
+			if (seen.contains(q.asLong()) && Math.abs(q.getX() - p.getX()) + Math.abs(q.getZ() - p.getZ()) <= reach + 1) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/** Takes off everything from {@code dy} above the ground up (bulbs in the ceilings stay out of it: they are higher). */

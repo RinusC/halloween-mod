@@ -2625,6 +2625,17 @@ public final class Haddonfield extends MapPlan {
 		return false;
 	}
 
+	/** A rug or tiles let into the floor, not where something is kept (the stairs and the hole over them) nor under a wall. */
+	private void carpet(Frame f, Layout lay, int u0, int y, int v0, int u1, int v1, BlockState s) {
+		for (int u = u0; u <= u1; u++) {
+			for (int v = v0; v <= v1; v++) {
+				if (!lay.used.contains(Layout.key(u, v)) && !lay.walls.contains(Layout.key(u, v))) {
+					f.floor(u, y, v, s);
+				}
+			}
+		}
+	}
+
 	/** Fits out a room for what it is; the ceiling light over its middle. */
 	private void furnish(Frame f, Layout lay, Room r, int y, int ceiling, Style s, boolean npc) {
 		int cu = (r.u0 + r.u1) / 2;
@@ -2658,7 +2669,7 @@ public final class Haddonfield extends MapPlan {
 				if (this.random.nextBoolean()) {
 					this.against(f, lay, r, y, d -> b("jukebox"), false);
 				}
-				f.floorFill(cu - 1, y - 1, cv - 1, cu, cv, b(s.rug()));
+				this.carpet(f, lay, cu - 1, y - 1, cv - 1, cu, cv, b(s.rug()));
 			}
 			case KITCHEN -> {
 				this.against(f, lay, r, y, d -> search(HwBlocks.KITCHEN_CABINET, d), false);
@@ -2701,10 +2712,10 @@ public final class Haddonfield extends MapPlan {
 					// Often a wardrobe to hide in.
 					this.wardrobe(f, lay, r, y);
 				}
-				f.floorFill(cu, y - 1, cv, cu, cv, b(s.rug()));
+				this.carpet(f, lay, cu, y - 1, cv, cu, cv, b(s.rug()));
 			}
 			case BATH -> {
-				f.floorFill(r.u0, y - 1, r.v0, r.u1, r.v1, b("white_terracotta"));
+				this.carpet(f, lay, r.u0, y - 1, r.v0, r.u1, r.v1, b("white_terracotta"));
 				this.against(f, lay, r, y, d -> b("cauldron"), false);
 				this.against(f, lay, r, y, d -> b("quartz_slab"), false);
 			}
@@ -2850,6 +2861,9 @@ public final class Haddonfield extends MapPlan {
 				keepUp.add(Layout.key(1, stairV0 + k));
 				keepUp.add(Layout.key(2, stairV0 + k));
 			}
+			// And the corner in front of the hole: nothing in it, so it isn't shut off by the rail.
+			keepUp.add(Layout.key(1, stairV0 - 1));
+			keepUp.add(Layout.key(2, stairV0 - 1));
 			upper = this.partition(f, 1, 1, w - 2, d - 2, 5, 4, wall, keepUp, java.util.Set.of(1, 2, 3), java.util.Set.of());
 		}
 		ground.clear.addAll(doors);
@@ -2882,6 +2896,9 @@ public final class Haddonfield extends MapPlan {
 			}
 			f.fill(1, 4, stairV0, 1, 4, stairV0 + 3, AIR);
 			f.fill(2, 5, stairV0, 2, 5, stairV0 + 3, b("dark_oak_fence"));
+			// Light on the stairs: over the foot of them and over the landing.
+			f.bulb(2, 4, stairV0);
+			f.bulb(2, top, stairV0 + 5);
 		}
 		if (this.lockers == lockersBefore) {
 			// Every home has somewhere to hide: a wardrobe in the living room if no bedroom got one.
@@ -3109,6 +3126,10 @@ public final class Haddonfield extends MapPlan {
 		}
 		f.fill(w - 7, 4, d - 2, w - 4, 4, d - 2, AIR);
 		f.door(doorU + 2, 0, d - 1, f.front());
+		// The stockroom and the stairs lit, the landing too.
+		f.bulb(3, 4, d - 3);
+		f.bulb(w - 8, 4, d - 3);
+		f.bulb(w - 3, 9, d - 3);
 		// The shop floor.
 		int cv = store - 2;
 		switch (shop) {
@@ -3512,12 +3533,12 @@ public final class Haddonfield extends MapPlan {
 		this.frontSign(f, w / 2 + 3, 1, "", "SCRAP", "& SALVAGE", "");
 		// Wrecks: rusty bodies, one on top of another, tyres piled up.
 		String[] rust = {"brown_concrete", "rooted_dirt", "light_gray_terracotta", "red_terracotta", "black_concrete"};
-		for (int[] c : new int[][]{{2, 3}, {2, 9}, {8, 12}, {13, 4}, {13, 11}}) {
+		for (int[] c : new int[][]{{2, 3}, {2, 8}, {8, 12}, {13, 4}, {13, 11}}) {
 			String body = rust[this.random.nextInt(rust.length)];
 			f.fill(c[0], 0, c[1], c[0] + 4, 0, c[1] + 2, b(body));
 			f.fill(c[0] + 1, 1, c[1], c[0] + 3, 1, c[1] + 2, b(this.random.nextBoolean() ? body : "tinted_glass"));
 		}
-		f.fill(2, 1, 9, 6, 1, 11, b("brown_concrete"));
+		f.fill(2, 1, 8, 6, 1, 10, b("brown_concrete"));
 		for (int v = 6; v <= 8; v++) {
 			f.fill(w - 3, 0, v, w - 3, this.random.nextInt(3), v, b("black_wool"));
 		}
