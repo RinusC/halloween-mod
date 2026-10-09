@@ -3122,7 +3122,13 @@ public final class Haddonfield extends MapPlan {
 		f.set(w - 2, 0, store + 1, b("barrel"));
 		for (int k = 0; k <= 4; k++) {
 			f.set(w - 7 + k, k, d - 2, stairs("spruce_stairs", Direction.EAST));
-			f.fill(w - 7 + k, k + 1, d - 2, w - 7 + k, 4, d - 2, AIR);
+			if (k >= 1) {
+				f.fill(w - 7 + k, 0, d - 2, w - 7 + k, k - 1, d - 2, b("spruce_planks"));
+			}
+			// Headroom over each step but the top one (that one is level with the floor upstairs and must stay).
+			if (k < 4) {
+				f.fill(w - 7 + k, k + 1, d - 2, w - 7 + k, 4, d - 2, AIR);
+			}
 		}
 		f.fill(w - 7, 4, d - 2, w - 4, 4, d - 2, AIR);
 		f.door(doorU + 2, 0, d - 1, f.front());

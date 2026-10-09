@@ -164,8 +164,8 @@ public class TownClientTest implements FabricClientGameTest {
 	}
 
 	/**
-	 * Walks the town from the middle of the street (a step up onto stairs, slabs and beds, a jump up one block
-	 * where there is headroom, a drop of up to three) and lists what can't be reached.
+	 * Walks the town from the middle of the street (a step up onto stairs, slabs and beds, no jumping: a
+	 * staircase must be climbable as it is; a drop of up to three) and lists what can't be reached.
 	 */
 	private static List<String> unreachable(ServerLevel level, BlockPos c) {
 		java.util.Set<Long> seen = new java.util.HashSet<>();
@@ -191,7 +191,7 @@ public class TownClientTest implements FabricClientGameTest {
 					if (dy == 1) {
 						BlockState step = level.getBlockState(q.below());
 						boolean low = step.getBlock() instanceof net.minecraft.world.level.block.StairBlock || top(level, q.below()) <= 0.6;
-						if (!low && top(level, p.above(2)) != 0) {
+						if (!low) {
 							continue;
 						}
 					}
