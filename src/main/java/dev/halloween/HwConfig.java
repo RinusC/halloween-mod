@@ -130,7 +130,7 @@ public class HwConfig {
 	public int shapeNeedlePeriodTicks = 40;
 	public float shapeZoneWidth = 0.16f;
 	public float[] shapeZoneGrowByStalk = {0f, 0.02f, 0.04f, 0.06f};
-	public float mannequinQteSuccessChance = 0.35f;
+	public float mannequinQteSuccessChance = 0.8f;
 	/** Police officers are trained: they hit their reaction checks in a grab this often. */
 	public float policeQteSuccessChance = 0.9f;
 	public int escapeShapeRecoverTicks = 30;
@@ -366,6 +366,8 @@ public class HwConfig {
 		w.put("fire_poker", 5);
 		w.put("revolver_ammo", 4);
 		w.put("shotgun_shells", 3);
+		w.put("bear_trap", 4);
+		w.put("tin_cans", 5);
 		w.put("repair_kit", 3);
 		// Rare.
 		w.put("butterfly_knife", 2);
@@ -455,6 +457,10 @@ public class HwConfig {
 	public double staminaRecoverFraction = 0.34;
 	/** A shove or a melee blow takes this much stamina (not possible with less). */
 	public float staminaActionCost = 0.2f;
+	/** Bear trap: how long it holds Michael; points for catching him, for the cans giving him away. */
+	public int bearTrapTicks = 60;
+	public int scoreTrap = 150;
+	public int scoreCans = 50;
 	public float staminaPantVolume = 0.8f;
 	/** Footsteps Michael hears (a burst on his screen): running, running on a loud surface (gravel, leaf piles, broken glass), walking on one. */
 	public double noiseRunRange = 10;
@@ -466,20 +472,20 @@ public class HwConfig {
 	public double panicSeeRange = 24;
 	public double panicSeeDarkRange = 10;
 	public float panicSeeFovDeg = 60f;
-	public float panicSeeSeconds = 6f;
+	public float panicSeeSeconds = 9f;
 	public double panicNearDistance = 8;
 	/** It ebbs away (over this many seconds from full) once he is further than this and no body is near. */
 	public double panicCalmDistance = 24;
 	public double panicBodyRange = 12;
 	public float panicCalmSeconds = 12f;
 	/** Shocks: struck, grabbed, a body found. */
-	public float panicOnHit = 0.25f;
-	public float panicOnGrab = 0.4f;
-	public float panicOnBody = 0.5f;
+	public float panicOnHit = 0.17f;
+	public float panicOnGrab = 0.27f;
+	public float panicOnBody = 0.33f;
 	/** At full panic the breath comes back this much slower; heavy breathing from this much panic; extra gun spread (degrees) at full panic. */
-	public float panicRegenPenalty = 0.5f;
+	public float panicRegenPenalty = 0.333f;
 	public float panicBreathOn = 0.5f;
-	public float panicSpread = 4f;
+	public float panicSpread = 2f;
 	/** Perks a survivor takes into a match, and what each costs (points over all matches, spent; see game.Perks). */
 	public int perkSlots = 3;
 	public java.util.Map<String, Integer> perkCosts = defaultPerkCosts();
@@ -602,6 +608,8 @@ public class HwConfig {
 	// --- Lockers ---
 	/** How long you can stay in a locker before you have to come out for air. */
 	public int lockerMaxTicks = 1200;
+	/** Out of a locker for air: no getting into any locker again for this long. */
+	public int lockerBreathTicks = 400;
 	/** Getting in on the run: the Shape sees where for this long. */
 	public int lockerSlamRevealTicks = 60;
 	/** Getting in quietly (not on the run) takes this long. */

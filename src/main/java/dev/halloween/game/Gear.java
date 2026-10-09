@@ -125,6 +125,8 @@ public final class Gear {
 			case HEALING_SPRAY -> spray(player, stack);
 			case MED_KIT -> startMedKit(player);
 			case FLARE_GUN -> fireFlareGun(player, stack);
+			case BEAR_TRAP -> Traps.place(player, Traps.Kind.BEAR_TRAP);
+			case TIN_CANS -> Traps.place(player, Traps.Kind.CANS);
 			default -> {
 				if (kind.thrown()) {
 					throwItem(player, stack, kind);

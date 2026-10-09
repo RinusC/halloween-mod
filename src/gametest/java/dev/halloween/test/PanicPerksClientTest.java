@@ -115,7 +115,7 @@ public class PanicPerksClientTest implements FabricClientGameTest {
 			check(ctx.computeOnClient(mc -> ClientState.panic > 0.9f && ClientPanic.shake(10f) != null), "full panic reaches the client: the view shakes");
 			check(ctx.computeOnClient(mc -> ClientPanting.panting(mc.player.getId())), "and the heavy breathing starts");
 			float spread = server.computeOnServer(s -> Guns.spread(player(s), HwItems.Kind.REVOLVER, true));
-			check(spread > HwConfig.get().revolverAimSpread + 3f, "a gun shakes in a panicking hand (" + spread + " degrees)");
+			check(spread > HwConfig.get().revolverAimSpread + 1.5f, "a gun shakes in a panicking hand (" + spread + " degrees)");
 			float before = server.computeOnServer(s -> Stamina.value(player(s)));
 			ctx.waitTicks(40);
 			float after = server.computeOnServer(s -> Stamina.value(player(s)));

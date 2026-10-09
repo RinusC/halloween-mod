@@ -269,6 +269,7 @@ public final class Match {
 		Fight.clear(server);
 		Weather.clear(server);
 		Perks.end();
+		Traps.clear(server);
 		Noise.clear();
 		Leftovers.end();
 		Panic.clear();

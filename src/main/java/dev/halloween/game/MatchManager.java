@@ -269,6 +269,7 @@ public final class MatchManager {
 		Lobby.tick(server);
 		Leftovers.tick(server);
 		Noise.tick(server);
+		Traps.tick(server);
 		Panic.tick(server);
 		Stamina.tick(server);
 		Holds.tick(server);
@@ -417,7 +418,7 @@ public final class MatchManager {
 		if (state.grab != null && state.grab.struggling() && state.stunnedTicks == 0 && !Match.frozen()) {
 			// Holding someone: he can still shuffle along, very slowly, dragging them.
 			speed = cfg.grabSpeedModifier;
-		} else if (state.busy() || Match.frozen()) {
+		} else if (state.busy() || Match.frozen() || state.trappedTicks > 0 && state.shadowTicks == 0) {
 			speed = -1;
 		} else if (state.shadowTicks > 0) {
 			speed += HwConfig.at(cfg.shapeJumpSpeedByTier, state.tier());
@@ -427,6 +428,9 @@ public final class MatchManager {
 			speed += cfg.senseSpeedModifier;
 		} else if (state.dashTicks > 0) {
 			speed += cfg.dashSpeedModifier;
+		}
+		if (state.trappedTicks > 0) {
+			state.trappedTicks--;
 		}
 		if (state.pushedTicks > 0) {
 			// Shoved by a survivor: staggering for a moment.

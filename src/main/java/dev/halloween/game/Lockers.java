@@ -53,6 +53,13 @@ public final class Lockers {
 	private static final Map<BlockPos, Integer> OPENED = new HashMap<>();
 	/** Bots and townsfolk getting in quietly: how far along {count, last tick}, and into which locker. */
 	private static final Map<UUID, int[]> CLIMBING = new HashMap<>();
+	/** Who came out for air, until when they can't get into a locker again (nobody spends a whole match inside). */
+	private static final Map<UUID, Integer> BREATHING = new HashMap<>();
+
+	private static boolean needsAir(LivingEntity who) {
+		Integer until = BREATHING.get(who.getUUID());
+		return until != null && who.level().getServer().getTickCount() < until;
+	}
 	private static final Map<UUID, BlockPos> CLIMBING_INTO = new HashMap<>();
 
 	private Lockers() {
@@ -145,6 +152,10 @@ public final class Lockers {
 		if (!Match.running() || !MatchManager.role(player).survivor() || !LockerBlock.is(level.getBlockState(base)) || isInside(player)) {
 			return null;
 		}
+		if (needsAir(player)) {
+			player.sendOverlayMessage(Component.translatable("halloween.locker.need_air").withStyle(ChatFormatting.GRAY));
+			return null;
+		}
 		if (player.isSprinting() || OCCUPIED.containsKey(base)) {
 			enter(player, base, true);
 			return null;
@@ -162,6 +173,11 @@ public final class Lockers {
 		BlockPos base = LockerBlock.base(level, clicked);
 		if (isInside(who)) {
 			return 1;
+		}
+		if (needsAir(who)) {
+			// Just out for air: somewhere else will have to do for now.
+			CLIMBING.remove(who.getUUID());
+			return -1;
 		}
 		if (!LockerBlock.is(level.getBlockState(base)) || OCCUPIED.containsKey(base) || who.position().distanceTo(center(base)) > 2.6) {
 			CLIMBING.remove(who.getUUID());
@@ -197,7 +213,7 @@ public final class Lockers {
 		ServerLevel level = (ServerLevel) who.level();
 		BlockPos base = LockerBlock.base(level, clicked);
 		BlockState state = level.getBlockState(base);
-		if (!Match.running() || !LockerBlock.is(state) || isInside(who) || MatchManager.isHeld(who)) {
+		if (!Match.running() || !LockerBlock.is(state) || isInside(who) || MatchManager.isHeld(who) || needsAir(who)) {
 			return false;
 		}
 		ServerPlayer player = who instanceof ServerPlayer p ? p : null;
@@ -247,6 +263,9 @@ public final class Lockers {
 		BlockPos out = inside.base.relative(inside.facing);
 		place(who, Vec3.atBottomCenterOf(out), inside.facing.toYRot());
 		level.playSound(null, out, HwSounds.LOCKER_CLOSE, SoundSource.PLAYERS, outOfAir ? 1.2f : 0.4f, 0.9f);
+		if (outOfAir) {
+			BREATHING.put(who.getUUID(), level.getServer().getTickCount() + HwConfig.get().lockerBreathTicks);
+		}
 		if (outOfAir && who instanceof ServerPlayer player) {
 			player.sendOverlayMessage(Component.translatable("halloween.locker.out_of_air").withStyle(ChatFormatting.GOLD));
 		}
@@ -383,6 +402,7 @@ public final class Lockers {
 
 	public static void clear(MinecraftServer server) {
 		OPENED.clear();
+		BREATHING.clear();
 		CLIMBING.clear();
 		CLIMBING_INTO.clear();
 		for (Inside inside : new ArrayList<>(INSIDE.values())) {

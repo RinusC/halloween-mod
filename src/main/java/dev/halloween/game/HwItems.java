@@ -53,6 +53,9 @@ public final class HwItems {
 		ROCK("minecraft:flint", 0, 0.25f, 0),
 		BASEBALL("minecraft:snowball", 0, 0.20f, 0),
 		FIRECRACKERS("minecraft:firework_rocket"),
+		// Traps: set down at your feet.
+		BEAR_TRAP("minecraft:heavy_weighted_pressure_plate"),
+		TIN_CANS("minecraft:tripwire_hook"),
 		// First aid.
 		HEALING_SPRAY(OWN, 3, 0f, 0),
 		MED_KIT(OWN),

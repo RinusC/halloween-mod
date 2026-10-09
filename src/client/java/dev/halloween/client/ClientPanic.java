@@ -42,7 +42,7 @@ public final class ClientPanic {
 		if (panic < 0.05f) {
 			return null;
 		}
-		float amp = panic * panic * 1.6f;
+		float amp = panic * panic * 0.8f;
 		float yaw = amp * (Mth.sin(time * 0.83f) * 0.6f + Mth.sin(time * 2.17f) * 0.4f);
 		float pitch = amp * 0.7f * (Mth.sin(time * 1.13f + 1.3f) * 0.6f + Mth.sin(time * 2.71f) * 0.4f);
 		return new float[]{yaw, pitch};

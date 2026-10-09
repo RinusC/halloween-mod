@@ -35,6 +35,8 @@ public final class ShapeState {
 	public int stunnedTicks;
 	/** Slowed after a survivor shoved him. */
 	public int pushedTicks;
+	/** Caught in a bear trap: can't take a step until this runs out. */
+	public int trappedTicks;
 	/** In a flashlight beam (counts as light), and blinded by it. */
 	public int litTicks;
 	public int blindTicks;
