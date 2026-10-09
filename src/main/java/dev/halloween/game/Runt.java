@@ -261,17 +261,12 @@ public final class Runt {
 			if (s.outTicks > 0 && --s.outTicks == 0) {
 				comeBack(p);
 			}
-			if (now >= s.passiveAt) {
-				s.passiveAt = now + cfg.runtFearPassiveTicks;
-				gain(p, s, 1);
-			}
+
 			pounceTick(p, s, now);
 			if (s.holding != null) {
 				tickHold(p, s, now);
 			}
-			if (now % 5 == 0) {
-				RuntFear.tick(p, s, now);
-			}
+
 			if (s.has("dread") && now % 20 == 0 && s.outTicks == 0) {
 				for (ServerPlayer v : p.level().players()) {
 					if (MatchManager.role(v).survivor() && !v.isSpectator() && v.distanceTo(p) < cfg.runtDreadRange) {
@@ -290,7 +285,7 @@ public final class Runt {
 	}
 
 	/** Can't take a step (knocked down, trapped, chased off, holding on). */
-	static void root(ServerPlayer p, boolean on) {
+	static void root(net.minecraft.world.entity.LivingEntity p, boolean on) {
 		AttributeInstance speed = p.getAttribute(Attributes.MOVEMENT_SPEED);
 		if (on && speed.getModifier(ROOT_ID) == null) {
 			speed.addTransientModifier(new AttributeModifier(ROOT_ID, -1.0, AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
@@ -401,6 +396,18 @@ public final class Runt {
 				return;
 			}
 		}
+		for (net.minecraft.world.entity.decoration.Mannequin npc : Townsfolk.bodies()) {
+			if (!Lockers.isInside(npc) && !MatchManager.isHeld(npc) && heldBy(npc) == null && reach.intersects(npc.getBoundingBox())) {
+				// A townsperson: on their back too.
+				s.leapTicks = 0;
+				s.secondChance = false;
+				p.level().playSound(null, npc.getX(), npc.getY(), npc.getZ(), SoundEvents.PHANTOM_BITE, SoundSource.HOSTILE, 1.2f, 0.6f);
+				gain(p, s, cfg.runtFearPounceNpc);
+				startHold(p, s, npc);
+				AiStats.add(p, "runt.pounce_npc");
+				return;
+			}
+		}
 		if (s.leapTicks > 3 && p.onGround() || s.leapTicks > 40) {
 			s.leapTicks = 0;
 			p.level().playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.PLAYER_ATTACK_KNOCKBACK, SoundSource.HOSTILE, 1f, 0.6f);
@@ -419,12 +426,6 @@ public final class Runt {
 
 	// ---------------------------------------------------------------- frightening for real, and Michael's orders
 
-	/** His laugh key: a giggle or a whisper everyone near hears as if from everywhere. */
-	public static boolean laugh(ServerPlayer runt) {
-		State s = RUNTS.get(runt.getUUID());
-		return s != null && Match.running() && RuntFear.laugh(runt, s);
-	}
-
 	/** Knocking on a door or a window. */
 	public static boolean knock(ServerPlayer runt, BlockPos pos) {
 		State s = RUNTS.get(runt.getUUID());
@@ -438,7 +439,9 @@ public final class Runt {
 		}
 		ServerLevel level = michael.level();
 		Entity target = targetId < 0 ? null : level.getEntity(targetId);
-		ServerPlayer survivor = target instanceof ServerPlayer sp && MatchManager.role(sp).survivor() && !sp.isSpectator() ? sp : null;
+		// A survivor or a townsperson he points it at.
+		net.minecraft.world.entity.LivingEntity survivor = target instanceof ServerPlayer sp && MatchManager.role(sp).survivor() && !sp.isSpectator() ? sp
+			: Townsfolk.isNpc(target) && target instanceof net.minecraft.world.entity.LivingEntity l ? l : null;
 		for (State s : RUNTS.values()) {
 			if (s.brain != null) {
 				s.brain.order(kind, survivor, pos, level.getServer().getTickCount());
@@ -507,7 +510,6 @@ public final class Runt {
 			if (s.has("hex")) {
 				hex(v);
 			}
-			gain(runt, s, cfg.runtFearScare);
 			s.scareCooldown = s.scareCooldownMax = scareCooldown(s);
 			AiStats.add(runt, "runt.scare");
 		}
@@ -524,7 +526,6 @@ public final class Runt {
 					ServerPlayNetworking.send(shape, new HwNet.Impulse(List.of(target.getId()), List.of(target.position()), cfg.runtScareRevealTicks));
 				}
 			}
-			gain(runt, s, cfg.runtFearNpc);
 			s.scareCooldown = s.scareCooldownMax = scareCooldown(s) / 2;
 			AiStats.add(runt, "runt.scare_npc");
 		}
@@ -577,72 +578,111 @@ public final class Runt {
 		return until != null && who.level().getServer() != null && who.level().getServer().getTickCount() < until;
 	}
 
-	private static void startHold(ServerPlayer runt, State s, ServerPlayer v) {
+	private static void startHold(ServerPlayer runt, State s, net.minecraft.world.entity.LivingEntity v) {
 		HwConfig cfg = HwConfig.get();
 		int now = runt.level().getServer().getTickCount();
 		s.holding = v.getUUID();
-		// A bot gets its hands off his in about the time a person would, give or take.
+		// A bot or a townsperson gets its hands off his in about the time a person would, give or take.
 		s.botFreeAt = now + cfg.runtBotFreeTicks * 2 / 3 + runt.getRandom().nextInt(cfg.runtBotFreeTicks * 2 / 3 + 1);
 		root(v, true);
 		MatchManager.noJumping(v, true);
-		Notices.send(v, Component.translatable("halloween.runt.holding_you").withStyle(ChatFormatting.DARK_RED));
-		if (!(v instanceof BotPlayer)) {
-			Minigames.open(v, HwNet.Minigame.HANDS, v.blockPosition());
+		// Hands round their throat, them clawing at his.
+		GrabSession.anim(runt, HwNet.Anim.STRANGLE);
+		GrabSession.anim(v, HwNet.Anim.STRUGGLE);
+		if (v instanceof ServerPlayer p) {
+			Notices.send(p, Component.translatable("halloween.runt.holding_you").withStyle(ChatFormatting.DARK_RED));
+			if (!(p instanceof BotPlayer)) {
+				Minigames.open(p, HwNet.Minigame.HANDS, p.blockPosition());
+			}
+		} else {
+			Townsfolk.frighten(v, runt, now);
 		}
-		reveal(runt.level(), v, cfg.runtScareRevealTicks * 3);
+		revealAny(runt.level(), v, cfg.runtScareRevealTicks * 3);
 		for (ServerPlayer shape : runt.level().players()) {
 			if (MatchManager.role(shape) == Role.SHAPE) {
-				Notices.send(shape, Component.translatable("halloween.runt.holding", v.getDisplayName(), Landmarks.describe(v.level(), v.position()))
+				Notices.send(shape, Component.translatable("halloween.runt.holding", v.getDisplayName(), Landmarks.describe(runt.level(), v.position()))
 					.withStyle(ChatFormatting.GOLD));
 			}
 		}
 		AiStats.add(runt, "runt.hold");
 	}
 
+	/** Whoever he is clinging to: a survivor or a townsperson. */
+	private static net.minecraft.world.entity.LivingEntity victim(ServerPlayer runt, State s) {
+		if (s.holding == null) {
+			return null;
+		}
+		ServerPlayer p = runt.level().getServer().getPlayerList().getPlayer(s.holding);
+		if (p != null) {
+			return p;
+		}
+		return runt.level().getEntity(s.holding) instanceof net.minecraft.world.entity.LivingEntity l ? l : null;
+	}
+
+	/** Michael sees where somebody is for a while (a survivor or a townsperson). */
+	private static void revealAny(ServerLevel level, net.minecraft.world.entity.LivingEntity v, int ticks) {
+		for (ServerPlayer shape : level.players()) {
+			if (MatchManager.role(shape) == Role.SHAPE) {
+				ServerPlayNetworking.send(shape, new HwNet.Impulse(List.of(v.getId()), List.of(v.position()), ticks));
+			}
+		}
+	}
+
 	private static void tickHold(ServerPlayer runt, State s, int now) {
 		HwConfig cfg = HwConfig.get();
-		ServerPlayer v = runt.level().getServer().getPlayerList().getPlayer(s.holding);
-		if (v == null || v.isSpectator() || !MatchManager.role(v).survivor() || s.stunTicks > 0 || s.outTicks > 0) {
+		net.minecraft.world.entity.LivingEntity v = victim(runt, s);
+		boolean gone = v == null || v.isRemoved() || !v.isAlive() || v.isSpectator()
+			|| v instanceof ServerPlayer p && !MatchManager.role(p).survivor();
+		if (gone || s.stunTicks > 0 || s.outTicks > 0) {
 			release(runt, s, true);
 			return;
 		}
-		if (MatchManager.isGrabbed(v)) {
+		if (MatchManager.isHeld(v) || v instanceof ServerPlayer p && MatchManager.isGrabbed(p)) {
 			// Michael has them now: the job is done.
 			gain(runt, s, cfg.runtFearHeldForMichael);
 			release(runt, s, false);
 			return;
 		}
-		if (v instanceof BotPlayer && now >= s.botFreeAt) {
-			freed(v);
-			return;
+		if (!(v instanceof ServerPlayer) || v instanceof BotPlayer) {
+			if (now >= s.botFreeAt) {
+				freed(v);
+				return;
+			}
 		}
 		if (now % 100 == 0) {
 			// Michael keeps knowing where they are while they are pinned.
-			reveal(runt.level(), v, 110);
+			revealAny(runt.level(), v, 110);
 		}
 		// On their back, clinging.
 		Vec3 back = v.position().subtract(v.getLookAngle().multiply(1, 0, 1).normalize().scale(0.45));
-		runt.teleportTo(runt.level(), back.x, v.getY() + 0.6, back.z, java.util.Set.of(), v.getYRot(), 20f, false);
-		if (now % 20 == 0) {
-			Panic.add(v, 0.03f);
+		runt.teleportTo(runt.level(), back.x, v.getY() + 0.8, back.z, java.util.Set.of(), v.getYRot(), 20f, false);
+		if (now % 20 == 0 && v instanceof ServerPlayer p) {
+			Panic.add(p, 0.03f);
 		}
-		if (!(v instanceof BotPlayer) && !Minigames.active(v)) {
+		if (v instanceof ServerPlayer p && !(p instanceof BotPlayer) && !Minigames.active(p)) {
 			// Esc doesn't get rid of him: the hands are still there.
-			Minigames.open(v, HwNet.Minigame.HANDS, v.blockPosition());
+			Minigames.open(p, HwNet.Minigame.HANDS, p.blockPosition());
 		}
 	}
 
-	/** Lets go: time up, knocked off, or Michael took over. */
+	/** Lets go: knocked off, thrown off, or Michael took over. */
 	private static void release(ServerPlayer runt, State s, boolean cooldown) {
 		if (s.holding == null) {
 			return;
 		}
-		ServerPlayer v = runt.level().getServer().getPlayerList().getPlayer(s.holding);
+		net.minecraft.world.entity.LivingEntity v = victim(runt, s);
 		s.holding = null;
+		GrabSession.anim(runt, HwNet.Anim.NONE);
 		if (v != null) {
 			root(v, false);
-			MatchManager.noJumping(v, false);
-			Minigames.close(v);
+			if (v instanceof ServerPlayer p) {
+				// (Townsfolk never jump: they keep their no-jumping.)
+				MatchManager.noJumping(p, false);
+				Minigames.close(p);
+			}
+			if (!MatchManager.isHeld(v)) {
+				GrabSession.anim(v, HwNet.Anim.NONE);
+			}
 			// Off their back onto the ground behind.
 			Vec3 behind = v.position().subtract(v.getLookAngle().multiply(1, 0, 1).normalize().scale(0.9));
 			runt.teleportTo(runt.level(), behind.x, v.getY(), behind.z, java.util.Set.of(), runt.getYRot(), 0f, false);
@@ -652,8 +692,8 @@ public final class Runt {
 		}
 	}
 
-	/** Who is clinging on to this survivor, if anyone. */
-	public static ServerPlayer heldBy(ServerPlayer victim) {
+	/** Who is clinging on to this survivor (or townsperson), if anyone. */
+	public static ServerPlayer heldBy(net.minecraft.world.entity.LivingEntity victim) {
 		for (Map.Entry<UUID, State> e : RUNTS.entrySet()) {
 			if (victim.getUUID().equals(e.getValue().holding)) {
 				return victim.level().getServer().getPlayerList().getPlayer(e.getKey());
@@ -670,8 +710,8 @@ public final class Runt {
 		return heldBy(victim) != null;
 	}
 
-	/** The hands game won (or a bot's hands got free): he is thrown off and lands on his back. */
-	public static void freed(ServerPlayer victim) {
+	/** The hands game won (or a bot's or a townsperson's hands got free): he is thrown off and lands on his back. */
+	public static void freed(net.minecraft.world.entity.LivingEntity victim) {
 		ServerPlayer runt = heldBy(victim);
 		State s = runt == null ? null : RUNTS.get(runt.getUUID());
 		if (s == null) {
@@ -681,7 +721,9 @@ public final class Runt {
 		release(runt, s, true);
 		knock(runt, victim, cfg.runtShoveStrength);
 		floor(runt, s, cfg.runtShoveStunTicks);
-		Match.score(victim, cfg.scoreShakeRunt, Component.translatable("halloween.score.shake_runt"));
+		if (victim instanceof ServerPlayer p) {
+			Match.score(p, cfg.scoreShakeRunt, Component.translatable("halloween.score.shake_runt"));
+		}
 		AiStats.add(victim, "runt.shaken_off");
 	}
 
@@ -841,7 +883,7 @@ public final class Runt {
 		}
 		level.playSound(null, pos, SoundEvents.VEX_AMBIENT, SoundSource.HOSTILE, 1f, 0.8f);
 		s.trickCooldown = s.trickCooldownMax = cfg.runtMischiefCooldownTicks;
-		gain(runt, s, cfg.runtFearMischief);
+
 		Notices.send(runt, Component.translatable("halloween.runt.mischief." + did).withStyle(ChatFormatting.DARK_PURPLE));
 		AiStats.add(runt, "runt.mischief." + did);
 		return true;

@@ -323,6 +323,7 @@ public class HwConfig {
 	public double runtPounceMaxDistance = 9;
 	public int runtPounceMissStunTicks = 100;
 	public float runtFearPounce = 12f;
+	public float runtFearPounceNpc = 8f;
 	/** A bot he holds tears his hands off in this many ticks, give or take. */
 	public int runtBotFreeTicks = 120;
 	/** Fear for really frightening people (see game.RuntFear). */

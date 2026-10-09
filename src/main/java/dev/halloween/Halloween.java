@@ -74,7 +74,9 @@ public class Halloween implements ModInitializer {
 				case ITEM_USE -> dev.halloween.game.Gear.use(ctx.player());
 				case STAB -> dev.halloween.game.Gear.stab(ctx.player());
 				case RUNT_SPECIAL -> dev.halloween.game.Runt.special(ctx.player());
-				case RUNT_LAUGH -> dev.halloween.game.Runt.laugh(ctx.player());
+				case RUNT_LAUGH -> {
+					// (The Runt's laugh is gone.)
+				}
 			}
 		});
 

@@ -1243,8 +1243,6 @@ public final class HwHud {
 		int sy = baseY - 40;
 		smallAction(g, font, w - 10, sy, Component.translatable("halloween.hud.runt.pounce"), mc.options.keyShift.getTranslatedKeyMessage(), 0);
 		sy -= 11;
-		smallAction(g, font, w - 10, sy, Component.translatable("halloween.hud.runt.laugh"), HalloweenClient.KEY_IMPULSE.getTranslatedKeyMessage(), hud.laughCooldown());
-		sy -= 11;
 		smallAction(g, font, w - 10, sy, Component.translatable("halloween.hud.runt.knock"), mc.options.keyAttack.getTranslatedKeyMessage(), hud.knockCooldown());
 		sy -= 11;
 		boolean swap = hud.picks().get(2) == 1;

@@ -334,7 +334,7 @@ public class HalloweenClient implements ClientModInitializer {
 			ClientPlayNetworking.send(new HwNet.ActionPress(HwNet.Action.RUNT_SPECIAL));
 		}
 		while (KEY_IMPULSE.consumeClick()) {
-			ClientPlayNetworking.send(new HwNet.ActionPress(HwNet.Action.RUNT_LAUGH));
+			// Michael's key: nothing for the Runt.
 		}
 		while (KEY_RUNT_ORDER.consumeClick()) {
 			// Michael's key.

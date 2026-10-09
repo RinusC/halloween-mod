@@ -52,29 +52,30 @@ public class RuntClientTest implements FabricClientGameTest {
 			check(server.computeOnServer(s -> s.getPlayerList().getPlayers().stream().filter(p -> MatchManager.role(p) == Role.CIVILIAN).count()) == 2,
 				"two bot civilians to frighten");
 			ctx.takeScreenshot("runt_hud");
-			// A fright: the survivor panics, he gains fear and has to wait.
-			String victim = server.computeOnServer(s -> {
-				ServerPlayer bot = civilian(s);
-				ServerPlayer runt = player(s);
-				runt.teleportTo(s.overworld(), bot.getX() + 1.2, bot.getY(), bot.getZ(), java.util.Set.of(), 90f, 0f, false);
-				return bot.getScoreboardName();
-			});
-			ctx.waitTicks(2);
+			// A fright: the survivor panics (no fear for it: that comes from the pounce and knocking), then he has to wait.
+			// (Moved next to them and frightening in the same tick: a bot knocks him down when he comes near.)
+			String victim = server.computeOnServer(s -> civilian(s).getScoreboardName());
 			boolean scared = server.computeOnServer(s -> {
 				ServerPlayer bot = s.getPlayerList().getPlayerByName(victim);
-				float before = Panic.value(bot);
-				return Runt.scare(player(s), bot) && Panic.value(bot) > before;
+				Panic.set(bot, 0f);
+				// Somewhere next to them with nothing between (the arena has walls about).
+				for (double[] off : new double[][]{{1.2, 0}, {-1.2, 0}, {0, 1.2}, {0, -1.2}, {0.4, 0}}) {
+					player(s).teleportTo(s.overworld(), bot.getX() + off[0], bot.getY(), bot.getZ() + off[1], java.util.Set.of(), 90f, 0f, false);
+					if (Runt.scare(player(s), bot)) {
+						return Panic.value(bot) > 0f;
+					}
+				}
+				return false;
 			});
 			check(scared, "a fright panics a survivor");
-			check(server.computeOnServer(s -> Runt.state(player(s)).fear >= HwConfig.get().runtFearScare && Runt.state(player(s)).scareCooldown > 0),
-				"and feeds him, then he has to wait");
+			check(server.computeOnServer(s -> Runt.state(player(s)).fear == 0 && Runt.state(player(s)).scareCooldown > 0), "no fear for it, and then he has to wait");
 			check(server.computeOnServer(s -> !Runt.scare(player(s), s.getPlayerList().getPlayerByName(victim))), "no second fright straight away");
 			// Level one: two gifts to pick from.
 			server.runOnServer(s -> {
 				Runt.State st = Runt.state(player(s));
-				st.fear = HwConfig.get().runtLevelFear[0] - 1;
-				st.scareCooldown = 0;
-				Runt.scare(player(s), s.getPlayerList().getPlayerByName(victim));
+				st.fear = HwConfig.get().runtLevelFear[0];
+				st.level = 1;
+				st.stunTicks = 0;
 			});
 			check(server.computeOnServer(s -> Runt.state(player(s)).level == 1 && Runt.state(player(s)).pending() == 0), "level one: a gift to pick");
 			ctx.waitTicks(10);
@@ -89,6 +90,7 @@ public class RuntClientTest implements FabricClientGameTest {
 				runt.teleportTo(s.overworld(), c.getX() + 0.5, c.getY(), c.getZ() + 0.5, java.util.Set.of(), 0f, 0f, false);
 				Runt.State st = Runt.state(runt);
 				st.scareCooldown = 0;
+				st.stunTicks = 0;
 				st.crouch = HwConfig.get().runtPounceChargeTicks / 2;
 			});
 			ctx.waitTicks(3);
@@ -97,12 +99,18 @@ public class RuntClientTest implements FabricClientGameTest {
 				ctx.waitTicks(3);
 			}
 			check(server.computeOnServer(s -> Runt.state(player(s)).stunTicks == 0), "a miss: the clinger gets another go");
-			server.runOnServer(s -> Runt.state(player(s)).crouch = HwConfig.get().runtPounceChargeTicks / 2);
-			ctx.waitTicks(3);
+			server.runOnServer(s -> {
+				Runt.State st = Runt.state(player(s));
+				st.stunTicks = 0;
+				st.crouch = HwConfig.get().runtPounceChargeTicks / 2;
+			});
+			for (int i = 0; i < 10 && server.computeOnServer(s -> Runt.state(player(s)).leapTicks == 0); i++) {
+				ctx.waitTicks(1);
+			}
 			for (int i = 0; i < 20 && server.computeOnServer(s -> Runt.state(player(s)).leapTicks > 0); i++) {
 				ctx.waitTicks(3);
 			}
-			check(server.computeOnServer(s -> Runt.state(player(s)).stunTicks > 0), "a second miss floors him");
+			check(server.computeOnServer(s -> Runt.state(player(s)).stunTicks > 0 || Runt.state(player(s)).holding != null), "a second miss floors him (unless it landed on somebody)");
 			// Right on them: on their back, hands at their throat, for as long as it takes them to tear the hands off.
 			server.runOnServer(s -> {
 				Runt.State st = Runt.state(player(s));
@@ -111,6 +119,10 @@ public class RuntClientTest implements FabricClientGameTest {
 			});
 			ctx.waitTicks(3);
 			check(server.computeOnServer(s -> Runt.state(player(s)).holding != null), "a pounce that lands on someone puts him on their back");
+			int runtId = server.computeOnServer(s -> player(s).getId());
+			int victimId = server.computeOnServer(s -> s.getPlayerList().getPlayerByName(victim).getId());
+			check(ctx.computeOnClient(mc -> dev.halloween.client.ClientAnims.LAST.getOrDefault(runtId, -1) == dev.halloween.net.HwNet.Anim.STRANGLE
+				&& dev.halloween.client.ClientAnims.LAST.getOrDefault(victimId, -1) == dev.halloween.net.HwNet.Anim.STRUGGLE), "he strangles them, they claw at his hands");
 			ctx.waitTicks(10);
 			check(ctx.computeOnClient(mc -> mc.options.getCameraType() == net.minecraft.client.CameraType.THIRD_PERSON_BACK), "riding them, he sees himself from behind");
 			ctx.takeScreenshot("runt_riding");
@@ -142,39 +154,72 @@ public class RuntClientTest implements FabricClientGameTest {
 				over = server.computeOnServer(s -> Runt.state(player(s)).holding == null);
 			}
 			check(over && server.computeOnServer(s -> Runt.state(player(s)).stunTicks > 0), "no time limit: the bot tears his hands off in its own time and throws him");
-			// Fear for frightening people for real: a giggle everybody near hears, knocking on a door.
+			// Fear from knocking: on a door near people, they hear it.
 			check(server.computeOnServer(s -> {
 				ServerPlayer runt = player(s);
 				Runt.State st = Runt.state(runt);
 				st.stunTicks = 0;
 				ServerPlayer bot = s.getPlayerList().getPlayerByName(victim);
-				runt.teleportTo(s.overworld(), bot.getX() + 6, bot.getY(), bot.getZ(), java.util.Set.of(), 0f, 0f, false);
-				float fear = st.fear;
-				float panic = Panic.value(bot);
-				return Runt.laugh(runt) && st.fear > fear && Panic.value(bot) > panic && !Runt.laugh(runt);
-			}), "a giggle: those near panic, he feeds on it (then a pause)");
-			// Ambush: unseen for a while, then right in front of them.
-			server.runOnServer(s -> HwConfig.get().runtAmbushHiddenTicks = 20);
-			int ambushes = server.computeOnServer(s -> AiStats.snapshot().getOrDefault("*total", Map.of()).getOrDefault("runt.fear.ambush", 0));
-			server.runOnServer(s -> {
-				ServerPlayer bot = s.getPlayerList().getPlayerByName(victim);
+				for (BlockPos p : BlockPos.betweenClosed(runt.blockPosition().offset(-40, -2, -40), runt.blockPosition().offset(40, 3, 40))) {
+					if (DoorLocks.isDoor(s.overworld().getBlockState(p))) {
+						BlockPos door = DoorLocks.base(s.overworld(), p.immutable());
+						// Him at the door, them a few steps off: in earshot.
+						runt.teleportTo(s.overworld(), door.getX() + 0.5, door.getY(), door.getZ() + 0.5, java.util.Set.of(), 180f, 0f, false);
+						bot.teleportTo(s.overworld(), door.getX() + 0.5, door.getY(), door.getZ() + 0.5, java.util.Set.of(), 0f, 0f, false);
+						float fear = st.fear;
+						Panic.set(bot, 0f);
+						float panic = Panic.value(bot);
+						return Runt.knock(runt, door) && st.fear > fear && Panic.value(bot) > panic && !Runt.knock(runt, door);
+					}
+				}
+				return false;
+			}), "knocking on a door: those near jump, he feeds on it (then a pause)");
+			// Townsfolk: a pounce lands on them too, for fear of his own.
+			check(server.computeOnServer(s -> {
 				ServerPlayer runt = player(s);
-				Vec3 back = bot.position().subtract(bot.getViewVector(1f).multiply(1, 0, 1).normalize().scale(40));
-				runt.teleportTo(s.overworld(), back.x, bot.getY(), back.z, java.util.Set.of(), 0f, 0f, false);
-			});
-			ctx.waitTicks(30);
-			boolean ambushed = false;
-			for (int i = 0; i < 10 && !ambushed; i++) {
-				server.runOnServer(s -> {
-					ServerPlayer bot = s.getPlayerList().getPlayerByName(victim);
-					Vec3 front = bot.getEyePosition().add(bot.getViewVector(1f).multiply(1, 0, 1).normalize().scale(2.5));
-					player(s).teleportTo(s.overworld(), front.x, bot.getY(), front.z, java.util.Set.of(), 0f, 0f, false);
-				});
+				Runt.State st = Runt.state(runt);
+				st.stunTicks = 0;
+				var npc = dev.halloween.game.Townsfolk.bodies().stream().filter(m -> !dev.halloween.game.Lockers.isInside(m)).findFirst().orElseThrow();
+				runt.teleportTo(s.overworld(), npc.getX() + 0.3, npc.getY() + 0.3, npc.getZ(), java.util.Set.of(), 90f, 0f, false);
+				st.leapTicks = 1;
+				return true;
+			}), "a townsperson to pounce on");
+			ctx.waitTicks(3);
+			float fearBefore = server.computeOnServer(s -> Runt.state(player(s)).fear);
+			check(server.computeOnServer(s -> Runt.state(player(s)).holding != null && dev.halloween.game.Townsfolk.isNpc(s.overworld().getEntity(Runt.state(player(s)).holding))),
+				"a pounce lands on a townsperson too");
+			boolean npcFree = false;
+			for (int i = 0; i < 60 && !npcFree; i++) {
 				ctx.waitTicks(5);
-				ambushed = server.computeOnServer(s -> AiStats.snapshot().getOrDefault("*total", Map.of()).getOrDefault("runt.fear.ambush", 0)) > ambushes;
+				npcFree = server.computeOnServer(s -> Runt.state(player(s)).holding == null);
 			}
-			check(ambushed, "an ambush: unseen a while, then right in front of them");
-			server.runOnServer(s -> HwConfig.get().runtAmbushHiddenTicks = new HwConfig().runtAmbushHiddenTicks);
+			check(npcFree, "the townsperson tears his hands off in time");
+			// Survivors (bots) knock him down whenever he comes near.
+			server.runOnServer(s -> {
+				Runt.State st = Runt.state(player(s));
+				st.stunTicks = 0;
+				ServerPlayer bot = s.getPlayerList().getPlayerByName(victim);
+				player(s).teleportTo(s.overworld(), bot.getX() + 1.5, bot.getY(), bot.getZ(), java.util.Set.of(), 90f, 0f, false);
+			});
+			boolean downed = false;
+			for (int i = 0; i < 30 && !downed; i++) {
+				ctx.waitTicks(4);
+				downed = server.computeOnServer(s -> Runt.state(player(s)).stunTicks > 0);
+				if (!downed) {
+					server.runOnServer(s -> {
+						ServerPlayer bot = s.getPlayerList().getPlayerByName(victim);
+						if (dev.halloween.game.Lockers.isInside(bot)) {
+							dev.halloween.game.Lockers.leave(bot, false);
+						}
+						Stamina.set(bot, 1f);
+						player(s).teleportTo(s.overworld(), bot.getX() + 1.5, bot.getY(), bot.getZ(), java.util.Set.of(), 90f, 0f, false);
+					});
+				}
+			}
+			check(downed, "a bot knocks him down when he comes near");
+			for (int i = 0; i < 40 && server.computeOnServer(s -> Runt.state(player(s)).stunTicks > 0); i++) {
+				ctx.waitTicks(5);
+			}
 			// A locker thrown open: whoever hides in it tumbles out, frightened.
 			BlockPos locker = server.computeOnServer(s -> dev.halloween.game.Lockers.nearestFree(s.overworld(), player(s).blockPosition(), 60));
 			check(locker != null, "a locker to try");
@@ -184,7 +229,7 @@ public class RuntClientTest implements FabricClientGameTest {
 				Runt.State st = Runt.state(player(s));
 				st.stunTicks = 0;
 				st.scareCooldown = 0;
-				Runt.hexed(bot);
+				Panic.set(bot, 0f);
 				bot.teleportTo(s.overworld(), front.getX() + 0.5, front.getY(), front.getZ() + 0.5, java.util.Set.of(), 0f, 0f, false);
 				boolean in = dev.halloween.game.Lockers.enter(bot, locker, false);
 				player(s).teleportTo(s.overworld(), front.getX() + 0.5, front.getY(), front.getZ() + 0.5, java.util.Set.of(), 0f, 0f, false);
@@ -252,7 +297,10 @@ public class RuntClientTest implements FabricClientGameTest {
 			});
 			check(door != null, "a door to try");
 			ctx.waitTicks(2);
-			check(server.computeOnServer(s -> Runt.mischief(player(s), door) && !DoorLocks.isLocked(s.overworld(), door)), "mischief: the locked door opens");
+			check(server.computeOnServer(s -> {
+				Runt.state(player(s)).stunTicks = 0;
+				return Runt.mischief(player(s), door) && !DoorLocks.isLocked(s.overworld(), door);
+			}), "mischief: the locked door opens");
 			// Level three, swap: a bot made Michael, trading places with him.
 			String michael = server.computeOnServer(s -> s.getPlayerList().getPlayers().stream().filter(p -> p instanceof BotPlayer && MatchManager.role(p) == Role.CIVILIAN
 				&& !p.getScoreboardName().equals(victim)).findFirst().orElseThrow().getScoreboardName());
@@ -268,6 +316,7 @@ public class RuntClientTest implements FabricClientGameTest {
 				ServerPlayer runt = player(s);
 				ServerPlayer m = s.getPlayerList().getPlayerByName(michael);
 				m.teleportTo(s.overworld(), runt.getX() + 20, runt.getY(), runt.getZ(), java.util.Set.of(), 0f, 0f, false);
+				Runt.state(runt).stunTicks = 0;
 				var a = runt.position();
 				var b = m.position();
 				return Runt.special(runt) && runt.position().distanceTo(b) < 0.5 && m.position().distanceTo(a) < 0.5;

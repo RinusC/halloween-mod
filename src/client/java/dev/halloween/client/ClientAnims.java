@@ -50,7 +50,7 @@ public final class ClientAnims {
 					s.riseStart = now();
 				}
 			}
-			case HwNet.Anim.HOLD, HwNet.Anim.STRUGGLE -> s.hold = payload.kind();
+			case HwNet.Anim.HOLD, HwNet.Anim.STRUGGLE, HwNet.Anim.STRANGLE -> s.hold = payload.kind();
 			case HwNet.Anim.REACH, HwNet.Anim.KNIFE_DOWN -> {
 				s.once = payload.kind();
 				s.onceStart = now();
@@ -145,6 +145,22 @@ public final class ClientAnims {
 			m.rightArm.yRot = -0.2f;
 			m.rightArm.zRot = 0.05f;
 			m.head.xRot = 0.1f;
+		} else if (s.hold == HwNet.Anim.STRANGLE) {
+			// The Runt on someone's back: both hands round their throat, squeezing and shaking, legs locked round them.
+			float shake = Mth.sin(now * 2.3f) * 0.07f;
+			float squeeze = Mth.sin(now * 0.7f) * 0.06f;
+			m.rightArm.xRot = -1.75f + shake;
+			m.leftArm.xRot = -1.75f - shake;
+			m.rightArm.yRot = -0.55f - squeeze;
+			m.leftArm.yRot = 0.55f + squeeze;
+			m.rightArm.zRot = 0.1f;
+			m.leftArm.zRot = -0.1f;
+			m.rightLeg.xRot = -1.3f;
+			m.leftLeg.xRot = -1.3f;
+			m.rightLeg.yRot = 0.45f;
+			m.leftLeg.yRot = -0.45f;
+			m.head.xRot = 0.35f + Mth.sin(now * 1.7f) * 0.05f;
+			m.head.zRot = Mth.sin(now * 0.9f) * 0.12f;
 		} else if (s.hold == HwNet.Anim.STRUGGLE) {
 			// Clawing at his arm, kicking, head thrown back, choking.
 			float a = Mth.sin(now * 0.9f);

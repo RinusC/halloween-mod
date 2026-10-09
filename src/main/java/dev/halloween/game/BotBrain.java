@@ -183,6 +183,7 @@ final class BotBrain {
 			this.walker.halt();
 			return;
 		}
+		this.fightRunt(now);
 		if (Windows.isVaulting(this.bot)) {
 			this.walker.halt();
 			this.wasVaulting = true;
@@ -319,22 +320,6 @@ final class BotBrain {
 		if (this.lockDoor != null) {
 			this.tickLock(now);
 			return;
-		}
-		for (ServerPlayer runt : Runt.all(this.level().getServer())) {
-			Runt.State rs = Runt.state(runt);
-			if (rs != null && rs.outTicks == 0 && this.bot.distanceTo(runt) < 2.4 && Fight.pushCooldown(this.bot) == 0) {
-				// The little one is at us: a weapon if we have one, else a shove.
-				this.walker.face(runt.getBoundingBox().getCenter());
-				if (this.meleeSlot() >= 0 && now >= this.nextHit) {
-					this.nextHit = now + cfg.survivorHitCooldownTicks + 4;
-					this.bot.getInventory().setSelectedSlot(this.meleeSlot());
-					this.bot.swing(InteractionHand.MAIN_HAND, true);
-					Fight.onSurvivorAttack(this.bot, runt);
-				} else {
-					Fight.survivorPush(this.bot);
-				}
-				AiStats.add(this.bot, "runt.fought");
-			}
 		}
 		ServerPlayer onUs = Senses.shape(this.level());
 		if (onUs != null && this.bot.distanceTo(onUs) < 2.4 && (this.meleeSlot() < 0 || now < this.nextHit) && Fight.pushCooldown(this.bot) == 0) {
@@ -693,6 +678,31 @@ final class BotBrain {
 			this.bot.setShiftKeyDown(true);
 			// Crouched in a corner, glancing about: mostly towards where he was.
 			this.look.tick(this.bot, now, this.random, true, this.threat, null);
+		}
+	}
+
+	/**
+	 * The Runt anywhere near, on its feet: knock it down, whatever we are doing (a weapon if we have one, else a
+	 * shove). Off a friend's back too.
+	 */
+	private void fightRunt(int now) {
+		HwConfig cfg = this.cfg();
+		for (ServerPlayer runt : Runt.all(this.level().getServer())) {
+			Runt.State rs = Runt.state(runt);
+			if (rs == null || rs.outTicks > 0 || rs.stunTicks > 0 || this.bot.distanceTo(runt) > 2.6 || Fight.pushCooldown(this.bot) > 0) {
+				continue;
+			}
+			this.walker.face(runt.getBoundingBox().getCenter());
+			if (this.meleeSlot() >= 0 && now >= this.nextHit) {
+				this.nextHit = now + cfg.survivorHitCooldownTicks + 4;
+				this.bot.getInventory().setSelectedSlot(this.meleeSlot());
+				this.bot.swing(InteractionHand.MAIN_HAND, true);
+				Fight.onSurvivorAttack(this.bot, runt);
+			} else {
+				Fight.survivorPush(this.bot);
+			}
+			AiStats.add(this.bot, "runt.fought");
+			return;
 		}
 	}
 

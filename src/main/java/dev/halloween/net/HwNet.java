@@ -302,6 +302,8 @@ public final class HwNet {
 		public static final int FALL = 9;
 		/** Gets back up after a fall. */
 		public static final int RISE = 10;
+		/** The Runt on somebody's back, strangling them. */
+		public static final int STRANGLE = 11;
 
 		public static final Type<Anim> TYPE = payloadType("anim");
 		public static final StreamCodec<RegistryFriendlyByteBuf, Anim> CODEC = StreamCodec.of((buf, v) -> {
