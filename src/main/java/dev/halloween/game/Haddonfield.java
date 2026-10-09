@@ -47,9 +47,16 @@ public final class Haddonfield extends MapPlan {
 		"spruce_planks", "brown_wool");
 
 	private final Random random = new Random(1978);
+	/** The varied town (/hw map town): the same streets, the lots built up differently. */
+	private final boolean varied;
 
 	public Haddonfield() {
+		this(false);
+	}
+
+	public Haddonfield(boolean varied) {
 		super(RIM, -4, 40);
+		this.varied = varied;
 		this.draw();
 	}
 
@@ -125,6 +132,10 @@ public final class Haddonfield extends MapPlan {
 	}
 
 	private void lots() {
+		if (this.varied) {
+			this.variedLots();
+			return;
+		}
 		// Row A, north side of Orange Grove (cemetery and school take the west and middle).
 		this.house(lot('A', 7), 2, true, STYLES[1], "Wallace", false);
 		this.randomHouse(lot('A', 8));
@@ -265,6 +276,10 @@ public final class Haddonfield extends MapPlan {
 
 		void locker(int u, int v, Direction facing) {
 			Haddonfield.this.locker(this.x(u), 0, this.z(v), this.mirror ? net.minecraft.world.level.block.Mirror.FRONT_BACK.mirror(facing) : facing);
+		}
+
+		void locker(int u, int y, int v, Direction facing) {
+			Haddonfield.this.locker(this.x(u), y, this.z(v), this.mirror ? net.minecraft.world.level.block.Mirror.FRONT_BACK.mirror(facing) : facing);
 		}
 
 		void bulb(int u, int y, int v) {
@@ -2262,4 +2277,1205 @@ public final class Haddonfield extends MapPlan {
 		Lot strode = lot('C', 5);
 		this.point(MapPoints.Type.GUN_CASE, strode.cx() + 3, 0, strode.z(9));
 	}
+
+	// ================================================================ the varied town (/hw map town)
+	//
+	// The same streets, park, cemetery, school, church and fence, but the lots are built up differently: houses of
+	// several sizes (cottages, bungalows, big two-storey houses with a garage, pairs of townhouses) whose rooms are
+	// laid out afresh every time, and a downtown with shops and flats above them, a cinema, police and fire
+	// stations, a post office, a clinic, and an industrial end with a warehouse, a garage, a scrapyard and a water
+	// tower. Haddonfield itself (/hw map haddonfield) is drawn exactly as before.
+
+	private void variedLots() {
+		// Row A, north side of Orange Grove (cemetery and school take the west and middle): the industrial end.
+		this.variedHouse(lot('A', 7));
+		this.waterTower(lot('A', 8));
+		this.junkyard(lot('A', 9));
+		// Row B, south side of Orange Grove.
+		this.variedHouse(lot('B', 0));
+		this.yardTrees(lot('B', 1));
+		this.cottage(lot('B', 2));
+		this.mansion(lot('B', 3));
+		this.bungalow(lot('B', 4));
+		this.yardTrees(lot('B', 5));
+		this.townhouses(lot('B', 6));
+		this.warehouse(lot('B', 7));
+		this.autoShop(lot('B', 8));
+		this.variedHouse(lot('B', 9));
+		// Row C, north side of Lampkin Lane: the Myers house and the Strode house stay.
+		this.variedHouse(lot('C', 0));
+		this.house(lot('C', 1), 2, true, MYERS, "Myers", true);
+		this.yardTrees(lot('C', 2));
+		this.cottage(lot('C', 3));
+		this.townhouses(lot('C', 4));
+		this.house(lot('C', 5), 2, true, STYLES[3], "Strode", false);
+		this.mansion(lot('C', 6));
+		this.yardTrees(lot('C', 7));
+		this.bungalow(lot('C', 8));
+		this.cottage(lot('C', 9));
+		// Row D, south side of Lampkin Lane: the town's services in the middle.
+		this.mansion(lot('D', 0));
+		this.yardTrees(lot('D', 1));
+		this.cottage(lot('D', 2));
+		this.yardTrees(lot('D', 3));
+		this.fireStation(lot('D', 4));
+		this.postOffice(lot('D', 5));
+		this.clinic(lot('D', 6));
+		this.yardTrees(lot('D', 7));
+		this.cottage(lot('D', 8));
+		this.variedHouse(lot('D', 9));
+		// Row E, north side of Main Street (the hardware store, the diner and the gas station in the middle).
+		this.storefront(lot('E', 0), Shop.BAR);
+		this.storefront(lot('E', 1), Shop.PHARMACY);
+		this.yardTrees(lot('E', 2));
+		this.cinema(lot('E', 7));
+		this.storefront(lot('E', 8), Shop.BARBER);
+		this.yardTrees(lot('E', 9));
+		// Row F, south side of Main Street (the park takes the west).
+		this.policeStation(lot('F', 3));
+		this.yardTrees(lot('F', 4));
+		this.storefront(lot('F', 5), Shop.BOOKS);
+		this.storefront(lot('F', 6), Shop.GROCERY);
+		this.townhouses(lot('F', 7));
+		this.variedHouse(lot('F', 8));
+		this.yardTrees(lot('F', 9));
+	}
+
+	private void variedHouse(Lot lot) {
+		switch (this.random.nextInt(5)) {
+			case 0 -> this.cottage(lot);
+			case 1 -> this.bungalow(lot);
+			case 2 -> this.mansion(lot);
+			default -> this.randomHouse(lot);
+		}
+	}
+
+	/** The direction of +u in the world (east, or west for a house built the other way round): doors don't turn by themselves. */
+	private static Direction plusU(Frame f) {
+		return f.mirror ? Direction.WEST : Direction.EAST;
+	}
+
+	// ---------------------------------------------------------------- rooms laid out afresh
+
+	private enum RoomKind {
+		LIVING, KITCHEN, BEDROOM, BATH, OFFICE, STORE
+	}
+
+	private static final class Room {
+		final int u0;
+		final int v0;
+		final int u1;
+		final int v1;
+		RoomKind kind;
+
+		Room(int u0, int v0, int u1, int v1) {
+			this.u0 = u0;
+			this.v0 = v0;
+			this.u1 = u1;
+			this.v1 = v1;
+		}
+
+		int area() {
+			return (this.u1 - this.u0 + 1) * (this.v1 - this.v0 + 1);
+		}
+
+		boolean contains(int u, int v) {
+			return u >= this.u0 && u <= this.u1 && v >= this.v0 && v <= this.v1;
+		}
+	}
+
+	private record Split(boolean wallAlongV, int pos, int from, int to) {
+	}
+
+	/** A floor's layout: rooms, which cells are partition walls, which must stay clear (doorways and in front of them). */
+	private static final class Layout {
+		final java.util.List<Room> rooms = new java.util.ArrayList<>();
+		final java.util.Set<Long> walls = new java.util.HashSet<>();
+		final java.util.Set<Long> clear = new java.util.HashSet<>();
+		final java.util.Set<Long> used = new java.util.HashSet<>();
+
+		static long key(int u, int v) {
+			return ((long) u << 32) ^ (v & 0xffffffffL);
+		}
+
+		boolean free(int u, int v) {
+			long k = key(u, v);
+			return !this.walls.contains(k) && !this.clear.contains(k) && !this.used.contains(k);
+		}
+	}
+
+	/**
+	 * Splits the floor u0..u1 x v0..v1 into rooms with partition walls (at least three blocks each way), joins
+	 * every two halves of a split by a doorway (now and then a door in it), and builds the walls (y .. y+h-1).
+	 * {@code keep}: cells no wall may take (stairs, the way in).
+	 */
+	private Layout partition(Frame f, int u0, int v0, int u1, int v1, int y, int h, BlockState wall, java.util.Set<Long> keep) {
+		Layout lay = new Layout();
+		java.util.List<Split> splits = new java.util.ArrayList<>();
+		this.split(lay, splits, new Room(u0, v0, u1, v1), keep, 0);
+		for (Split s : splits) {
+			java.util.List<Integer> spots = new java.util.ArrayList<>();
+			for (int p = s.from(); p <= s.to(); p++) {
+				int u = s.wallAlongV() ? s.pos() : p;
+				int v = s.wallAlongV() ? p : s.pos();
+				int au = s.wallAlongV() ? u - 1 : u;
+				int bu = s.wallAlongV() ? u + 1 : u;
+				int av = s.wallAlongV() ? v : v - 1;
+				int bv = s.wallAlongV() ? v : v + 1;
+				if (lay.walls.contains(Layout.key(u, v)) && !lay.walls.contains(Layout.key(au, av)) && !lay.walls.contains(Layout.key(bu, bv))) {
+					spots.add(p);
+				}
+			}
+			if (spots.isEmpty()) {
+				continue;
+			}
+			int p = spots.get(this.random.nextInt(spots.size()));
+			int u = s.wallAlongV() ? s.pos() : p;
+			int v = s.wallAlongV() ? p : s.pos();
+			lay.walls.remove(Layout.key(u, v));
+			lay.clear.add(Layout.key(u, v));
+			lay.clear.add(Layout.key(s.wallAlongV() ? u - 1 : u, s.wallAlongV() ? v : v - 1));
+			lay.clear.add(Layout.key(s.wallAlongV() ? u + 1 : u, s.wallAlongV() ? v : v + 1));
+			if (this.random.nextInt(3) == 0) {
+				lay.used.add(Layout.key(u, v));
+				f.door(u, y, v, s.wallAlongV() ? plusU(f) : f.back());
+			}
+		}
+		for (long k : lay.walls) {
+			int u = (int) (k >> 32);
+			int v = (int) k;
+			f.fill(u, y, v, u, y + h - 1, v, wall);
+		}
+		// Above each doorway the wall goes on.
+		for (Split s : splits) {
+			for (int p = s.from(); p <= s.to(); p++) {
+				int u = s.wallAlongV() ? s.pos() : p;
+				int v = s.wallAlongV() ? p : s.pos();
+				if (!lay.walls.contains(Layout.key(u, v)) && h > 2 && !keep.contains(Layout.key(u, v))) {
+					f.fill(u, y + 2, v, u, y + h - 1, v, wall);
+				}
+			}
+		}
+		return lay;
+	}
+
+	private void split(Layout lay, java.util.List<Split> splits, Room r, java.util.Set<Long> keep, int depth) {
+		int w = r.u1 - r.u0 + 1;
+		int d = r.v1 - r.v0 + 1;
+		boolean canU = w >= 7;
+		boolean canV = d >= 7;
+		boolean big = w * d > 42;
+		if (!canU && !canV || !big && (depth >= 2 || this.random.nextInt(3) == 0)) {
+			lay.rooms.add(r);
+			return;
+		}
+		boolean alongV = canU && (!canV || w > d || w == d && this.random.nextBoolean());
+		if (alongV) {
+			int pos = r.u0 + 3 + this.random.nextInt(w - 6);
+			for (int v = r.v0; v <= r.v1; v++) {
+				if (!keep.contains(Layout.key(pos, v))) {
+					lay.walls.add(Layout.key(pos, v));
+				}
+			}
+			splits.add(new Split(true, pos, r.v0, r.v1));
+			this.split(lay, splits, new Room(r.u0, r.v0, pos - 1, r.v1), keep, depth + 1);
+			this.split(lay, splits, new Room(pos + 1, r.v0, r.u1, r.v1), keep, depth + 1);
+		} else {
+			int pos = r.v0 + 3 + this.random.nextInt(d - 6);
+			for (int u = r.u0; u <= r.u1; u++) {
+				if (!keep.contains(Layout.key(u, pos))) {
+					lay.walls.add(Layout.key(u, pos));
+				}
+			}
+			splits.add(new Split(false, pos, r.u0, r.u1));
+			this.split(lay, splits, new Room(r.u0, r.v0, r.u1, pos - 1), keep, depth + 1);
+			this.split(lay, splits, new Room(r.u0, pos + 1, r.u1, r.v1), keep, depth + 1);
+		}
+	}
+
+	/** Which room is what: the way in is the living room, the biggest other one the kitchen, a small one the bathroom, the rest bedrooms. */
+	private void assignHome(Layout lay, int doorU, int doorV, boolean upstairs) {
+		java.util.List<Room> rooms = new java.util.ArrayList<>(lay.rooms);
+		rooms.sort((a, b) -> Integer.compare(b.area(), a.area()));
+		Room entry = null;
+		if (!upstairs) {
+			for (Room r : rooms) {
+				if (r.contains(doorU, doorV)) {
+					entry = r;
+				}
+			}
+			if (entry == null) {
+				entry = rooms.getFirst();
+			}
+			entry.kind = RoomKind.LIVING;
+		}
+		boolean kitchen = upstairs;
+		Room smallest = rooms.getLast();
+		for (Room r : rooms) {
+			if (r.kind != null) {
+				continue;
+			}
+			if (!kitchen) {
+				r.kind = RoomKind.KITCHEN;
+				kitchen = true;
+			} else if (r == smallest && r.area() <= 16 && rooms.size() > 2) {
+				r.kind = RoomKind.BATH;
+			} else {
+				r.kind = RoomKind.BEDROOM;
+			}
+		}
+		if (!kitchen && entry != null) {
+			// One room downstairs: it is kitchen and living room at once.
+			entry.kind = RoomKind.KITCHEN;
+		}
+	}
+
+	/** Free spots along a room's walls, corners first. */
+	private java.util.List<int[]> wallSpots(Layout lay, Room r) {
+		java.util.List<int[]> out = new java.util.ArrayList<>();
+		int[][] corners = {{r.u0, r.v0}, {r.u1, r.v0}, {r.u0, r.v1}, {r.u1, r.v1}};
+		for (int[] c : corners) {
+			out.add(c);
+		}
+		java.util.List<int[]> sides = new java.util.ArrayList<>();
+		for (int u = r.u0 + 1; u < r.u1; u++) {
+			sides.add(new int[]{u, r.v0});
+			sides.add(new int[]{u, r.v1});
+		}
+		for (int v = r.v0 + 1; v < r.v1; v++) {
+			sides.add(new int[]{r.u0, v});
+			sides.add(new int[]{r.u1, v});
+		}
+		java.util.Collections.shuffle(sides, this.random);
+		out.addAll(sides);
+		out.removeIf(c -> !lay.free(c[0], c[1]));
+		return out;
+	}
+
+	/** Which way something against this spot's wall faces (into the room). */
+	private static Direction faceIn(Frame f, Room r, int u, int v) {
+		if (u == r.u0) {
+			return Direction.EAST;
+		}
+		if (u == r.u1) {
+			return Direction.WEST;
+		}
+		return v == r.v0 ? f.back() : f.front();
+	}
+
+	/** Puts one block against a wall of the room; false if there was no room left. */
+	private boolean against(Frame f, Layout lay, Room r, int y, java.util.function.Function<Direction, BlockState> what, boolean tall) {
+		for (int[] c : this.wallSpots(lay, r)) {
+			Direction in = faceIn(f, r, c[0], c[1]);
+			lay.used.add(Layout.key(c[0], c[1]));
+			f.set(c[0], y, c[1], what.apply(in));
+			if (tall) {
+				f.set(c[0], y + 1, c[1], what.apply(in));
+			}
+			return true;
+		}
+		return false;
+	}
+
+	private int lockers;
+
+	/** A wardrobe to hide in against a wall of the room, with room in front of it to get in; false if none fits. */
+	private boolean wardrobe(Frame f, Layout lay, Room r, int y) {
+		for (int[] c : this.wallSpots(lay, r)) {
+			Direction in = faceIn(f, r, c[0], c[1]);
+			int fu = c[0] + (in == Direction.EAST ? 1 : in == Direction.WEST ? -1 : 0);
+			int fv = c[1] + (in == f.back() ? 1 : in == f.front() ? -1 : 0);
+			if (r.contains(fu, fv) && lay.free(fu, fv)) {
+				lay.used.add(Layout.key(c[0], c[1]));
+				lay.clear.add(Layout.key(fu, fv));
+				f.locker(c[0], y, c[1], in);
+				this.lockers++;
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/** Fits out a room for what it is; the ceiling light over its middle. */
+	private void furnish(Frame f, Layout lay, Room r, int y, int ceiling, Style s, boolean npc) {
+		int cu = (r.u0 + r.u1) / 2;
+		int cv = (r.v0 + r.v1) / 2;
+		f.bulb(cu, ceiling, cv);
+		if (npc && (r.kind == RoomKind.LIVING || r.kind == RoomKind.KITCHEN)) {
+			// Where the one at home stands: kept clear of what goes in after.
+			int[] at = null;
+			if (cv + 1 < r.v1 && lay.free(cu, cv + 1)) {
+				at = new int[]{cu, cv + 1};
+			}
+			for (int u = r.u0 + 1; u < r.u1 && at == null; u++) {
+				for (int v = r.v0 + 1; v < r.v1 && at == null; v++) {
+					if (lay.free(u, v)) {
+						at = new int[]{u, v};
+					}
+				}
+			}
+			if (at != null) {
+				lay.used.add(Layout.key(at[0], at[1]));
+				f.point(MapPoints.Type.NPC, at[0], y, at[1]);
+			}
+		}
+		switch (r.kind) {
+			case LIVING -> {
+				String sofa = this.pick("dark_oak_stairs", "spruce_stairs", "mangrove_stairs", "birch_stairs");
+				this.against(f, lay, r, y, d -> stairs(sofa, d.getOpposite()), false);
+				this.against(f, lay, r, y, d -> stairs(sofa, d.getOpposite()), false);
+				this.against(f, lay, r, y, d -> search(HwBlocks.NIGHTSTAND, d), false);
+				this.against(f, lay, r, y, d -> b("bookshelf"), true);
+				if (this.random.nextBoolean()) {
+					this.against(f, lay, r, y, d -> b("jukebox"), false);
+				}
+				f.floorFill(cu - 1, y - 1, cv - 1, cu, cv, b(s.rug()));
+			}
+			case KITCHEN -> {
+				this.against(f, lay, r, y, d -> search(HwBlocks.KITCHEN_CABINET, d), false);
+				this.against(f, lay, r, y, d -> facing("smoker", d), false);
+				this.against(f, lay, r, y, d -> b("quartz_pillar"), true);
+				this.against(f, lay, r, y, d -> b("cauldron"), false);
+				for (int[] c : this.wallSpots(lay, r)) {
+					lay.used.add(Layout.key(c[0], c[1]));
+					f.set(c[0], y, c[1], b("polished_andesite"));
+					if (y == 0) {
+						f.set(c[0], y + 1, c[1], dev.halloween.HwBlocks.PHONE.defaultBlockState());
+						f.point(MapPoints.Type.PHONE, c[0], y + 1, c[1]);
+					}
+					break;
+				}
+				if (lay.free(cu, cv)) {
+					lay.used.add(Layout.key(cu, cv));
+					f.set(cu, y, cv, b("dark_oak_fence"));
+					f.set(cu, y + 1, cv, b(this.pick("candle", "flower_pot", "white_carpet")));
+				}
+
+			}
+			case BEDROOM -> {
+				for (int[] c : this.wallSpots(lay, r)) {
+					// A bed along a side wall: two cells, the head against it.
+					int nu = c[0];
+					int nv = c[1] == r.v0 ? c[1] + 1 : c[1] == r.v1 ? c[1] - 1 : c[1];
+					if (nv == c[1] || !lay.free(nu, nv) || nv < r.v0 || nv > r.v1) {
+						continue;
+					}
+					Direction head = c[1] == r.v0 ? f.front() : f.back();
+					lay.used.add(Layout.key(c[0], c[1]));
+					lay.used.add(Layout.key(nu, nv));
+					this.bed(f, nu, y, nv, head, this.pick("red", "blue", "white", "green", "yellow", "light_gray"));
+					break;
+				}
+				this.against(f, lay, r, y, d -> search(this.random.nextBoolean() ? HwBlocks.DRESSER : HwBlocks.NIGHTSTAND, d), false);
+				if (r.area() >= 12 && this.random.nextBoolean()) {
+					// Often a wardrobe to hide in.
+					this.wardrobe(f, lay, r, y);
+				}
+				f.floorFill(cu, y - 1, cv, cu, cv, b(s.rug()));
+			}
+			case BATH -> {
+				f.floorFill(r.u0, y - 1, r.v0, r.u1, r.v1, b("white_terracotta"));
+				this.against(f, lay, r, y, d -> b("cauldron"), false);
+				this.against(f, lay, r, y, d -> b("quartz_slab"), false);
+			}
+			case OFFICE -> {
+				this.against(f, lay, r, y, d -> search(HwBlocks.FILING_CABINET, d), false);
+				this.against(f, lay, r, y, d -> stairs("spruce_stairs", d.getOpposite()), false);
+				this.against(f, lay, r, y, d -> b("bookshelf"), true);
+			}
+			case STORE -> {
+				this.against(f, lay, r, y, d -> search(HwBlocks.CARDBOARD_BOX, d), false);
+				this.against(f, lay, r, y, d -> search(HwBlocks.CRATE, d), false);
+				this.against(f, lay, r, y, d -> b("barrel"), false);
+			}
+		}
+	}
+
+	/** Whether a window may go into the outer wall next to inside cell (u, v): not where a partition meets it, not on a kept cell. */
+	private static boolean glazable(Layout lay, int u, int v) {
+		return lay == null || !lay.walls.contains(Layout.key(u, v)) && !lay.used.contains(Layout.key(u, v)) || lay.clear.contains(Layout.key(u, v));
+	}
+
+	/**
+	 * Windows round a home (upstairs too if there is one): none where an inside wall meets the outer one, none by
+	 * the doors or the breaker, none in a wall shared with the next house ({@code solidEnd}: the u = w-1 wall).
+	 */
+	private java.util.Set<Integer> boxWindows(Frame f, int w, int d, Layout ground, Layout upper, int doorU, int backDoorU, boolean solidEnd) {
+		BlockState pane = b("glass_pane");
+		java.util.Set<Integer> front = new java.util.HashSet<>();
+		for (int u = 2; u <= w - 3; u += 3) {
+			if (Math.abs(u - doorU) > 1 && !ground.walls.contains(Layout.key(u, 1))) {
+				f.fill(u, 1, 0, u, 2, 0, pane);
+				front.add(u);
+			}
+			if (upper != null && !upper.walls.contains(Layout.key(u, 1))) {
+				f.fill(u, 6, 0, u, 7, 0, pane);
+			}
+			if (Math.abs(u - backDoorU) > 1 && !ground.walls.contains(Layout.key(u, d - 2))) {
+				f.fill(u, 1, d - 1, u, 2, d - 1, pane);
+			}
+			if (upper != null && !upper.walls.contains(Layout.key(u, d - 2))) {
+				f.fill(u, 6, d - 1, u, 7, d - 1, pane);
+			}
+		}
+		for (int v = 2; v <= d - 3; v += 3) {
+			if (Math.abs(v - d / 2) <= 1) {
+				continue;
+			}
+			if (!ground.walls.contains(Layout.key(1, v))) {
+				f.fill(0, 1, v, 0, 2, v, pane);
+			}
+			if (!solidEnd && !ground.walls.contains(Layout.key(w - 2, v))) {
+				f.fill(w - 1, 1, v, w - 1, 2, v, pane);
+			}
+			if (upper != null && !upper.walls.contains(Layout.key(1, v))) {
+				f.fill(0, 6, v, 0, 7, v, pane);
+			}
+			if (upper != null && !solidEnd && !upper.walls.contains(Layout.key(w - 2, v))) {
+				f.fill(w - 1, 6, v, w - 1, 7, v, pane);
+			}
+		}
+		return front;
+	}
+
+	/**
+	 * A home of any size: shell, pitched roof, rooms laid out afresh on each floor, stairs if it has two, the
+	 * porch, the yard. {@code x0}: where it starts (u 0).
+	 */
+	private void home(Lot lot, int x0, int w, int d, boolean two, Style s, boolean mirror, boolean yard, boolean solidEnd, int sideDoorV) {
+		Frame f = new Frame(x0, lot, w, mirror);
+		BlockState wall = b(s.wall());
+		BlockState floor = b(s.floor());
+		int wallTop = two ? 8 : 3;
+		int top = two ? 9 : 4;
+		int doorU = 2 + this.random.nextInt(Math.max(1, w - 4));
+		f.fill(-1, -1, -1, w, -1, d, b("stone_bricks"));
+		f.fill(1, -1, 1, w - 2, -1, d - 2, floor);
+		f.fill(0, 0, 0, w - 1, wallTop, d - 1, wall);
+		f.fill(1, 0, 1, w - 2, wallTop, d - 2, AIR);
+		for (int[] c : new int[][]{{0, 0}, {w - 1, 0}, {0, d - 1}, {w - 1, d - 1}}) {
+			f.fill(c[0], 0, c[1], c[0], wallTop, c[1], b(s.corner()));
+		}
+		f.fill(1, 4, 1, w - 2, 4, d - 2, floor);
+		f.fill(0, top, 0, w - 1, top, d - 1, wall);
+		f.fill(1, top, 1, w - 2, top, d - 2, floor);
+		java.util.Set<Long> keep = new java.util.HashSet<>();
+		keep.add(Layout.key(doorU, 1));
+		int backDoorU = 1 + this.random.nextInt(Math.max(1, w - 2));
+		keep.add(Layout.key(backDoorU, d - 2));
+		if (sideDoorV > 0) {
+			keep.add(Layout.key(w - 2, sideDoorV));
+		}
+		int stairV0 = 2;
+		if (two) {
+			// Stairs along the west wall from near the front, up to the landing.
+			for (int k = 0; k <= 4; k++) {
+				keep.add(Layout.key(1, stairV0 + k));
+				keep.add(Layout.key(2, stairV0 + k));
+			}
+			keep.add(Layout.key(1, stairV0 - 1));
+		}
+		int lockersBefore = this.lockers;
+		Layout ground = this.partition(f, 1, 1, w - 2, d - 2, 0, 4, wall, keep);
+		this.assignHome(ground, doorU, 1, false);
+		ground.used.addAll(keep);
+		for (Room r : ground.rooms) {
+			this.furnish(f, ground, r, 0, 4, s, r.kind == RoomKind.LIVING);
+		}
+		Layout upper = null;
+		if (two) {
+			for (int k = 0; k <= 4; k++) {
+				f.set(1, k, stairV0 + k, stairs(s.floor().replace("_planks", "_stairs"), f.back()));
+				if (k + 1 <= 3) {
+					f.fill(1, k + 1, stairV0 + k, 1, 3, stairV0 + k, AIR);
+				}
+			}
+			f.fill(1, 4, stairV0, 1, 4, stairV0 + 3, AIR);
+			f.fill(2, 5, stairV0, 2, 5, stairV0 + 3, b("dark_oak_fence"));
+			java.util.Set<Long> keepUp = new java.util.HashSet<>();
+			for (int k = 0; k <= 5; k++) {
+				keepUp.add(Layout.key(1, stairV0 + k));
+				keepUp.add(Layout.key(2, stairV0 + k));
+			}
+			upper = this.partition(f, 1, 1, w - 2, d - 2, 5, 4, wall, keepUp);
+			this.assignHome(upper, 1, 1, true);
+			upper.used.addAll(keepUp);
+			for (Room r : upper.rooms) {
+				this.furnish(f, upper, r, 5, top, s, false);
+			}
+		}
+		if (this.lockers == lockersBefore) {
+			// Every home has somewhere to hide: a wardrobe in the living room if no bedroom got one.
+			for (Room r : ground.rooms) {
+				if (r.kind == RoomKind.LIVING || r.kind == RoomKind.KITCHEN) {
+					if (this.wardrobe(f, ground, r, 0)) {
+						break;
+					}
+				}
+			}
+		}
+		f.door(doorU, 0, 0, f.back());
+		f.door(backDoorU, 0, d - 1, f.front());
+		if (sideDoorV > 0) {
+			f.fill(w - 1, 0, sideDoorV, w - 1, 1, sideDoorV, AIR);
+			f.door(w - 1, 0, sideDoorV, plusU(f));
+		}
+		java.util.Set<Integer> windows = this.boxWindows(f, w, d, ground, upper, doorU, backDoorU, solidEnd);
+		if (solidEnd) {
+			// The other side is the next house or the garage: the breaker goes on this end.
+			this.breaker(f.x(0), 1, f.z(d / 2), plusU(f).getOpposite());
+		} else {
+			this.breaker(Math.max(f.x(0), f.x(w - 1)), 1, f.z(d / 2), Direction.EAST);
+		}
+		f.bulb(Math.min(w - 2, doorU + 1), 2, 0);
+		this.roof(f, w, d, top, s, wall);
+		if (!yard) {
+			return;
+		}
+		this.porch(f, doorU, windows, false);
+		String pathBlock = this.pick("dirt_path", "gravel", "stone_bricks", "bricks");
+		for (int v = -3; v >= -7; v--) {
+			f.set(doorU, -1, v, b(pathBlock));
+		}
+		this.flowerBed(f, w, doorU);
+		boolean drive = this.driveway(f, w, lot, false);
+		this.frontFence(f, w, lot, drive, doorU);
+		this.mailbox(f, doorU);
+		this.backyard(f, d);
+		this.halloweenYard(f, w, lot, drive, doorU);
+		this.curbside(f, w, lot, drive);
+	}
+
+	private Style anyStyle() {
+		return STYLES[this.random.nextInt(STYLES.length)];
+	}
+
+	/** A small house: one storey, a few small rooms. */
+	private void cottage(Lot lot) {
+		int w = 9 + 2 * this.random.nextInt(2);
+		this.home(lot, lot.cx() - w / 2, w, 9 + this.random.nextInt(2), false, this.anyStyle(), this.random.nextBoolean(), true, false, -1);
+	}
+
+	/** A wide one-storey house. */
+	private void bungalow(Lot lot) {
+		int w = 15 + 2 * this.random.nextInt(2);
+		this.home(lot, lot.cx() - w / 2, w, 10 + this.random.nextInt(2), false, this.anyStyle(), this.random.nextBoolean(), true, false, -1);
+	}
+
+	/** A big two-storey house with a garage built on at the side. */
+	private void mansion(Lot lot) {
+		int w = lot.width() >= 28 ? 17 : 15;
+		// Built the other way round, so the garage (u past the house) is on the west and the breaker stays on the east.
+		boolean mirror = true;
+		int x0 = lot.cx() - (w + 7) / 2 + 7;
+		Style s = this.anyStyle();
+		this.home(lot, x0, w, 14, true, s, mirror, true, true, 6);
+		// The garage: where the drive leads, a wide opening at the front, a workbench and a tool cabinet; a door into the house.
+		Frame g = new Frame(x0, lot, w, mirror);
+		BlockState wall = b(s.wall());
+		g.fill(w - 1, -1, 1, w + 6, -1, 10, b("smooth_stone"));
+		g.fill(w, 0, 1, w + 6, 4, 10, wall);
+		g.fill(w, 0, 2, w + 5, 3, 9, AIR);
+		g.fill(w + 1, 0, 1, w + 5, 2, 1, AIR);
+		g.fill(w + 1, 3, 1, w + 5, 3, 1, b("white_concrete"));
+		g.fill(w, 5, 1, w + 6, 5, 10, slab(s.roofSlab(), SlabType.BOTTOM));
+		g.set(w + 5, 0, 9, search(HwBlocks.TOOL_CABINET, Direction.WEST));
+		g.set(w + 5, 0, 8, b("crafting_table"));
+		g.set(w + 1, 0, 9, search(HwBlocks.CRATE, Direction.EAST));
+		g.fill(w + 2, 0, 4, w + 4, 0, 7, b(this.pick("red_concrete", "light_blue_concrete", "black_concrete", "brown_concrete")));
+		g.fill(w + 2, 1, 5, w + 4, 1, 6, b("tinted_glass"));
+		g.bulb(w + 3, 4, 5);
+	}
+
+	/** Two narrow two-storey homes side by side, sharing a wall. */
+	private void townhouses(Lot lot) {
+		int w = 9;
+		int x0 = lot.cx() - w + 1;
+		this.home(lot, x0, w, 12, true, this.anyStyle(), false, true, true, -1);
+		this.home(lot, x0 + w - 1, w, 12, true, this.anyStyle(), true, false, true, -1);
+	}
+
+	// ---------------------------------------------------------------- downtown, services, the industrial end
+
+	private enum Shop {
+		BAR, PHARMACY, BARBER, BOOKS, GROCERY
+	}
+
+	/** The lot moved up to the sidewalk: downtown buildings stand two blocks back from it, not seven. */
+	private static Lot close(Lot lot) {
+		return new Lot(lot.x0(), lot.x1(), lot.south() ? lot.front() + 5 : lot.front() - 5, lot.south());
+	}
+
+	/** A flat-roofed box: walls {@code h} high, the ceiling at h (lights go in it), the roof over that, a low parapet. */
+	private Frame box(Lot lot, int x0, int w, int d, int h, String wallId, String floorId, boolean mirror) {
+		Frame f = new Frame(x0, lot, w, mirror);
+		BlockState wall = b(wallId);
+		f.fill(-1, -1, -1, w, -1, d, b("stone_bricks"));
+		f.fill(1, -1, 1, w - 2, -1, d - 2, b(floorId));
+		f.fill(0, 0, 0, w - 1, h, d - 1, wall);
+		f.fill(1, 0, 1, w - 2, h - 1, d - 2, AIR);
+		f.fill(1, h, 1, w - 2, h, d - 2, b("smooth_stone"));
+		f.fill(0, h + 1, 0, w - 1, h + 1, d - 1, wall);
+		f.fill(1, h + 1, 1, w - 2, h + 1, d - 2, b("gray_concrete"));
+		f.fill(0, h + 2, 0, w - 1, h + 2, 0, wall);
+		f.fill(0, h + 2, d - 1, w - 1, h + 2, d - 1, wall);
+		f.fill(0, h + 2, 0, 0, h + 2, d - 1, wall);
+		f.fill(w - 1, h + 2, 0, w - 1, h + 2, d - 1, wall);
+		return f;
+	}
+
+	/** Lights in the ceiling over a whole floor, every few blocks; breakers on both sides of a wide building. */
+	private void lightsAndBreakers(Frame f, int w, int d, int y) {
+		for (int u = 3; u <= w - 3; u += 5) {
+			for (int v = 3; v <= d - 3; v += 5) {
+				f.bulb(u, y, v);
+			}
+		}
+		this.breaker(Math.max(f.x(0), f.x(w - 1)), 1, f.z(d / 2), Direction.EAST);
+		if (w > 16) {
+			this.breaker(Math.min(f.x(0), f.x(w - 1)), 1, f.z(d / 2), Direction.WEST);
+		}
+	}
+
+	/** Windows along the sides of a box at one storey. */
+	private void sideWindows(Frame f, int w, int d, int y) {
+		for (int v = 3; v <= d - 3; v += 3) {
+			f.fill(0, y, v, 0, y + 1, v, b("glass_pane"));
+			f.fill(w - 1, y, v, w - 1, y + 1, v, b("glass_pane"));
+		}
+	}
+
+	private void frontSign(Frame f, int u, int y, String... lines) {
+		this.wallSign(f.x(u), y, f.z(-1), f.front(), lines);
+	}
+
+	/** A shop with a flat over it: display windows and an awning at the front, a stockroom at the back. */
+	private void storefront(Lot lot0, Shop shop) {
+		Lot lot = close(lot0);
+		int w = Math.min(lot.width() - 4, 19);
+		int d = 13;
+		boolean mirror = this.random.nextBoolean();
+		String wallId = this.pick("bricks", "red_terracotta", "brown_terracotta", "light_gray_terracotta", "white_terracotta");
+		Frame f = this.box(lot, lot.cx() - w / 2, w, d, 9, wallId, "spruce_planks", mirror);
+		BlockState wall = b(wallId);
+		int doorU = w / 2;
+		f.fill(1, 4, 1, w - 2, 4, d - 2, b("spruce_planks"));
+		// Display windows either side of the door.
+		for (int u = 1; u <= w - 2; u++) {
+			if (Math.abs(u - doorU) > 0) {
+				f.fill(u, 1, 0, u, 2, 0, b("glass_pane"));
+			}
+		}
+		f.door(doorU, 0, 0, f.back());
+		String stripe = switch (shop) {
+			case BAR -> "red_wool";
+			case PHARMACY -> "green_wool";
+			case BARBER -> "blue_wool";
+			case BOOKS -> "brown_wool";
+			case GROCERY -> "orange_wool";
+		};
+		for (int u = 0; u <= w - 1; u++) {
+			f.set(u, 3, -1, b(u % 2 == 0 ? stripe : "white_wool"));
+		}
+		String[] name = switch (shop) {
+			case BAR -> new String[]{"", "THE RUSTY", "NAIL", "BAR"};
+			case PHARMACY -> new String[]{"", "PHARMACY", "DRUGS", ""};
+			case BARBER -> new String[]{"", "BARBER", "SHOP", ""};
+			case BOOKS -> new String[]{"", "BOOKS &", "RECORDS", ""};
+			case GROCERY -> new String[]{"", "GROCERY", "& DELI", ""};
+		};
+		this.frontSign(f, doorU, 4, name);
+		// The stockroom at the back, stairs up to the flat in it, the back door.
+		int store = d - 5;
+		f.fill(1, 0, store, w - 2, 3, store, wall);
+		f.fill(doorU, 0, store, doorU, 1, store, AIR);
+		f.set(1, 0, d - 2, search(HwBlocks.CARDBOARD_BOX, Direction.EAST));
+		f.set(1, 0, d - 3, search(HwBlocks.CRATE, Direction.EAST));
+		f.set(w - 2, 0, store + 1, b("barrel"));
+		for (int k = 0; k <= 4; k++) {
+			f.set(w - 7 + k, k, d - 2, stairs("spruce_stairs", Direction.EAST));
+			f.fill(w - 7 + k, k + 1, d - 2, w - 7 + k, 4, d - 2, AIR);
+		}
+		f.fill(w - 7, 4, d - 2, w - 4, 4, d - 2, AIR);
+		f.door(doorU + 2, 0, d - 1, f.front());
+		// The shop floor.
+		int cv = store - 2;
+		switch (shop) {
+			case BAR -> {
+				f.fill(2, 0, cv, w - 3, 0, cv, b("stripped_dark_oak_log"));
+				f.set(doorU, 0, cv, AIR);
+				for (int u = 2; u <= w - 3; u += 2) {
+					if (u != doorU) {
+						f.set(u, 0, cv - 2, b("dark_oak_fence"));
+					}
+				}
+				f.set(2, 0, cv + 1, search(HwBlocks.NIGHTSTAND, f.front()));
+				f.set(w - 3, 0, cv + 1, b("barrel"));
+				f.set(w - 2, 0, 2, b("jukebox"));
+				f.set(2, 1, cv, dev.halloween.HwBlocks.PHONE.defaultBlockState());
+				f.point(MapPoints.Type.PHONE, 2, 1, cv);
+			}
+			case PHARMACY -> {
+				f.fill(2, 0, cv, w - 3, 0, cv, b("quartz_block"));
+				f.set(doorU, 0, cv, AIR);
+				for (int v = 2; v < cv - 1; v++) {
+					f.set(1, 0, v, b("spruce_slab").setValue(BlockStateProperties.SLAB_TYPE, SlabType.TOP));
+					f.set(1, 1, v, b(this.pick("brewing_stand", "potted_fern", "flower_pot", "cauldron")));
+				}
+				f.set(w - 3, 0, cv + 1, search(HwBlocks.FILING_CABINET, f.front()));
+				f.set(2, 0, cv + 1, search(HwBlocks.NIGHTSTAND, f.front()));
+				f.set(3, 1, cv, dev.halloween.HwBlocks.PHONE.defaultBlockState());
+				f.point(MapPoints.Type.PHONE, 3, 1, cv);
+			}
+			case BARBER -> {
+				for (int u = 2; u <= w - 3; u += 3) {
+					f.set(u, 0, cv, stairs("red_nether_brick_stairs", f.front()));
+					f.set(u, 1, cv + 1, b("glass_pane"));
+				}
+				f.set(1, 0, cv - 2, search(HwBlocks.DRESSER, Direction.EAST));
+				f.set(w - 2, 0, cv - 2, b("cauldron"));
+				f.fill(-1, 0, -1, -1, 2, -1, b("red_wool"));
+				f.set(-1, 1, -1, b("white_wool"));
+			}
+			case BOOKS -> {
+				for (int u = 2; u <= w - 3; u += 3) {
+					if (Math.abs(u - doorU) > 1) {
+						f.fill(u, 0, 2, u, 2, cv - 1, b("bookshelf"));
+					}
+				}
+				f.set(w - 2, 0, cv, search(HwBlocks.FILING_CABINET, Direction.WEST));
+				f.set(1, 0, cv, b("jukebox"));
+			}
+			case GROCERY -> {
+				for (int u = 2; u <= w - 3; u += 3) {
+					if (Math.abs(u - doorU) > 1) {
+						for (int v = 2; v < cv; v++) {
+							f.set(u, 0, v, b(this.pick("hay_block", "melon", "pumpkin", "barrel", "spruce_planks")));
+						}
+					}
+				}
+				f.set(1, 0, cv, search(HwBlocks.KITCHEN_CABINET, Direction.EAST));
+				f.set(w - 2, 0, cv, search(HwBlocks.CARDBOARD_BOX, Direction.WEST));
+				f.set(w - 3, 1, 1, dev.halloween.HwBlocks.PHONE.defaultBlockState());
+				f.set(w - 3, 0, 1, b("spruce_planks"));
+				f.point(MapPoints.Type.PHONE, w - 3, 1, 1);
+			}
+		}
+		// The flat upstairs, rooms laid out afresh, windows front and back.
+		java.util.Set<Long> keepUp = new java.util.HashSet<>();
+		for (int k = 0; k <= 5; k++) {
+			keepUp.add(Layout.key(w - 7 + k, d - 2));
+			keepUp.add(Layout.key(w - 7 + k, d - 3));
+		}
+		Layout up = this.partition(f, 1, 1, w - 2, d - 2, 5, 4, wall, keepUp);
+		this.assignHome(up, 1, 1, true);
+		up.used.addAll(keepUp);
+		// Someone at home upstairs, in the middle of the first room (kept clear of the furniture).
+		Room home = up.rooms.getFirst();
+		int hu = (home.u0 + home.u1) / 2;
+		int hv = (home.v0 + home.v1) / 2;
+		up.used.add(Layout.key(hu, hv));
+		f.point(MapPoints.Type.NPC, hu, 5, hv);
+		for (Room r : up.rooms) {
+			this.furnish(f, up, r, 5, 9, STYLES[0], false);
+		}
+		for (int u = 2; u <= w - 3; u += 3) {
+			f.fill(u, 6, 0, u, 7, 0, b("glass_pane"));
+			f.fill(u, 6, d - 1, u, 7, d - 1, b("glass_pane"));
+		}
+		this.lightsAndBreakers(f, w, d, 4);
+	}
+
+	/** The picture house: a lobby with the ticket booth, the auditorium with rows of seats and the screen. */
+	private void cinema(Lot lot0) {
+		Lot lot = close(lot0);
+		int w = Math.min(lot.width() - 4, 22);
+		int d = 18;
+		Frame f = this.box(lot, lot.cx() - w / 2, w, d, 7, "red_terracotta", "red_carpet", false);
+		BlockState wall = b("red_terracotta");
+		int doorU = w / 2;
+		f.door(doorU - 1, 0, 0, f.back());
+		f.door(doorU + 1, 0, 0, f.back());
+		f.fill(2, 1, 0, 4, 2, 0, b("glass_pane"));
+		f.fill(w - 5, 1, 0, w - 3, 2, 0, b("glass_pane"));
+		// The marquee: lights and a sign over the doors.
+		f.fill(1, 4, -1, w - 2, 4, -1, b("redstone_lamp"));
+		f.fill(1, 5, -1, w - 2, 6, -1, b("black_concrete"));
+		this.frontSign(f, doorU, 5, "", "THE FOG", "TONIGHT 9PM", "");
+		// Lobby (ticket booth, candy counter, an office), then the auditorium behind a wall.
+		int lobby = 6;
+		f.fill(1, 0, lobby, w - 2, 6, lobby, wall);
+		f.fill(doorU - 1, 0, lobby, doorU + 1, 2, lobby, AIR);
+		f.fill(2, 0, 2, 4, 0, 4, b("quartz_block"));
+		f.set(3, 1, 3, b("glass_pane"));
+		f.set(2, 1, 2, dev.halloween.HwBlocks.PHONE.defaultBlockState());
+		f.point(MapPoints.Type.PHONE, 2, 1, 2);
+		f.set(w - 3, 0, 4, search(HwBlocks.CARDBOARD_BOX, Direction.WEST));
+		f.fill(w - 6, 0, 2, w - 6, 3, 5, wall);
+		f.fill(w - 6, 0, 3, w - 6, 1, 3, AIR);
+		f.set(w - 3, 0, 2, search(HwBlocks.FILING_CABINET, Direction.WEST));
+		f.locker(1, lobby - 1, f.front());
+		for (int v = lobby + 2; v <= d - 5; v += 2) {
+			for (int u = 2; u <= w - 3; u++) {
+				if (Math.abs(u - doorU) > 1) {
+					f.set(u, 0, v, stairs("red_nether_brick_stairs", f.front()));
+				}
+			}
+		}
+		f.fill(1, 1, d - 2, w - 2, 5, d - 2, b("white_wool"));
+		f.door(1, 0, d - 1, f.front());
+		f.fill(1, 1, d - 2, 1, 2, d - 2, AIR);
+		this.lightsAndBreakers(f, w, d, 7);
+		this.sideWindows(f, w, d, 1);
+	}
+
+	/** The police station: front desk, offices, two cells, the locker room, the armoury with the gun case. */
+	private void policeStation(Lot lot0) {
+		Lot lot = close(lot0);
+		int w = 23;
+		int d = 16;
+		Frame f = this.box(lot, lot.cx() - w / 2, w, d, 4, "light_blue_terracotta", "polished_andesite", false);
+		BlockState wall = b("white_terracotta");
+		int doorU = w / 2;
+		f.door(doorU, 0, 0, f.back());
+		for (int u = 2; u <= w - 3; u += 3) {
+			if (Math.abs(u - doorU) > 1) {
+				f.fill(u, 1, 0, u, 2, 0, b("glass_pane"));
+			}
+		}
+		this.frontSign(f, doorU, 3, "", "POLICE", "DEPARTMENT", "");
+		f.set(doorU - 2, 3, -1, b("sea_lantern"));
+		f.set(doorU + 2, 3, -1, b("sea_lantern"));
+		// A corridor across the middle; the desk in the lobby at the front.
+		int hall = 6;
+		f.fill(1, 0, hall - 1, w - 2, 3, hall - 1, wall);
+		f.fill(1, 0, hall + 2, w - 2, 3, hall + 2, wall);
+		f.fill(doorU - 1, 0, hall - 1, doorU + 1, 1, hall - 1, AIR);
+		f.fill(doorU - 3, 0, 3, doorU + 3, 0, 3, b("spruce_planks"));
+		f.set(doorU + 2, 1, 3, dev.halloween.HwBlocks.PHONE.defaultBlockState());
+		f.point(MapPoints.Type.PHONE, doorU + 2, 1, 3);
+		f.set(doorU - 3, 0, 4, search(HwBlocks.FILING_CABINET, f.front()));
+		f.point(MapPoints.Type.NPC, doorU, 0, 4);
+		// Rooms off the back of the corridor: office, two cells, locker room, armoury.
+		int[] walls = {5, 9, 13, 17};
+		for (int u : walls) {
+			f.fill(u, 0, hall + 2, u, 3, d - 2, wall);
+		}
+		f.fill(3, 0, hall + 2, 3, 1, hall + 2, AIR);
+		f.set(1, 0, d - 2, search(HwBlocks.FILING_CABINET, Direction.EAST));
+		f.set(4, 0, d - 2, stairs("spruce_stairs", f.front()));
+		for (int c = 0; c < 2; c++) {
+			int u0 = walls[c] + 1;
+			int u1 = walls[c + 1] - 1;
+			f.fill(u0, 0, hall + 2, u1, 2, hall + 2, b("iron_bars"));
+			f.set(u0, 0, d - 2, b("cauldron"));
+			f.set(u1, 0, d - 2, b("white_wool"));
+		}
+		f.fill(walls[2] + 2, 0, hall + 2, walls[2] + 2, 1, hall + 2, AIR);
+		f.locker(walls[2] + 1, d - 2, f.front());
+		f.locker(walls[3] - 1, d - 2, f.front());
+		f.fill(walls[3] + 2, 0, hall + 2, walls[3] + 2, 1, hall + 2, AIR);
+		f.door(walls[3] + 2, 0, hall + 2, f.back());
+		f.point(MapPoints.Type.GUN_CASE, w - 3, 0, d - 3);
+		f.set(w - 2, 0, d - 2, search(HwBlocks.TOOL_CABINET, Direction.WEST));
+		f.door(2, 0, d - 1, f.front());
+		this.lightsAndBreakers(f, w, d, 4);
+		this.sideWindows(f, w, d, 1);
+	}
+
+	/** The fire station: a bay with the engine, the crew's kitchen and bunk room. */
+	private void fireStation(Lot lot) {
+		int w = 23;
+		int d = 16;
+		Frame f = this.box(lot, lot.cx() - w / 2, w, d, 6, "bricks", "smooth_stone", this.random.nextBoolean());
+		BlockState wall = b("bricks");
+		// The engine bay: a big opening at the front, the red engine inside.
+		f.fill(2, 0, 0, 8, 4, 0, AIR);
+		f.fill(1, 5, -1, 9, 5, -1, b("red_concrete"));
+		this.frontSign(f, 5, 4, "", "FIRE", "STATION 1", "");
+		f.fill(3, 0, 3, 7, 1, 11, b("red_concrete"));
+		f.fill(3, 2, 3, 7, 2, 5, b("red_concrete"));
+		f.fill(4, 2, 4, 6, 2, 4, b("glass"));
+		f.fill(3, 0, 12, 7, 0, 12, b("white_concrete"));
+		f.fill(1, 0, 2, 1, 0, 3, search(HwBlocks.TOOL_CABINET, Direction.EAST));
+		f.set(1, 0, d - 2, search(HwBlocks.CRATE, Direction.EAST));
+		// A wall, then the crew quarters.
+		f.fill(10, 0, 1, 10, 5, d - 2, wall);
+		f.fill(10, 0, 4, 10, 1, 4, AIR);
+		f.door(10, 0, 4, plusU(f));
+		f.door(15, 0, 0, f.back());
+		f.fill(11, 0, 8, w - 2, 5, 8, wall);
+		f.fill(16, 0, 8, 16, 1, 8, AIR);
+		f.set(w - 2, 0, 1, search(HwBlocks.KITCHEN_CABINET, Direction.WEST));
+		f.set(w - 2, 0, 2, facing("smoker", Direction.WEST));
+		f.set(w - 2, 0, 3, b("polished_andesite"));
+		f.set(w - 2, 1, 3, dev.halloween.HwBlocks.PHONE.defaultBlockState());
+		f.point(MapPoints.Type.PHONE, w - 2, 1, 3);
+		f.set(14, 0, 4, b("dark_oak_fence"));
+		f.set(14, 1, 4, b("candle"));
+		for (int u = 12; u <= w - 3; u += 3) {
+			this.bed(f, u, 0, d - 3, f.back(), "red");
+		}
+		f.locker(11, 9, Direction.EAST);
+		f.set(w - 2, 0, 9, search(HwBlocks.DRESSER, Direction.WEST));
+		f.point(MapPoints.Type.NPC, 16, 0, 5);
+		this.lightsAndBreakers(f, w, d, 6);
+		this.sideWindows(f, w, d, 1);
+	}
+
+	/** The post office: the counter, the sorting room full of parcels. */
+	private void postOffice(Lot lot) {
+		int w = 19;
+		int d = 13;
+		Frame f = this.box(lot, lot.cx() - w / 2, w, d, 4, "white_terracotta", "polished_andesite", this.random.nextBoolean());
+		BlockState wall = b("light_gray_terracotta");
+		int doorU = w / 2;
+		f.door(doorU, 0, 0, f.back());
+		for (int u = 2; u <= w - 3; u += 3) {
+			if (Math.abs(u - doorU) > 1) {
+				f.fill(u, 1, 0, u, 2, 0, b("glass_pane"));
+			}
+		}
+		this.frontSign(f, doorU, 3, "", "U.S. POST", "OFFICE", "");
+		f.set(doorU + 3, 0, -2, b("blue_concrete"));
+		f.set(doorU + 3, 1, -2, b("blue_concrete"));
+		f.fill(2, 0, 5, w - 3, 0, 5, b("spruce_planks"));
+		f.set(doorU, 0, 5, AIR);
+		f.set(3, 1, 5, dev.halloween.HwBlocks.PHONE.defaultBlockState());
+		f.point(MapPoints.Type.PHONE, 3, 1, 5);
+		f.fill(1, 0, 7, w - 2, 3, 7, wall);
+		f.fill(doorU, 0, 7, doorU, 1, 7, AIR);
+		f.door(doorU, 0, 7, f.back());
+		f.set(1, 0, d - 2, search(HwBlocks.CARDBOARD_BOX, Direction.EAST));
+		f.set(w - 2, 0, d - 2, search(HwBlocks.CARDBOARD_BOX, Direction.WEST));
+		f.set(w - 2, 0, 8, search(HwBlocks.FILING_CABINET, Direction.WEST));
+		for (int u = 3; u <= w - 4; u += 4) {
+			f.set(u, 0, d - 3, b("barrel"));
+			f.set(u + 1, 0, d - 3, b("bookshelf"));
+		}
+		f.door(2, 0, d - 1, f.front());
+		f.point(MapPoints.Type.NPC, doorU, 0, 3);
+		this.lightsAndBreakers(f, w, d, 4);
+		this.sideWindows(f, w, d, 1);
+	}
+
+	/** The clinic: a waiting room, reception, two examination rooms. */
+	private void clinic(Lot lot) {
+		int w = 21;
+		int d = 14;
+		Frame f = this.box(lot, lot.cx() - w / 2, w, d, 4, "white_concrete", "white_terracotta", this.random.nextBoolean());
+		BlockState wall = b("white_concrete");
+		int doorU = w / 2;
+		f.door(doorU, 0, 0, f.back());
+		for (int u = 2; u <= w - 3; u += 3) {
+			if (Math.abs(u - doorU) > 1) {
+				f.fill(u, 1, 0, u, 2, 0, b("glass_pane"));
+			}
+		}
+		this.frontSign(f, doorU, 3, "", "HADDONFIELD", "CLINIC", "");
+		f.fill(doorU - 1, 4, -1, doorU + 1, 4, -1, b("red_concrete"));
+		for (int u = 2; u <= 6; u++) {
+			f.set(u, 0, 2, stairs("birch_stairs", f.front()));
+		}
+		f.fill(w - 6, 0, 3, w - 3, 0, 3, b("quartz_block"));
+		f.set(w - 4, 1, 3, dev.halloween.HwBlocks.PHONE.defaultBlockState());
+		f.point(MapPoints.Type.PHONE, w - 4, 1, 3);
+		f.set(w - 2, 0, 2, search(HwBlocks.FILING_CABINET, Direction.WEST));
+		f.fill(1, 0, 6, w - 2, 3, 6, wall);
+		f.fill(doorU, 0, 6, doorU, 1, 6, AIR);
+		f.fill(doorU, 0, 7, doorU, 3, d - 2, wall);
+		f.fill(doorU - 2, 0, 6, doorU - 2, 1, 6, AIR);
+		f.fill(doorU + 2, 0, 6, doorU + 2, 1, 6, AIR);
+		f.set(doorU, 0, 6, wall);
+		f.set(doorU, 1, 6, wall);
+		for (int side : new int[]{1, w - 2}) {
+			Direction in = side == 1 ? Direction.EAST : Direction.WEST;
+			f.set(side, 0, d - 3, b("white_wool"));
+			f.set(side, 0, d - 2, b("white_wool"));
+			f.set(side, 0, 8, search(HwBlocks.NIGHTSTAND, in));
+			f.set(side, 1, 9, b("glass_pane"));
+		}
+		f.locker(doorU - 1, d - 2, f.front());
+		f.point(MapPoints.Type.NPC, 3, 0, 4);
+		f.door(1, 0, d - 1, f.front());
+		this.lightsAndBreakers(f, w, d, 4);
+		this.sideWindows(f, w, d, 1);
+	}
+
+	/** The warehouse: a tall hall of stacked crates in aisles, an office in a corner, a loading door. */
+	private void warehouse(Lot lot) {
+		int w = 22;
+		int d = 18;
+		Frame f = this.box(lot, lot.cx() - w / 2, w, d, 7, "gray_concrete", "smooth_stone", this.random.nextBoolean());
+		BlockState wall = b("gray_concrete");
+		f.fill(w - 8, 0, 0, w - 4, 4, 0, AIR);
+		f.fill(w - 8, 5, 0, w - 4, 5, 0, b("yellow_concrete"));
+		f.door(3, 0, 0, f.back());
+		this.frontSign(f, 3, 3, "", "SMITH'S", "GROVE", "STORAGE");
+		for (int u = 3; u <= w - 4; u += 4) {
+			for (int v = 5; v <= d - 3; v++) {
+				if (v == d / 2 + 1) {
+					continue;
+				}
+				int hgt = 1 + this.random.nextInt(3);
+				for (int y = 0; y < hgt; y++) {
+					f.set(u, y, v, b(this.pick("spruce_planks", "barrel", "hay_block", "stripped_spruce_log", "oak_planks")));
+				}
+			}
+		}
+		f.set(3, 0, d / 2 + 1, search(HwBlocks.CRATE, Direction.NORTH));
+		f.set(w - 5, 0, d / 2 + 1, search(HwBlocks.CRATE, Direction.SOUTH));
+		f.set(1, 0, d - 2, search(HwBlocks.CARDBOARD_BOX, Direction.EAST));
+		// The office in the front corner.
+		f.fill(1, 0, 4, 6, 3, 4, wall);
+		f.fill(6, 0, 1, 6, 3, 4, wall);
+		f.fill(6, 0, 2, 6, 1, 2, AIR);
+		f.door(6, 0, 2, plusU(f));
+		f.fill(1, 1, 4, 3, 2, 4, b("glass_pane"));
+		f.set(1, 0, 1, search(HwBlocks.FILING_CABINET, Direction.EAST));
+		f.set(5, 0, 1, b("spruce_planks"));
+		f.set(5, 1, 1, dev.halloween.HwBlocks.PHONE.defaultBlockState());
+		f.point(MapPoints.Type.PHONE, 5, 1, 1);
+		f.locker(w - 2, 2, Direction.WEST);
+		this.lightsAndBreakers(f, w, d, 7);
+		this.sideWindows(f, w, d, 4);
+	}
+
+	/** The garage: two bays (a car up on the lift in one), tools, tyres, oil drums, the office. */
+	private void autoShop(Lot lot) {
+		int w = 19;
+		int d = 14;
+		Frame f = this.box(lot, lot.cx() - w / 2, w, d, 5, "white_terracotta", "smooth_stone", this.random.nextBoolean());
+		BlockState wall = b("white_terracotta");
+		f.fill(1, 0, 0, 5, 3, 0, AIR);
+		f.fill(7, 0, 0, 11, 3, 0, AIR);
+		f.fill(0, 4, -1, w - 1, 4, -1, b("red_concrete"));
+		this.frontSign(f, 15, 3, "", "JOE'S AUTO", "REPAIR", "");
+		f.fill(2, 0, 4, 2, 1, 4, b("iron_block"));
+		f.fill(4, 0, 4, 4, 1, 4, b("iron_block"));
+		f.fill(2, 2, 3, 4, 2, 9, b(this.pick("light_blue_concrete", "brown_concrete", "green_concrete")));
+		f.fill(2, 3, 5, 4, 3, 7, b("tinted_glass"));
+		f.fill(8, 0, 4, 10, 0, 9, b("black_concrete"));
+		f.fill(8, 1, 5, 10, 1, 8, b("orange_concrete"));
+		f.set(1, 0, d - 2, search(HwBlocks.TOOL_CABINET, Direction.EAST));
+		f.set(6, 0, d - 2, search(HwBlocks.TOOL_CABINET, f.front()));
+		f.set(11, 0, d - 2, search(HwBlocks.CRATE, f.front()));
+		for (int v = 2; v <= 4; v++) {
+			f.set(12, 0, v, b("black_wool"));
+			f.set(12, 1, v, b("black_wool"));
+		}
+		f.set(6, 0, 1, b("cauldron"));
+		f.set(6, 0, 2, b("cauldron"));
+		// The office.
+		f.fill(13, 0, 1, 13, 3, d - 2, wall);
+		f.fill(13, 0, 6, 13, 1, 6, AIR);
+		f.fill(14, 1, 0, 17, 2, 0, b("glass_pane"));
+		f.door(15, 0, 0, f.back());
+		f.set(15, 2, 0, b("white_terracotta"));
+		f.set(w - 2, 0, 3, b("spruce_planks"));
+		f.set(w - 2, 1, 3, dev.halloween.HwBlocks.PHONE.defaultBlockState());
+		f.point(MapPoints.Type.PHONE, w - 2, 1, 3);
+		f.set(w - 2, 0, d - 2, search(HwBlocks.FILING_CABINET, Direction.WEST));
+		f.locker(14, d - 2, f.front());
+		f.point(MapPoints.Type.NPC, 16, 0, 5);
+		this.lightsAndBreakers(f, w, d, 5);
+		this.sideWindows(f, w, d, 1);
+	}
+
+	/** The scrapyard: a fenced yard of wrecks and tyres, a little shack. */
+	private void junkyard(Lot lot) {
+		int w = Math.min(lot.width() - 4, 22);
+		int d = 18;
+		Frame f = new Frame(lot.cx() - w / 2, lot, w, this.random.nextBoolean());
+		for (int u = 0; u < w; u++) {
+			for (int v : new int[]{0, d - 1}) {
+				f.fill(u, 0, v, u, 1, v, b("spruce_fence"));
+			}
+		}
+		for (int v = 0; v < d; v++) {
+			f.fill(0, 0, v, 0, 1, v, b("spruce_fence"));
+			f.fill(w - 1, 0, v, w - 1, 1, v, b("spruce_fence"));
+		}
+		f.fill(w / 2 - 2, 0, 0, w / 2 + 2, 1, 0, AIR);
+		f.fill(1, -1, 1, w - 2, -1, d - 2, b("coarse_dirt"));
+		this.frontSign(f, w / 2 + 3, 1, "", "SCRAP", "& SALVAGE", "");
+		// Wrecks: rusty bodies, one on top of another, tyres piled up.
+		String[] rust = {"brown_concrete", "rooted_dirt", "light_gray_terracotta", "red_terracotta", "black_concrete"};
+		for (int[] c : new int[][]{{2, 3}, {2, 9}, {8, 12}, {13, 4}, {13, 11}}) {
+			String body = rust[this.random.nextInt(rust.length)];
+			f.fill(c[0], 0, c[1], c[0] + 4, 0, c[1] + 2, b(body));
+			f.fill(c[0] + 1, 1, c[1], c[0] + 3, 1, c[1] + 2, b(this.random.nextBoolean() ? body : "tinted_glass"));
+		}
+		f.fill(2, 1, 9, 6, 1, 11, b("brown_concrete"));
+		for (int v = 6; v <= 8; v++) {
+			f.fill(w - 3, 0, v, w - 3, this.random.nextInt(3), v, b("black_wool"));
+		}
+		f.set(8, 0, 5, search(HwBlocks.CRATE, f.front()));
+		f.set(w - 2, 0, d - 2, search(HwBlocks.TOOL_CABINET, Direction.WEST));
+		// The shack in the back corner.
+		f.fill(1, 0, d - 6, 5, 3, d - 2, b("spruce_planks"));
+		f.fill(2, 0, d - 5, 4, 2, d - 3, AIR);
+		f.door(3, 0, d - 6, f.back());
+		f.fill(1, 4, d - 6, 5, 4, d - 2, slab("spruce_slab", SlabType.BOTTOM));
+		f.set(2, 0, d - 3, search(HwBlocks.CARDBOARD_BOX, Direction.EAST));
+		f.set(4, 0, d - 3, b("spruce_planks"));
+		f.set(4, 1, d - 3, dev.halloween.HwBlocks.PHONE.defaultBlockState());
+		f.point(MapPoints.Type.PHONE, 4, 1, d - 3);
+		f.bulb(3, 3, d - 4);
+		this.breaker(Math.max(f.x(1), f.x(5)), 1, f.z(d - 4), Direction.EAST);
+		f.set(w / 2, 2, 1, b("lantern"));
+	}
+
+	/** The water tower: a tank on four legs high over the end of town, a ladder up, the pump house under it. */
+	private void waterTower(Lot lot) {
+		int cx = lot.cx();
+		int cz = lot.z(14);
+		for (int[] c : new int[][]{{-3, -3}, {3, -3}, {-3, 3}, {3, 3}}) {
+			this.fill(cx + c[0], 0, cz + c[1], cx + c[0], 15, cz + c[1], b("stripped_spruce_log"));
+		}
+		for (int y = 4; y <= 12; y += 4) {
+			for (int k = -3; k <= 3; k++) {
+				this.set(cx + k, y, cz - 3, b("spruce_fence"));
+				this.set(cx + k, y, cz + 3, b("spruce_fence"));
+				this.set(cx - 3, y, cz + k, b("spruce_fence"));
+				this.set(cx + 3, y, cz + k, b("spruce_fence"));
+			}
+		}
+		for (int y = 16; y <= 22; y++) {
+			for (int dx = -5; dx <= 5; dx++) {
+				for (int dz = -5; dz <= 5; dz++) {
+					double r = Math.sqrt(dx * dx + dz * dz);
+					if (y == 16 && r <= 5.2 || r > 4.3 && r <= 5.2) {
+						this.set(cx + dx, y, cz + dz, b(y == 19 ? "spruce_planks" : "stripped_spruce_wood"));
+					}
+				}
+			}
+		}
+		for (int k = 0; k <= 5; k++) {
+			for (int dx = -5 + k; dx <= 5 - k; dx++) {
+				for (int dz = -5 + k; dz <= 5 - k; dz++) {
+					if (Math.sqrt(dx * dx + dz * dz) <= 5.2 - k && Math.sqrt(dx * dx + dz * dz) > 4.0 - k) {
+						this.set(cx + dx, 23 + k, cz + dz, b("dark_oak_planks"));
+					}
+				}
+			}
+		}
+		for (int y = 0; y <= 16; y++) {
+			this.set(cx + 4, y, cz + 3, b("ladder").setValue(BlockStateProperties.HORIZONTAL_FACING, Direction.EAST));
+		}
+		this.set(cx + 3, 23, cz, b("lantern"));
+		// The pump house under it.
+		this.fill(cx - 2, -1, cz - 2, cx + 2, -1, cz + 2, b("stone_bricks"));
+		this.fill(cx - 2, 0, cz - 2, cx + 2, 3, cz + 2, b("bricks"));
+		this.fill(cx - 1, 0, cz - 1, cx + 1, 2, cz + 1, AIR);
+		Direction toStreet = lot.south() ? Direction.SOUTH : Direction.NORTH;
+		int dz = lot.south() ? 2 : -2;
+		this.door(cx, 0, cz + dz, toStreet.getOpposite(), "spruce_door");
+		this.set(cx - 1, 0, cz - dz / 2, search(HwBlocks.TOOL_CABINET, toStreet));
+		this.set(cx + 1, 0, cz - dz / 2, b("cauldron"));
+		this.bulb(cx, 3, cz);
+		this.breaker(cx + 2, 1, cz, Direction.EAST);
+		this.sign(cx - 2, 0, lot.z(6), lot.south() ? 0 : 8, "", "WATER", "DEPT.", "");
+	}
+
 }

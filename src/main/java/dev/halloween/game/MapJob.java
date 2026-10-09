@@ -110,6 +110,14 @@ public final class MapJob {
 			BlockState want = this.plan.at(x, y, z);
 			pos.set(this.origin.getX() + x, this.origin.getY() + y, this.origin.getZ() + z);
 			if (this.level.getBlockState(pos) != want) {
+				if (want.getBlock() instanceof net.minecraft.world.level.block.CarvedPumpkinBlock) {
+					// A pumpkin looks round for a golem to make: the chunks it looks into must be there.
+					for (int dx = -3; dx <= 3; dx += 3) {
+						for (int dz = -3; dz <= 3; dz += 3) {
+							this.level.getChunk((pos.getX() + dx) >> 4, (pos.getZ() + dz) >> 4);
+						}
+					}
+				}
 				this.level.setBlock(pos, want, FLAGS);
 			}
 		}
