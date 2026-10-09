@@ -1159,6 +1159,14 @@ public final class HwHud {
 		if (info.holdingId() >= 0) {
 			markEntity(g, mc, info.holdingId(), partial, w, h, Component.translatable("halloween.hud.runt.held"), BLOOD, 4);
 		}
+		// What it is doing, and (a bot) how to give it orders.
+		Component status = Component.translatable("halloween.hud.runt.status." + info.status());
+		g.text(mc.font, Component.translatable("halloween.hud.runt.status", status), w - 10 - mc.font.width(Component.translatable("halloween.hud.runt.status", status)),
+			h - 110, 0xFFB98CFF, true);
+		if (info.bot()) {
+			Component keyHint = Component.translatable("halloween.hud.runt.orders", HalloweenClient.KEY_RUNT_ORDER.getTranslatedKeyMessage());
+			g.text(mc.font, keyHint, w - 10 - mc.font.width(keyHint), h - 99, DIM, true);
+		}
 	}
 
 	/**
@@ -1216,6 +1224,12 @@ public final class HwHud {
 				g.centeredText(font, Component.translatable("halloween.runt.gift." + gift + ".desc"), w / 2, py + 25 + k * 24, DIM);
 			}
 		}
+		// The pounce winding up: a bar under the crosshair.
+		if (hud.charge() > 0f) {
+			int bw = 40;
+			g.fill(w / 2 - bw / 2, h / 2 + 12, w / 2 + bw / 2, h / 2 + 15, 0x80303030);
+			g.fill(w / 2 - bw / 2, h / 2 + 12, w / 2 - bw / 2 + (int) (bw * hud.charge()), h / 2 + 15, RUNT_PURPLE);
+		}
 		// Keys, bottom right: frighten (attack), his special, his tricks.
 		int baseY = h - 28;
 		float scare = hud.scareCooldown() == 0 ? 1f : 1f - (float) hud.scareCooldown() / Math.max(1, hud.scareMax());
@@ -1227,6 +1241,12 @@ public final class HwHud {
 		g.centeredText(font, "!", w - 26, baseY - 4, TEXT);
 		g.centeredText(font, mc.options.keyAttack.getTranslatedKeyMessage(), w - 26, baseY + 16, DIM);
 		int sy = baseY - 40;
+		smallAction(g, font, w - 10, sy, Component.translatable("halloween.hud.runt.pounce"), mc.options.keyShift.getTranslatedKeyMessage(), 0);
+		sy -= 11;
+		smallAction(g, font, w - 10, sy, Component.translatable("halloween.hud.runt.laugh"), HalloweenClient.KEY_IMPULSE.getTranslatedKeyMessage(), hud.laughCooldown());
+		sy -= 11;
+		smallAction(g, font, w - 10, sy, Component.translatable("halloween.hud.runt.knock"), mc.options.keyAttack.getTranslatedKeyMessage(), hud.knockCooldown());
+		sy -= 11;
 		boolean swap = hud.picks().get(2) == 1;
 		boolean mischief = hud.picks().get(1) == 1;
 		if (swap) {
@@ -1244,7 +1264,7 @@ public final class HwHud {
 		} else if (hud.stunned() > 0) {
 			g.centeredText(font, Component.translatable("halloween.hud.runt.stunned"), w / 2, h - 60, BLOOD);
 		} else if (hud.holding() > 0) {
-			g.centeredText(font, Component.translatable("halloween.hud.runt.holding", seconds(hud.holding())), w / 2, h - 60, RUNT_PURPLE);
+			g.centeredText(font, Component.translatable("halloween.hud.runt.riding"), w / 2, h - 60, RUNT_PURPLE);
 		}
 	}
 

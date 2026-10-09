@@ -316,8 +316,31 @@ public class HwConfig {
 	public float runtScorePerFear = 10f;
 	/** Clinger: how long he holds on, how many shoves shake him off, the pause after. */
 	public int runtHoldTicks = 100;
-	/** Didn't get his hands off in time: the panic on top of the hex he leaves. */
-	public float runtHoldFailPanic = 0.3f;
+	/** The pounce: crouch to wind up (at least, at most), how far it carries then, how long he lies after a miss. */
+	public int runtPounceMinChargeTicks = 8;
+	public int runtPounceChargeTicks = 30;
+	public double runtPounceMinDistance = 3;
+	public double runtPounceMaxDistance = 9;
+	public int runtPounceMissStunTicks = 100;
+	public float runtFearPounce = 12f;
+	/** A bot he holds tears his hands off in this many ticks, give or take. */
+	public int runtBotFreeTicks = 120;
+	/** Fear for really frightening people (see game.RuntFear). */
+	public double runtAmbushRange = 5;
+	public int runtAmbushHiddenTicks = 200;
+	public int runtAmbushCooldownTicks = 600;
+	public float runtAmbushPanic = 0.25f;
+	public float runtFearAmbush = 12f;
+	public float runtEdgeFearPerSecond = 0.6f;
+	public float runtWindowFearPerSecond = 1.5f;
+	public int runtLaughCooldownTicks = 240;
+	public double runtLaughRange = 20;
+	public float runtLaughPanic = 0.08f;
+	public float runtFearLaugh = 3f;
+	public int runtKnockCooldownTicks = 160;
+	public double runtKnockRange = 10;
+	public float runtKnockPanic = 0.1f;
+	public float runtFearKnock = 4f;
 	public int runtHoldCooldownTicks = 500;
 	/** Hex: how long no breath comes back and no healing works (the breath comes back at this rate meanwhile). */
 	public int runtHexTicks = 600;

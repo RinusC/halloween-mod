@@ -47,10 +47,12 @@ public class Halloween implements ModInitializer {
 				case HwNet.UseAction.INTERACT -> dev.halloween.game.Holds.ping(ctx.player(), payload.pos());
 				case HwNet.UseAction.LOCKER -> dev.halloween.game.Lockers.use(ctx.player(), payload.pos());
 				case HwNet.UseAction.RUNT_MISCHIEF -> dev.halloween.game.Runt.mischief(ctx.player(), payload.pos());
+				case HwNet.UseAction.RUNT_KNOCK -> dev.halloween.game.Runt.knock(ctx.player(), payload.pos());
 				default -> {
 				}
 			}
 		});
+		ServerPlayNetworking.registerGlobalReceiver(HwNet.RuntOrder.TYPE, (payload, ctx) -> dev.halloween.game.Runt.order(ctx.player(), payload.kind(), payload.targetId(), payload.pos()));
 		ServerPlayNetworking.registerGlobalReceiver(HwNet.RuntPick.TYPE, (payload, ctx) -> dev.halloween.game.Runt.pick(ctx.player(), payload.level(), payload.option()));
 		ServerPlayNetworking.registerGlobalReceiver(HwNet.PerkAction.TYPE, (payload, ctx) -> dev.halloween.game.Perks.act(ctx.player(), payload.perk(), payload.action()));
 		ServerPlayNetworking.registerGlobalReceiver(HwNet.NpcTalk.TYPE, (payload, ctx) -> dev.halloween.game.Talks.request(ctx.player(), payload.entityId(), payload.option()));
@@ -72,6 +74,7 @@ public class Halloween implements ModInitializer {
 				case ITEM_USE -> dev.halloween.game.Gear.use(ctx.player());
 				case STAB -> dev.halloween.game.Gear.stab(ctx.player());
 				case RUNT_SPECIAL -> dev.halloween.game.Runt.special(ctx.player());
+				case RUNT_LAUGH -> dev.halloween.game.Runt.laugh(ctx.player());
 			}
 		});
 

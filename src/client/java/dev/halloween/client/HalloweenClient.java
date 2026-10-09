@@ -36,6 +36,8 @@ public class HalloweenClient implements ClientModInitializer {
 		new KeyMapping("key.halloween.shape_jump", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_V, CATEGORY));
 	public static final KeyMapping KEY_IMPULSE = KeyMappingHelper.registerKeyMapping(
 		new KeyMapping("key.halloween.impulse", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_B, CATEGORY));
+	public static final KeyMapping KEY_RUNT_ORDER = KeyMappingHelper.registerKeyMapping(
+		new KeyMapping("key.halloween.runt_order", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_G, CATEGORY));
 	public static final KeyMapping KEY_PERKS = KeyMappingHelper.registerKeyMapping(
 		new KeyMapping("key.halloween.perks", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_P, CATEGORY));
 
@@ -192,7 +194,7 @@ public class HalloweenClient implements ClientModInitializer {
 
 		// The Shape's melee goes through our own light/heavy logic instead of vanilla attacks.
 		// Survivors: the left button answers reaction checks, and with no weapon in hand it shoves the Shape.
-		ClientPreAttackCallback.EVENT.register((client, player, clickCount) -> ClientState.myRole() == Role.SHAPE || survivorAttack(client, clickCount));
+		ClientPreAttackCallback.EVENT.register((client, player, clickCount) -> ClientState.myRole() == Role.SHAPE || runtKnock(client) || survivorAttack(client, clickCount));
 
 		ClientTickEvents.END_CLIENT_TICK.register(HalloweenClient::tick);
 
@@ -260,7 +262,9 @@ public class HalloweenClient implements ClientModInitializer {
 			}
 		}
 		Role role = ClientState.myRole();
-		CameraType wanted = role == Role.SHAPE ? CameraType.THIRD_PERSON_BACK : CameraType.FIRST_PERSON;
+		// Michael from behind; the Runt too while it rides somebody's back (then straight back to its own eyes).
+		boolean riding = role == Role.RUNT && ClientState.runtHud != null && ClientState.runtHud.holding() > 0;
+		CameraType wanted = role == Role.SHAPE || riding ? CameraType.THIRD_PERSON_BACK : CameraType.FIRST_PERSON;
 		if (role != Role.NONE && mc.options.getCameraType() != wanted) {
 			mc.options.setCameraType(wanted);
 		}
@@ -277,7 +281,7 @@ public class HalloweenClient implements ClientModInitializer {
 			}
 			// R and the right mouse button work the gun, if there is one in hand.
 			ClientGuns.tick(mc);
-			for (KeyMapping key : new KeyMapping[]{KEY_SHAPE_JUMP, KEY_IMPULSE}) {
+			for (KeyMapping key : new KeyMapping[]{KEY_SHAPE_JUMP, KEY_IMPULSE, KEY_RUNT_ORDER}) {
 				while (key.consumeClick()) {
 					// Shape-only keys do nothing for other roles.
 				}
@@ -330,7 +334,10 @@ public class HalloweenClient implements ClientModInitializer {
 			ClientPlayNetworking.send(new HwNet.ActionPress(HwNet.Action.RUNT_SPECIAL));
 		}
 		while (KEY_IMPULSE.consumeClick()) {
-			// Michael's key: nothing for the Runt.
+			ClientPlayNetworking.send(new HwNet.ActionPress(HwNet.Action.RUNT_LAUGH));
+		}
+		while (KEY_RUNT_ORDER.consumeClick()) {
+			// Michael's key.
 		}
 		HwNet.RuntHud hud = ClientState.runtHud;
 		int pending = hud == null ? -1 : hud.pending();
@@ -341,6 +348,38 @@ public class HalloweenClient implements ClientModInitializer {
 			}
 			PICK_KEYS_DOWN[k] = down;
 		}
+	}
+
+	/** The Runt's left click on a door or a window: knocking (the server says if it may). True if it was that. */
+	private static boolean runtKnock(Minecraft mc) {
+		if (ClientState.myRole() != Role.RUNT || !(mc.hitResult instanceof net.minecraft.world.phys.BlockHitResult hit)
+			|| hit.getType() != net.minecraft.world.phys.HitResult.Type.BLOCK) {
+			return false;
+		}
+		var state = mc.level.getBlockState(hit.getBlockPos());
+		if (!(state.getBlock() instanceof net.minecraft.world.level.block.DoorBlock) && !dev.halloween.game.Windows.isWindow(state)) {
+			return false;
+		}
+		ClientPlayNetworking.send(new HwNet.UseAction(HwNet.UseAction.RUNT_KNOCK, hit.getBlockPos()));
+		return true;
+	}
+
+	/** Michael's order wheel: what he looks at now is "there" and "that one". Only for a bot Runt. */
+	private static void openRuntOrders(Minecraft mc) {
+		HwNet.RuntInfo info = ClientState.runtInfo;
+		if (mc.gui.screen() != null || info == null || mc.level.getGameTime() - ClientState.runtInfoAt > 40) {
+			return;
+		}
+		if (!info.bot()) {
+			mc.player.sendOverlayMessage(net.minecraft.network.chat.Component.translatable("halloween.hud.runt.person"));
+			return;
+		}
+		net.minecraft.world.entity.LivingEntity aimed = CameraAim.pickLiving(60);
+		net.minecraft.core.BlockPos spot = CameraAim.pickBlock(80);
+		if (spot != null) {
+			spot = spot.above();
+		}
+		mc.gui.setScreen(new RuntOrderScreen(aimed == null ? -1 : aimed.getId(), spot));
 	}
 
 	private static void tickShape(Minecraft mc) {
@@ -365,6 +404,9 @@ public class HalloweenClient implements ClientModInitializer {
 		}
 		while (KEY_SHAPE_JUMP.consumeClick()) {
 			ClientPlayNetworking.send(new HwNet.ActionPress(HwNet.Action.SHAPE_JUMP));
+		}
+		while (KEY_RUNT_ORDER.consumeClick()) {
+			openRuntOrders(mc);
 		}
 		while (KEY_IMPULSE.consumeClick()) {
 			ClientPlayNetworking.send(new HwNet.ActionPress(HwNet.Action.IMPULSE));

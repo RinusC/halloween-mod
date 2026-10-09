@@ -67,9 +67,21 @@ public final class Runt {
 		int hits;
 		int hitsUntil;
 		public UUID holding;
-		public int holdTicks;
 		/** A bot he holds gets its hands free at this tick (it plays the hands game too, after its fashion). */
 		int botFreeAt;
+		/** Crouched, winding up a pounce (ticks); in the air (ticks since he leapt, 0 = not); a second go after a miss (clinger). */
+		public int crouch;
+		public int leapTicks;
+		boolean secondChance;
+		int secondChanceUntil;
+		public int laughCooldown;
+		public int laughCooldownMax = 1;
+		public int knockCooldown;
+
+		/** How wound up the pounce is, 0..1. */
+		public float charge() {
+			return Math.min(1f, this.crouch / (float) Math.max(1, HwConfig.get().runtPounceChargeTicks));
+		}
 		public int score;
 		int passiveAt;
 		RuntBrain brain;
@@ -95,7 +107,7 @@ public final class Runt {
 
 		/** Knocked down, trapped, chased off, or busy holding someone: no scaring now. */
 		public boolean busy() {
-			return this.stunTicks > 0 || this.outTicks > 0 || this.trappedTicks > 0 || this.holding != null;
+			return this.stunTicks > 0 || this.outTicks > 0 || this.trappedTicks > 0 || this.holding != null || this.leapTicks > 0;
 		}
 	}
 
@@ -199,9 +211,8 @@ public final class Runt {
 	}
 
 	public static void clear(MinecraftServer server) {
-		for (UUID id : new ArrayList<>(HEXED.keySet())) {
-			HEXED.remove(id);
-		}
+		HEXED.clear();
+		RuntFear.clear();
 		for (Map.Entry<UUID, State> e : RUNTS.entrySet()) {
 			if (e.getValue().holding != null) {
 				ServerPlayer victim = server.getPlayerList().getPlayer(e.getValue().holding);
@@ -241,6 +252,8 @@ public final class Runt {
 			s.scareCooldown = Math.max(0, s.scareCooldown - 1);
 			s.specialCooldown = Math.max(0, s.specialCooldown - 1);
 			s.trickCooldown = Math.max(0, s.trickCooldown - 1);
+			s.laughCooldown = Math.max(0, s.laughCooldown - 1);
+			s.knockCooldown = Math.max(0, s.knockCooldown - 1);
 			if (s.stunTicks > 0 && --s.stunTicks == HwConfig.get().stunRiseTicks) {
 				GrabSession.anim(p, HwNet.Anim.RISE);
 			}
@@ -252,8 +265,12 @@ public final class Runt {
 				s.passiveAt = now + cfg.runtFearPassiveTicks;
 				gain(p, s, 1);
 			}
+			pounceTick(p, s, now);
 			if (s.holding != null) {
 				tickHold(p, s, now);
+			}
+			if (now % 5 == 0) {
+				RuntFear.tick(p, s, now);
 			}
 			if (s.has("dread") && now % 20 == 0 && s.outTicks == 0) {
 				for (ServerPlayer v : p.level().players()) {
@@ -298,6 +315,134 @@ public final class Runt {
 				pick(runt, s.level - 1, runt.getRandom().nextInt(2));
 			} else {
 				Notices.send(runt, Component.translatable("halloween.runt.level_up", s.level).withStyle(ChatFormatting.DARK_PURPLE));
+			}
+		}
+	}
+
+	/** What he is up to, for Michael's screen: 0 by Michael, 1 searching, 2 after someone, 3 tricks, 4 on his own, 5 holding, 6 down, 7 chased off. */
+	/** What his Runt is doing as Michael's screen shows it (tests). */
+	public static int statusOf(Entity who) {
+		State s = state(who);
+		return s == null ? -1 : status(s);
+	}
+
+	private static int status(State s) {
+		if (s.outTicks > 0) {
+			return 7;
+		}
+		if (s.holding != null) {
+			return 5;
+		}
+		if (s.stunTicks > 0 || s.trappedTicks > 0) {
+			return 6;
+		}
+		return s.brain == null ? 4 : s.brain.status();
+	}
+
+	// ---------------------------------------------------------------- the pounce
+
+	/**
+	 * Crouch to wind up, let go to leap the way he looks: the longer the wind-up, the further. Touch a survivor in
+	 * the air and he is on their back; land on nothing and he lies stunned (with the clinger gift, not the first time).
+	 */
+	private static void pounceTick(ServerPlayer p, State s, int now) {
+		HwConfig cfg = HwConfig.get();
+		if (s.secondChance && now > s.secondChanceUntil) {
+			s.secondChance = false;
+		}
+		if (s.leapTicks > 0) {
+			leapTick(p, s, now);
+			return;
+		}
+		boolean free = s.stunTicks == 0 && s.outTicks == 0 && s.trappedTicks == 0 && s.holding == null;
+		if (free && p.isShiftKeyDown() && p.onGround()) {
+			s.crouch = Math.min(cfg.runtPounceChargeTicks, s.crouch + 1);
+			return;
+		}
+		if (free && s.crouch >= cfg.runtPounceMinChargeTicks) {
+			leap(p, s);
+		}
+		s.crouch = 0;
+	}
+
+	private static void leap(ServerPlayer p, State s) {
+		HwConfig cfg = HwConfig.get();
+		double dist = cfg.runtPounceMinDistance + (cfg.runtPounceMaxDistance - cfg.runtPounceMinDistance) * s.charge();
+		Vec3 dir = p.getLookAngle().multiply(1, 0, 1);
+		if (dir.lengthSqr() < 1.0E-4) {
+			dir = Vec3.directionFromRotation(0, p.getYRot());
+		}
+		// In the air for about a dozen ticks, the drag of the air taking off a little each one: about seven ticks' worth.
+		Vec3 v = dir.normalize().scale(dist / 7.0);
+		p.setDeltaMovement(v.x, 0.42, v.z);
+		p.hurtMarked = true;
+		s.leapTicks = 1;
+		s.crouch = 0;
+		p.level().playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.VEX_CHARGE, SoundSource.HOSTILE, 1.2f, 0.8f);
+		AiStats.add(p, "runt.pounce");
+	}
+
+	private static void leapTick(ServerPlayer p, State s, int now) {
+		HwConfig cfg = HwConfig.get();
+		s.leapTicks++;
+		net.minecraft.world.phys.AABB reach = p.getBoundingBox().inflate(0.35);
+		for (ServerPlayer v : p.level().players()) {
+			if (MatchManager.role(v).survivor() && !v.isSpectator() && !Lockers.isInside(v) && !MatchManager.isGrabbed(v) && heldBy(v) == null
+				&& reach.intersects(v.getBoundingBox())) {
+				// Right on them: onto their back, hands at their throat.
+				s.leapTicks = 0;
+				s.secondChance = false;
+				Panic.add(v, cfg.runtScarePanic);
+				Voices.play(v, Voices.Kind.SCREAM);
+				p.level().playSound(null, v.getX(), v.getY(), v.getZ(), SoundEvents.PHANTOM_BITE, SoundSource.HOSTILE, 1.2f, 0.6f);
+				gain(p, s, cfg.runtFearPounce);
+				startHold(p, s, v);
+				AiStats.add(p, "runt.pounce_hit");
+				return;
+			}
+		}
+		if (s.leapTicks > 3 && p.onGround() || s.leapTicks > 40) {
+			s.leapTicks = 0;
+			p.level().playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.PLAYER_ATTACK_KNOCKBACK, SoundSource.HOSTILE, 1f, 0.6f);
+			if (s.has("clinger") && !s.secondChance) {
+				// The clinger gets a second go before the fall takes him.
+				s.secondChance = true;
+				s.secondChanceUntil = now + 60;
+				Notices.send(p, Component.translatable("halloween.runt.second_pounce").withStyle(ChatFormatting.DARK_PURPLE));
+			} else {
+				s.secondChance = false;
+				floor(p, s, cfg.runtPounceMissStunTicks);
+				AiStats.add(p, "runt.pounce_miss");
+			}
+		}
+	}
+
+	// ---------------------------------------------------------------- frightening for real, and Michael's orders
+
+	/** His laugh key: a giggle or a whisper everyone near hears as if from everywhere. */
+	public static boolean laugh(ServerPlayer runt) {
+		State s = RUNTS.get(runt.getUUID());
+		return s != null && Match.running() && RuntFear.laugh(runt, s);
+	}
+
+	/** Knocking on a door or a window. */
+	public static boolean knock(ServerPlayer runt, BlockPos pos) {
+		State s = RUNTS.get(runt.getUUID());
+		return s != null && Match.running() && RuntFear.knock(runt, s, pos);
+	}
+
+	/** Michael tells his Runt (a bot) what to do: search there, go for that one, play tricks there, come back. */
+	public static void order(ServerPlayer michael, int kind, int targetId, BlockPos pos) {
+		if (MatchManager.role(michael) != Role.SHAPE || !Match.running()) {
+			return;
+		}
+		ServerLevel level = michael.level();
+		Entity target = targetId < 0 ? null : level.getEntity(targetId);
+		ServerPlayer survivor = target instanceof ServerPlayer sp && MatchManager.role(sp).survivor() && !sp.isSpectator() ? sp : null;
+		for (State s : RUNTS.values()) {
+			if (s.brain != null) {
+				s.brain.order(kind, survivor, pos, level.getServer().getTickCount());
+				Notices.send(michael, Component.translatable("halloween.runt.order." + kind).withStyle(ChatFormatting.DARK_PURPLE));
 			}
 		}
 	}
@@ -365,9 +510,6 @@ public final class Runt {
 			gain(runt, s, cfg.runtFearScare);
 			s.scareCooldown = s.scareCooldownMax = scareCooldown(s);
 			AiStats.add(runt, "runt.scare");
-			if (s.has("clinger")) {
-				startHold(runt, s, v);
-			}
 		}
 	}
 
@@ -439,16 +581,15 @@ public final class Runt {
 		HwConfig cfg = HwConfig.get();
 		int now = runt.level().getServer().getTickCount();
 		s.holding = v.getUUID();
-		s.holdTicks = cfg.runtHoldTicks;
-		// A bot gets its hands to his a little before or after the time is up, as a person would.
-		s.botFreeAt = now + cfg.runtHoldTicks * 6 / 10 + runt.getRandom().nextInt(cfg.runtHoldTicks * 7 / 10);
+		// A bot gets its hands off his in about the time a person would, give or take.
+		s.botFreeAt = now + cfg.runtBotFreeTicks * 2 / 3 + runt.getRandom().nextInt(cfg.runtBotFreeTicks * 2 / 3 + 1);
 		root(v, true);
 		MatchManager.noJumping(v, true);
 		Notices.send(v, Component.translatable("halloween.runt.holding_you").withStyle(ChatFormatting.DARK_RED));
 		if (!(v instanceof BotPlayer)) {
 			Minigames.open(v, HwNet.Minigame.HANDS, v.blockPosition());
 		}
-		reveal(runt.level(), v, cfg.runtHoldTicks);
+		reveal(runt.level(), v, cfg.runtScareRevealTicks * 3);
 		for (ServerPlayer shape : runt.level().players()) {
 			if (MatchManager.role(shape) == Role.SHAPE) {
 				Notices.send(shape, Component.translatable("halloween.runt.holding", v.getDisplayName(), Landmarks.describe(v.level(), v.position()))
@@ -475,13 +616,9 @@ public final class Runt {
 			freed(v);
 			return;
 		}
-		if (--s.holdTicks <= 0) {
-			// They didn't get his hands off in time: he lets go when he pleases, and leaves a hex behind.
-			release(runt, s, true);
-			Panic.add(v, cfg.runtHoldFailPanic);
-			hex(v);
-			AiStats.add(v, "runt.hold_failed");
-			return;
+		if (now % 100 == 0) {
+			// Michael keeps knowing where they are while they are pinned.
+			reveal(runt.level(), v, 110);
 		}
 		// On their back, clinging.
 		Vec3 back = v.position().subtract(v.getLookAngle().multiply(1, 0, 1).normalize().scale(0.45));
@@ -776,13 +913,13 @@ public final class Runt {
 		for (ServerPlayer p : runt.level().players()) {
 			if (MatchManager.role(p) == Role.SHAPE) {
 				michael = p.getId();
-				ServerPlayNetworking.send(p, new HwNet.RuntInfo(runt.getId(), scent, s.outTicks > 0, held));
+				ServerPlayNetworking.send(p, new HwNet.RuntInfo(runt.getId(), scent, s.outTicks > 0, held, s.brain != null, status(s)));
 			}
 		}
 		if (!(runt instanceof BotPlayer)) {
 			ServerPlayNetworking.send(runt, new HwNet.RuntHud(s.fear, s.level, prev, next, s.scareCooldown, s.scareCooldownMax, s.specialCooldown,
 				s.specialCooldownMax, s.trickCooldown, s.trickCooldownMax, List.of(s.picks[0], s.picks[1], s.picks[2]), s.pending(), Math.max(s.stunTicks, s.trappedTicks), s.outTicks,
-				s.holdTicks * (s.holding == null ? 0 : 1), michael, scent));
+				s.holding == null ? 0 : 1, michael, scent, s.charge(), s.laughCooldown, s.laughCooldownMax, s.knockCooldown));
 		}
 	}
 

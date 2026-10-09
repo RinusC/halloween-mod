@@ -11,8 +11,8 @@ import net.minecraft.util.Mth;
 
 /**
  * The Runt on your back: its hands at your throat. Drag each one down off your neck, past the line; let one go
- * too soon and it creeps back up. All of them off within the time (five seconds or so) and you throw it off;
- * otherwise it lets go when it pleases, and leaves a hex behind (the server decides).
+ * too soon and it creeps back up. All of them off (five seconds or so, if you are quick) and you throw it off;
+ * till then it rides you.
  */
 public final class HandsScreen extends MinigameScreen {
 	public static final int HANDS = 4;
@@ -90,11 +90,6 @@ public final class HandsScreen extends MinigameScreen {
 			}
 			this.hand(g, (int) this.x[i], (int) this.y[i], 0xFF);
 		}
-		// Time: the Runt won't hang on for ever, but if you don't get it off, it leaves a hex.
-		float left = Mth.clamp(1f - this.ticks / 100f, 0f, 1f);
-		int bw = W - 40;
-		g.fill(this.left() + 20, this.top() + H - 12, this.left() + 20 + bw, this.top() + H - 9, 0x80303030);
-		g.fill(this.left() + 20, this.top() + H - 12, this.left() + 20 + (int) (bw * left), this.top() + H - 9, 0xFFB98CFF);
 	}
 
 	/** A grey bony hand gripping, fingers up, black nails; {@code alpha} fades a thrown-off one. */
