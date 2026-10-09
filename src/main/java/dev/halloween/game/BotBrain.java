@@ -179,11 +179,8 @@ final class BotBrain {
 		}
 		this.grabbedSince = -1;
 		if (Runt.heldBy(this.bot) != null) {
-			// The Runt is on our back: shake him off.
+			// The Runt is on our back: its hands at our throat (getting them off takes a while, see Runt).
 			this.walker.halt();
-			if (now % 4 == 0) {
-				Runt.struggle(this.bot);
-			}
 			return;
 		}
 		if (Windows.isVaulting(this.bot)) {

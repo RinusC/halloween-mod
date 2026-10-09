@@ -81,6 +81,8 @@ public final class Minigames {
 				LightSystem.flip(level, session.pos, true);
 				AiStats.add(player, "power.on");
 			}
+		} else if (session.kind == HwNet.Minigame.HANDS) {
+			Runt.freed(player);
 		} else if (session.kind == HwNet.Minigame.CURVE && Exits.canRepairCar(player)) {
 			Exits.repairCar(player);
 		}
@@ -105,14 +107,23 @@ public final class Minigames {
 		while (it.hasNext()) {
 			Map.Entry<UUID, Session> e = it.next();
 			ServerPlayer player = server.getPlayerList().getPlayer(e.getKey());
+			boolean hands = e.getValue().kind == HwNet.Minigame.HANDS;
 			boolean keep = player != null && Match.running() && !player.isSpectator() && MatchManager.role(player).survivor()
-				&& !MatchManager.isGrabbed(player) && player.getEyePosition().distanceTo(Vec3.atCenterOf(e.getValue().pos)) <= 4.5;
+				&& !MatchManager.isGrabbed(player) && (hands ? Runt.heldBy(player) != null : player.getEyePosition().distanceTo(Vec3.atCenterOf(e.getValue().pos)) <= 4.5);
 			if (!keep) {
 				it.remove();
 				if (player != null) {
 					ServerPlayNetworking.send(player, HwNet.Minigame.close(e.getValue().pos));
 				}
 			}
+		}
+	}
+
+	/** Closes this player's panel at once (the Runt let go). */
+	public static void close(ServerPlayer player) {
+		Session session = OPEN.remove(player.getUUID());
+		if (session != null) {
+			ServerPlayNetworking.send(player, HwNet.Minigame.close(session.pos));
 		}
 	}
 

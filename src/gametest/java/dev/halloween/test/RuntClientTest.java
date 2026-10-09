@@ -80,20 +80,67 @@ public class RuntClientTest implements FabricClientGameTest {
 			ctx.takeScreenshot("runt_pick");
 			server.runOnServer(s -> Runt.pick(player(s), 0, 0));
 			check(server.computeOnServer(s -> Runt.state(player(s)).has("clinger") && Runt.state(player(s)).pending() < 0), "picked: the clinger");
-			// Clinging on: the survivor can't go anywhere until they shake him off (a bot shoves and shoves).
+			// Clinging on: the one he holds can't shove him off, nobody can chase him off meanwhile (a friend can
+			// knock him off their back), and a bot gets its hands to his in about the time, or is left hexed.
 			server.runOnServer(s -> {
 				Runt.State st = Runt.state(player(s));
 				st.scareCooldown = 0;
+				ServerPlayer bot = s.getPlayerList().getPlayerByName(victim);
+				player(s).teleportTo(s.overworld(), bot.getX() + 1.2, bot.getY(), bot.getZ(), java.util.Set.of(), 90f, 0f, false);
 				Runt.scare(player(s), s.getPlayerList().getPlayerByName(victim));
 			});
-			check(server.computeOnServer(s -> Runt.state(player(s)).holding != null), "with that gift the fright ends on their back");
-			boolean shaken = false;
-			for (int i = 0; i < 20 && !shaken; i++) {
+			check(server.computeOnServer(s -> Runt.state(player(s)).holding != null), "with that gift the fright ends at their throat");
+			check(server.computeOnServer(s -> {
+				ServerPlayer bot = s.getPlayerList().getPlayerByName(victim);
+				Stamina.set(bot, 1f);
+				Fight.survivorPush(bot);
+				Runt.hit(player(s), bot, 1f);
+				return Runt.state(player(s)).holding != null;
+			}), "the one held can't shove or strike him off");
+			check(server.computeOnServer(s -> {
+				ServerPlayer friend = s.getPlayerList().getPlayers().stream().filter(p -> p instanceof BotPlayer && MatchManager.role(p) == Role.CIVILIAN
+					&& !p.getScoreboardName().equals(victim)).findFirst().orElseThrow();
+				Runt.chaseOff(player(s), friend);
+				Runt.State st = Runt.state(player(s));
+				return st.outTicks == 0 && st.holding == null && st.stunTicks > 0;
+			}), "a shot or a blow from a friend knocks him off their back but doesn't chase him off");
+			server.runOnServer(s -> {
+				Runt.State st = Runt.state(player(s));
+				st.stunTicks = 0;
+				st.scareCooldown = 0;
+				ServerPlayer bot = s.getPlayerList().getPlayerByName(victim);
+				player(s).teleportTo(s.overworld(), bot.getX() + 1.2, bot.getY(), bot.getZ(), java.util.Set.of(), 90f, 0f, false);
+			});
+			ctx.waitTicks(2);
+			check(server.computeOnServer(s -> Runt.scare(player(s), s.getPlayerList().getPlayerByName(victim)) && Runt.state(player(s)).holding != null),
+				"at their throat again");
+			boolean over = false;
+			for (int i = 0; i < 40 && !over; i++) {
 				ctx.waitTicks(5);
-				shaken = server.computeOnServer(s -> Runt.state(player(s)).holding == null);
+				over = server.computeOnServer(s -> Runt.state(player(s)).holding == null);
 			}
-			check(shaken && server.computeOnServer(s -> Runt.state(player(s)).stunTicks > 0 || Runt.state(player(s)).holding == null),
-				"the survivor shakes him off");
+			check(over, "the hold ends: hands torn off, or let go with a hex");
+			// A locker thrown open: whoever hides in it tumbles out, frightened.
+			BlockPos locker = server.computeOnServer(s -> dev.halloween.game.Lockers.nearestFree(s.overworld(), player(s).blockPosition(), 60));
+			check(locker != null, "a locker to try");
+			boolean pulled = server.computeOnServer(s -> {
+				ServerPlayer bot = s.getPlayerList().getPlayerByName(victim);
+				BlockPos front = dev.halloween.game.Lockers.front(s.overworld(), locker);
+				Runt.State st = Runt.state(player(s));
+				st.stunTicks = 0;
+				st.scareCooldown = 0;
+				Runt.hexed(bot);
+				bot.teleportTo(s.overworld(), front.getX() + 0.5, front.getY(), front.getZ() + 0.5, java.util.Set.of(), 0f, 0f, false);
+				boolean in = dev.halloween.game.Lockers.enter(bot, locker, false);
+				player(s).teleportTo(s.overworld(), front.getX() + 0.5, front.getY(), front.getZ() + 0.5, java.util.Set.of(), 0f, 0f, false);
+				float before = Panic.value(bot);
+				return in && Runt.openLocker(player(s), locker) && !dev.halloween.game.Lockers.isInside(bot) && Panic.value(bot) > before;
+			});
+			check(pulled, "he throws a locker open: the one hiding tumbles out, frightened");
+			// (With the clinger gift he is at their throat again: wait until that is over.)
+			for (int i = 0; i < 40 && server.computeOnServer(s -> Runt.state(player(s)).holding != null); i++) {
+				ctx.waitTicks(5);
+			}
 			// A shove floors him; two blows with something chase him off.
 			server.runOnServer(s -> {
 				Runt.State st = Runt.state(player(s));
@@ -104,8 +151,9 @@ public class RuntClientTest implements FabricClientGameTest {
 				ServerPlayer runt = player(s);
 				runt.teleportTo(s.overworld(), bot.getX() + 1.2, bot.getY(), bot.getZ(), java.util.Set.of(), 90f, 0f, false);
 				bot.teleportTo(s.overworld(), bot.getX(), bot.getY(), bot.getZ(), java.util.Set.of(), -90f, 0f, false);
-				Stamina.set(bot, 1f);
-				return Fight.survivorPush(bot) && Runt.state(runt).stunTicks > 0;
+				// (The bot may have shoved him just now by itself: straight to the shove, not through its cooldown.)
+				Runt.shove(runt, bot);
+				return Runt.state(runt).stunTicks > 0;
 			});
 			check(shoved, "a shove floors him");
 			boolean chased = server.computeOnServer(s -> {
@@ -170,6 +218,24 @@ public class RuntClientTest implements FabricClientGameTest {
 				return Runt.special(runt) && runt.position().distanceTo(b) < 0.5 && m.position().distanceTo(a) < 0.5;
 			});
 			check(swapped, "swap: he and Michael trade places");
+			// Michael knocked down: over on his back, and up again at the end.
+			int michaelId = server.computeOnServer(s -> {
+				ServerPlayer m = s.getPlayerList().getPlayerByName(michael);
+				ServerPlayer p = player(s);
+				BlockPos c = dev.halloween.game.MapPoints.get(s.overworld()).first(dev.halloween.game.MapPoints.Type.CENTER);
+				m.teleportTo(s.overworld(), c.getX() + 0.5, c.getY(), c.getZ() + 0.5, java.util.Set.of(), 0f, 0f, false);
+				p.teleportTo(s.overworld(), c.getX() + 4.5, c.getY(), c.getZ() + 0.5, java.util.Set.of(), 90f, 20f, false);
+				Fight.stun(m, 1f, null);
+				return m.getId();
+			});
+			ctx.waitTicks(12);
+			check(ctx.computeOnClient(mc -> dev.halloween.client.ClientAnims.fallAngle(michaelId) > 60f), "a stun puts Michael on his back");
+			server.runCommand("time set noon");
+			ctx.waitTicks(3);
+			ctx.takeScreenshot("michael_down");
+			server.runCommand("time set midnight");
+			ctx.waitTicks(HwConfig.get().stunnedTicks + 10);
+			check(ctx.computeOnClient(mc -> dev.halloween.client.ClientAnims.fallAngle(michaelId) == 0f), "and he gets back up when it ends");
 			server.runCommand("hw stop");
 			ctx.waitTicks(5);
 			check(server.computeOnServer(s -> MatchManager.role(player(s)) == Role.NONE
@@ -203,6 +269,40 @@ public class RuntClientTest implements FabricClientGameTest {
 			}
 			LOG.info("Bot Runt frights: {}", scares);
 			check(scares > 0, "the bot Runt finds survivors and frightens them by itself");
+			// Its hands at your throat: the hands game opens; get them all off and it is thrown off.
+			server.runOnServer(s -> {
+				ServerPlayer runt = Runt.all(s).getFirst();
+				Runt.State st = Runt.state(runt);
+				st.level = Math.max(st.level, 1);
+				if (st.picks[0] < 0) {
+					st.picks[0] = 0;
+				}
+				st.picks[0] = 0;
+				st.scareCooldown = 0;
+				st.stunTicks = 0;
+				st.holding = null;
+				ServerPlayer p = player(s);
+				runt.teleportTo(s.overworld(), p.getX() + 1.2, p.getY(), p.getZ(), java.util.Set.of(), 90f, 0f, false);
+			});
+			ctx.waitTicks(2);
+			check(server.computeOnServer(s -> Runt.scare(Runt.all(s).getFirst(), player(s)) && Runt.heldBy(player(s)) != null), "the bot Runt clings to the player");
+			boolean screen = false;
+			for (int i = 0; i < 20 && !screen; i++) {
+				ctx.waitTicks(2);
+				screen = ctx.computeOnClient(mc -> mc.gui.screen() instanceof dev.halloween.client.HandsScreen);
+			}
+			check(screen, "the hands game opens");
+			ctx.takeScreenshot("runt_hands");
+			ctx.runOnClient(mc -> {
+				if (mc.gui.screen() instanceof dev.halloween.client.HandsScreen hands) {
+					for (int i = 0; i < dev.halloween.client.HandsScreen.HANDS; i++) {
+						hands.throwOff(i);
+					}
+				}
+			});
+			ctx.waitTicks(5);
+			check(server.computeOnServer(s -> Runt.heldBy(player(s)) == null && Runt.state(Runt.all(s).getFirst()).stunTicks > 0),
+				"all the hands off: it is thrown off and floored");
 			server.runCommand("hw stop");
 			ctx.waitTicks(5);
 			check(server.computeOnServer(s -> Runt.all(s).isEmpty() && s.getPlayerList().getPlayers().stream().noneMatch(p -> p.getScoreboardName().equals(Runt.BOT_NAME))),

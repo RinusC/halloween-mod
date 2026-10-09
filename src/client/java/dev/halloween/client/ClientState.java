@@ -159,7 +159,7 @@ public final class ClientState {
 	/** Outline colour the Shape sees for an entity, or -1 for none. */
 	public static int outlineColor(Entity entity) {
 		if (myRole().survivor() && match.state() == 2 && perkEquipped.contains("witness") && entity != Minecraft.getInstance().player
-			&& ROLES.getOrDefault(entity.getUUID(), Role.NONE).survivor() && !entity.isSpectator()
+			&& (ROLES.getOrDefault(entity.getUUID(), Role.NONE).survivor() || match.npcs().contains(entity.getId())) && !entity.isSpectator()
 			&& entity.distanceTo(Minecraft.getInstance().player) <= dev.halloween.HwConfig.get().perkWitnessRange) {
 			// Witness: the others close by show through walls.
 			return 0x6FB7FF;

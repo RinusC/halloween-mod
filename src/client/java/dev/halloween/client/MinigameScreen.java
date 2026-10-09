@@ -42,6 +42,7 @@ public abstract class MinigameScreen extends Screen {
 		return switch (open.kind()) {
 			case HwNet.Minigame.WIRES -> new WiresScreen(open.pos(), open.seed());
 			case HwNet.Minigame.KEYPAD -> new KeypadScreen(open.pos(), open.seed());
+			case HwNet.Minigame.HANDS -> new HandsScreen(open.pos(), open.seed());
 			default -> new CurveScreen(open.pos(), open.seed());
 		};
 	}

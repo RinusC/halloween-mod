@@ -3,6 +3,7 @@ package dev.halloween.game;
 import dev.halloween.HwConfig;
 import dev.halloween.HwParticles;
 import dev.halloween.HwSounds;
+import dev.halloween.net.HwNet;
 import dev.halloween.Role;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -97,6 +98,8 @@ public final class Fight {
 		if (state.stun >= 1f) {
 			state.stun = 0f;
 			state.stunnedTicks = cfg.stunnedTicks;
+			// Down he goes, flat on his back (and up again at the end, see tick).
+			GrabSession.anim(shape, HwNet.Anim.FALL);
 			state.senseHeld = false;
 			if (state.grab != null) {
 				state.grab.end();
@@ -257,6 +260,9 @@ public final class Fight {
 			if (state != null) {
 				if (state.stunnedTicks > 0) {
 					state.stunnedTicks--;
+					if (state.stunnedTicks == cfg.stunRiseTicks) {
+						GrabSession.anim(player, HwNet.Anim.RISE);
+					}
 				}
 				state.stun = Math.max(0f, state.stun - cfg.stunDecayPerSecond / 20f);
 				if (state.litTicks > 0) {

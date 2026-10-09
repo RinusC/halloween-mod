@@ -1,0 +1,8 @@
+{
+  "variants": {
+    "facing=north": { "model": "halloween:block/tin_cans" },
+    "facing=east": { "model": "halloween:block/tin_cans", "y": 90 },
+    "facing=south": { "model": "halloween:block/tin_cans", "y": 180 },
+    "facing=west": { "model": "halloween:block/tin_cans", "y": 270 }
+  }
+}

@@ -33,6 +33,12 @@ public final class Stamina {
 	private Stamina() {
 	}
 
+	/** Breathing hard for everyone to hear just now (out of breath or panicking). */
+	public static boolean panting(Entity who) {
+		State s = who == null ? null : STATES.get(who.getUUID());
+		return s != null && s.panting;
+	}
+
 	public static boolean exhausted(Entity who) {
 		State s = STATES.get(who.getUUID());
 		return s != null && s.exhausted;

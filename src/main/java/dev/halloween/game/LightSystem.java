@@ -42,6 +42,10 @@ public final class LightSystem {
 		if (!isBreaker(level, pos) || player.isSpectator()) {
 			return InteractionResult.PASS;
 		}
+		if (player instanceof net.minecraft.server.level.ServerPlayer runt && MatchManager.role(runt) == dev.halloween.Role.RUNT) {
+			// The Runt throws breakers only as his mischief (the level-two gift), through Runt.mischief.
+			return InteractionResult.FAIL;
+		}
 		if (!(level instanceof ServerLevel serverLevel)) {
 			return InteractionResult.SUCCESS;
 		}

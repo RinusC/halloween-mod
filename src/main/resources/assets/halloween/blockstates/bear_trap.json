@@ -1,0 +1,8 @@
+{
+  "variants": {
+    "facing=north": { "model": "halloween:block/bear_trap" },
+    "facing=east": { "model": "halloween:block/bear_trap", "y": 90 },
+    "facing=south": { "model": "halloween:block/bear_trap", "y": 180 },
+    "facing=west": { "model": "halloween:block/bear_trap", "y": 270 }
+  }
+}

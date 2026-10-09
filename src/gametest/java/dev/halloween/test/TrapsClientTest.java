@@ -2,6 +2,7 @@ package dev.halloween.test;
 
 import dev.halloween.HwConfig;
 import dev.halloween.client.ClientState;
+import dev.halloween.game.AiStats;
 import dev.halloween.game.BotPlayer;
 import dev.halloween.game.HwItems;
 import dev.halloween.game.Lockers;
@@ -45,7 +46,8 @@ public class TrapsClientTest implements FabricClientGameTest {
 				Traps.place(p, Traps.Kind.BEAR_TRAP);
 				return p.blockPosition();
 			});
-			check(server.computeOnServer(s -> Traps.isTrap(trap)), "a bear trap is set at your feet");
+			check(server.computeOnServer(s -> Traps.isTrap(trap) && s.overworld().getBlockState(trap).is(dev.halloween.HwBlocks.BEAR_TRAP)), "a bear trap is set at your feet");
+			check(HwItems.Kind.BEAR_TRAP.usable() && HwItems.Kind.TIN_CANS.usable(), "right click sets them (the client sends the use)");
 			BlockPos cans = server.computeOnServer(s -> {
 				ServerPlayer p = player(s);
 				p.teleportTo(s.overworld(), p.getX() + 3, p.getY(), p.getZ(), java.util.Set.of(), 0f, 0f, false);
@@ -84,6 +86,14 @@ public class TrapsClientTest implements FabricClientGameTest {
 				return in && !Lockers.enter(p, locker);
 			});
 			check(refused, "out for air, no getting back into a locker at once");
+			// (A match of our own for this, without bots: in the arena they take the few lockers there are.)
+			server.runCommand("hw stop");
+			ctx.waitTicks(5);
+			server.runOnServer(s -> HwConfig.get().botsFillTo = 0);
+			server.runCommand("hw start");
+			ctx.waitTicks(1);
+			ctx.waitTicks(40);
+			check(server.computeOnServer(s -> dev.halloween.game.Townsfolk.count()) > 0, "a second match in a row has its townsfolk too");
 			// A townsperson out for air goes back in once its breath is back (it used to give lockers up for good).
 			server.runOnServer(s -> HwConfig.get().lockerBreathTicks = 60);
 			int npcId = server.computeOnServer(s -> {
@@ -104,7 +114,7 @@ public class TrapsClientTest implements FabricClientGameTest {
 			ctx.waitTicks(30);
 			check(server.computeOnServer(s -> !Lockers.isInside((net.minecraft.world.entity.LivingEntity) s.overworld().getEntity(npcId))), "out of air, it stays out a while");
 			boolean back = false;
-			for (int i = 0; i < 20 && !back; i++) {
+			for (int i = 0; i < 40 && !back; i++) {
 				ctx.waitTicks(10);
 				back = server.computeOnServer(s -> Lockers.isInside((net.minecraft.world.entity.LivingEntity) s.overworld().getEntity(npcId)));
 			}

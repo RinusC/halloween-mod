@@ -77,6 +77,11 @@ public class Halloween implements ModInitializer {
 
 		ServerTickEvents.END_SERVER_TICK.register(MatchManager::tick);
 		net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents.ENTITY_LOAD.register(dev.halloween.game.Leftovers::onLoad);
+		// Townsfolk and officers whose chunk loads again come back in a new body object.
+		net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents.ENTITY_LOAD.register((e, level) -> {
+			dev.halloween.game.Townsfolk.rebind(e);
+			dev.halloween.game.Police.rebind(e);
+		});
 		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
 			MatchManager.markDirty();
 			DoorLocks.syncTo(handler.player);

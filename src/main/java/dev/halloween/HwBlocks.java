@@ -34,7 +34,17 @@ public final class HwBlocks {
 	public static final Block GUN_SAFE = Registry.register(BuiltInRegistries.BLOCK, key("gun_safe"),
 		new dev.halloween.game.SafeBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.IRON_BLOCK).strength(-1f, 3600000f).noOcclusion().setId(key("gun_safe"))));
 
+	/** Traps a survivor set down (see game.Traps): nothing to bump into. */
+	public static final Block BEAR_TRAP = trap("bear_trap", Blocks.IRON_BLOCK);
+	public static final Block TIN_CANS = trap("tin_cans", Blocks.TRIPWIRE);
+
 	private HwBlocks() {
+	}
+
+	private static Block trap(String path, Block like) {
+		ResourceKey<Block> key = key(path);
+		return Registry.register(BuiltInRegistries.BLOCK, key, new dev.halloween.game.TrapBlock(
+			BlockBehaviour.Properties.ofFullCopy(like).noCollision().noOcclusion().strength(-1f, 3600000f).setId(key)));
 	}
 
 	private static ResourceKey<Block> key(String path) {

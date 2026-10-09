@@ -298,6 +298,10 @@ public final class HwNet {
 		public static final int STABBED = 7;
 		/** The Shape's knife comes down (the kill). */
 		public static final int KNIFE_DOWN = 8;
+		/** Knocked down: goes over backwards and stays down. */
+		public static final int FALL = 9;
+		/** Gets back up after a fall. */
+		public static final int RISE = 10;
 
 		public static final Type<Anim> TYPE = payloadType("anim");
 		public static final StreamCodec<RegistryFriendlyByteBuf, Anim> CODEC = StreamCodec.of((buf, v) -> {
@@ -716,6 +720,8 @@ public final class HwNet {
 		public static final int WIRES = 0;
 		public static final int CURVE = 1;
 		public static final int KEYPAD = 2;
+		/** The Runt's hands at your throat: drag them off (see client.HandsScreen). */
+		public static final int HANDS = 3;
 		/** Sent back when a typed code was wrong (the keypad stays up). */
 		public static final int WRONG_CODE = -2;
 		public static final Type<Minigame> TYPE = payloadType("minigame");

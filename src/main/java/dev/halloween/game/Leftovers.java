@@ -59,6 +59,14 @@ public final class Leftovers {
 		if (mine != null && (mine.equals(current) || mine.equals(FREE))) {
 			return;
 		}
+		if (Townsfolk.registered(e) || Police.registered(e)) {
+			// One this match put out, whose chunk is only loading now (they are made while the match is set up,
+			// often far from anybody, and turn up when someone comes by): theirs, whatever the tags say.
+			if (current != null && mine == null) {
+				e.addTag(current);
+			}
+			return;
+		}
 		if (mine == null) {
 			boolean townsperson = e.entityTags().contains(Townsfolk.TAG);
 			// Townsfolk only appear while a match is set up: one turning up once it runs is an old one with no mind.

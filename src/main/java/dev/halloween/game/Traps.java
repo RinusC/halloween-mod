@@ -43,14 +43,24 @@ public final class Traps {
 	/** Sets the trap in hand down where the survivor stands. */
 	public static void place(ServerPlayer player, Kind kind) {
 		ServerLevel level = player.level();
-		BlockPos at = player.blockPosition();
-		BlockState here = level.getBlockState(at);
-		if (!here.canBeReplaced() || !level.getBlockState(at.below()).isFaceSturdy(level, at.below(), net.minecraft.core.Direction.UP)
-			|| TRAPS.containsKey(at) || Exits.isProp(at)) {
+		net.minecraft.core.Direction facing = player.getDirection();
+		// At your feet, or just in front if there is something there (a carpet, a step).
+		BlockPos at = null;
+		for (BlockPos p : new BlockPos[]{player.blockPosition(), player.blockPosition().relative(facing)}) {
+			BlockState here = level.getBlockState(p);
+			if (here.canBeReplaced() && here.getFluidState().isEmpty() && level.getBlockState(p.below()).isFaceSturdy(level, p.below(), net.minecraft.core.Direction.UP)
+				&& !TRAPS.containsKey(p) && !Exits.isProp(p)) {
+				at = p.immutable();
+				break;
+			}
+		}
+		if (at == null) {
 			player.sendOverlayMessage(Component.translatable("halloween.trap.no_room").withStyle(ChatFormatting.GRAY));
 			return;
 		}
-		BlockState look = MapPlan.b(kind == Kind.BEAR_TRAP ? "heavy_weighted_pressure_plate" : "tripwire");
+		BlockState here = level.getBlockState(at);
+		BlockState look = (kind == Kind.BEAR_TRAP ? dev.halloween.HwBlocks.BEAR_TRAP : dev.halloween.HwBlocks.TIN_CANS).defaultBlockState()
+			.setValue(TrapBlock.FACING, facing);
 		level.setBlock(at, look, Block.UPDATE_CLIENTS);
 		TRAPS.put(at.immutable(), new Trap(kind, player.getUUID(), here));
 		player.getMainHandItem().shrink(1);
@@ -158,7 +168,7 @@ public final class Traps {
 	/** The match is over: traps still set are taken up again. */
 	public static void clear(MinecraftServer server) {
 		for (Map.Entry<BlockPos, Trap> e : TRAPS.entrySet()) {
-			if (server.overworld().getBlockState(e.getKey()).is(MapPlan.b(e.getValue().kind() == Kind.BEAR_TRAP ? "heavy_weighted_pressure_plate" : "tripwire").getBlock())) {
+			if (server.overworld().getBlockState(e.getKey()).is(e.getValue().kind() == Kind.BEAR_TRAP ? dev.halloween.HwBlocks.BEAR_TRAP : dev.halloween.HwBlocks.TIN_CANS)) {
 				restore(server.overworld(), e.getKey(), e.getValue());
 			}
 		}

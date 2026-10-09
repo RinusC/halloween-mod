@@ -85,6 +85,11 @@ public final class ClientInteractions {
 		BlockState state = level.getBlockState(pos);
 		boolean door = state.getBlock() instanceof DoorBlock;
 		if (role == Role.RUNT) {
+			if (state.getBlock() instanceof dev.halloween.game.LockerBlock) {
+				// He throws lockers open, like Michael.
+				ClientPlayNetworking.send(new HwNet.UseAction(HwNet.UseAction.LOCKER, pos));
+				return InteractionResult.FAIL;
+			}
 			// His tricks: a locked door, a phone, a breaker (the server knows if he has the gift).
 			boolean trick = state.is(dev.halloween.HwBlocks.PHONE) || state.is(net.minecraft.world.level.block.Blocks.LEVER)
 				|| door && ClientState.LOCKED_DOORS.contains(doorBase(level, pos));

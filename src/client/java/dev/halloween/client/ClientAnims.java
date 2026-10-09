@@ -19,6 +19,9 @@ public final class ClientAnims {
 		int hold;
 		int once;
 		float onceStart;
+		/** Knocked down (FALL), getting up (RISE): when each began; fallStart below 0 means standing. */
+		float fallStart = -1;
+		float riseStart = -1;
 	}
 
 	private static final Map<Integer, State> STATES = new HashMap<>();
@@ -35,6 +38,17 @@ public final class ClientAnims {
 			case HwNet.Anim.NONE -> {
 				s.hold = HwNet.Anim.NONE;
 				s.once = HwNet.Anim.NONE;
+				s.fallStart = -1;
+				s.riseStart = -1;
+			}
+			case HwNet.Anim.FALL -> {
+				s.fallStart = now();
+				s.riseStart = -1;
+			}
+			case HwNet.Anim.RISE -> {
+				if (s.fallStart >= 0) {
+					s.riseStart = now();
+				}
 			}
 			case HwNet.Anim.HOLD, HwNet.Anim.STRUGGLE -> s.hold = payload.kind();
 			case HwNet.Anim.REACH, HwNet.Anim.KNIFE_DOWN -> {
@@ -78,9 +92,46 @@ public final class ClientAnims {
 		return t < in + hold ? 1 : Math.max(0, 1 - (t - in - hold) / out);
 	}
 
+	/** How far over backwards this entity is (degrees): 90 lying flat, 0 standing. */
+	public static float fallAngle(int entityId) {
+		State s = STATES.get(entityId);
+		if (s == null || s.fallStart < 0) {
+			return 0f;
+		}
+		float now = now();
+		if (s.riseStart >= 0) {
+			float t = (now - s.riseStart) / 18f;
+			if (t >= 1f) {
+				s.fallStart = -1;
+				s.riseStart = -1;
+				return 0f;
+			}
+			// Up on an elbow, then onto the feet: slow at first.
+			return 90f * (1f - t * t * (3 - 2 * t));
+		}
+		float t = Math.min(1f, (now - s.fallStart) / 7f);
+		// Over like a felled tree, a little bounce at the end.
+		float k = t * t;
+		return t < 1f ? 90f * k : 90f - Math.max(0f, 4f - (now - s.fallStart - 7f)) * 1.5f;
+	}
+
 	/** Lays the entity's grab pose over the model's ordinary one. */
 	public static void apply(HumanoidModel<?> m, int entityId) {
 		State s = STATES.get(entityId);
+		if (s != null && s.fallStart >= 0) {
+			// Down: arms flung out, legs a little apart, head lolling.
+			float k = fallAngle(entityId) / 90f;
+			m.rightArm.zRot = Mth.lerp(k, m.rightArm.zRot, 1.1f);
+			m.leftArm.zRot = Mth.lerp(k, m.leftArm.zRot, -1.1f);
+			m.rightArm.xRot = Mth.lerp(k, m.rightArm.xRot, 0f);
+			m.leftArm.xRot = Mth.lerp(k, m.leftArm.xRot, 0f);
+			m.rightLeg.zRot = Mth.lerp(k, m.rightLeg.zRot, 0.15f);
+			m.leftLeg.zRot = Mth.lerp(k, m.leftLeg.zRot, -0.15f);
+			m.rightLeg.xRot = Mth.lerp(k, m.rightLeg.xRot, 0f);
+			m.leftLeg.xRot = Mth.lerp(k, m.leftLeg.xRot, 0f);
+			m.head.xRot = Mth.lerp(k, m.head.xRot, -0.3f);
+			return;
+		}
 		if (s == null || s.hold == HwNet.Anim.NONE && s.once == HwNet.Anim.NONE) {
 			return;
 		}

@@ -3,9 +3,9 @@ package dev.halloween.game;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 
-/** Survivors carry one item in hand plus three in pockets: hotbar slots 0-3, nothing else. */
+/** Survivors carry one item in hand plus four in pockets: hotbar slots 0-4, nothing else. */
 public final class Inventory {
-	public static final int SLOTS = 4;
+	public static final int SLOTS = 5;
 
 	private Inventory() {
 	}

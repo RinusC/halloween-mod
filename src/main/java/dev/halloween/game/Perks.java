@@ -66,7 +66,7 @@ public final class Perks extends SavedData {
 		TRESPASSER(1200),
 		/** Talking townsfolk round and calling the police go faster. */
 		SMOOTH_TALKER(1500),
-		/** Other survivors close by show through walls. */
+		/** Other survivors and townsfolk close by show through walls. */
 		WITNESS(2250);
 
 		private final int defaultCost;

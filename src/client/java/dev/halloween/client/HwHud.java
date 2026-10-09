@@ -1267,6 +1267,7 @@ public final class HwHud {
 			case HEALING_SPRAY -> "halloween.hud.prompt.item.spray";
 			case MED_KIT -> "halloween.hud.prompt.item.med_kit";
 			case FLARE_GUN -> "halloween.hud.prompt.item.flare_gun";
+			case BEAR_TRAP, TIN_CANS -> "halloween.hud.prompt.item.trap";
 			case HOURGLASS -> "halloween.hud.prompt.item.hourglass";
 			case AMULET -> "halloween.hud.prompt.item.amulet";
 			case BRASS_LANTERN -> "halloween.hud.prompt.item.lantern";

@@ -6,6 +6,7 @@ import dev.halloween.Role;
 import dev.halloween.net.HwNet;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -139,6 +140,8 @@ public final class Lockers {
 		Role role = MatchManager.role(player);
 		if (role == Role.SHAPE) {
 			shapeOpen(player, clicked);
+		} else if (role == Role.RUNT) {
+			Runt.openLocker(player, clicked);
 		} else if (role.survivor()) {
 			if (isInside(player)) {
 				leave(player, false);
@@ -316,7 +319,73 @@ public final class Lockers {
 		MatchManager.grabOut(shape, victim);
 	}
 
+	/** Whose breathing in a locker each Michael is hearing now (entity ids). */
+	private static final Map<UUID, Set<Integer>> HEARD = new HashMap<>();
+
+	/**
+	 * Hiding doesn't stop you breathing: Michael close to an occupied locker hears it, quietly, from inside
+	 * (only he, and only while he is near). Someone panting anyway (out of breath, panicking) everyone hears already.
+	 */
+	private static void breathing(MinecraftServer server) {
+		HwConfig cfg = HwConfig.get();
+		for (ServerPlayer shape : server.getPlayerList().getPlayers()) {
+			Set<Integer> before = HEARD.getOrDefault(shape.getUUID(), Set.of());
+			Set<Integer> now = new HashSet<>();
+			if (MatchManager.role(shape) == Role.SHAPE && Match.running() && !Bots.isBot(shape)) {
+				for (Inside inside : INSIDE.values()) {
+					if (center(inside.base).distanceTo(shape.position()) < cfg.lockerHearRange) {
+						now.add(inside.who.getId());
+						if (!before.contains(inside.who.getId())) {
+							ServerPlayNetworking.send(shape, new HwNet.Pant(inside.who.getId(), true, Voices.female(inside.who), cfg.lockerBreathVolume));
+						}
+					}
+				}
+			}
+			for (int id : before) {
+				if (!now.contains(id)) {
+					net.minecraft.world.entity.Entity e = shape.level().getEntity(id);
+					if (!Stamina.panting(e)) {
+						ServerPlayNetworking.send(shape, new HwNet.Pant(id, false, false, 0f));
+					}
+				}
+			}
+			if (now.isEmpty()) {
+				HEARD.remove(shape.getUUID());
+			} else {
+				HEARD.put(shape.getUUID(), now);
+			}
+		}
+	}
+
+	/**
+	 * Someone of Michael's side throws a locker open from in front of it: a slam, nobody goes back in there for a
+	 * while, and whoever was inside steps out (returned; null if it was empty or out of reach).
+	 */
+	public static LivingEntity throwOpen(ServerPlayer by, BlockPos clicked) {
+		ServerLevel level = by.level();
+		BlockPos base = LockerBlock.base(level, clicked);
+		if (!LockerBlock.is(level.getBlockState(base)) || by.position().distanceTo(Vec3.atBottomCenterOf(front(level, base))) > HwConfig.get().grabRange + 0.5) {
+			return null;
+		}
+		OPENED.put(base.immutable(), level.getServer().getTickCount());
+		Vec3 c = center(base);
+		level.playSound(null, c.x, c.y + 1, c.z, HwSounds.LOCKER_SLAM, SoundSource.HOSTILE, 1.6f, 0.8f);
+		UUID id = OCCUPIED.get(base);
+		Inside inside = id == null ? null : INSIDE.get(id);
+		if (inside == null) {
+			by.sendOverlayMessage(Component.translatable("halloween.locker.empty").withStyle(ChatFormatting.GRAY));
+			return null;
+		}
+		AiStats.add(inside.who, "locker.pulled_out");
+		LivingEntity hider = inside.who;
+		leave(hider, false);
+		return hider;
+	}
+
 	public static void tick(MinecraftServer server) {
+		if (server.getTickCount() % 10 == 0 && (!INSIDE.isEmpty() || !HEARD.isEmpty())) {
+			breathing(server);
+		}
 		if (INSIDE.isEmpty()) {
 			return;
 		}
@@ -408,6 +477,7 @@ public final class Lockers {
 
 	public static void clear(MinecraftServer server) {
 		OPENED.clear();
+		HEARD.clear();
 		BREATHING.clear();
 		CLIMBING.clear();
 		CLIMBING_INTO.clear();

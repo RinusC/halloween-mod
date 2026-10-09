@@ -56,8 +56,8 @@ public final class Police {
 	}
 
 	private static final class Officer {
-		final Mannequin body;
-		final Walker walker;
+		Mannequin body;
+		Walker walker;
 		UUID ward;
 		int wardCheckAt;
 		Vec3 lastSeen;
@@ -109,6 +109,15 @@ public final class Police {
 	}
 
 	/** Is this officer one the police here are running (not one left over from before)? */
+	/** Its chunk loaded again: the same officer in a new body object. */
+	public static void rebind(Entity entity) {
+		Officer o = OFFICERS.get(entity.getUUID());
+		if (o != null && o.body != entity && entity instanceof Mannequin m) {
+			o.body = m;
+			o.walker = new Walker(m);
+		}
+	}
+
 	public static boolean registered(Entity entity) {
 		return OFFICERS.containsKey(entity.getUUID());
 	}
@@ -233,9 +242,11 @@ public final class Police {
 		if (now % 10 == 0) {
 			discover(level, now);
 		}
-		OFFICERS.values().removeIf(o -> o.body.isRemoved() || !o.body.isAlive());
+		OFFICERS.values().removeIf(o -> Townsfolk.destroyed(o.body));
 		for (Officer officer : new ArrayList<>(OFFICERS.values())) {
-			tickOfficer(level, officer, now);
+			if (!officer.body.isRemoved()) {
+				tickOfficer(level, officer, now);
+			}
 		}
 	}
 
@@ -278,8 +289,8 @@ public final class Police {
 		HwConfig cfg = HwConfig.get();
 		String name = cfg.policeNames.length == 0 ? "Officer" : cfg.policeNames[named++ % cfg.policeNames.length];
 		String snbt = String.format(Locale.ROOT,
-			"{Tags:[\"%s\",\"%s\"],hide_description:1b,CustomName:\"%s\",profile:{texture:\"halloween:entity/police\",model:\"wide\"},Rotation:[%d.0f,0f]}",
-			MatchManager.VICTIM_TAG, TAG, name.replace("\"", ""), level.getRandom().nextInt(360));
+			"{Tags:[\"%s\",\"%s\",\"%s\"],hide_description:1b,CustomName:\"%s\",profile:{texture:\"halloween:entity/police\",model:\"wide\"},Rotation:[%d.0f,0f]}",
+			MatchManager.VICTIM_TAG, TAG, Leftovers.stamp(), name.replace("\"", ""), level.getRandom().nextInt(360));
 		CommandSourceStack console = level.getServer().createCommandSourceStack().withLevel(level).withSuppressedOutput();
 		Entity entity;
 		try {

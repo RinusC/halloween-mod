@@ -68,7 +68,8 @@ public final class Runt {
 		int hitsUntil;
 		public UUID holding;
 		public int holdTicks;
-		int holdPresses;
+		/** A bot he holds gets its hands free at this tick (it plays the hands game too, after its fashion). */
+		int botFreeAt;
 		public int score;
 		int passiveAt;
 		RuntBrain brain;
@@ -240,7 +241,9 @@ public final class Runt {
 			s.scareCooldown = Math.max(0, s.scareCooldown - 1);
 			s.specialCooldown = Math.max(0, s.specialCooldown - 1);
 			s.trickCooldown = Math.max(0, s.trickCooldown - 1);
-			s.stunTicks = Math.max(0, s.stunTicks - 1);
+			if (s.stunTicks > 0 && --s.stunTicks == HwConfig.get().stunRiseTicks) {
+				GrabSession.anim(p, HwNet.Anim.RISE);
+			}
 			s.trappedTicks = Math.max(0, s.trappedTicks - 1);
 			if (s.outTicks > 0 && --s.outTicks == 0) {
 				comeBack(p);
@@ -334,6 +337,21 @@ public final class Runt {
 		int now = level.getServer().getTickCount();
 		if (target instanceof ServerPlayer v && MatchManager.role(v).survivor() && !v.isSpectator() && !Lockers.isInside(v) && !MatchManager.isGrabbed(v)
 			&& heldBy(v) == null) {
+			frighten(runt, s, v);
+			return true;
+		}
+		if (Townsfolk.isNpc(target)) {
+			frightenNpc(runt, s, target, now);
+			return true;
+		}
+		return false;
+	}
+
+	/** The fright itself: a scream, panic, a stagger, Michael told where; a hex or a grip on their back with those gifts. */
+	private static void frighten(ServerPlayer runt, State s, ServerPlayer v) {
+		HwConfig cfg = HwConfig.get();
+		ServerLevel level = runt.level();
+		{
 			Panic.add(v, cfg.runtScarePanic);
 			Voices.play(v, Voices.Kind.SCREAM);
 			level.playSound(null, runt.getX(), runt.getY(), runt.getZ(), SoundEvents.VEX_CHARGE, SoundSource.HOSTILE, 1.4f, 0.6f);
@@ -350,9 +368,13 @@ public final class Runt {
 			if (s.has("clinger")) {
 				startHold(runt, s, v);
 			}
-			return true;
 		}
-		if (Townsfolk.isNpc(target)) {
+	}
+
+	private static void frightenNpc(ServerPlayer runt, State s, Entity target, int now) {
+		HwConfig cfg = HwConfig.get();
+		ServerLevel level = runt.level();
+		{
 			Townsfolk.frighten(target, runt, now);
 			level.playSound(null, runt.getX(), runt.getY(), runt.getZ(), SoundEvents.VEX_CHARGE, SoundSource.HOSTILE, 1.2f, 0.7f);
 			for (ServerPlayer shape : level.players()) {
@@ -363,9 +385,31 @@ public final class Runt {
 			gain(runt, s, cfg.runtFearNpc);
 			s.scareCooldown = s.scareCooldownMax = scareCooldown(s) / 2;
 			AiStats.add(runt, "runt.scare_npc");
-			return true;
 		}
-		return false;
+	}
+
+	/**
+	 * He throws a locker open: whoever is hiding in it tumbles out, frightened (Michael learns where), and with
+	 * the clinger gift he is on their back at once. True if somebody was inside.
+	 */
+	public static boolean openLocker(ServerPlayer runt, BlockPos clicked) {
+		State s = RUNTS.get(runt.getUUID());
+		if (s == null || !Match.running() || s.busy()) {
+			return false;
+		}
+		ServerLevel level = runt.level();
+		net.minecraft.world.entity.LivingEntity hider = Lockers.throwOpen(runt, clicked);
+		if (hider == null) {
+			return false;
+		}
+		int now = level.getServer().getTickCount();
+		if (hider instanceof ServerPlayer v && MatchManager.role(v).survivor()) {
+			frighten(runt, s, v);
+		} else if (Townsfolk.isNpc(hider)) {
+			frightenNpc(runt, s, hider, now);
+		}
+		AiStats.add(runt, "runt.locker_pulled");
+		return true;
 	}
 
 	/** Michael sees where someone is for a while. */
@@ -393,12 +437,17 @@ public final class Runt {
 
 	private static void startHold(ServerPlayer runt, State s, ServerPlayer v) {
 		HwConfig cfg = HwConfig.get();
+		int now = runt.level().getServer().getTickCount();
 		s.holding = v.getUUID();
 		s.holdTicks = cfg.runtHoldTicks;
-		s.holdPresses = 0;
+		// A bot gets its hands to his a little before or after the time is up, as a person would.
+		s.botFreeAt = now + cfg.runtHoldTicks * 6 / 10 + runt.getRandom().nextInt(cfg.runtHoldTicks * 7 / 10);
 		root(v, true);
 		MatchManager.noJumping(v, true);
 		Notices.send(v, Component.translatable("halloween.runt.holding_you").withStyle(ChatFormatting.DARK_RED));
+		if (!(v instanceof BotPlayer)) {
+			Minigames.open(v, HwNet.Minigame.HANDS, v.blockPosition());
+		}
 		reveal(runt.level(), v, cfg.runtHoldTicks);
 		for (ServerPlayer shape : runt.level().players()) {
 			if (MatchManager.role(shape) == Role.SHAPE) {
@@ -412,7 +461,7 @@ public final class Runt {
 	private static void tickHold(ServerPlayer runt, State s, int now) {
 		HwConfig cfg = HwConfig.get();
 		ServerPlayer v = runt.level().getServer().getPlayerList().getPlayer(s.holding);
-		if (v == null || v.isSpectator() || !MatchManager.role(v).survivor() || --s.holdTicks <= 0 || s.stunTicks > 0 || s.outTicks > 0) {
+		if (v == null || v.isSpectator() || !MatchManager.role(v).survivor() || s.stunTicks > 0 || s.outTicks > 0) {
 			release(runt, s, true);
 			return;
 		}
@@ -422,13 +471,28 @@ public final class Runt {
 			release(runt, s, false);
 			return;
 		}
+		if (v instanceof BotPlayer && now >= s.botFreeAt) {
+			freed(v);
+			return;
+		}
+		if (--s.holdTicks <= 0) {
+			// They didn't get his hands off in time: he lets go when he pleases, and leaves a hex behind.
+			release(runt, s, true);
+			Panic.add(v, cfg.runtHoldFailPanic);
+			hex(v);
+			AiStats.add(v, "runt.hold_failed");
+			return;
+		}
 		// On their back, clinging.
 		Vec3 back = v.position().subtract(v.getLookAngle().multiply(1, 0, 1).normalize().scale(0.45));
 		runt.teleportTo(runt.level(), back.x, v.getY() + 0.6, back.z, java.util.Set.of(), v.getYRot(), 20f, false);
 		if (now % 20 == 0) {
 			Panic.add(v, 0.03f);
 		}
-		ServerPlayNetworking.send(v, new HwNet.Progress("halloween.hud.progress.runt_hold", s.holdPresses / (float) cfg.runtHoldBreakPresses, true));
+		if (!(v instanceof BotPlayer) && !Minigames.active(v)) {
+			// Esc doesn't get rid of him: the hands are still there.
+			Minigames.open(v, HwNet.Minigame.HANDS, v.blockPosition());
+		}
 	}
 
 	/** Lets go: time up, knocked off, or Michael took over. */
@@ -441,7 +505,7 @@ public final class Runt {
 		if (v != null) {
 			root(v, false);
 			MatchManager.noJumping(v, false);
-			ServerPlayNetworking.send(v, new HwNet.Progress("", 0f, false));
+			Minigames.close(v);
 			// Off their back onto the ground behind.
 			Vec3 behind = v.position().subtract(v.getLookAngle().multiply(1, 0, 1).normalize().scale(0.9));
 			runt.teleportTo(runt.level(), behind.x, v.getY(), behind.z, java.util.Set.of(), runt.getYRot(), 0f, false);
@@ -461,24 +525,27 @@ public final class Runt {
 		return null;
 	}
 
-	/** A survivor he holds fights him off (the shove button, again and again). True if it went to that. */
+	/**
+	 * The one he holds can't shove him off: only getting his hands off their throat does (the hands game). A
+	 * shove from them goes to nothing. True if they are held.
+	 */
 	public static boolean struggle(ServerPlayer victim) {
+		return heldBy(victim) != null;
+	}
+
+	/** The hands game won (or a bot's hands got free): he is thrown off and lands on his back. */
+	public static void freed(ServerPlayer victim) {
 		ServerPlayer runt = heldBy(victim);
 		State s = runt == null ? null : RUNTS.get(runt.getUUID());
 		if (s == null) {
-			return false;
+			return;
 		}
 		HwConfig cfg = HwConfig.get();
-		s.holdPresses++;
-		victim.swing(net.minecraft.world.InteractionHand.MAIN_HAND, true);
-		if (s.holdPresses >= cfg.runtHoldBreakPresses) {
-			release(runt, s, true);
-			s.stunTicks = cfg.runtShoveStunTicks;
-			knock(runt, victim, cfg.runtShoveStrength);
-			Match.score(victim, cfg.scoreShakeRunt, Component.translatable("halloween.score.shake_runt"));
-			AiStats.add(victim, "runt.shaken_off");
-		}
-		return true;
+		release(runt, s, true);
+		knock(runt, victim, cfg.runtShoveStrength);
+		floor(runt, s, cfg.runtShoveStunTicks);
+		Match.score(victim, cfg.scoreShakeRunt, Component.translatable("halloween.score.shake_runt"));
+		AiStats.add(victim, "runt.shaken_off");
 	}
 
 	// ---------------------------------------------------------------- fighting him off
@@ -491,43 +558,63 @@ public final class Runt {
 		runt.hurtMarked = true;
 	}
 
-	/** A shove: thrown back and off his feet for a moment. */
+	/** Down on his back for a while (and up again at the end, see tick). */
+	private static void floor(ServerPlayer runt, State s, int ticks) {
+		root(runt, false);
+		s.stunTicks = ticks;
+		GrabSession.anim(runt, HwNet.Anim.FALL);
+	}
+
+	/** The one he is clinging to: they can't do anything to him themselves (only the hands game). */
+	private static boolean heldVictim(State s, ServerPlayer by) {
+		return s.holding != null && by != null && s.holding.equals(by.getUUID());
+	}
+
+	/** A shove: thrown back and off his feet for a moment (off a friend's back too, but no further). */
 	public static void shove(ServerPlayer runt, ServerPlayer by) {
 		State s = RUNTS.get(runt.getUUID());
-		if (s == null || s.outTicks > 0) {
+		if (s == null || s.outTicks > 0 || heldVictim(s, by)) {
 			return;
 		}
 		HwConfig cfg = HwConfig.get();
 		release(runt, s, true);
-		root(runt, false);
 		knock(runt, by, cfg.runtShoveStrength);
-		s.stunTicks = cfg.runtShoveStunTicks;
+		floor(runt, s, cfg.runtShoveStunTicks);
 		runt.level().playSound(null, runt.getX(), runt.getY(), runt.getZ(), HwSounds.PUSH, SoundSource.PLAYERS, 1.2f, 1.3f);
 		runt.level().playSound(null, runt.getX(), runt.getY(), runt.getZ(), SoundEvents.VEX_HURT, SoundSource.HOSTILE, 1f, 0.7f);
 		AiStats.add(by, "runt.shoved");
 	}
 
-	/** A blow with something (or a thrown brick): down for longer; two in a while, or a heavy one, chase him off. */
+	/**
+	 * A blow with something (or a thrown brick): down for longer; two in a while, or a heavy one, chase him off.
+	 * Not while he clings to somebody: then a blow only knocks him off their back.
+	 */
 	public static void hit(ServerPlayer runt, ServerPlayer by, float force) {
 		State s = RUNTS.get(runt.getUUID());
-		if (s == null || s.outTicks > 0) {
+		if (s == null || s.outTicks > 0 || heldVictim(s, by)) {
 			return;
 		}
 		HwConfig cfg = HwConfig.get();
 		int now = runt.level().getServer().getTickCount();
+		boolean wasHolding = s.holding != null;
 		release(runt, s, true);
-		root(runt, false);
 		if (by != null) {
 			knock(runt, by, cfg.runtShoveStrength * 0.7);
 		}
-		s.stunTicks = cfg.runtHitStunTicks;
+		floor(runt, s, cfg.runtHitStunTicks);
+		runt.level().playSound(null, runt.getX(), runt.getY(), runt.getZ(), SoundEvents.PLAYER_ATTACK_STRONG, SoundSource.PLAYERS, 1.2f, 1.2f);
+		runt.level().playSound(null, runt.getX(), runt.getY(), runt.getZ(), SoundEvents.VEX_HURT, SoundSource.HOSTILE, 1.2f, 0.6f);
+		if (wasHolding) {
+			if (by != null) {
+				Match.score(by, cfg.scoreHitRunt, Component.translatable("halloween.score.hit_runt"));
+			}
+			return;
+		}
 		if (now > s.hitsUntil) {
 			s.hits = 0;
 		}
 		s.hits++;
 		s.hitsUntil = now + cfg.runtHitWindowTicks;
-		runt.level().playSound(null, runt.getX(), runt.getY(), runt.getZ(), SoundEvents.PLAYER_ATTACK_STRONG, SoundSource.PLAYERS, 1.2f, 1.2f);
-		runt.level().playSound(null, runt.getX(), runt.getY(), runt.getZ(), SoundEvents.VEX_HURT, SoundSource.HOSTILE, 1.2f, 0.6f);
 		if (s.hits >= cfg.runtHitsToChase || force >= cfg.runtChaseForce) {
 			chaseOff(runt, by);
 		} else if (by != null) {
@@ -535,7 +622,10 @@ public final class Runt {
 		}
 	}
 
-	/** Shot, burnt by a flare, or beaten twice: he runs off and hides for a while, then comes back by Michael's door. */
+	/**
+	 * Shot, burnt by a flare, or beaten twice: he runs off and hides for a while, then comes back by Michael's
+	 * door. Not while he clings to somebody: then he is only knocked off their back.
+	 */
 	public static void chaseOff(ServerPlayer runt, ServerPlayer by) {
 		State s = RUNTS.get(runt.getUUID());
 		if (s == null || s.outTicks > 0) {
@@ -543,10 +633,18 @@ public final class Runt {
 		}
 		HwConfig cfg = HwConfig.get();
 		ServerLevel level = runt.level();
-		release(runt, s, false);
+		if (s.holding != null) {
+			if (heldVictim(s, by)) {
+				return;
+			}
+			release(runt, s, true);
+			floor(runt, s, cfg.runtHitStunTicks);
+			return;
+		}
 		s.outTicks = cfg.runtOutTicks;
 		s.stunTicks = 0;
 		s.hits = 0;
+		GrabSession.anim(runt, HwNet.Anim.NONE);
 		level.sendParticles(ParticleTypes.LARGE_SMOKE, runt.getX(), runt.getY() + 0.5, runt.getZ(), 20, 0.3, 0.3, 0.3, 0.02);
 		level.playSound(null, runt.getX(), runt.getY(), runt.getZ(), SoundEvents.VEX_DEATH, SoundSource.HOSTILE, 1.5f, 0.6f);
 		runt.setInvisible(true);

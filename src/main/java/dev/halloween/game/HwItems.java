@@ -54,8 +54,8 @@ public final class HwItems {
 		BASEBALL("minecraft:snowball", 0, 0.20f, 0),
 		FIRECRACKERS("minecraft:firework_rocket"),
 		// Traps: set down at your feet.
-		BEAR_TRAP("minecraft:heavy_weighted_pressure_plate"),
-		TIN_CANS("minecraft:tripwire_hook"),
+		BEAR_TRAP(OWN),
+		TIN_CANS(OWN),
 		// First aid.
 		HEALING_SPRAY(OWN, 3, 0f, 0),
 		MED_KIT(OWN),
@@ -142,7 +142,7 @@ public final class HwItems {
 
 		/** Does something on right click (the server's {@link Gear#use}). */
 		public boolean usable() {
-			return this.thrown() || this == HEALING_SPRAY || this == MED_KIT || this == FLARE_GUN || this == FLASHLIGHT;
+			return this.thrown() || this == HEALING_SPRAY || this == MED_KIT || this == FLARE_GUN || this == FLASHLIGHT || this == BEAR_TRAP || this == TIN_CANS;
 		}
 	}
 

@@ -316,7 +316,8 @@ public class HwConfig {
 	public float runtScorePerFear = 10f;
 	/** Clinger: how long he holds on, how many shoves shake him off, the pause after. */
 	public int runtHoldTicks = 100;
-	public int runtHoldBreakPresses = 6;
+	/** Didn't get his hands off in time: the panic on top of the hex he leaves. */
+	public float runtHoldFailPanic = 0.3f;
 	public int runtHoldCooldownTicks = 500;
 	/** Hex: how long no breath comes back and no healing works (the breath comes back at this rate meanwhile). */
 	public int runtHexTicks = 600;
@@ -485,7 +486,9 @@ public class HwConfig {
 	// --- Fighting back ---
 	/** Stun meter drains this much per second; a full meter knocks the Shape down. */
 	public float stunDecayPerSecond = 0.025f;
-	public int stunnedTicks = 80;
+	public int stunnedTicks = 120;
+	/** The last this many ticks of a stun he spends getting back up (the animation). */
+	public int stunRiseTicks = 20;
 	public int survivorHitCooldownTicks = 15;
 	public float dartSpeed = 1.8f;
 	public double flashlightRange = 20;
@@ -657,6 +660,9 @@ public class HwConfig {
 	public int lockerMaxTicks = 1200;
 	/** Out of a locker for air: no getting into any locker again for this long. */
 	public int lockerBreathTicks = 400;
+	/** Michael hears whoever is hiding in a locker this close: their breathing, quiet. */
+	public double lockerHearRange = 8;
+	public float lockerBreathVolume = 0.45f;
 	/** Getting in on the run: the Shape sees where for this long. */
 	public int lockerSlamRevealTicks = 60;
 	/** Getting in quietly (not on the run) takes this long. */
@@ -708,6 +714,10 @@ public class HwConfig {
 		return FabricLoader.getInstance().getConfigDir().resolve("halloween.json");
 	}
 
+	/** The file's version: older files get the defaults that changed since moved on (see {@link #migrate}). */
+	public int configVersion;
+	private static final int VERSION = 1;
+
 	public static void load() {
 		Path path = path();
 		if (Files.exists(path)) {
@@ -715,10 +725,13 @@ public class HwConfig {
 				HwConfig loaded = GSON.fromJson(reader, HwConfig.class);
 				if (loaded != null) {
 					instance = loaded;
+					instance.migrate();
 				}
 			} catch (IOException | RuntimeException e) {
 				Halloween.LOGGER.error("Failed to read {}, using defaults", path, e);
 			}
+		} else {
+			instance.configVersion = VERSION;
 		}
 		// Rewrite so newly added fields show up in the file.
 		try (Writer writer = Files.newBufferedWriter(path)) {
@@ -726,6 +739,44 @@ public class HwConfig {
 		} catch (IOException e) {
 			Halloween.LOGGER.error("Failed to write {}", path, e);
 		}
+	}
+
+	/**
+	 * A file written by an older version keeps the old defaults; where a setting still has the value that was
+	 * the default then, it gets today's (a value somebody changed by hand stays as they set it).
+	 */
+	private void migrate() {
+		if (this.configVersion < 1) {
+			if (this.matchSeconds == 1200) {
+				this.matchSeconds = 1500;
+			}
+			if (this.stunnedTicks == 80) {
+				this.stunnedTicks = 120;
+			}
+			if (this.panicSeeSeconds == 6f) {
+				this.panicSeeSeconds = 9f;
+			}
+			if (this.panicOnHit == 0.25f) {
+				this.panicOnHit = 0.17f;
+			}
+			if (this.panicOnGrab == 0.4f) {
+				this.panicOnGrab = 0.27f;
+			}
+			if (this.panicOnBody == 0.5f) {
+				this.panicOnBody = 0.33f;
+			}
+			if (this.panicRegenPenalty == 0.5f) {
+				this.panicRegenPenalty = 0.333f;
+			}
+			if (this.panicSpread == 4f) {
+				this.panicSpread = 2f;
+			}
+			if (this.mannequinQteSuccessChance == 0.35f) {
+				this.mannequinQteSuccessChance = 0.8f;
+			}
+			Halloween.LOGGER.info("Config moved on to version {}", VERSION);
+		}
+		this.configVersion = VERSION;
 	}
 
 	public static float at(float[] values, int index) {

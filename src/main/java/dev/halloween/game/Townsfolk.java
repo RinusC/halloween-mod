@@ -50,8 +50,9 @@ public final class Townsfolk {
 	}
 
 	private static final class Npc {
-		final Mannequin body;
-		final Walker walker;
+		/** Its body: a new object each time its chunk loads again (see {@link #rebind}). */
+		Mannequin body;
+		Walker walker;
 		/** Standing about or hiding, it looks around. */
 		final LookAround look = new LookAround();
 		final String name;
@@ -131,6 +132,25 @@ public final class Townsfolk {
 	}
 
 	/** Is this townsperson one of this match's (not one left over, with no mind)? */
+	/** Gone for good: killed or discarded, not just unloaded with its chunk. */
+	static boolean destroyed(Entity body) {
+		if (body.isRemoved()) {
+			Entity.RemovalReason reason = body.getRemovalReason();
+			return reason == null || reason.shouldDestroy();
+		}
+		return !body.isAlive();
+	}
+
+	/** Its chunk loaded again: the same townsperson in a new body object. */
+	public static void rebind(Entity entity) {
+		Npc npc = NPCS.get(entity.getUUID());
+		if (npc != null && npc.body != entity && entity instanceof Mannequin m) {
+			npc.body = m;
+			npc.walker = new Walker(m);
+			npc.pathSet = false;
+		}
+	}
+
 	public static boolean registered(Entity entity) {
 		return NPCS.containsKey(entity.getUUID());
 	}
@@ -186,8 +206,8 @@ public final class Townsfolk {
 			boolean slim = name.startsWith("Mrs") || name.startsWith("Miss") || name.startsWith("Ms");
 			String skin = (slim ? "w" : "m") + (1 + random.nextInt(SKINS_EACH));
 			String snbt = String.format(Locale.ROOT,
-				"{Tags:[\"%s\",\"%s\"],hide_description:1b,CustomName:\"%s\",profile:{texture:\"halloween:entity/townsfolk/%s\",model:\"%s\"},Rotation:[%d.0f,0f]}",
-				MatchManager.VICTIM_TAG, TAG, name.replace("\"", ""), skin, slim ? "slim" : "wide", random.nextInt(360));
+				"{Tags:[\"%s\",\"%s\",\"%s\"],hide_description:1b,CustomName:\"%s\",profile:{texture:\"halloween:entity/townsfolk/%s\",model:\"%s\"},Rotation:[%d.0f,0f]}",
+				MatchManager.VICTIM_TAG, TAG, Leftovers.stamp(), name.replace("\"", ""), skin, slim ? "slim" : "wide", random.nextInt(360));
 			Entity entity;
 			try {
 				// Not through /summon: inside /hw start that would only run after the command is over.
@@ -331,7 +351,8 @@ public final class Townsfolk {
 		if (NPCS.isEmpty()) {
 			return;
 		}
-		NPCS.values().removeIf(npc -> npc.body.isRemoved() || !npc.body.isAlive());
+		// Only the dead and the discarded go; one whose chunk unloaded is still in town (it comes back when it loads).
+		NPCS.values().removeIf(npc -> destroyed(npc.body));
 		if (!Match.running()) {
 			for (Npc npc : NPCS.values()) {
 				npc.walker.halt();
@@ -340,7 +361,10 @@ public final class Townsfolk {
 		}
 		int now = server.getTickCount();
 		for (Npc npc : new ArrayList<>(NPCS.values())) {
-			tickNpc(npc, now);
+			// Out in an unloaded chunk: it waits there until somebody comes by.
+			if (!npc.body.isRemoved()) {
+				tickNpc(npc, now);
+			}
 		}
 	}
 
@@ -711,7 +735,7 @@ public final class Townsfolk {
 				// Taken, out of reach or still out of breath: a dark corner will do for now.
 				npc.locker = null;
 				npc.pathSet = false;
-				npc.noLockerUntil = Lockers.needsAir(npc.body) ? Lockers.airBackAt(npc.body) : now + 100;
+				npc.noLockerUntil = Lockers.needsAir(npc.body) ? Lockers.airBackAt(npc.body) : now + 60;
 			}
 			return;
 		}

@@ -235,7 +235,7 @@ public final class GrabSession {
 	}
 
 	/** Tells everyone around what this entity is doing (see client.ClientAnims). */
-	static void anim(net.minecraft.world.entity.Entity who, int kind) {
+	public static void anim(net.minecraft.world.entity.Entity who, int kind) {
 		if (!(who.level() instanceof ServerLevel level)) {
 			return;
 		}
