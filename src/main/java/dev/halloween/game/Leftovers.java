@@ -43,7 +43,7 @@ public final class Leftovers {
 		}
 		var tags = e.entityTags();
 		return tags.contains(MatchManager.CORPSE_TAG) || tags.contains(Townsfolk.TAG) || tags.contains(Police.TAG)
-			|| tags.contains(Fight.DART_TAG) || tags.contains(Gear.THROW_TAG);
+			|| tags.contains(Fight.DART_TAG) || tags.contains(Gear.THROW_TAG) || tags.contains(StreetWeapons.TAG);
 	}
 
 	public static void onLoad(Entity e, ServerLevel level) {

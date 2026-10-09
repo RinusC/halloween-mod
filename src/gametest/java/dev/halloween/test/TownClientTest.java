@@ -103,6 +103,79 @@ public class TownClientTest implements FabricClientGameTest {
 			List<String> cut = server.computeOnServer(s -> unreachable(s.overworld(), MapPoints.get(s.overworld()).first(MapPoints.Type.CENTER)));
 			cut.forEach(b -> LOG.info("UNREACHABLE {}", b));
 			check(cut.isEmpty(), "everything inside can be walked to from the street (" + cut.size() + " cut off)");
+			// A match on it: weapons for hand-to-hand lie about outside, none in the furniture.
+			server.runOnServer(s -> {
+				dev.halloween.HwConfig.get().countdownSeconds = 1;
+				dev.halloween.HwConfig.get().botsFillTo = 0;
+			});
+			server.runCommand("hw start");
+			ctx.waitTicks(40);
+			List<dev.halloween.game.StreetWeapons.Spot> weapons = server.computeOnServer(s -> dev.halloween.game.StreetWeapons.spots());
+			java.util.Map<dev.halloween.game.StreetWeapons.How, Long> byHow = new java.util.EnumMap<>(dev.halloween.game.StreetWeapons.How.class);
+			weapons.forEach(w -> byHow.merge(w.how(), 1L, Long::sum));
+			LOG.info("Street weapons: {} ({})", weapons.size(), byHow);
+			check(weapons.size() >= 18 && byHow.size() == 3, "weapons lie about outside, stuck in trees and walls and on the ground (" + weapons.size() + ")");
+			check(server.computeOnServer(s -> dev.halloween.game.Loot.hidden().values().stream().noneMatch(dev.halloween.game.HwItems.Kind::melee)),
+				"no weapon for hand-to-hand in the furniture");
+			List<String> farOff = server.computeOnServer(s -> {
+				java.util.Set<Long> seen = walk(s.overworld(), MapPoints.get(s.overworld()).first(MapPoints.Type.CENTER));
+				List<String> out = new ArrayList<>();
+				for (dev.halloween.game.StreetWeapons.Spot w : dev.halloween.game.StreetWeapons.spots()) {
+					if (!seen.contains(w.stand().asLong())) {
+						out.add(w.kind() + " " + w.how() + " at " + w.pos().toShortString());
+					}
+				}
+				return out;
+			});
+			check(farOff.isEmpty(), "every one can be walked up to " + farOff);
+			// Taken with use: in the pockets, gone from where it was.
+			server.runOnServer(s -> {
+				var spot = dev.halloween.game.StreetWeapons.spots().getFirst();
+				net.minecraft.server.level.ServerPlayer p = s.getPlayerList().getPlayers().getFirst();
+				p.teleportTo(s.overworld(), spot.stand().getX() + 0.5, spot.stand().getY(), spot.stand().getZ() + 0.5, java.util.Set.of(), 0f, 0f, false);
+			});
+			ctx.waitTicks(20);
+			boolean taken = server.computeOnServer(s -> {
+				var spot = dev.halloween.game.StreetWeapons.spots().getFirst();
+				net.minecraft.server.level.ServerPlayer p = s.getPlayerList().getPlayers().getFirst();
+				var hitbox = s.overworld().getEntity(spot.hitbox());
+				boolean took = hitbox != null && dev.halloween.game.StreetWeapons.take(p, hitbox);
+				return took && dev.halloween.game.Inventory.has(p, spot.kind()) && s.overworld().getEntity(spot.hitbox()) == null
+					&& !dev.halloween.game.StreetWeapons.spots().contains(spot);
+			});
+			check(taken, "a survivor takes one with use");
+			// A look at a few, close up.
+			int looked = 0;
+			for (dev.halloween.game.StreetWeapons.Spot w : weapons.subList(1, weapons.size())) {
+				if (looked >= 3 || w.how() == dev.halloween.game.StreetWeapons.How.GROUND && looked > 0) {
+					continue;
+				}
+				net.minecraft.core.Direction away = net.minecraft.core.Direction.getApproximateNearest(
+					w.stand().getX() - w.pos().getX(), 0, w.stand().getZ() - w.pos().getZ());
+				// From the side, so what sticks out of a wall shows.
+				net.minecraft.world.phys.Vec3 item = net.minecraft.world.phys.Vec3.atCenterOf(w.pos());
+				if (away.getAxis().isHorizontal()) {
+					item = item.add(away.getStepX() * 0.7, 0, away.getStepZ() * 0.7);
+				}
+				net.minecraft.core.Direction side = away.getAxis().isHorizontal() ? away.getClockWise() : net.minecraft.core.Direction.EAST;
+				net.minecraft.world.phys.Vec3 feet = net.minecraft.world.phys.Vec3.atBottomCenterOf(w.stand()).add(away.getStepX() * 2.0 + side.getStepX() * 1.6, 0,
+					away.getStepZ() * 2.0 + side.getStepZ() * 1.6);
+				net.minecraft.world.phys.Vec3 to = item.subtract(feet.add(0, 1.62, 0));
+				float yaw = (float) Math.toDegrees(Math.atan2(-to.x, to.z));
+				float pitch = (float) -Math.toDegrees(Math.atan2(to.y, Math.sqrt(to.x * to.x + to.z * to.z)));
+				server.runCommand("time set noon");
+				server.runCommand(String.format(java.util.Locale.ROOT, "tp @p %.2f %.2f %.2f %.1f %.1f", feet.x, feet.y, feet.z, yaw, pitch));
+				ctx.waitTicks(30);
+				ctx.takeScreenshot("weapon_" + w.how().name().toLowerCase(java.util.Locale.ROOT) + "_" + looked);
+				looked++;
+			}
+			server.runCommand("hw stop");
+			ctx.waitTicks(5);
+			check(server.computeOnServer(s -> dev.halloween.game.StreetWeapons.spots().isEmpty()), "and they are cleared away when the match stops");
+			server.runOnServer(s -> {
+				dev.halloween.HwConfig.get().countdownSeconds = new dev.halloween.HwConfig().countdownSeconds;
+				dev.halloween.HwConfig.get().botsFillTo = new dev.halloween.HwConfig().botsFillTo;
+			});
 			// A look round.
 			server.runCommand("time set noon");
 			server.runCommand("weather clear");
@@ -168,6 +241,11 @@ public class TownClientTest implements FabricClientGameTest {
 	 * staircase must be climbable as it is; a drop of up to three) and lists what can't be reached.
 	 */
 	private static List<String> unreachable(ServerLevel level, BlockPos c) {
+		return unreachable(level, c, walk(level, c));
+	}
+
+	/** Every place a body can stand that can be walked to from the middle of the street. */
+	private static java.util.Set<Long> walk(ServerLevel level, BlockPos c) {
 		java.util.Set<Long> seen = new java.util.HashSet<>();
 		java.util.ArrayDeque<BlockPos> queue = new java.util.ArrayDeque<>();
 		BlockPos start = c;
@@ -211,6 +289,10 @@ public class TownClientTest implements FabricClientGameTest {
 				}
 			}
 		}
+		return seen;
+	}
+
+	private static List<String> unreachable(ServerLevel level, BlockPos c, java.util.Set<Long> seen) {
 		List<String> out = new ArrayList<>();
 		// A floor of carpet is no floor: you sink almost a block into it.
 		int sunken = 0;

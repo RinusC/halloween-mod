@@ -2322,7 +2322,7 @@ public final class Haddonfield extends MapPlan {
 		this.mansion(lot('D', 0));
 		this.yardTrees(lot('D', 1));
 		this.cottage(lot('D', 2));
-		this.yardTrees(lot('D', 3));
+		this.playground(lot('D', 3));
 		this.fireStation(lot('D', 4));
 		this.postOffice(lot('D', 5));
 		this.clinic(lot('D', 6));
@@ -2338,12 +2338,264 @@ public final class Haddonfield extends MapPlan {
 		this.yardTrees(lot('E', 9));
 		// Row F, south side of Main Street (the park takes the west).
 		this.policeStation(lot('F', 3));
-		this.yardTrees(lot('F', 4));
+		this.court(lot('F', 4));
 		this.storefront(lot('F', 5), Shop.BOOKS);
 		this.storefront(lot('F', 6), Shop.GROCERY);
 		this.townhouses(lot('F', 7));
 		this.variedHouse(lot('F', 8));
 		this.yardTrees(lot('F', 9));
+		this.outdoorCover();
+	}
+
+	// ---------------------------------------------------------------- cover out of doors
+
+	/**
+	 * Things to hide behind outside: bushes, short hedges, woodpiles, garden sheds, stacks of crates and hay, in
+	 * whatever room the yards have left (two blocks clear of anything built, paths included, and of the cellars,
+	 * gates, parking and police).
+	 */
+	private void outdoorCover() {
+		for (char row : new char[]{'A', 'B', 'C', 'D', 'E', 'F'}) {
+			for (int i = 0; i < LOTS.length; i++) {
+				if (row == 'A' && i <= 6 || row == 'F' && i <= 2 || row == 'E' && i >= 3 && i <= 6) {
+					continue;
+				}
+				Lot lot = lot(row, i);
+				int pieces = 3 + this.random.nextInt(3);
+				boolean shed = false;
+				for (int k = 0, tries = 0; k < pieces && tries < 40; tries++) {
+					int x = lot.x0 + 2 + this.random.nextInt(Math.max(1, lot.width() - 6));
+					int z = lot.z(2 + this.random.nextInt(20));
+					int roll = this.random.nextInt(10);
+					boolean placed;
+					if (roll < 4) {
+						placed = this.bush(x, z);
+					} else if (roll < 6) {
+						placed = this.hedgeRow(x, z, this.random.nextBoolean());
+					} else if (roll < 7) {
+						placed = this.woodpile(x, z, this.random.nextBoolean());
+					} else if (roll < 8 && !shed) {
+						placed = this.shed(x, z, lot.south());
+						shed = placed;
+					} else {
+						placed = this.stack(x, z);
+					}
+					if (placed) {
+						k++;
+					}
+				}
+			}
+		}
+	}
+
+	/** Room for something from x0,z0 to x1,z1: nothing built within two blocks, no map point that must stay clear nearby. */
+	private boolean roomFor(int x0, int z0, int x1, int z1) {
+		if (!this.freeArea(x0 - 2, z0 - 2, x1 + 2, z1 + 2)) {
+			return false;
+		}
+		for (Object[] p : this.points) {
+			MapPoints.Type type = (MapPoints.Type) p[0];
+			net.minecraft.core.BlockPos at = (net.minecraft.core.BlockPos) p[1];
+			if ((type == MapPoints.Type.CELLAR || type == MapPoints.Type.GATE || type == MapPoints.Type.CAR || type == MapPoints.Type.POLICE
+				|| type == MapPoints.Type.SPAWN_CIVILIAN || type == MapPoints.Type.SPAWN_SHAPE || type == MapPoints.Type.MAP_BOARD)
+				&& at.getX() >= x0 - 6 && at.getX() <= x1 + 6 && at.getZ() >= z0 - 6 && at.getZ() <= z1 + 6) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	private BlockState bushLeaves() {
+		return leaves(this.pick("oak_leaves", "azalea_leaves", "dark_oak_leaves", "spruce_leaves", "flowering_azalea_leaves", "birch_leaves"));
+	}
+
+	/** A bush as tall as a man, two or three across. */
+	private boolean bush(int x, int z) {
+		if (!this.roomFor(x, z, x + 2, z + 2)) {
+			return false;
+		}
+		BlockState leaf = this.bushLeaves();
+		this.fill(x, 0, z, x + 1, 1, z + 1, leaf);
+		for (int k = 0; k < 3; k++) {
+			int dx = this.random.nextInt(3);
+			int dz = this.random.nextInt(3);
+			this.set(x + dx, this.random.nextInt(2), z + dz, leaf);
+		}
+		return true;
+	}
+
+	/** A short hedge, two high. */
+	private boolean hedgeRow(int x, int z, boolean alongX) {
+		int len = 4 + this.random.nextInt(3);
+		int x1 = alongX ? x + len - 1 : x;
+		int z1 = alongX ? z : z + len - 1;
+		if (!this.roomFor(x, z, x1, z1)) {
+			return false;
+		}
+		this.fill(x, 0, z, x1, 1, z1, leaves(this.pick("oak_leaves", "dark_oak_leaves", "spruce_leaves")));
+		return true;
+	}
+
+	/** Split logs stacked under a slab roof (an axe may be left stuck in it). */
+	private boolean woodpile(int x, int z, boolean alongX) {
+		int x1 = alongX ? x + 2 : x;
+		int z1 = alongX ? z : z + 2;
+		if (!this.roomFor(x, z, x1, z1)) {
+			return false;
+		}
+		BlockState log = b(this.pick("oak_log", "spruce_log", "birch_log")).setValue(BlockStateProperties.AXIS,
+			alongX ? net.minecraft.core.Direction.Axis.Z : net.minecraft.core.Direction.Axis.X);
+		this.fill(x, 0, z, x1, 1, z1, log);
+		this.fill(x, 2, z, x1, 2, z1, slab("spruce_slab", SlabType.BOTTOM));
+		return true;
+	}
+
+	/** A garden shed with a door to the street and a tool cabinet inside: room for one to hide. */
+	private boolean shed(int x, int z, boolean doorSouth) {
+		if (!this.roomFor(x, z, x + 3, z + 2)) {
+			return false;
+		}
+		BlockState wall = b(this.pick("spruce_planks", "oak_planks", "dark_oak_planks"));
+		this.fill(x - 1, -1, z - 1, x + 4, -1, z + 3, b("coarse_dirt"));
+		this.fill(x, 0, z, x + 3, 2, z + 2, wall);
+		this.fill(x + 1, 0, z + 1, x + 2, 1, z + 1, AIR);
+		this.fill(x - 1, 3, z - 1, x + 4, 3, z + 3, slab("dark_oak_slab", SlabType.BOTTOM));
+		int dz = doorSouth ? z + 2 : z;
+		this.door(x + 1, 0, dz, doorSouth ? Direction.NORTH : Direction.SOUTH, "spruce_door");
+		this.set(x + 2, 0, z + 1, search(HwBlocks.TOOL_CABINET, Direction.WEST));
+		this.set(x + 2, 1, dz, b("glass_pane"));
+		return true;
+	}
+
+	/** Crates, barrels and hay stacked up, two high. */
+	private boolean stack(int x, int z) {
+		if (!this.roomFor(x, z, x + 2, z + 1)) {
+			return false;
+		}
+		for (int dx = 0; dx <= 2; dx++) {
+			for (int dz = 0; dz <= 1; dz++) {
+				int h = dx == 2 && dz == 1 ? 1 : 2;
+				for (int y = 0; y < h; y++) {
+					this.set(x + dx, y, z + dz, b(this.pick("hay_block", "barrel", "spruce_planks", "hay_block")));
+				}
+			}
+		}
+		return true;
+	}
+
+	/** A playground: a slide, swings, a sandpit, a roundabout, a play hut, benches, bushes round it. */
+	private void playground(Lot lot) {
+		int x0 = lot.x0 + 3;
+		int x1 = lot.x1 - 3;
+		int za = Math.min(lot.z(3), lot.z(19));
+		int zb = Math.max(lot.z(3), lot.z(19));
+		this.fill(x0, -1, za, x1, -1, zb, b("sand"));
+		// The slide: a platform on posts, a ladder up, the chute down.
+		int sx = x0 + 3;
+		int sz = za + 3;
+		for (int[] c : new int[][]{{0, 0}, {1, 0}, {0, 1}, {1, 1}}) {
+			this.fill(sx + c[0], 0, sz + c[1], sx + c[0], 1, sz + c[1], b("spruce_fence"));
+		}
+		this.fill(sx, 2, sz, sx + 1, 2, sz + 1, b("spruce_planks"));
+		this.fill(sx, 3, sz, sx + 1, 3, sz + 1, b("spruce_fence"));
+		this.set(sx, 3, sz, AIR);
+		this.fill(sx - 1, 0, sz, sx - 1, 2, sz, b("ladder").setValue(BlockStateProperties.HORIZONTAL_FACING, Direction.WEST));
+		this.set(sx + 2, 1, sz + 1, stairs("smooth_quartz_stairs", Direction.WEST));
+		this.set(sx + 3, 0, sz + 1, slab("smooth_quartz_slab", SlabType.BOTTOM));
+		// The swings: a beam on two posts, two seats on chains.
+		int wx = x0 + 9;
+		int wz = za + 3;
+		this.fill(wx, 0, wz, wx, 3, wz, b("dark_oak_fence"));
+		this.fill(wx + 5, 0, wz, wx + 5, 3, wz, b("dark_oak_fence"));
+		this.fill(wx, 4, wz, wx + 5, 4, wz, b("stripped_dark_oak_log").setValue(BlockStateProperties.AXIS, net.minecraft.core.Direction.Axis.X));
+		for (int k : new int[]{1, 4}) {
+			this.fill(wx + k, 2, wz, wx + k, 3, wz, b("iron_chain"));
+			this.set(wx + k, 1, wz, slab("spruce_slab", SlabType.TOP));
+		}
+		// The sandpit.
+		int px = x0 + 3;
+		int pz = zb - 6;
+		for (int dx = 0; dx <= 4; dx++) {
+			for (int dz = 0; dz <= 4; dz++) {
+				if (dx == 0 || dx == 4 || dz == 0 || dz == 4) {
+					this.set(px + dx, 0, pz + dz, slab("oak_slab", SlabType.BOTTOM));
+				}
+			}
+		}
+		this.set(px + 2, 0, pz + 2, b("red_terracotta"));
+		// The roundabout.
+		int rx = x0 + 11;
+		int rz = zb - 5;
+		this.fill(rx - 1, 0, rz - 1, rx + 1, 0, rz + 1, slab("smooth_stone_slab", SlabType.BOTTOM));
+		this.set(rx, 0, rz, b("smooth_stone"));
+		this.set(rx, 1, rz, b("iron_bars"));
+		// A play hut to hide in, with a box of toys to search.
+		int hx = x1 - 5;
+		int hz = za + 4;
+		this.fill(hx, 0, hz, hx + 3, 2, hz + 3, b("red_terracotta"));
+		this.fill(hx + 1, 0, hz + 1, hx + 2, 1, hz + 2, AIR);
+		this.fill(hx - 1, 3, hz - 1, hx + 4, 3, hz + 4, slab("dark_oak_slab", SlabType.BOTTOM));
+		int doorZ = lot.south() ? hz + 3 : hz;
+		this.fill(hx + 1, 0, doorZ, hx + 1, 1, doorZ, AIR);
+		this.set(hx + 2, 0, hz + (lot.south() ? 1 : 2), search(HwBlocks.CARDBOARD_BOX, Direction.WEST));
+		this.set(hx + 3, 1, hz + 1, b("glass_pane"));
+		// Benches along the street side and bushes round the back and sides.
+		int bz = lot.south() ? zb : za;
+		for (int x = x0 + 2; x <= x1 - 2; x += 5) {
+			this.set(x, 0, bz, stairs("spruce_stairs", lot.south() ? Direction.SOUTH : Direction.NORTH));
+			this.set(x + 1, 0, bz, stairs("spruce_stairs", lot.south() ? Direction.SOUTH : Direction.NORTH));
+		}
+		int back = lot.south() ? za - 1 : zb + 1;
+		for (int x = x0; x <= x1; x++) {
+			if (this.random.nextInt(4) != 0) {
+				this.fill(x, 0, back, x, 1, back, this.bushLeaves());
+			}
+		}
+		for (int z = za; z <= zb; z += 1) {
+			if (this.random.nextInt(3) == 0) {
+				this.fill(x0 - 1, 0, z, x0 - 1, 1, z, this.bushLeaves());
+				this.fill(x1 + 1, 0, z, x1 + 1, 1, z, this.bushLeaves());
+			}
+		}
+		this.set(x1 - 1, 0, back + (lot.south() ? 1 : -1), b("barrel"));
+	}
+
+	/** A basketball court with a hoop at each end and bleachers along one side (somewhere to crouch behind). */
+	private void court(Lot lot) {
+		int x0 = lot.x0 + 3;
+		int x1 = lot.x1 - 3;
+		int za = Math.min(lot.z(4), lot.z(15));
+		int zb = Math.max(lot.z(4), lot.z(15));
+		this.fill(x0, -1, za, x1, -1, zb, b("smooth_stone"));
+		for (int x = x0; x <= x1; x++) {
+			this.set(x, -1, za, b("white_concrete"));
+			this.set(x, -1, zb, b("white_concrete"));
+		}
+		for (int z = za; z <= zb; z++) {
+			this.set(x0, -1, z, b("white_concrete"));
+			this.set(x1, -1, z, b("white_concrete"));
+			this.set((x0 + x1) / 2, -1, z, b("white_concrete"));
+		}
+		int cz = (za + zb) / 2;
+		for (int[] end : new int[][]{{x0 - 1, 1}, {x1 + 1, -1}}) {
+			this.fill(end[0], 0, cz, end[0], 3, cz, b("andesite_wall"));
+			this.fill(end[0] + end[1], 3, cz - 1, end[0] + end[1], 4, cz + 1, b("white_concrete"));
+			this.set(end[0] + 2 * end[1], 3, cz, b("iron_bars"));
+		}
+		// Bleachers on the far side from the street: three steps up, boarded in underneath.
+		int far = lot.south() ? za - 2 : zb + 2;
+		int step = lot.south() ? -1 : 1;
+		Direction up = lot.south() ? Direction.NORTH : Direction.SOUTH;
+		for (int x = x0 + 2; x <= x1 - 2; x++) {
+			for (int k = 0; k < 3; k++) {
+				int z = far + step * k;
+				this.fill(x, 0, z, x, k - 1, z, b("spruce_planks"));
+				this.set(x, k, z, stairs("spruce_stairs", up));
+			}
+		}
+		this.fill(x0 + 1, 0, far, x0 + 1, 2, far + step * 2, b("spruce_planks"));
+		this.fill(x1 - 1, 0, far, x1 - 1, 2, far + step * 2, b("spruce_planks"));
+		this.set(x1 - 1, 0, far - step, search(HwBlocks.CRATE, up.getOpposite()));
 	}
 
 	private void variedHouse(Lot lot) {

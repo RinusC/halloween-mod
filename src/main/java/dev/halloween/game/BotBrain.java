@@ -982,6 +982,13 @@ final class BotBrain {
 				this.replanAt = now;
 				return true;
 			}
+			case "weapon" -> {
+				if (StreetWeapons.takeNear(this.bot)) {
+					AiStats.add(this.bot, "weapon.taken");
+				}
+				this.replanAt = now;
+				return true;
+			}
 			default -> {
 				return false;
 			}
@@ -1243,6 +1250,14 @@ final class BotBrain {
 				: Townsfolk.idleNear(this.bot.position(), cfg.botWarnRange)) {
 				if (!this.warned.contains(npc.getId()) && !Bots.claimedByOther(npc.blockPosition(), this.bot)) {
 					out.put(new Task(npc.blockPosition(), 2.2, false, "warn", npc.getId()), 25.0);
+				}
+			}
+		}
+		// Nothing to fight with: weapons are found outside, stuck in trees and walls or lying in the yards.
+		if (this.meleeSlot() < 0) {
+			for (StreetWeapons.Spot spot : StreetWeapons.spots()) {
+				if (spot.stand().distSqr(this.bot.blockPosition()) < 40 * 40 && !Bots.claimedByOther(spot.stand(), this.bot)) {
+					out.put(new Task(spot.stand(), 1.2, false, "weapon"), 35.0 - Math.sqrt(spot.stand().distSqr(this.bot.blockPosition())) * 0.3);
 				}
 			}
 		}

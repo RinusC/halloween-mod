@@ -918,6 +918,9 @@ public final class MatchManager {
 		if (!(user instanceof ServerPlayer player)) {
 			return InteractionResult.PASS;
 		}
+		if (StreetWeapons.take(player, target)) {
+			return InteractionResult.SUCCESS;
+		}
 		if (role(player) == Role.SHAPE) {
 			return InteractionResult.FAIL;
 		}

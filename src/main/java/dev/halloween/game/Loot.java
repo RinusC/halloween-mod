@@ -124,10 +124,18 @@ public final class Loot {
 				items.add(relic);
 			}
 		}
-		// The rest: a share of the containers left hide something, drawn by how common it is.
+		// The rest: a share of the containers left hide something, drawn by how common it is. Weapons for
+		// hand-to-hand aren't kept in drawers: they lie about outside (StreetWeapons); firearms still are.
+		Map<String, Integer> indoors = new java.util.LinkedHashMap<>();
+		cfg.lootWeights.forEach((key, w) -> {
+			HwItems.Kind kind = kindByKey(key);
+			if (kind != null && !kind.melee()) {
+				indoors.put(key, w);
+			}
+		});
 		int extra = Math.round(Math.max(0, CONTAINERS.size() - items.size()) * cfg.lootFillShare);
 		for (int i = 0; i < extra; i++) {
-			HwItems.Kind find = draw(cfg.lootWeights, rng);
+			HwItems.Kind find = draw(indoors, rng);
 			if (find != null) {
 				items.add(find);
 			}

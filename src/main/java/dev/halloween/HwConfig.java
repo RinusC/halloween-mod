@@ -180,7 +180,7 @@ public class HwConfig {
 	public float vaultDamageFraction = 0.2f;
 
 	// --- Match ---
-	public int matchSeconds = 1200;
+	public int matchSeconds = 1500;
 	/** The opening scenes before a match starts (everyone stands still meanwhile; under 3 s plays none). */
 	public int countdownSeconds = 15;
 	/** Back gates can be opened only during the last this many seconds (0: any time, as in the original). */
@@ -296,6 +296,9 @@ public class HwConfig {
 	public int maxDeputies = 2;
 	/** Containers are looked for this far around the map centre. */
 	public int lootRadius = 96;
+	/** Hand-to-hand weapons are found out of doors (see StreetWeapons): how many a match, how far apart at least. */
+	public int streetWeapons = 24;
+	public int streetWeaponSpacing = 12;
 
 	// --- Items from the original: what the containers hide, throwing, first aid, flares, relics ---
 	/** On top of one of each escape item, this many more picked at random. */

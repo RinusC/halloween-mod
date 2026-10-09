@@ -62,6 +62,10 @@ public final class ClientInteractions {
 	}
 
 	static boolean aimsAtUsable(Minecraft mc) {
+		if (mc.hitResult instanceof net.minecraft.world.phys.EntityHitResult eh && eh.getEntity() instanceof net.minecraft.world.entity.Interaction) {
+			// A weapon left outside: use takes it.
+			return true;
+		}
 		if (!(mc.hitResult instanceof BlockHitResult hit) || hit.getType() != net.minecraft.world.phys.HitResult.Type.BLOCK) {
 			return false;
 		}
@@ -164,6 +168,10 @@ public final class ClientInteractions {
 			}
 		}
 		useWasDown = useDown;
+		// Michael has his knife and nothing else: one slot.
+		if (mc.player != null && ClientState.myRole() == Role.SHAPE && mc.player.getInventory().getSelectedSlot() != 0) {
+			mc.player.getInventory().setSelectedSlot(0);
+		}
 		// Survivors have a hand and three pockets: the selection wraps around slots 0-3.
 		if (mc.player != null && ClientState.myRole().survivor()) {
 			var inv = mc.player.getInventory();

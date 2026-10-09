@@ -170,6 +170,7 @@ public final class Match {
 		Nav.setArea(area(points));
 		GunCase.setup(level, level.getRandom());
 		Loot.setup(level, center, level.getRandom());
+		StreetWeapons.setup(level, center, Loot.radius(), level.getRandom());
 		restoreTown(level, center, Loot.radius());
 		Minimap.bake(level, area(points), center);
 		MapBoards.setup(level, area(points), center);
@@ -265,6 +266,7 @@ public final class Match {
 		Exits.clear(server.overworld());
 		Minimap.clear(server.overworld());
 		Loot.clear();
+		StreetWeapons.clear(server);
 		Holds.clear();
 		Fight.clear(server);
 		Weather.clear(server);
