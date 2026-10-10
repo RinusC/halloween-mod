@@ -1,6 +1,5 @@
 package dev.halloween.game;
 
-import com.mojang.math.Transformation;
 import dev.halloween.HwConfig;
 import dev.halloween.Role;
 import java.util.ArrayList;
@@ -12,8 +11,6 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
-import net.minecraft.util.Brightness;
-import net.minecraft.world.entity.Display;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.Interaction;
@@ -24,7 +21,6 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import org.joml.Vector3f;
 
 /**
  * Brackett's patrol (an event, see Events): a black-and-white car with its lights going drives the streets on
@@ -43,10 +39,8 @@ final class PatrolCar {
 
 	private final ServerLevel level;
 	private final Roads roads;
-	private final List<Display.BlockDisplay> parts = new ArrayList<>();
+	private PoliceCarModel model;
 	private Interaction hitbox;
-	private Display.BlockDisplay redLamp;
-	private Display.BlockDisplay blueLamp;
 	/** Driving along x (an east-west street) or along z; which street; how far along it; which way (+1 / -1). */
 	private boolean alongX;
 	private int line;
@@ -238,31 +232,9 @@ final class PatrolCar {
 		return new Vec3(this.x, this.roads.y + 1, this.z);
 	}
 
-	/** The car, block by block: +z is the front. */
+	/** The car (see PoliceCarModel), and something to click on it by. */
 	private void build() {
-		BlockState white = block("white_concrete");
-		BlockState black = block("black_concrete");
-		// Body: white doors, black hood and trunk, black underneath.
-		this.part(black, 0f, 0.35f, 0f, 2.1f, 0.45f, 4.9f, false);
-		this.part(white, 0f, 0.8f, 0f, 2.2f, 0.55f, 4.8f, false);
-		this.part(black, 0f, 1.1f, 1.75f, 2.22f, 0.08f, 1.3f, false);
-		this.part(black, 0f, 1.1f, -1.85f, 2.22f, 0.08f, 1.1f, false);
-		// The cabin: dark glass all round under a black roof.
-		this.part(Blocks.TINTED_GLASS.defaultBlockState(), 0f, 1.4f, -0.25f, 1.95f, 0.55f, 2.2f, false);
-		this.part(black, 0f, 1.71f, -0.25f, 2.0f, 0.08f, 2.3f, false);
-		// Wheels.
-		for (float sx : new float[]{-1.08f, 1.08f}) {
-			for (float sz : new float[]{-1.55f, 1.6f}) {
-				this.part(block("black_wool"), sx, 0.35f, sz, 0.3f, 0.7f, 0.7f, false);
-			}
-		}
-		// Lights: the bar on the roof, headlights, tail lights.
-		this.redLamp = this.part(block("red_concrete"), -0.42f, 1.85f, -0.25f, 0.7f, 0.2f, 0.42f, true);
-		this.blueLamp = this.part(block("blue_concrete"), 0.42f, 1.85f, -0.25f, 0.7f, 0.2f, 0.42f, false);
-		for (float sx : new float[]{-0.7f, 0.7f}) {
-			this.part(block("white_concrete"), sx, 0.85f, 2.42f, 0.42f, 0.22f, 0.06f, true);
-			this.part(block("red_concrete"), sx, 0.85f, -2.42f, 0.36f, 0.18f, 0.06f, true);
-		}
+		this.model = new PoliceCarModel(this.level, this.x, this.roads.y + 1, this.z, this.yaw, TAG);
 		this.hitbox = new Interaction(EntityTypes.INTERACTION, this.level);
 		this.hitbox.setWidth(3.0f);
 		this.hitbox.setHeight(2.0f);
@@ -271,23 +243,6 @@ final class PatrolCar {
 		this.hitbox.addTag(TAG);
 		this.hitbox.addTag(Leftovers.stamp());
 		this.level.addFreshEntity(this.hitbox);
-	}
-
-	private Display.BlockDisplay part(BlockState state, float cx, float cy, float cz, float sx, float sy, float sz, boolean lit) {
-		Display.BlockDisplay d = new Display.BlockDisplay(EntityTypes.BLOCK_DISPLAY, this.level);
-		d.setBlockState(state);
-		d.setTransformation(new Transformation(new Vector3f(cx - sx / 2, cy - sy / 2, cz - sz / 2), null, new Vector3f(sx, sy, sz), null));
-		d.setPosRotInterpolationDuration(3);
-		d.setViewRange(3f);
-		if (lit) {
-			d.setBrightnessOverride(new Brightness(15, 15));
-		}
-		d.snapTo(this.x, this.roads.y + 1, this.z, this.yaw, 0f);
-		d.addTag(TAG);
-		d.addTag(Leftovers.stamp());
-		this.level.addFreshEntity(d);
-		this.parts.add(d);
-		return d;
 	}
 
 	// ---------------------------------------------------------------- driving
@@ -302,16 +257,9 @@ final class PatrolCar {
 		}
 		this.place();
 		double y = this.roads.y + 1;
-		for (Display.BlockDisplay d : this.parts) {
-			d.snapTo(this.x, y, this.z, this.yaw, 0f);
-		}
+		this.model.moveTo(this.x, y, this.z, this.yaw);
 		this.hitbox.snapTo(this.x, y, this.z, 0f, 0f);
-		// The lights on the roof take turns.
-		if (this.ticks % 6 == 0) {
-			boolean red = this.ticks % 12 == 0;
-			this.redLamp.setBrightnessOverride(new Brightness(red ? 15 : 2, red ? 15 : 0));
-			this.blueLamp.setBrightnessOverride(new Brightness(red ? 2 : 15, red ? 0 : 15));
-		}
+		this.model.flash(this.ticks);
 		if (this.ticks % 20 == 0) {
 			this.level.playSound(null, this.x, y, this.z, SoundEvents.MINECART_RIDING, SoundSource.BLOCKS, 0.7f, 0.45f);
 		}
@@ -431,10 +379,9 @@ final class PatrolCar {
 	}
 
 	void remove() {
-		for (Display.BlockDisplay d : this.parts) {
-			d.discard();
+		if (this.model != null) {
+			this.model.remove();
 		}
-		this.parts.clear();
 		if (this.hitbox != null) {
 			this.hitbox.discard();
 		}

@@ -99,8 +99,10 @@ public final class Exits {
 	/** A fuse is in the gate's keypad. */
 	private static boolean gateFuse;
 	private static final Set<BlockPos> CUT_PHONES = new HashSet<>();
-	/** Blocks replaced by the police van, to restore when it leaves. */
+	/** Blocks replaced by the police car (barriers to bump into, a light over it), to restore when it leaves. */
 	private static final Map<BlockPos, BlockState> VAN = new LinkedHashMap<>();
+	/** The police car waiting to take someone away (block displays, see PoliceCarModel). */
+	private static PoliceCarModel vanModel;
 	/**
 	 * Blocks replaced by the cellar, car and gate. They are built only at the spots picked for the match,
 	 * so no dead exit stands on the map; the old blocks come back when the match is over.
@@ -175,6 +177,9 @@ public final class Exits {
 				level.playSound(null, car, SoundEvents.MINECART_RIDING, SoundSource.BLOCKS, 1.2f, 0.5f);
 			}
 			tickSeats(level);
+		}
+		if (vanModel != null) {
+			vanModel.flash(level.getServer().getTickCount());
 		}
 		if (vanSeats > 0 && --vanTimer <= 0) {
 			vanSeats = 0;
@@ -759,22 +764,23 @@ public final class Exits {
 		return BuiltInRegistries.BLOCK.getValue(Identifier.withDefaultNamespace(id)).defaultBlockState();
 	}
 
-	/** A boxy police van parked on the spot, with a lit lamp on the roof. */
+	/**
+	 * The police car parked on the spot (the same model as Brackett's patrol, front to the north, its lights
+	 * going): invisible barriers where it stands so nobody walks through it, and light over it like a lamp.
+	 */
 	private static void buildVan(ServerLevel level, BlockPos at) {
 		removeVan(level);
-		BlockState body = block("white_concrete");
-		BlockState dark = block("black_concrete");
-		BlockState window = block("black_terracotta");
-		BlockState lamp = block("redstone_lamp").setValue(BlockStateProperties.LIT, true);
-		BlockState blue = block("blue_concrete");
+		BlockState barrier = block("barrier");
 		for (int dx = -1; dx <= 1; dx++) {
 			for (int dz = -2; dz <= 2; dz++) {
-				place(level, at.offset(dx, 0, dz), Math.abs(dz) == 2 && dx != 0 ? dark : body);
-				place(level, at.offset(dx, 1, dz), dz == -2 ? window : (dx == 0 ? blue : body));
+				place(level, at.offset(dx, 0, dz), barrier);
+				place(level, at.offset(dx, 1, dz), barrier);
 			}
 		}
-		place(level, at.offset(0, 2, -1), lamp);
-		place(level, at.offset(0, 2, 0), block("blue_concrete"));
+		if (level.getBlockState(at.above(2)).isAir()) {
+			place(level, at.above(2), block("light").setValue(net.minecraft.world.level.block.LightBlock.LEVEL, 13));
+		}
+		vanModel = new PoliceCarModel(level, at.getX() + 0.5, at.getY(), at.getZ() + 0.5, 180f, "hw_police_car");
 	}
 
 	private static void place(ServerLevel level, BlockPos pos, BlockState state) {
@@ -959,6 +965,10 @@ public final class Exits {
 	private static void removeVan(ServerLevel level) {
 		VAN.forEach((pos, old) -> level.setBlock(pos, old, Block.UPDATE_ALL));
 		VAN.clear();
+		if (vanModel != null) {
+			vanModel.remove();
+			vanModel = null;
+		}
 	}
 
 	// ---------------------------------------------------------------- sync

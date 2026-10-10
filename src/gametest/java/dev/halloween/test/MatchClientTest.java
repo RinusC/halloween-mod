@@ -311,7 +311,27 @@ public class MatchClientTest implements FabricClientGameTest {
 			ctx.waitTicks(HwConfig.get().policeArriveSeconds * 20 + 20);
 			check(this.exit(ctx, Exits.POLICE).state() == 2, "the police van arrives");
 			BlockPos van = this.exit(ctx, Exits.POLICE).pos();
-			check(server.computeOnServer(s -> net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(s.overworld().getBlockState(van).getBlock()).getPath().equals("white_concrete")), "the van is built on its spot");
+			check(server.computeOnServer(s -> s.overworld().getBlockState(van).is(net.minecraft.world.level.block.Blocks.BARRIER)
+				&& s.overworld().getEntities(net.minecraft.world.entity.EntityTypes.BLOCK_DISPLAY, e -> e.entityTags().contains("hw_police_car")).size() >= 10),
+				"the police car stands on its spot (nobody walks through it)");
+			// A look at it, from in front, and back again.
+			Vec3 back = server.computeOnServer(s -> player(s).position());
+			boolean viewed = server.computeOnServer(s -> {
+				for (int d : new int[]{7, 8, 6, 9}) {
+					BlockPos p = dev.halloween.game.Nav.snap(s.overworld(), van.offset(2, 0, -d));
+					if (dev.halloween.game.Nav.standable(s.overworld(), p)) {
+						player(s).teleportTo(s.overworld(), p.getX() + 0.5, p.getY(), p.getZ() + 0.5, java.util.Set.of(), 15f, 12f, false);
+						return true;
+					}
+				}
+				return false;
+			});
+			if (viewed) {
+				ctx.waitTicks(20);
+				ctx.takeScreenshot("m04a_police_car");
+				server.runOnServer(s -> player(s).teleportTo(s.overworld(), back.x, back.y, back.z, java.util.Set.of(), player(s).getYRot(), 0f, false));
+				ctx.waitTicks(5);
+			}
 			check(server.computeOnServer(s -> dev.halloween.game.Police.officers()) == 2, "two officers come with level 1");
 			ctx.waitTicks(40);
 			String wards = server.computeOnServer(s -> String.join(", ", dev.halloween.game.Police.wards(s.overworld())));
