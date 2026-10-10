@@ -83,7 +83,7 @@ public final class Match {
 				net.minecraft.world.level.chunk.LevelChunk chunk = level.getChunk(cx, cz);
 				for (int i = 0; i < chunk.getSections().length; i++) {
 					net.minecraft.world.level.chunk.LevelChunkSection section = chunk.getSections()[i];
-					if (section.hasOnlyAir() || !section.maybeHas(s -> s.is(net.minecraft.world.level.block.Blocks.LEVER)
+					if (section.hasOnlyAir() || !section.maybeHas(s -> s.is(net.minecraft.world.level.block.Blocks.LEVER) || s.is(dev.halloween.HwBlocks.DEAD_LANTERN)
 						|| s.getBlock() instanceof net.minecraft.world.level.block.DoorBlock || LockerBlock.is(s))) {
 						continue;
 					}
@@ -97,6 +97,10 @@ public final class Match {
 									&& LightSystem.isBreaker(level, pos)) {
 									level.setBlock(pos, state.setValue(net.minecraft.world.level.block.LeverBlock.POWERED, true), net.minecraft.world.level.block.Block.UPDATE_CLIENTS);
 									LightSystem.setLights(level, pos, true);
+								} else if (state.is(dev.halloween.HwBlocks.DEAD_LANTERN)) {
+									// A blackout cut short (the game closed mid-match): the street lamps come back on.
+									level.setBlock(pos, net.minecraft.world.level.block.Blocks.LANTERN.defaultBlockState().setValue(net.minecraft.world.level.block.LanternBlock.HANGING,
+										state.getValue(net.minecraft.world.level.block.LanternBlock.HANGING)), net.minecraft.world.level.block.Block.UPDATE_CLIENTS);
 								} else if (state.getBlock() instanceof net.minecraft.world.level.block.DoorBlock
 									&& state.getValue(net.minecraft.world.level.block.DoorBlock.OPEN)) {
 									level.setBlock(pos, state.setValue(net.minecraft.world.level.block.DoorBlock.OPEN, false),
@@ -123,6 +127,24 @@ public final class Match {
 
 	public static int ticksLeft() {
 		return ticksLeft;
+	}
+
+	/** Survivors who have died this match (at least once). */
+	public static int deadSurvivors() {
+		int n = 0;
+		for (Participant p : PEOPLE.values()) {
+			n += p.died ? 1 : 0;
+		}
+		return n;
+	}
+
+	/** Survivors who got away. */
+	public static int escaped() {
+		int n = 0;
+		for (Participant p : PEOPLE.values()) {
+			n += p.exit != null ? 1 : 0;
+		}
+		return n;
 	}
 
 	public static void markDirty() {
@@ -178,12 +200,13 @@ public final class Match {
 		CommandSourceStack console = server.createCommandSourceStack().withLevel(level).withSuppressedOutput();
 		for (String command : new String[]{"time set midnight", "weather clear", "gamerule advance_time false",
 			"gamerule advance_weather false", "gamerule spawn_mobs false", "gamerule natural_health_regeneration false",
-			"gamerule show_death_messages false", "gamerule show_advancement_messages false", "gamerule locator_bar false", "kill @e[type=item]", "kill @e[type=arrow]",
+			"gamerule show_death_messages false", "gamerule fire_spread_radius_around_player 0", "gamerule show_advancement_messages false", "gamerule locator_bar false", "kill @e[type=item]", "kill @e[type=arrow]",
 			// The arena's practice mannequins have no place in a match; townsfolk take their role.
 			"kill @e[type=minecraft:mannequin,tag=" + MatchManager.VICTIM_TAG + ",tag=!" + Townsfolk.TAG + "]"}) {
 			server.getCommands().performPrefixedCommand(console, command);
 		}
 		Weather.setup(level, level.getRandom());
+		Events.setup(level);
 
 		PEOPLE.clear();
 		CHRONICLE.clear();
@@ -278,6 +301,7 @@ public final class Match {
 			return;
 		}
 		state = State.IDLE;
+		Events.clear(server);
 		Exits.clear(server.overworld());
 		Minimap.clear(server.overworld());
 		Loot.clear();
@@ -327,6 +351,7 @@ public final class Match {
 		} else if (state == State.RUNNING) {
 			ticksLeft--;
 			Exits.tick(level);
+			Events.tick(server);
 			if (HwConfig.get().gateOpenLastSeconds > 0 && ticksLeft == HwConfig.get().gateOpenLastSeconds * 20) {
 				announce(server, Component.translatable("halloween.match.gates").withStyle(ChatFormatting.GOLD));
 			}

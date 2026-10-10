@@ -993,6 +993,67 @@ public final class HwNet {
 		}
 	}
 
+	/** A marker of a match event: where, and what (one of the kinds below). */
+	public record EventMark(Vec3 pos, int kind) {
+		public static final int PHONE = 0;
+		public static final int BAG = 1;
+		public static final int PATROL = 2;
+		public static final int TRANSFORMER = 3;
+		public static final int PARTY = 4;
+		public static final int FIRE = 5;
+		public static final int ESCAPE_ITEM = 6;
+		public static final int EXIT = 7;
+	}
+
+	/**
+	 * The match event as this player sees it (game.Events): which (empty: none), phase (0 none, 1 announced,
+	 * 2 running), time left and the whole of it, markers, whom they see through walls, objects to use, flags.
+	 */
+	public record EventSync(String id, int phase, int ticksLeft, int total, List<EventMark> marks, List<Integer> glows, List<BlockPos> objects, int flags)
+		implements CustomPacketPayload {
+		public static final int SAMHAIN = 1;
+		public static final int MIDNIGHT = 2;
+		public static final Type<EventSync> TYPE = payloadType("event_sync");
+		public static final EventSync NONE = new EventSync("", 0, 0, 1, List.of(), List.of(), List.of(), 0);
+		public static final StreamCodec<RegistryFriendlyByteBuf, EventSync> CODEC = StreamCodec.of((buf, v) -> {
+			buf.writeUtf(v.id);
+			buf.writeVarInt(v.phase);
+			buf.writeVarInt(v.ticksLeft);
+			buf.writeVarInt(v.total);
+			buf.writeVarInt(v.marks.size());
+			for (EventMark m : v.marks) {
+				writeVec(buf, m.pos());
+				buf.writeVarInt(m.kind());
+			}
+			writeIds(buf, v.glows);
+			buf.writeVarInt(v.objects.size());
+			v.objects.forEach(buf::writeBlockPos);
+			buf.writeVarInt(v.flags);
+		}, buf -> {
+			String id = buf.readUtf();
+			int phase = buf.readVarInt();
+			int left = buf.readVarInt();
+			int total = buf.readVarInt();
+			int n = buf.readVarInt();
+			List<EventMark> marks = new ArrayList<>(n);
+			for (int i = 0; i < n; i++) {
+				marks.add(new EventMark(readVec(buf), buf.readVarInt()));
+			}
+			List<Integer> glows = readIds(buf);
+			int m = buf.readVarInt();
+			List<BlockPos> objects = new ArrayList<>(m);
+			for (int i = 0; i < m; i++) {
+				objects.add(buf.readBlockPos());
+			}
+			return new EventSync(id, phase, left, total, marks, glows, objects, buf.readVarInt());
+		});
+
+		@Override
+		public Type<EventSync> type() {
+			return TYPE;
+		}
+	}
+
 	/** To Michael: his Runt (to see him through walls), who it smells near it, whom it is holding (-1 nobody). */
 	public record RuntInfo(int runtId, List<Integer> scent, int holdingId, boolean bot, int status) implements CustomPacketPayload {
 		public static final Type<RuntInfo> TYPE = payloadType("runt_info");
@@ -1060,6 +1121,7 @@ public final class HwNet {
 		PayloadTypeRegistry.clientboundPlay().register(ShapeHud.TYPE, ShapeHud.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(RuntHud.TYPE, RuntHud.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(RuntInfo.TYPE, RuntInfo.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(EventSync.TYPE, EventSync.CODEC);
 		PayloadTypeRegistry.serverboundPlay().register(RuntPick.TYPE, RuntPick.CODEC);
 		PayloadTypeRegistry.serverboundPlay().register(RuntOrder.TYPE, RuntOrder.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(Qte.TYPE, Qte.CODEC);

@@ -30,7 +30,7 @@ public final class Voices {
 			case HURT -> female ? HwSounds.VOICE_FEMALE_HURT : HwSounds.VOICE_MALE_HURT;
 			case DEATH -> female ? HwSounds.VOICE_FEMALE_DEATH : HwSounds.VOICE_MALE_DEATH;
 		};
-		float volume = kind == Kind.HURT ? 1.4f : 3f;
+		float volume = (kind == Kind.HURT ? 1.4f : 3f) * (Events.muffled(who.position()) ? 0.35f : 1f);
 		float pitch = 0.95f + level.getRandom().nextFloat() * 0.1f;
 		level.playSound(null, who.getX(), who.getEyeY(), who.getZ(), event, SoundSource.PLAYERS, volume, pitch);
 		AiStats.add(who, "voice." + (female ? "female." : "male.") + kind.name().toLowerCase(java.util.Locale.ROOT));

@@ -1269,7 +1269,7 @@ final class BotBrain {
 		boolean calm = this.threat == null || now - this.threatTick > 400;
 		if (calm) {
 			// A dark house is where he can Shape Jump: switch its breaker back on.
-			for (BlockPos breaker : this.breakers()) {
+			for (BlockPos breaker : Events.blackout() ? List.<BlockPos>of() : this.breakers()) {
 				if (!LightSystem.isOn(level, breaker) && this.bot.position().distanceTo(Vec3.atCenterOf(breaker)) < 32
 					&& !Bots.claimedByOther(breaker, this.bot)) {
 					out.put(new Task(breaker, 2.0, true, "power"), 45.0);
@@ -1299,10 +1299,16 @@ final class BotBrain {
 			double value = kind.melee() || kind == HwItems.Kind.DART ? 40.0 : 65.0;
 			out.put(new Task(item.blockPosition(), 0.6, false, "pickup"), value);
 		}
+		// Whatever a match event offers: the ringing phone, the bag, the transformer, the crate in the fire.
+		for (Events.BotJob job : Events.botJobs(this.bot)) {
+			if (!Bots.claimedByOther(job.pos(), this.bot)) {
+				out.put(new Task(job.pos(), job.within(), job.hold(), job.key()), job.value());
+			}
+		}
 		// He's close (the music is loud): don't start anything long that pins us down.
 		if (this.uneasyDistance() < cfg.botCautionDistance) {
 			out.keySet().removeIf(t -> t.key.equals("gate") || t.key.equals("call") || t.key.equals("phone") || t.key.equals("car")
-				|| t.key.equals("warn") || t.key.equals("power"));
+				|| t.key.equals("warn") || t.key.equals("power") || t.key.equals("transformer"));
 		}
 		if (out.isEmpty()) {
 			// Nothing to do: drift towards another survivor, or somewhere random near the middle.

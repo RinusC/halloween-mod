@@ -158,6 +158,11 @@ public final class ClientState {
 
 	/** Outline colour the Shape sees for an entity, or -1 for none. */
 	public static int outlineColor(Entity entity) {
+		int event = ClientEvents.glow(entity);
+		if (event != -1) {
+			// Shown by a match event: Michael after Loomis's call, everyone to him at midnight.
+			return event;
+		}
 		if (myRole().survivor() && match.state() == 2 && perkEquipped.contains("witness") && entity != Minecraft.getInstance().player
 			&& (ROLES.getOrDefault(entity.getUUID(), Role.NONE).survivor() || match.npcs().contains(entity.getId())) && !entity.isSpectator()
 			&& entity.distanceTo(Minecraft.getInstance().player) <= dev.halloween.HwConfig.get().perkWitnessRange) {
@@ -232,6 +237,7 @@ public final class ClientState {
 		ROLES.clear();
 		runtHud = null;
 		runtInfo = null;
+		ClientEvents.reset();
 		ClientSkins.clear();
 		ClientMusic.reset();
 		ClientMinimap.clear();

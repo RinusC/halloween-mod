@@ -22,6 +22,10 @@ public final class Sight {
 	}
 
 	public static boolean canSee(Level level, Vec3 from, Vec3 to, Entity viewer) {
+		if (!level.isClientSide() && Events.smokeBetween(from, to)) {
+			// Smoke from a burning house (see Events).
+			return false;
+		}
 		Vec3 start = from;
 		Vec3 dir = to.subtract(from).normalize();
 		for (int i = 0; i < 6; i++) {

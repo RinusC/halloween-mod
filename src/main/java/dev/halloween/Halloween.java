@@ -106,6 +106,8 @@ public class Halloween implements ModInitializer {
 		// Match items do nothing the vanilla way: right click goes through Gear (the client sends ITEM_USE).
 		net.fabricmc.fabric.api.event.player.UseItemCallback.EVENT.register((player, level, hand) -> !level.isClientSide()
 			&& dev.halloween.game.HwItems.kindOf(player.getItemInHand(hand)) != null ? net.minecraft.world.InteractionResult.FAIL : net.minecraft.world.InteractionResult.PASS);
+		UseEntityCallback.EVENT.register((player, level, hand, entity, hit) -> level.isClientSide() ? net.minecraft.world.InteractionResult.PASS
+			: dev.halloween.game.Events.onUseEntity(player, entity));
 		UseEntityCallback.EVENT.register((player, level, hand, entity, hit) -> MatchManager.onUseEntity(player, hand, entity));
 		// In Shape Jump the Shape is a shadow: he slips through doors but can't work them, nor the breakers.
 		UseBlockCallback.EVENT.register((player, level, hand, hit) -> !level.isClientSide()
@@ -145,7 +147,8 @@ public class Halloween implements ModInitializer {
 			}
 			return DoorLocks.onUseBlock(player, level, hit.getBlockPos());
 		});
-		ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) -> MatchManager.allowDamage(entity, source));
+		ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) -> dev.halloween.game.Events.allowDamage(entity, source, amount)
+			&& MatchManager.allowDamage(entity, source));
 		ServerLivingEntityEvents.ALLOW_DEATH.register((entity, source, amount) -> MatchManager.allowDeath(entity));
 
 		CommandRegistrationCallback.EVENT.register((dispatcher, context, selection) -> HwCommands.register(dispatcher));

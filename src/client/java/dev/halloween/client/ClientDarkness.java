@@ -14,6 +14,7 @@ public final class ClientDarkness {
 	/** How much of the night sky's light is left. */
 	public static float skyScale = 0.5f;
 	private static final Vector3f AMBIENT = new Vector3f(0.022f, 0.022f, 0.032f);
+	private static final Vector3f RED_AMBIENT = new Vector3f(0.075f, 0.008f, 0.01f);
 	/** For tests and comparisons: switch it off. */
 	public static boolean enabled = true;
 
@@ -29,7 +30,9 @@ public final class ClientDarkness {
 			return;
 		}
 		state.skyFactor *= skyScale;
-		state.ambientColor = AMBIENT;
+		float red = ClientEvents.redness();
+		// Samhain night (see ClientEvents): what little light there is turns red.
+		state.ambientColor = red <= 0.001f ? AMBIENT : new Vector3f(AMBIENT).lerp(RED_AMBIENT, red);
 		state.brightness = 0f;
 		// The flag for lightmap.fsh: the match night's curve.
 		state.nightVisionEffectIntensity = -1f;

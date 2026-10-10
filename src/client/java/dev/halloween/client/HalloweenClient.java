@@ -69,6 +69,7 @@ public class HalloweenClient implements ClientModInitializer {
 			ClientState.shapeShadow = payload.shadow();
 		});
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.RuntHud.TYPE, (payload, ctx) -> ClientState.runtHud = payload);
+		ClientPlayNetworking.registerGlobalReceiver(HwNet.EventSync.TYPE, (payload, ctx) -> ClientEvents.state = payload);
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.RuntInfo.TYPE, (payload, ctx) -> {
 			ClientState.runtInfo = payload;
 			ClientState.runtInfoAt = ctx.client().level == null ? 0 : ctx.client().level.getGameTime();
@@ -254,6 +255,7 @@ public class HalloweenClient implements ClientModInitializer {
 		DashSteps.tick(mc);
 		ShapeBreath.tick(mc);
 		ClientWeather.tick();
+		ClientEvents.tick(mc);
 		ClientPanting.tick(mc);
 		ClientPanic.tick(mc);
 		while (KEY_PERKS.consumeClick()) {

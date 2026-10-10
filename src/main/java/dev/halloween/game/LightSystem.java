@@ -51,6 +51,11 @@ public final class LightSystem {
 		}
 		BlockState state = level.getBlockState(pos);
 		boolean on = !state.getValue(LeverBlock.POWERED);
+		if (on && Match.running() && Events.blackout()) {
+			// No power in the whole town: the breakers do nothing until the transformer is mended.
+			player.sendOverlayMessage(net.minecraft.network.chat.Component.translatable("halloween.event.blackout.no_power").withStyle(net.minecraft.ChatFormatting.GRAY));
+			return InteractionResult.SUCCESS;
+		}
 		if (on && Match.running() && player instanceof net.minecraft.server.level.ServerPlayer sp && MatchManager.role(sp).survivor()) {
 			// Getting the power back means joining the wires by hand (bots take a while instead, see resolve).
 			if (!Bots.isBot(sp)) {
@@ -67,7 +72,7 @@ public final class LightSystem {
 	/** A bot holding use on a dark breaker box: the wires take it a while. */
 	public static Holds.Hold resolve(net.minecraft.server.level.ServerPlayer player, BlockPos pos) {
 		ServerLevel level = player.level();
-		if (!Bots.isBot(player) || !MatchManager.role(player).survivor() || !isBreaker(level, pos) || isOn(level, pos)) {
+		if (!Bots.isBot(player) || !MatchManager.role(player).survivor() || !isBreaker(level, pos) || isOn(level, pos) || Events.blackout()) {
 			return null;
 		}
 		BlockPos at = pos.immutable();

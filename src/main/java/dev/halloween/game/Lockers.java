@@ -333,7 +333,7 @@ public final class Lockers {
 			Set<Integer> now = new HashSet<>();
 			if (MatchManager.role(shape) == Role.SHAPE && Match.running() && !Bots.isBot(shape)) {
 				for (Inside inside : INSIDE.values()) {
-					if (center(inside.base).distanceTo(shape.position()) < cfg.lockerHearRange) {
+					if (center(inside.base).distanceTo(shape.position()) < cfg.lockerHearRange && !Events.muffled(center(inside.base))) {
 						now.add(inside.who.getId());
 						if (!before.contains(inside.who.getId())) {
 							ServerPlayNetworking.send(shape, new HwNet.Pant(inside.who.getId(), true, Voices.female(inside.who), cfg.lockerBreathVolume));

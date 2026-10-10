@@ -34,6 +34,10 @@ public final class HwBlocks {
 	public static final Block GUN_SAFE = Registry.register(BuiltInRegistries.BLOCK, key("gun_safe"),
 		new dev.halloween.game.SafeBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.IRON_BLOCK).strength(-1f, 3600000f).noOcclusion().setId(key("gun_safe"))));
 
+	/** A street lantern in a blackout (see game.Events): the same lantern, giving no light. */
+	public static final Block DEAD_LANTERN = Registry.register(BuiltInRegistries.BLOCK, key("dead_lantern"),
+		new net.minecraft.world.level.block.LanternBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.LANTERN).lightLevel(s -> 0).setId(key("dead_lantern"))));
+
 	/** Traps a survivor set down (see game.Traps): nothing to bump into. */
 	public static final Block BEAR_TRAP = trap("bear_trap", Blocks.IRON_BLOCK);
 	public static final Block TIN_CANS = trap("tin_cans", Blocks.TRIPWIRE);

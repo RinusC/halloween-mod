@@ -363,7 +363,7 @@ public final class Runt {
 		p.hurtMarked = true;
 		s.leapTicks = 1;
 		s.crouch = 0;
-		s.pounceCooldown = s.pounceCooldownMax = cfg.runtPounceCooldownTicks;
+		s.pounceCooldown = s.pounceCooldownMax = Math.round(cfg.runtPounceCooldownTicks * Events.pounceFactor());
 		p.level().playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.VEX_CHARGE, SoundSource.HOSTILE, 1.2f, 0.8f);
 		AiStats.add(p, "runt.pounce");
 	}

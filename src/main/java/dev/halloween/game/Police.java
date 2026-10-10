@@ -85,6 +85,8 @@ public final class Police {
 	private static final List<int[]> ARRIVALS = new ArrayList<>();
 	private static final Map<UUID, Officer> OFFICERS = new LinkedHashMap<>();
 	private static int calls;
+	/** Of those, the ones a patrol made on seeing him (no body behind them: they don't use one up). */
+	private static int sightings;
 	private static int named;
 
 	private Police() {
@@ -100,6 +102,7 @@ public final class Police {
 		BODIES.clear();
 		ARRIVALS.clear();
 		calls = 0;
+		sightings = 0;
 		named = 0;
 		for (ServerLevel level : server.getAllLevels()) {
 			for (Mannequin body : level.getEntities(EntityTypes.MANNEQUIN, Police::isOfficer)) {
@@ -137,7 +140,7 @@ public final class Police {
 		for (Body body : BODIES) {
 			found += body.found ? 1 : 0;
 		}
-		return Math.max(0, Math.min(found - calls, HwConfig.get().policeMaxCalls - calls));
+		return Math.max(0, Math.min(found - (calls - sightings), HwConfig.get().policeMaxCalls - calls));
 	}
 
 	/** Bodies lying about, found or not (tests, debugging). */
@@ -214,6 +217,31 @@ public final class Police {
 		Match.announce(level.getServer(), announcement.copy().withStyle(ChatFormatting.BLUE));
 		Match.announce(level.getServer(), Component.translatable("halloween.match.wanted", calls).withStyle(ChatFormatting.BLUE));
 		Match.markDirty();
+	}
+
+	/**
+	 * A patrol saw him (see Events): the wanted level goes up without a body, and the police for it set off.
+	 * Not past the last level, and only where there are police. True if it went up.
+	 */
+	public static boolean raiseWanted(ServerLevel level, Component announcement) {
+		if (Exits.policePoint() == null || calls >= HwConfig.get().policeMaxCalls) {
+			return false;
+		}
+		calls++;
+		sightings++;
+		ARRIVALS.add(new int[]{HwConfig.get().policeArriveSeconds * 20, calls});
+		Match.announce(level.getServer(), announcement.copy().withStyle(ChatFormatting.BLUE));
+		Match.announce(level.getServer(), Component.translatable("halloween.match.wanted", calls).withStyle(ChatFormatting.BLUE));
+		Match.markDirty();
+		return true;
+	}
+
+	/** An officer goes back to the patrol car: gone from town (see Events). */
+	public static void dismiss(UUID id) {
+		Officer o = OFFICERS.remove(id);
+		if (o != null && !o.body.isRemoved()) {
+			o.body.discard();
+		}
 	}
 
 	// ---------------------------------------------------------------- tick

@@ -124,6 +124,11 @@ public final class Nav {
 		area = box;
 	}
 
+	/** The match area, or null when no match is set up. */
+	public static net.minecraft.world.level.levelgen.structure.BoundingBox area() {
+		return area;
+	}
+
 	public static boolean inArea(BlockPos pos) {
 		return area == null || area.isInside(pos.getX(), area.minY(), pos.getZ());
 	}

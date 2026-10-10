@@ -322,7 +322,7 @@ public class HwConfig {
 	public double runtPounceMinDistance = 3;
 	public double runtPounceMaxDistance = 9;
 	public int runtPounceMissStunTicks = 100;
-	public int runtPounceCooldownTicks = 280;
+	public int runtPounceCooldownTicks = 500;
 	public float runtFearPounce = 12f;
 	public float runtFearPounceNpc = 8f;
 	/** A bot he holds tears his hands off in this many ticks, give or take. */
@@ -364,6 +364,78 @@ public class HwConfig {
 	public int runtTrappedTicks = 80;
 	public int scoreHitRunt = 50;
 	public int scoreShakeRunt = 75;
+	// --- Match events (see game.Events) ---
+	public boolean eventsEnabled = true;
+	/** The first comes this far in (seconds), the next this long after the one before began; at most this many. */
+	public int eventFirstMinSeconds = 360;
+	public int eventFirstMaxSeconds = 480;
+	public int eventGapMinSeconds = 300;
+	public int eventGapMaxSeconds = 420;
+	public int eventMaxPerMatch = 3;
+	/** None begin in the last minutes (Midnight has them). */
+	public int eventQuietEndSeconds = 360;
+	public int eventAnnounceSeconds = 10;
+	/** The side that is behind gets the events that help it this much more often. */
+	public float eventCatchUpFactor = 2f;
+	public java.util.Map<String, Integer> eventWeights = defaultEventWeights();
+	/** Points for answering Loomis, emptying the bag, mending the transformer, the find in the fire (half for waving the patrol down). */
+	public int scoreEvent = 75;
+	/** Loomis's call: how long the phone rings, how far from Michael it is, how long answering takes, then how long he shows and the find is marked. */
+	public int loomisSeconds = 60;
+	public double loomisMinDistance = 40;
+	public int loomisAnswerTicks = 100;
+	public int loomisRevealTicks = 200;
+	public int loomisItemMarkTicks = 1200;
+	/** The forgotten bag: how long it lies there, how far from Michael, the search, what is in it (one rare, two uncommon). */
+	public int bagSeconds = 120;
+	public double bagMinDistance = 25;
+	public int bagSearchTicks = 80;
+	public String[] bagRare = {"med_kit", "flare_gun", "shotgun_shells", "amulet"};
+	public String[] bagUncommon = {"healing_spray", "flashlight", "firecrackers", "road_flare", "revolver_ammo", "pocket_knife", "repair_kit", "battery"};
+	/** Brackett's patrol: how long, how fast (blocks a tick), how far and wide its headlights see, how often it stops, how long the officer stays. */
+	public int patrolSeconds = 120;
+	public double patrolSpeed = 0.3;
+	public double patrolSightRange = 12;
+	public double patrolSightAngle = 35;
+	public int patrolMaxStops = 2;
+	public int patrolGuardSeconds = 60;
+	/** A bot this frightened by the road waves it down. */
+	public float patrolBotPanic = 0.15f;
+	/** Blackout: how long, how far from Michael the transformer is. */
+	public int blackoutSeconds = 90;
+	public double blackoutBoxMinDistance = 30;
+	/** Samhain night: how long, stalking this much faster, the Runt's pause between pounces this share of its usual. */
+	public int samhainSeconds = 60;
+	public float samhainStalkFactor = 2f;
+	public float samhainPounceFactor = 0.5f;
+	/** The party: how long, how far round it nothing is heard, how far townsfolk come from and what share of them. */
+	public int partySeconds = 120;
+	public double partyMuffleRange = 20;
+	public double partyGatherRange = 60;
+	public float partyGatherShare = 0.6f;
+	/** The fire: how long, flames on the roof and inside, how far the smoke hides things. */
+	public int fireSeconds = 150;
+	public int fireRoofFlames = 12;
+	public int fireInsideFlames = 7;
+	public double fireSmokeRadius = 6;
+	/** Midnight: this long before the end; Michael sees everyone this often, for this long. */
+	public boolean midnightEnabled = true;
+	public int midnightSeconds = 300;
+	public int midnightRevealEverySeconds = 60;
+	public int midnightRevealTicks = 100;
+
+	public static java.util.Map<String, Integer> defaultEventWeights() {
+		java.util.Map<String, Integer> w = new java.util.LinkedHashMap<>();
+		w.put("loomis", 3);
+		w.put("bag", 3);
+		w.put("patrol", 2);
+		w.put("blackout", 3);
+		w.put("samhain", 2);
+		w.put("party", 3);
+		w.put("fire", 1);
+		return w;
+	}
+
 	/** Hand-to-hand weapons are found out of doors (see StreetWeapons): how many a match, how far apart at least. */
 	public int streetWeapons = 24;
 	public int streetWeaponSpacing = 12;
@@ -739,7 +811,7 @@ public class HwConfig {
 
 	/** The file's version: older files get the defaults that changed since moved on (see {@link #migrate}). */
 	public int configVersion;
-	private static final int VERSION = 2;
+	private static final int VERSION = 3;
 
 	public static void load() {
 		Path path = path();
@@ -805,6 +877,9 @@ public class HwConfig {
 			if (this.runtScentRange == 16) {
 				this.runtScentRange = 48;
 			}
+		}
+		if (this.configVersion < 3 && this.runtPounceCooldownTicks == 280) {
+			this.runtPounceCooldownTicks = 500;
 		}
 		if (this.configVersion < VERSION) {
 			Halloween.LOGGER.info("Config moved on to version {}", VERSION);

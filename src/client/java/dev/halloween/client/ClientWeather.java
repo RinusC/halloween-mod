@@ -21,6 +21,11 @@ public final class ClientWeather {
 	}
 
 	public static void apply(FogData data) {
+		float red = ClientEvents.redness();
+		if (red > 0.001f) {
+			// Samhain night: the haze over town goes blood red.
+			data.color.lerp(new org.joml.Vector4f(0.34f, 0.02f, 0.03f, data.color.w), red * 0.85f);
+		}
 		if (thickness <= 0.001f) {
 			return;
 		}

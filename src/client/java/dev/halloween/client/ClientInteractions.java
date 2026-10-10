@@ -45,6 +45,10 @@ public final class ClientInteractions {
 		if (match.containers().contains(pos)) {
 			return 1;
 		}
+		if (ClientEvents.isObject(pos)) {
+			// A match event's object: the ringing phone, the bag, the transformer, the crate in the fire.
+			return 5;
+		}
 		if (match.cases().contains(pos)) {
 			return 4;
 		}

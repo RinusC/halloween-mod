@@ -22,9 +22,9 @@ import net.minecraft.world.phys.Vec3;
  * Civilians get health and their side of the grab check.
  */
 public final class HwHud {
-	private static final int TEXT = 0xFFE8E2D6;
-	private static final int DIM = 0xFF8A847A;
-	private static final int BLOOD = 0xFFB3121B;
+	static final int TEXT = 0xFFE8E2D6;
+	static final int DIM = 0xFF8A847A;
+	static final int BLOOD = 0xFFB3121B;
 	private static final int RED_FILL = 0xE0701015;
 	private static final int DARK_FILL = 0xC0181818;
 	private static final int GREEN = 0xFF3FE0A0;
@@ -148,6 +148,7 @@ public final class HwHud {
 			feed(g, mc.font, h);
 		}
 		matchTimer(g, mc, w);
+		ClientEvents.render(g, mc, w, h, partialTicks(delta));
 		int noticesTop = minimapAndWanted(g, mc, w, partialTicks(delta));
 		notices(g, mc.font, w, noticesTop);
 		// The match summary is a screen of its own now (MatchEndScreen).
@@ -331,7 +332,7 @@ public final class HwHud {
 	}
 
 	/** A small arrow centred on (cx, cy), pointing {@code angle} radians clockwise from straight up. */
-	private static void arrow(GuiGraphicsExtractor g, int cx, int cy, double angle, int color) {
+	static void arrow(GuiGraphicsExtractor g, int cx, int cy, double angle, int color) {
 		double sin = Math.sin(angle);
 		double cos = Math.cos(angle);
 		for (int py = -7; py <= 7; py++) {
@@ -1408,7 +1409,7 @@ public final class HwHud {
 	}
 
 	/** Filled diamond (square rotated 45 degrees) with half-diagonal {@code size}. */
-	private static void diamond(GuiGraphicsExtractor g, int cx, int cy, int size, int color) {
+	static void diamond(GuiGraphicsExtractor g, int cx, int cy, int size, int color) {
 		for (int dy = -size; dy <= size; dy++) {
 			int half = size - Math.abs(dy);
 			g.fill(cx - half, cy + dy, cx + half + 1, cy + dy + 1, color);
@@ -1416,7 +1417,7 @@ public final class HwHud {
 	}
 
 	/** Arc of a ring from {@code from} to {@code to} (fractions of a turn, clockwise from the top). */
-	private static void ring(GuiGraphicsExtractor g, float cx, float cy, float r, int thickness, float from, float to, int color) {
+	static void ring(GuiGraphicsExtractor g, float cx, float cy, float r, int thickness, float from, float to, int color) {
 		int steps = Math.max(8, (int) (r * 7 * Math.abs(to - from)));
 		int half = Math.max(1, thickness / 2);
 		for (int i = 0; i <= steps; i++) {

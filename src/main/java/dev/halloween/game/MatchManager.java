@@ -409,7 +409,7 @@ public final class MatchManager {
 			state.shadowTicks++;
 		}
 
-		if (state.senseActive()) {
+		if (state.senseActive() && !Events.noFatigue()) {
 			state.fatigue = Math.min(1f, state.fatigue + 1f / (cfg.senseFatigueSeconds * 20f));
 		} else {
 			state.fatigue = Math.max(0f, state.fatigue - 1f / (cfg.senseRecoverySeconds * 20f));
@@ -518,6 +518,8 @@ public final class MatchManager {
 			if (Perks.has(target, Perks.Perk.ELUSORY)) {
 				multiplier *= cfg.perkElusoryFactor;
 			}
+			// Samhain night (see Events).
+			multiplier *= Events.stalkFactor();
 			int before = vs.level();
 			vs.stalk = Math.min(cap, vs.stalk + rate / 20f * multiplier);
 			int after = vs.level();

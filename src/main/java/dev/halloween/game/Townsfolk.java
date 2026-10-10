@@ -231,6 +231,7 @@ public final class Townsfolk {
 
 	public static void clear(MinecraftServer server) {
 		spawnedCount = 0;
+		PARTY_HOMES.clear();
 		rescuedCount = 0;
 		deadCount = 0;
 		for (Npc npc : NPCS.values()) {
@@ -456,6 +457,10 @@ public final class Townsfolk {
 		screams++;
 		AiStats.add(body, "npc.scream");
 		Voices.play(body, Voices.Kind.SCREAM);
+		if (Events.muffled(body.position())) {
+			// Nobody hears it over the party's music.
+			return;
+		}
 		Vec3 where = shape != null ? shape.position() : body.position();
 		// The neighbours hear it too.
 		hearNoise(level, where, now, npc);
@@ -466,6 +471,61 @@ public final class Townsfolk {
 			}
 		}
 		Bots.alert(where, now);
+	}
+
+	/** Townsfolk the party drew away, and the homes they go back to afterwards. */
+	private static final Map<UUID, BlockPos> PARTY_HOMES = new LinkedHashMap<>();
+
+	/** A party at {@code house} (see Events): some of the townsfolk at home round it go over and stay there a while. */
+	public static void gather(BlockPos house, double range, float share, RandomSource random) {
+		for (Npc npc : NPCS.values()) {
+			if (npc.state != State.HOME || npc.body.isRemoved() || Lockers.isInside(npc.body) || MatchManager.isHeld(npc.body)
+				|| npc.body.position().distanceTo(Vec3.atCenterOf(house)) > range || random.nextFloat() >= share) {
+				continue;
+			}
+			ServerLevel level = (ServerLevel) npc.body.level();
+			PARTY_HOMES.putIfAbsent(npc.body.getUUID(), npc.home);
+			npc.home = Nav.snap(level, house);
+			npc.walker.speed = 0.8f;
+			setSpeed(npc, HwConfig.get().npcWalkSpeed);
+			npc.walker.follow(Nav.to(level, npc.body.blockPosition(), npc.home, 2.0, Nav.Options.walker()));
+			npc.nextStroll = npc.body.level().getServer().getTickCount() + 200;
+			AiStats.add(npc.body, "npc.party");
+		}
+	}
+
+	/** The party is over: everyone it drew goes back home. */
+	public static void disperse() {
+		for (Map.Entry<UUID, BlockPos> e : PARTY_HOMES.entrySet()) {
+			Npc npc = NPCS.get(e.getKey());
+			if (npc == null || npc.body.isRemoved()) {
+				continue;
+			}
+			npc.home = e.getValue();
+			if (npc.state == State.HOME) {
+				npc.walker.follow(Nav.to((ServerLevel) npc.body.level(), npc.body.blockPosition(), npc.home, 1.0, Nav.Options.walker()));
+			}
+		}
+		PARTY_HOMES.clear();
+	}
+
+	/** A house on fire (see Events): those in it or near run out, screaming. */
+	public static void flee(Vec3 from, double radius, int now) {
+		for (Npc npc : NPCS.values()) {
+			if (npc.body.isRemoved() || MatchManager.isHeld(npc.body) || npc.state == State.FOLLOW || npc.body.position().distanceTo(from) > radius) {
+				continue;
+			}
+			if (Lockers.isInside(npc.body)) {
+				Lockers.leave(npc.body, false);
+			}
+			npc.threat = from;
+			npc.threatTick = now;
+			if (now >= npc.screamReadyAt) {
+				npc.screamReadyAt = now + HwConfig.get().npcScreamCooldownTicks;
+				Voices.play(npc.body, Voices.Kind.SCREAM);
+			}
+			panic(npc, now);
+		}
 	}
 
 	/** The Runt jumps out at a townsperson: a scream (if it has the breath), and it runs. */

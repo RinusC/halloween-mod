@@ -30,6 +30,15 @@ public final class HwCommands {
 		dispatcher.register(Commands.literal("hw")
 			.requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
 			.then(Commands.literal("role").then(role))
+			.then(Commands.literal("event")
+				.then(Commands.argument("id", com.mojang.brigadier.arguments.StringArgumentType.word())
+					.suggests((ctx, b) -> net.minecraft.commands.SharedSuggestionProvider.suggest(Events.ids(), b))
+					.executes(ctx -> {
+						String id = com.mojang.brigadier.arguments.StringArgumentType.getString(ctx, "id");
+						boolean ok = Events.trigger(ctx.getSource().getLevel(), id);
+						ctx.getSource().sendSuccess(() -> Component.translatable(ok ? "halloween.cmd.event" : "halloween.cmd.event_no", id), true);
+						return ok ? 1 : 0;
+					})))
 			.then(Commands.literal("runt")
 				.then(Commands.literal("bot").executes(ctx -> {
 					Runt.chooseBot();
