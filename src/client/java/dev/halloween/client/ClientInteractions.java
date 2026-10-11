@@ -113,6 +113,9 @@ public final class ClientInteractions {
 				return InteractionResult.FAIL;
 			}
 			if (door) {
+				if (!player.isShiftKeyDown()) {
+					ViewArms.trigger(ViewArms.Act.DOOR);
+				}
 				if (player.isShiftKeyDown()) {
 					ClientPlayNetworking.send(new HwNet.UseAction(HwNet.UseAction.DOOR_LOCK, pos));
 					return InteractionResult.SUCCESS;
@@ -125,6 +128,7 @@ public final class ClientInteractions {
 					Minecraft mc = Minecraft.getInstance();
 					boolean fast = mc.options.keySprint.isDown() || player.isSprinting();
 					ClientPlayNetworking.send(new HwNet.UseAction(fast ? HwNet.UseAction.VAULT_FAST : HwNet.UseAction.VAULT_SLOW, pos));
+					ViewArms.trigger(ViewArms.Act.VAULT);
 				}
 				// FAIL: no vanilla click goes out, which the server would refuse mid-climb with a build-limit message.
 				return InteractionResult.FAIL;
@@ -179,11 +183,13 @@ public final class ClientInteractions {
 				// Caught: right click stabs him with a knife from the pockets, if there is one.
 				if (hasStab(mc)) {
 					ClientPlayNetworking.send(new HwNet.ActionPress(HwNet.Action.STAB));
+					ViewArms.trigger(ViewArms.Act.STAB);
 				}
 			} else if (held != null && held.usable() && !aimsAtUsable(mc)
 				&& !(mc.hitResult instanceof net.minecraft.world.phys.EntityHitResult eh && ClientState.match.npcs().contains(eh.getEntity().getId()))) {
 				// Throw it, spray, open the med kit, fire the flare gun.
 				ClientPlayNetworking.send(new HwNet.ActionPress(HwNet.Action.ITEM_USE));
+				ViewArms.used(held);
 			}
 		}
 		useWasDown = useDown;

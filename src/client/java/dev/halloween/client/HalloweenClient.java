@@ -314,6 +314,7 @@ public class HalloweenClient implements ClientModInitializer {
 			return false;
 		}
 		ClientPlayNetworking.send(new HwNet.ActionPress(HwNet.Action.PUSH));
+		ViewArms.trigger(ViewArms.Act.SHOVE);
 		// The cooldown on screen starts only when the Shape was really in reach.
 		net.minecraft.world.entity.Entity shape = mc.level.getEntity(ClientState.shapeEntityId);
 		if (shape != null && ClientState.pushReadyAt <= mc.level.getGameTime()
@@ -363,6 +364,7 @@ public class HalloweenClient implements ClientModInitializer {
 			return false;
 		}
 		ClientPlayNetworking.send(new HwNet.UseAction(HwNet.UseAction.RUNT_KNOCK, hit.getBlockPos()));
+		ViewArms.trigger(ViewArms.Act.KNOCK);
 		return true;
 	}
 

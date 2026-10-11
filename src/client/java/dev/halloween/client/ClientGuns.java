@@ -51,6 +51,7 @@ public final class ClientGuns {
 		HwConfig cfg = HwConfig.get();
 		ItemStack gun = mc.player.getMainHandItem();
 		ClientPlayNetworking.send(new HwNet.GunFire(mc.player.getYRot(), mc.player.getXRot()));
+		ViewArms.trigger(ViewArms.Act.RECOIL);
 		nextShotAt = now + Guns.shotTicks(kind);
 		if (Guns.loaded(gun) > 0 && ClientState.progress.label().isEmpty()) {
 			// The muzzle climbs; aimed, the hands hold it down a little better.
@@ -73,6 +74,7 @@ public final class ClientGuns {
 		while (HalloweenClient.KEY_SENSE.consumeClick()) {
 			if (kind != null) {
 				ClientPlayNetworking.send(new HwNet.ActionPress(HwNet.Action.RELOAD));
+				ViewArms.trigger(ViewArms.Act.RELOAD);
 			}
 		}
 		bloom = Math.max(0f, bloom - 0.08f);

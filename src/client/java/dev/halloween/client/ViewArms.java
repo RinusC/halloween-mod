@@ -1,0 +1,543 @@
+package dev.halloween.client;
+
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.math.Axis;
+import dev.halloween.Halloween;
+import dev.halloween.Role;
+import dev.halloween.game.HwItems;
+import java.util.Set;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.model.geom.ModelPart;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.client.renderer.ItemInHandRenderer;
+import net.minecraft.client.renderer.SubmitNodeCollector;
+import net.minecraft.client.renderer.entity.player.AvatarRenderer;
+import net.minecraft.client.renderer.rendertype.RenderTypes;
+import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.resources.Identifier;
+import net.minecraft.util.Mth;
+import net.minecraft.world.entity.player.PlayerModelPart;
+import net.minecraft.world.item.ItemDisplayContext;
+import net.minecraft.world.item.ItemStack;
+import org.joml.Matrix3f;
+import org.joml.Quaternionf;
+import org.joml.Vector3f;
+
+/**
+ * Hands in first person, for survivors and the Runt (instead of vanilla's lone arm, or none with something in
+ * hand). Whatever is held stays where vanilla puts it (its first-person display) and moves with what we do; the
+ * arms reach it from out of view at the bottom: long weapons in both hands, the rest in the right. What the hands
+ * do follows what the player does: swinging, throwing, shoving, aiming, the kick of a shot, reloading, pushing a
+ * door open, a lock, climbing through a window, searching, a phone at the ear, wires and repairs, a med kit,
+ * fighting Michael off in his grip, tearing at the Runt's hands at one's throat. The Runt's are his own long
+ * forearms and claws: hanging, crawling, raised to pounce, flung out in a leap, round someone's throat, limp.
+ */
+public final class ViewArms {
+	public enum Act {
+		NONE, SHOVE, DOOR, VAULT, THROW, SPRAY, RECOIL, RELOAD, STAB, KNOCK
+	}
+
+	/** For tests: vanilla's hands instead. */
+	public static boolean enabled = true;
+	/** For tests: aim as if the button were held (null: as it is). */
+	public static Boolean testAim;
+	private static Act act = Act.NONE;
+	private static float actStart;
+	private static HwItems.Kind lastKind;
+	private static float equipStart = -100;
+	private static float aim;
+	private static long aimAt;
+	private static BbModel claws;
+	private static final Identifier RUNT_TEXTURE = Halloween.id("textures/entity/runt.png");
+
+	private ViewArms() {
+	}
+
+	/** Something the player just did that the hands show. */
+	public static void trigger(Act a) {
+		act = a;
+		actStart = now(0f);
+	}
+
+	/** Using what is in hand: a throw for what is thrown, a spray for the spray. */
+	public static void used(HwItems.Kind kind) {
+		if (kind == null) {
+			return;
+		}
+		if (kind.thrown() || kind == HwItems.Kind.ROAD_FLARE || kind == HwItems.Kind.FIRECRACKERS) {
+			trigger(Act.THROW);
+		} else if (kind == HwItems.Kind.HEALING_SPRAY) {
+			trigger(Act.SPRAY);
+		} else if (kind == HwItems.Kind.FLARE_GUN) {
+			trigger(Act.RECOIL);
+		}
+	}
+
+	private static float now(float partial) {
+		Minecraft mc = Minecraft.getInstance();
+		return mc.level == null ? 0 : mc.level.getGameTime() + partial;
+	}
+
+	private static float length(Act a) {
+		return switch (a) {
+			case SHOVE -> 9;
+			case DOOR -> 10;
+			case VAULT -> 14;
+			case THROW -> 10;
+			case SPRAY -> 12;
+			case RECOIL -> 6;
+			case RELOAD -> 20;
+			case STAB -> 8;
+			case KNOCK -> 8;
+			default -> 0;
+		};
+	}
+
+	/** How far through the current one-off action (0..1), or -1 if none is going. */
+	private static float actProgress(Act a, float t) {
+		if (act != a) {
+			return -1;
+		}
+		float p = (t - actStart) / Math.max(1, length(a));
+		if (p < 0 || p > 1) {
+			if (p > 1) {
+				act = Act.NONE;
+			}
+			return -1;
+		}
+		return p;
+	}
+
+	/** Up and back down over 0..1 (a bump). */
+	private static float bump(float p) {
+		return p < 0 ? 0 : Mth.sin(p * Mth.PI);
+	}
+
+	// ---------------------------------------------------------------- what is held, and how
+
+	private enum Grip {
+		EMPTY, ONE_HAND, TWO_HAND_MELEE, LONG_GUN, PISTOL
+	}
+
+	private static Grip grip(HwItems.Kind kind, ItemStack stack) {
+		if (stack.isEmpty()) {
+			return Grip.EMPTY;
+		}
+		if (kind == null) {
+			return Grip.ONE_HAND;
+		}
+		return switch (kind) {
+			case RIFLE, SHOTGUN -> Grip.LONG_GUN;
+			case REVOLVER, FLARE_GUN -> Grip.PISTOL;
+			case BAT, AXE, PICKAXE, PITCHFORK, PIPE_WRENCH, FIRE_POKER -> Grip.TWO_HAND_MELEE;
+			default -> Grip.ONE_HAND;
+		};
+	}
+
+	/** Where the hands and what is held are this frame (camera space, blocks: x right, y up, -z ahead). */
+	private static final class Pose {
+		final Vector3f item = new Vector3f(0.56f, -0.52f, -0.72f);
+		final Quaternionf itemTurn = new Quaternionf();
+		boolean showItem = true;
+		final Vector3f right = new Vector3f();
+		final Vector3f left = new Vector3f();
+		boolean showRight = true;
+		boolean showLeft;
+		/** Which way each forearm comes up to its hand from below the view (null: the usual). */
+		Vector3f rightFrom;
+		Vector3f leftFrom;
+	}
+
+	// ---------------------------------------------------------------- drawing
+
+	/** Draws the hands; true if it did (vanilla's are then skipped). */
+	public static boolean render(ItemInHandRenderer renderer, float partial, PoseStack pose, SubmitNodeCollector collector, LocalPlayer player, int light) {
+		Role role = ClientState.myRole();
+		if (!enabled || ClientState.match.state() == 0 || !(role.survivor() || role == Role.RUNT)) {
+			return false;
+		}
+		if (player.isInvisible() || player.isSpectator()) {
+			// In a locker: nothing to see of oneself.
+			return true;
+		}
+		float t = now(partial);
+		// Vanilla's sway as the view turns.
+		float xBob = Mth.lerp(partial, player.xBobO, player.xBob);
+		float yBob = Mth.lerp(partial, player.yBobO, player.yBob);
+		pose.pushPose();
+		pose.mulPose(Axis.XP.rotationDegrees((player.getViewXRot(partial) - xBob) * 0.1f));
+		pose.mulPose(Axis.YP.rotationDegrees((player.getViewYRot(partial) - yBob) * 0.1f));
+		if (role == Role.RUNT) {
+			runt(pose, collector, player, light, t, partial);
+		} else {
+			survivor(renderer, pose, collector, player, light, t, partial);
+		}
+		pose.popPose();
+		return true;
+	}
+
+	private static void survivor(ItemInHandRenderer renderer, PoseStack pose, SubmitNodeCollector collector, LocalPlayer player, int light, float t, float partial) {
+		Minecraft mc = Minecraft.getInstance();
+		ItemStack stack = player.getMainHandItem();
+		HwItems.Kind kind = HwItems.kindOf(stack);
+		Grip grip = grip(kind, stack);
+		if (kind != lastKind) {
+			lastKind = kind;
+			equipStart = t;
+		}
+		long gameTime = mc.level.getGameTime();
+		if (gameTime != aimAt) {
+			aimAt = gameTime;
+			aim = Mth.clamp(aim + ((testAim != null ? testAim : ClientGuns.aiming()) ? 0.25f : -0.25f), 0f, 1f);
+		}
+		Pose p = new Pose();
+		String work = ClientState.progress.label();
+		float attack = player.getAttackAnim(partial);
+		boolean grabbed = ClientState.qte.active() && !ClientState.qte.forShape();
+		boolean strangled = ClientAnims.hold(player.getId()) == dev.halloween.net.HwNet.Anim.STRUGGLE || mc.gui.screen() instanceof HandsScreen;
+		// Breathing, and a lowered weapon on the run.
+		p.item.y += Mth.sin(t * 0.09f) * 0.006f;
+		float run = player.isSprinting() ? 1f : 0f;
+		p.item.add(0.04f * run, -0.07f * run, 0.06f * run);
+		p.itemTurn.rotateY(-0.35f * run).rotateX(0.15f * run);
+		// Just took it out: it comes up from below.
+		float equip = Mth.clamp((t - equipStart) / 6f, 0f, 1f);
+		p.item.y -= 0.45f * (1 - equip) * (1 - equip);
+		hands(p, grip, t);
+
+		if (grabbed) {
+			// In Michael's grip: both hands up against him, shoving, shaking; a knife stabbing if one is used.
+			float shake = Mth.sin(t * 2.7f) * 0.03f;
+			float stab = bump(actProgress(Act.STAB, t));
+			p.showItem = stab > 0;
+			p.right.set(0.24f + shake, -0.26f - 0.12f * stab, -0.48f - 0.2f * stab);
+			p.left.set(-0.24f - shake, -0.25f + shake, -0.5f);
+			p.showLeft = true;
+			p.item.set(p.right).add(-0.02f, 0.1f, -0.05f);
+			p.itemTurn.identity().rotateX(-0.6f * stab);
+		} else if (strangled) {
+			// The Runt's hands at the throat: tearing at them.
+			float pull = Mth.sin(t * 1.9f);
+			p.showItem = false;
+			p.right.set(0.11f + 0.03f * pull, -0.3f, -0.44f);
+			p.left.set(-0.11f - 0.03f * pull, -0.29f + 0.02f * pull, -0.45f);
+			p.showLeft = true;
+		} else if (work.endsWith(".search")) {
+			// Rummaging, both hands in it.
+			float a = Mth.sin(t * 0.8f);
+			p.showItem = false;
+			p.right.set(0.17f + 0.05f * a, -0.46f + 0.03f * Mth.cos(t * 1.1f), -0.55f);
+			p.left.set(-0.17f + 0.05f * a, -0.45f - 0.03f * Mth.cos(t * 0.9f), -0.56f);
+			p.showLeft = true;
+		} else if (work.endsWith(".call_police") || work.endsWith(".loomis")) {
+			// The receiver at the ear.
+			p.left.set(-0.46f, -0.14f, -0.3f);
+			p.leftFrom = new Vector3f(-0.5f, -1.0f, 0.1f);
+			p.showLeft = true;
+		} else if (work.endsWith(".lock") || work.endsWith(".unlock")) {
+			// Working the lock: a hand at it, turning.
+			p.left.set(-0.14f, -0.3f + 0.02f * Mth.sin(t * 1.3f), -0.56f);
+			p.showLeft = true;
+			p.item.add(0.08f, -0.18f, 0.1f);
+		} else if (work.endsWith(".vault_slow") || work.endsWith(".vault_fast") || actProgress(Act.VAULT, t) >= 0) {
+			// Hands on the sill, pulling through.
+			float a = work.isEmpty() ? bump(actProgress(Act.VAULT, t)) : 1f;
+			p.showItem = false;
+			p.right.set(0.25f, -0.44f + 0.08f * (1 - a), -0.56f);
+			p.left.set(-0.25f, -0.44f + 0.08f * (1 - a), -0.56f);
+			p.showLeft = true;
+		} else if (work.endsWith(".locker")) {
+			// Pulling the wardrobe doors to.
+			float a = Mth.sin(t * 0.5f) * 0.03f;
+			p.showItem = false;
+			p.right.set(0.22f + a, -0.3f, -0.52f);
+			p.left.set(-0.22f - a, -0.3f, -0.52f);
+			p.showLeft = true;
+		} else if (work.endsWith(".med_kit")) {
+			// Bandaging: hands at the chest.
+			float a = Mth.sin(t * 0.7f) * 0.04f;
+			p.right.set(0.14f + a, -0.5f, -0.46f);
+			p.left.set(-0.14f - a, -0.51f, -0.47f);
+			p.showLeft = true;
+			p.item.set(0.06f, -0.46f, -0.56f);
+		} else if (work.endsWith(".reload") || actProgress(Act.RELOAD, t) >= 0) {
+			// Rounds in one by one: the gun tilted, the free hand going to it and back.
+			float a = Mth.abs(Mth.sin(t * 0.45f));
+			p.item.add(-0.12f, 0.05f, 0.08f);
+			p.itemTurn.rotateZ(0.45f).rotateX(-0.25f);
+			p.left.set(p.item).add(-0.05f + 0.12f * (1 - a), -0.12f * (1 - a), 0.05f);
+			p.showLeft = true;
+		} else if (!work.isEmpty() && !work.endsWith(".talk")) {
+			// Wires, repairs, keys, fuel, the gate: both hands busy ahead.
+			float a = Mth.sin(t * 0.9f);
+			p.showItem = false;
+			p.right.set(0.15f + 0.03f * a, -0.38f + 0.025f * Mth.sin(t * 1.4f), -0.58f);
+			p.left.set(-0.15f + 0.03f * a, -0.39f - 0.025f * Mth.sin(t * 1.2f), -0.58f);
+			p.showLeft = true;
+		} else {
+			actions(p, grip, t, attack);
+		}
+		// Aiming down the sights.
+		if (aim > 0 && (grip == Grip.LONG_GUN || grip == Grip.PISTOL)) {
+			Vector3f sights = grip == Grip.LONG_GUN ? new Vector3f(0.22f, -0.44f, -0.66f) : new Vector3f(0.2f, -0.46f, -0.7f);
+			Vector3f before = new Vector3f(p.item);
+			p.item.lerp(sights, aim);
+			p.itemTurn.rotateY(0.12f * aim);
+			Vector3f shift = new Vector3f(p.item).sub(before);
+			p.right.add(shift);
+			p.left.add(shift);
+			if (grip == Grip.PISTOL) {
+				// Both hands on it.
+				p.left.lerp(new Vector3f(p.right).add(-0.06f, -0.02f, 0.02f), aim);
+				p.showLeft = true;
+			}
+		}
+		float kick = actProgress(Act.RECOIL, t);
+		if (kick >= 0) {
+			float k = (1 - kick) * (1 - kick);
+			p.item.add(0, 0.03f * k, 0.12f * k);
+			p.right.add(0, 0.03f * k, 0.12f * k);
+			p.left.add(0, 0.02f * k, 0.08f * k);
+			p.itemTurn.rotateX(0.35f * k);
+		}
+
+		Identifier skin = player.getSkin().body().texturePath();
+		AvatarRenderer<net.minecraft.client.player.AbstractClientPlayer> avatar = mc.getEntityRenderDispatcher().getPlayerRenderer(player);
+		if (p.showItem && !stack.isEmpty()) {
+			pose.pushPose();
+			pose.translate(p.item.x, p.item.y, p.item.z);
+			pose.mulPose(p.itemTurn);
+			renderer.renderItem(player, stack, ItemDisplayContext.FIRST_PERSON_RIGHT_HAND, pose, collector, light);
+			pose.popPose();
+		}
+		if (p.showRight) {
+			arm(pose, collector, light, avatar, skin, player, true, p.right, p.rightFrom != null ? p.rightFrom : below(p.right, 1f));
+		}
+		if (p.showLeft) {
+			arm(pose, collector, light, avatar, skin, player, false, p.left, p.leftFrom != null ? p.leftFrom : below(p.left, -1f));
+		}
+	}
+
+	/** The forearm comes up to the hand from below and a little out and back: a point along that way. */
+	private static Vector3f below(Vector3f hand, float side) {
+		return new Vector3f(hand).add(side * 0.28f, -0.9f, 0.32f);
+	}
+
+	/** Where the hands hold what is held, as it stands (they move with it from here on). */
+	private static void hands(Pose p, Grip grip, float t) {
+		switch (grip) {
+			case EMPTY -> {
+				p.showItem = false;
+				p.right.set(0.42f, -0.5f + Mth.sin(t * 0.09f) * 0.006f, -0.62f);
+			}
+			case LONG_GUN -> {
+				p.right.set(p.item).add(0.02f, -0.1f, 0.12f);
+				p.left.set(p.item).add(-0.26f, 0.05f, -0.24f);
+				p.showLeft = true;
+			}
+			case TWO_HAND_MELEE -> {
+				p.right.set(p.item).add(0.0f, -0.12f, 0.1f);
+				p.left.set(p.item).add(0.04f, -0.26f, 0.14f);
+				p.showLeft = true;
+			}
+			default -> p.right.set(p.item).add(0.0f, -0.12f, 0.1f);
+		}
+	}
+
+	/** What the hands do now and then: a swing, a shove, a throw, a spray, a stab, a door. */
+	private static void actions(Pose p, Grip grip, float t, float attack) {
+		float shove = actProgress(Act.SHOVE, t);
+		if (shove >= 0) {
+			// Both palms out, hard.
+			float a = bump(shove);
+			p.showItem = grip != Grip.EMPTY && grip != Grip.ONE_HAND ? p.showItem : false;
+			p.right.set(0.24f, -0.42f + 0.12f * a, -0.42f - 0.22f * a);
+			p.left.set(-0.24f, -0.42f + 0.12f * a, -0.42f - 0.22f * a);
+			p.showLeft = true;
+			if (p.showItem) {
+				p.item.add(0.05f, -0.2f, 0.1f);
+			}
+			return;
+		}
+		float door = actProgress(Act.DOOR, t);
+		if (door >= 0) {
+			// A hand out to push the door.
+			float a = bump(door);
+			p.left.set(-0.34f + 0.08f * a, -0.55f + 0.25f * a, -0.42f - 0.22f * a);
+			p.showLeft = true;
+			return;
+		}
+		float th = actProgress(Act.THROW, t);
+		if (th >= 0) {
+			// Back over the shoulder, then out hard.
+			float back = th < 0.45f ? th / 0.45f : 1 - (th - 0.45f) / 0.55f;
+			float out = th < 0.45f ? 0 : bump((th - 0.45f) / 0.55f);
+			p.item.add(0.04f * back, 0.18f * back - 0.1f * out, 0.1f * back - 0.4f * out);
+			p.itemTurn.rotateX(-0.8f * back + 0.6f * out);
+			p.right.set(p.item).add(0.0f, -0.12f, 0.1f);
+			return;
+		}
+		float spray = actProgress(Act.SPRAY, t);
+		if (spray >= 0) {
+			// Held out ahead, pressing.
+			float a = bump(Math.min(1f, spray * 2f));
+			p.item.add(-0.22f * a, 0.12f * a, -0.12f * a);
+			p.right.set(p.item).add(0.0f, -0.12f, 0.1f);
+			return;
+		}
+		if (attack > 0) {
+			float s = Mth.sqrt(attack);
+			if (grip == Grip.TWO_HAND_MELEE) {
+				// From up over the right shoulder down across to the left.
+				p.item.add(-0.35f * Mth.sin(attack * Mth.PI), 0.25f * Mth.sin(s * Mth.PI) - 0.2f * attack, -0.25f * Mth.sin(attack * Mth.PI));
+				p.itemTurn.rotateZ(0.9f * Mth.sin(s * Mth.PI)).rotateX(-1.1f * Mth.sin(attack * Mth.PI));
+				hands(p, grip, t);
+			} else if (grip == Grip.EMPTY) {
+				// A fist out.
+				p.right.add(-0.2f * Mth.sin(s * Mth.PI), 0.15f * Mth.sin(s * Mth.PI), -0.3f * Mth.sin(attack * Mth.PI));
+			} else {
+				// A slash from the right, across.
+				p.item.add(-0.3f * Mth.sin(s * Mth.PI), 0.12f * Mth.sin(s * Mth.PI * 2), -0.3f * Mth.sin(attack * Mth.PI));
+				p.itemTurn.rotateY(0.9f * Mth.sin(s * Mth.PI)).rotateX(-1.2f * Mth.sin(attack * Mth.PI));
+				hands(p, grip, t);
+			}
+		}
+	}
+
+	/**
+	 * One of the player's own arms, its hand at {@code hand}, coming in from {@code from} (out of view): the arm
+	 * model's length runs from its shoulder to the hand, its outer side to the outside.
+	 */
+	private static void arm(PoseStack pose, SubmitNodeCollector collector, int light, AvatarRenderer<net.minecraft.client.player.AbstractClientPlayer> avatar,
+		Identifier skin, LocalPlayer player, boolean right, Vector3f hand, Vector3f from) {
+		Vector3f d = new Vector3f(hand).sub(from).normalize();
+		float reach = 10f / 16f;
+		Vector3f shoulder = new Vector3f(hand).sub(new Vector3f(d).mul(reach));
+		pose.pushPose();
+		pose.translate(shoulder.x, shoulder.y, shoulder.z);
+		pose.mulPose(basis(d, new Vector3f(-1, 0, 0)));
+		// The arm's pivot sits off the model's middle: back onto the shoulder.
+		pose.translate(right ? 5f / 16f : -5f / 16f, -2f / 16f, 0f);
+		// Long enough to reach out of view.
+		pose.scale(1f, 1.25f, 1f);
+		if (right) {
+			avatar.renderRightHand(pose, collector, light, skin, player.isModelPartShown(PlayerModelPart.RIGHT_SLEEVE));
+		} else {
+			avatar.renderLeftHand(pose, collector, light, skin, player.isModelPartShown(PlayerModelPart.LEFT_SLEEVE));
+		}
+		pose.popPose();
+	}
+
+	/** A turn taking the model's +y onto {@code along}, its +x as near {@code side} as can be. */
+	private static Quaternionf basis(Vector3f along, Vector3f side) {
+		Vector3f y = new Vector3f(along).normalize();
+		Vector3f x = new Vector3f(side).sub(new Vector3f(y).mul(side.dot(y)));
+		if (x.lengthSquared() < 1.0E-5f) {
+			x.set(0, 0, 1).sub(new Vector3f(y).mul(y.z));
+		}
+		x.normalize();
+		Vector3f z = new Vector3f(x).cross(y);
+		Matrix3f m = new Matrix3f(x, y, z);
+		return new Quaternionf().setFromNormalized(m);
+	}
+
+	// ---------------------------------------------------------------- the Runt's
+
+	private static BbModel claws() {
+		if (claws == null) {
+			claws = BbModel.load("/assets/halloween/models/entity/runt.json", Set.of("earg"));
+		}
+		return claws;
+	}
+
+	private static void runt(PoseStack pose, SubmitNodeCollector collector, LocalPlayer player, int light, float t, float partial) {
+		dev.halloween.net.HwNet.RuntHud hud = ClientState.runtHud;
+		boolean holding = hud != null && hud.holding() > 0;
+		boolean down = hud != null && hud.stunned() > 0;
+		float attack = player.getAttackAnim(partial);
+		Vector3f l = new Vector3f();
+		Vector3f r = new Vector3f();
+		float curl = 0f;
+		float moving = Mth.clamp((float) player.getDeltaMovement().horizontalDistance() * 8f, 0f, 1f);
+		if (down) {
+			l.set(-0.42f, -0.72f, -0.5f);
+			r.set(0.42f, -0.72f, -0.5f);
+			curl = 0.2f;
+		} else if (holding) {
+			// Round their throat, squeezing.
+			float sq = Mth.sin(t * 1.6f);
+			l.set(-0.12f - 0.02f * sq, -0.3f, -0.48f);
+			r.set(0.12f + 0.02f * sq, -0.3f, -0.48f);
+			curl = 0.9f + 0.1f * sq;
+		} else if (!player.onGround()) {
+			// In the air: flung out ahead.
+			l.set(-0.45f, -0.08f, -0.8f);
+			r.set(0.45f, -0.08f, -0.8f);
+			curl = 0.1f;
+		} else if (player.isCrouching()) {
+			// Wound up to pounce: up and trembling.
+			float tr = Mth.sin(t * 3.1f) * 0.012f;
+			l.set(-0.28f + tr, -0.16f, -0.66f);
+			r.set(0.28f - tr, -0.16f - tr, -0.66f);
+			curl = 0.5f;
+		} else {
+			// Crawling (on all fours the claws go down in turn), or hanging there twitching.
+			float ph = player.walkAnimation.position(partial) * 0.6f;
+			float tw = Mth.sin(t * 0.37f) * 0.01f;
+			l.set(-0.34f, -0.36f + tw + 0.1f * moving * Math.max(0, Mth.sin(ph)), -0.6f - 0.18f * moving * Mth.sin(ph));
+			r.set(0.34f, -0.36f - tw + 0.1f * moving * Math.max(0, -Mth.sin(ph)), -0.6f + 0.18f * moving * Mth.sin(ph));
+			curl = 0.35f;
+		}
+		// Striking: knocking on a door or a window, frightening someone.
+		float knock = Math.max(attack > 0 ? bump(attack) : 0, bump(actProgress(Act.KNOCK, t)));
+		r.add(-0.12f * knock, 0.14f * knock, -0.28f * knock);
+		claw(pose, collector, light, true, l, new Vector3f(-0.6f, -1.0f, 0.3f), curl);
+		claw(pose, collector, light, false, r, new Vector3f(0.6f, -1.0f, 0.3f), curl);
+	}
+
+	/** One of his forearms, its claws at {@code hand}, coming in from {@code from}; the fingers curled by {@code curl}. */
+	private static void claw(PoseStack pose, SubmitNodeCollector collector, int light, boolean left, Vector3f hand, Vector3f from, float curl) {
+		BbModel m = claws();
+		String side = left ? "L_" : "R_";
+		ModelPart forearm = m.part(side + "lowerarm");
+		if (forearm == null) {
+			return;
+		}
+		forearm.resetPose();
+		forearm.x = 0;
+		forearm.y = 0;
+		forearm.z = 0;
+		for (String f : new String[]{"middle", "pointer", "pinky"}) {
+			ModelPart finger = m.part(side + f + "_finger");
+			if (finger != null) {
+				finger.resetPose();
+				finger.zRot += (left ? -1 : 1) * curl * 1.1f;
+			}
+		}
+		// The forearm runs 59 px from the elbow to the claw tips; this much of a block of it shows.
+		float length = 0.85f;
+		float k = length * 16f / 59f;
+		Vector3f d = new Vector3f(hand).sub(from).normalize();
+		Vector3f elbow = new Vector3f(hand).sub(new Vector3f(d).mul(length));
+		pose.pushPose();
+		pose.translate(elbow.x, elbow.y, elbow.z);
+		// In model space the left forearm runs along +x, the right along -x; their undersides (+y) down.
+		pose.mulPose(xAlong(d, left));
+		pose.scale(k, k, k);
+		collector.submitModelPart(forearm, pose, RenderTypes.entityCutout(RUNT_TEXTURE), light, OverlayTexture.NO_OVERLAY, null);
+		pose.popPose();
+	}
+
+	/** A turn taking the model's x (left forearm: +x, right: -x) along {@code d}, its +y (underside) as far down as can be. */
+	private static Quaternionf xAlong(Vector3f d, boolean left) {
+		Vector3f x = left ? new Vector3f(d).normalize() : new Vector3f(d).normalize().negate();
+		Vector3f down = new Vector3f(0, -1, 0);
+		Vector3f y = new Vector3f(down).sub(new Vector3f(x).mul(down.dot(x)));
+		if (y.lengthSquared() < 1.0E-5f) {
+			y.set(0, 0, 1);
+		}
+		y.normalize();
+		Vector3f z = new Vector3f(x).cross(y);
+		return new Quaternionf().setFromNormalized(new Matrix3f(x, y, z));
+	}
+}
