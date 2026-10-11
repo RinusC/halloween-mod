@@ -24,6 +24,26 @@ public abstract class LivingEntityRendererMixin {
 		}
 	}
 
+	/** Michael is drawn as his own model in place of the player model (see MichaelRenderer); the layers stay. */
+	@org.spongepowered.asm.mixin.injection.Redirect(method = "submit(Lnet/minecraft/client/renderer/entity/state/LivingEntityRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;Lnet/minecraft/client/renderer/state/level/CameraRenderState;)V",
+		at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/SubmitNodeCollector;submitModel(Lnet/minecraft/client/model/Model;Ljava/lang/Object;Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/rendertype/RenderType;IIILnet/minecraft/client/renderer/texture/TextureAtlasSprite;ILnet/minecraft/client/renderer/feature/ModelFeatureRenderer$CrumblingOverlay;)V"))
+	@SuppressWarnings({"rawtypes", "unchecked"})
+	private void halloween$michael(net.minecraft.client.renderer.SubmitNodeCollector collector, net.minecraft.client.model.Model model, Object state, PoseStack pose,
+		net.minecraft.client.renderer.rendertype.RenderType renderType, int light, int overlay, int tint, net.minecraft.client.renderer.texture.TextureAtlasSprite sprite,
+		int outline, net.minecraft.client.renderer.feature.ModelFeatureRenderer.CrumblingOverlay crumbling) {
+		if (!dev.halloween.client.MichaelRenderer.submit(collector, model, state, pose, light, overlay, tint, outline)) {
+			collector.submitModel(model, state, pose, renderType, light, overlay, tint, sprite, outline, crumbling);
+		}
+	}
+
+	/** Michael towers over everyone (to look at: his hitbox is a player's). */
+	@Inject(method = "extractRenderState(Lnet/minecraft/world/entity/LivingEntity;Lnet/minecraft/client/renderer/entity/state/LivingEntityRenderState;F)V", at = @At("TAIL"))
+	private void halloween$tall(net.minecraft.world.entity.LivingEntity entity, LivingEntityRenderState state, float partialTicks, CallbackInfo ci) {
+		if (dev.halloween.client.MichaelRenderer.isMichael(entity)) {
+			state.scale *= dev.halloween.client.MichaelRenderer.TALL;
+		}
+	}
+
 	@Inject(method = "setupRotations", at = @At("TAIL"))
 	private void halloween$knockedDown(LivingEntityRenderState state, PoseStack poseStack, float bodyRot, float entityScale, CallbackInfo ci) {
 		float angle = ClientAnims.fallAngle(((HwRenderState) state).halloween$entityId());

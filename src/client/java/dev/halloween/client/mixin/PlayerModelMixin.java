@@ -10,11 +10,12 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/** The grab animations (ClientAnims) go over the pose of players and townsfolk last. */
+/** Michael's own walk and knife hand, then the grab animations (ClientAnims), go over the pose of players and townsfolk last. */
 @Mixin(PlayerModel.class)
 public class PlayerModelMixin {
 	@Inject(method = "setupAnim(Lnet/minecraft/client/renderer/entity/state/AvatarRenderState;)V", at = @At("TAIL"))
 	private void halloween$grabPose(AvatarRenderState state, CallbackInfo ci) {
+		dev.halloween.client.MichaelRenderer.pose((HumanoidModel<?>) (Object) this, state);
 		ClientAnims.apply((HumanoidModel<?>) (Object) this, ((HwRenderState) state).halloween$entityId());
 	}
 }

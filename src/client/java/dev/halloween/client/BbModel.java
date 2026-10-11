@@ -31,7 +31,7 @@ final class BbModel {
 	private record Key(float time, float x, float y, float z, String interpolation) {
 	}
 
-	private record Channel(ModelPart part, String kind, List<Key> keys) {
+	private record Channel(String bone, ModelPart part, String kind, List<Key> keys) {
 	}
 
 	record Animation(float length, boolean loop, List<Channel> channels) {
@@ -126,7 +126,7 @@ final class BbModel {
 						JsonArray k = ke.getAsJsonArray();
 						keys.add(new Key(k.get(0).getAsFloat(), k.get(1).getAsFloat(), k.get(2).getAsFloat(), k.get(3).getAsFloat(), k.get(4).getAsString()));
 					}
-					channels.add(new Channel(part, kind, keys));
+					channels.add(new Channel(boneName, part, kind, keys));
 				}
 			}
 			model.animations.put(id, new Animation(a.get("length").getAsFloat(), "loop".equals(a.get("loop").getAsString()), channels));
@@ -217,6 +217,39 @@ final class BbModel {
 					p.xScale *= Mth.lerp(weight, 1f, v[0]);
 					p.yScale *= Mth.lerp(weight, 1f, v[1]);
 					p.zScale *= Mth.lerp(weight, 1f, v[2]);
+				}
+				default -> {
+				}
+			}
+		}
+	}
+
+	/**
+	 * Lays an animation over other parts than its own: those in {@code targets} by the names of its bones (another
+	 * model with the same skeleton, e.g. a player's model a Blockbench one was made to fit).
+	 */
+	void applyTo(String id, float seconds, float weight, Map<String, ModelPart> targets) {
+		Animation a = this.animations.get(id);
+		if (a == null || weight <= 0f) {
+			return;
+		}
+		float t = a.loop ? (a.length > 0 ? seconds % a.length : 0) : Math.min(seconds, a.length);
+		for (Channel c : a.channels) {
+			ModelPart p = targets.get(c.bone);
+			if (p == null) {
+				continue;
+			}
+			float[] v = sample(c.keys, t);
+			switch (c.kind) {
+				case "rotation" -> {
+					p.xRot += rad(-v[0]) * weight;
+					p.yRot += rad(-v[1]) * weight;
+					p.zRot += rad(v[2]) * weight;
+				}
+				case "position" -> {
+					p.x += -v[0] * weight;
+					p.y += -v[1] * weight;
+					p.z += v[2] * weight;
 				}
 				default -> {
 				}

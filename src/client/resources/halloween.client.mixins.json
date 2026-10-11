@@ -10,6 +10,7 @@
 		"LightmapExtractorMixin",
 		"LivingEntityRendererMixin",
 		"ItemInHandRendererMixin",
+		"ItemInHandLayerMixin",
 		"CameraMixin",
 		"EntityMixin",
 		"EntityRendererMixin",

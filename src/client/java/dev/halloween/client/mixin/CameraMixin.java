@@ -73,6 +73,13 @@ public abstract class CameraMixin {
 			return;
 		}
 		Vec3 from = this.position();
+		if (dev.halloween.client.MichaelRenderer.enabled) {
+			// His model is taller than he is: the camera up to where his eyes are drawn (not through a ceiling).
+			Vec3 up = from.add(0, (dev.halloween.client.MichaelRenderer.TALL - 1f) * mc.player.getEyeHeight(), 0);
+			HitResult roof = mc.level.clip(new ClipContext(from, up, ClipContext.Block.VISUAL, ClipContext.Fluid.NONE, mc.player));
+			from = roof.getType() == HitResult.Type.MISS ? up : from.add(0, Math.max(0, roof.getLocation().y - from.y - 0.15), 0);
+			this.setPosition(from);
+		}
 		Vector3fc left = this.leftVector();
 		Vec3 to = from.subtract(left.x() * offset, left.y() * offset, left.z() * offset);
 		Vec3 dir = to.subtract(from).normalize();

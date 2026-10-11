@@ -210,8 +210,11 @@ public final class ShapeBrain {
 		}
 	}
 
+	/** Tests: his mind stops (the body stands where it is put). */
+	public static boolean paused;
+
 	public static void tick(MinecraftServer server) {
-		if (brain != null && !brain.body.isRemoved() && Match.running()) {
+		if (brain != null && !paused && !brain.body.isRemoved() && Match.running()) {
 			brain.tick(server.getTickCount());
 		}
 	}
