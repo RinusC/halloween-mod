@@ -97,7 +97,7 @@ public final class Noise {
 			t.nextBurst = now + cfg.noiseEveryTicks;
 			HwNet.NoiseBurst burst = new HwNet.NoiseBurst(p.position(), surface != null);
 			for (ServerPlayer shape : shapes) {
-				if (shape.level() == p.level() && shape.distanceTo(p) <= range && !Bots.isBot(shape)) {
+				if (shape.level() == p.level() && shape.distanceTo(p) <= range) {
 					ServerPlayNetworking.send(shape, burst);
 					AiStats.add(p, surface != null ? "noise.loud" : "noise.run");
 				}

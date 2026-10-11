@@ -45,7 +45,8 @@ public final class Bots {
 		GameProfile profile = new GameProfile(id, name);
 		BotPlayer bot = new BotPlayer(server, level, profile);
 		bot.snapTo(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, 0f, 0f);
-		server.getPlayerList().placeNewPlayer(new BotPlayer.NowhereConnection(), bot, CommonListenerCookie.createInitial(profile, false));
+		bot.wire = new BotPlayer.NowhereConnection();
+		server.getPlayerList().placeNewPlayer(bot.wire, bot, CommonListenerCookie.createInitial(profile, false));
 		bot.connection.handleAcceptPlayerLoad(new ServerboundPlayerLoadedPacket());
 		bot.teleportTo(level, pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, java.util.Set.of(), 0f, 0f, false);
 		bot.brain = new BotBrain(bot);
@@ -68,7 +69,8 @@ public final class Bots {
 		GameProfile profile = new GameProfile(id, name);
 		BotPlayer bot = new BotPlayer(server, level, profile);
 		bot.snapTo(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, 0f, 0f);
-		server.getPlayerList().placeNewPlayer(new BotPlayer.NowhereConnection(), bot, CommonListenerCookie.createInitial(profile, false));
+		bot.wire = new BotPlayer.NowhereConnection();
+		server.getPlayerList().placeNewPlayer(bot.wire, bot, CommonListenerCookie.createInitial(profile, false));
 		bot.connection.handleAcceptPlayerLoad(new ServerboundPlayerLoadedPacket());
 		bot.teleportTo(level, pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, java.util.Set.of(), 0f, 0f, false);
 		Halloween.LOGGER.info("Bot {} joined (loose)", name);

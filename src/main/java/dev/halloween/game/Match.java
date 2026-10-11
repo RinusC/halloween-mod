@@ -166,12 +166,21 @@ public final class Match {
 			return Component.translatable("halloween.cmd.no_points");
 		}
 		stopQuietly(server);
+		ShapeBrain.clear(server);
 		Bots.removeAll(server);
 		// What appears from here on belongs to this match (see Leftovers).
 		Leftovers.begin(server);
 		List<ServerPlayer> players = new ArrayList<>(server.getPlayerList().getPlayers());
 		if (players.isEmpty()) {
 			return Component.translatable("halloween.cmd.no_players");
+		}
+		// Michael played by the server (/hw shape bot), unless someone was named for him.
+		BotPlayer shapeBot = null;
+		if (shape == null && ShapeBrain.chosen()) {
+			BlockPos lair = points.first(MapPoints.Type.SPAWN_SHAPE);
+			shapeBot = ShapeBrain.spawn(server, lair != null ? lair : center);
+			shape = shapeBot;
+			players.add(shape);
 		}
 		if (shape == null && players.size() > 1) {
 			shape = players.get(level.getRandom().nextInt(players.size()));
@@ -261,6 +270,9 @@ public final class Match {
 				teleport(bot, lair != null ? lair : center);
 			}
 		}
+		if (shapeBot != null) {
+			ShapeBrain.attach(shapeBot);
+		}
 		state = State.COUNTDOWN;
 		countdown = cfg.countdownSeconds * 20;
 		Cutscenes.send(server, countdown, shape, players, center);
@@ -321,6 +333,7 @@ public final class Match {
 			}
 		}
 		Runt.clear(server);
+		ShapeBrain.clear(server);
 		Lockers.clear(server);
 		Talks.clear();
 		Minigames.clear();

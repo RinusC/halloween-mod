@@ -280,6 +280,7 @@ public final class MatchManager {
 		Noise.tick(server);
 		Traps.tick(server);
 		Runt.tick(server);
+		ShapeBrain.tick(server);
 		Panic.tick(server);
 		Stamina.tick(server);
 		Holds.tick(server);

@@ -31,6 +31,8 @@ public final class Walker {
 	private BlockPos doorToClose;
 	private int doorCloseDelay;
 	public boolean closeDoors = true;
+	/** Walks through doors as they are, shut or locked (the Shape as a shadow). */
+	public boolean throughDoors;
 	public float speed = 1f;
 	private BlockPos passedDoor;
 
@@ -114,7 +116,7 @@ public final class Walker {
 		// A door on the way: open it when close.
 		BlockPos doorPos = node.pos();
 		BlockState state = level.getBlockState(doorPos);
-		if (state.getBlock() instanceof DoorBlock door && flat < 2.2) {
+		if (state.getBlock() instanceof DoorBlock door && flat < 2.2 && !this.throughDoors) {
 			if (DoorLocks.isLocked(level, doorPos)) {
 				this.halt();
 				this.face(Vec3.atCenterOf(DoorLocks.base(level, doorPos).above()));

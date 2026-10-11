@@ -39,6 +39,17 @@ public final class HwCommands {
 						ctx.getSource().sendSuccess(() -> Component.translatable(ok ? "halloween.cmd.event" : "halloween.cmd.event_no", id), true);
 						return ok ? 1 : 0;
 					})))
+			.then(Commands.literal("shape")
+				.then(Commands.literal("bot").executes(ctx -> {
+					ShapeBrain.chooseBot();
+					ctx.getSource().sendSuccess(() -> Component.translatable("halloween.cmd.shape_bot"), true);
+					return 1;
+				}))
+				.then(Commands.literal("off").executes(ctx -> {
+					ShapeBrain.off();
+					ctx.getSource().sendSuccess(() -> Component.translatable("halloween.cmd.shape_off"), true);
+					return 1;
+				})))
 			.then(Commands.literal("runt")
 				.then(Commands.literal("bot").executes(ctx -> {
 					Runt.chooseBot();

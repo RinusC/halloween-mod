@@ -29,6 +29,8 @@
 	"halloween.minigame.hands.hint": "Хватай руки и стаскивай вниз, за черту",
 	"halloween.minigame.hands": "Руки на шее!",
 	"halloween.hud.prompt.item.trap": "ПКМ — поставить под ноги",
+	"halloween.cmd.shape_bot": "Майклом будет бот (если его не назначили игроку)",
+	"halloween.cmd.shape_off": "Майклом снова играют люди",
 	"halloween.cmd.runt_bot": "Уродцем будет бот",
 	"halloween.cmd.runt_off": "Уродца в матчах не будет",
 	"halloween.cmd.runt_player": "Уродцем в следующем матче будет %s",

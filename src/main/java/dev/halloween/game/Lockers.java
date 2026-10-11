@@ -331,7 +331,7 @@ public final class Lockers {
 		for (ServerPlayer shape : server.getPlayerList().getPlayers()) {
 			Set<Integer> before = HEARD.getOrDefault(shape.getUUID(), Set.of());
 			Set<Integer> now = new HashSet<>();
-			if (MatchManager.role(shape) == Role.SHAPE && Match.running() && !Bots.isBot(shape)) {
+			if (MatchManager.role(shape) == Role.SHAPE && Match.running()) {
 				for (Inside inside : INSIDE.values()) {
 					if (center(inside.base).distanceTo(shape.position()) < cfg.lockerHearRange && !Events.muffled(center(inside.base))) {
 						now.add(inside.who.getId());

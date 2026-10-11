@@ -29,6 +29,8 @@
 	"halloween.minigame.hands": "Hands at your throat!",
 	"halloween.minigame.hands.hint": "Grab the hands and drag them down past the line",
 	"halloween.hud.prompt.item.trap": "Right click: set it at your feet",
+	"halloween.cmd.shape_bot": "A bot will play Michael (when no one is named for him)",
+	"halloween.cmd.shape_off": "People play Michael again",
 	"halloween.cmd.runt_bot": "A bot will play the Runt",
 	"halloween.cmd.runt_off": "No Runt in matches",
 	"halloween.cmd.runt_player": "%s plays the Runt next match",

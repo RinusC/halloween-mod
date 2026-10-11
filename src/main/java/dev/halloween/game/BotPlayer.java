@@ -20,6 +20,8 @@ import org.jspecify.annotations.Nullable;
  */
 public final class BotPlayer extends ServerPlayer {
 	BotBrain brain;
+	/** Its connection: whatever the server sends it can be listened to (ShapeBrain hears as a client would). */
+	NowhereConnection wire;
 
 	public BotPlayer(MinecraftServer server, ServerLevel level, GameProfile profile) {
 		super(server, level, profile, ClientInformation.createDefault());
@@ -35,14 +37,20 @@ public final class BotPlayer extends ServerPlayer {
 		}
 	}
 
-	/** Drops every packet: there is no client on the other end. */
+	/** No client on the other end: every packet goes to the listener, if there is one, and no further. */
 	static final class NowhereConnection extends net.minecraft.network.Connection {
+		volatile @Nullable Consumer<Packet<?>> listener;
+
 		NowhereConnection() {
 			super(PacketFlow.SERVERBOUND);
 		}
 
 		@Override
 		public void send(Packet<?> packet, @Nullable ChannelFutureListener listener, boolean flush) {
+			Consumer<Packet<?>> to = this.listener;
+			if (to != null) {
+				to.accept(packet);
+			}
 		}
 
 		@Override
