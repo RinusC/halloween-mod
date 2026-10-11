@@ -120,24 +120,57 @@ public class MichaelClientTest implements FabricClientGameTest {
 			this.until(ctx, server, 400, s -> dead(s));
 			check(server.computeOnServer(MichaelClientTest::dead), "he wins the struggle");
 
-			// ---------------------------------------------------------------- seen: chased, grabbed, killed
+			// ---------------------------------------------------------------- unaware: stalked to 2, then grabbed
 			this.start(ctx, server);
-			server.runOnServer(s -> {
-				ShapeBrain.forget();
-				BlockPos c = at(s, 0, 0, 0);
-				player(s).teleportTo(s.overworld(), c.getX() + 0.5, c.getY(), c.getZ() + 0.5, java.util.Set.of(), 180f, 0f, false);
-				ShapeBrain.body().teleportTo(s.overworld(), c.getX() + 0.5, c.getY(), c.getZ() - 5.5, java.util.Set.of(), 0f, 0f, false);
-			});
-			int grabs = stat("grab");
-			this.until(ctx, server, 60, s -> ShapeBrain.body().distanceTo(player(s)) < 3.2);
-			ctx.takeScreenshot("michael_close");
-			this.until(ctx, server, 200, s -> stat("grab") > grabs);
-			LOG.info("chase: {}", (Object) server.computeOnServer(s -> ShapeBrain.debug()));
-			check(stat("grab") > grabs, "he sees them, comes and grabs them");
-			ctx.waitTicks(4);
+			this.place(server, 0f, 6.5);
+			float first = this.stalkAtGrab(ctx, server, 500);
+			LOG.info("grabbed at stalk {} ({})", first, server.computeOnServer(s -> ShapeBrain.debug()));
+			check(first >= 2f, "he stalks someone unaware to level 2 before he grabs them");
 			ctx.takeScreenshot("michael_grab");
+			// Knocked down in the struggle: they get away. Next time he stalks them to the full.
+			server.runOnServer(s -> dev.halloween.game.Fight.stun(ShapeBrain.body(), 1f, null));
+			ctx.waitTicks(5);
+			check(server.computeOnServer(s -> !MatchManager.isHeld(player(s)) && ShapeBrain.stalkGoal(player(s)) == 3), "they get away: level 3 for them from now on");
+			ShapeBrain.forceReaction = "FOLLOW";
+			server.runOnServer(s -> {
+				BlockPos c = at(s, 0, 0, 0);
+				player(s).teleportTo(s.overworld(), c.getX() + 0.5, c.getY(), c.getZ() + 0.5, java.util.Set.of(), 0f, 0f, false);
+			});
+			float second = this.stalkAtGrab(ctx, server, 900);
+			LOG.info("grabbed again at stalk {}", second);
+			check(second >= 3f, "and he stalks them to level 3 before the next grab");
 			this.until(ctx, server, 400, s -> dead(s));
 			check(server.computeOnServer(MichaelClientTest::dead), "and kills them");
+
+			// ---------------------------------------------------------------- noticed: he backs off out of sight...
+			this.start(ctx, server);
+			ShapeBrain.forceReaction = "RETREAT";
+			this.place(server, 180f, 9.5);
+			this.until(ctx, server, 200, s -> stat("retreat") > 0
+				&& (ShapeBrain.body().distanceTo(player(s)) > 14 || MatchManager.shapeState(ShapeBrain.body()).shadowTicks > 0));
+			LOG.info("retreat: {} d {}", server.computeOnServer(s -> ShapeBrain.debug()), server.computeOnServer(s -> ShapeBrain.body().distanceTo(player(s))));
+			check(stat("noticed.retreat") > 0 && stat("retreat") > 0, "seen by them, he can back off");
+			check(server.computeOnServer(s -> ShapeBrain.body().distanceTo(player(s)) > 14 || MatchManager.shapeState(ShapeBrain.body()).shadowTicks > 0),
+				"out of their sight");
+			// ...or goes for them there and then.
+			ShapeBrain.forceReaction = "ATTACK";
+			this.place(server, 180f, 6.5);
+			float rushed = this.stalkAtGrab(ctx, server, 300);
+			LOG.info("rushed at stalk {}", rushed);
+			check(stat("noticed.attack") > 0 && rushed >= 0 && rushed < 2f, "or goes straight for them");
+			this.until(ctx, server, 400, s -> dead(s));
+
+			// ---------------------------------------------------------------- ...or follows, stalking them all the same
+			this.start(ctx, server);
+			ShapeBrain.forceReaction = "FOLLOW";
+			this.place(server, 180f, 9.5);
+			ctx.waitTicks(30);
+			ctx.takeScreenshot("michael_stalking");
+			float followed = this.stalkAtGrab(ctx, server, 600);
+			LOG.info("followed: grabbed at stalk {}", followed);
+			check(stat("noticed.follow") > 0 && followed >= 2f, "or keeps after them, stalking, and grabs them at level 2");
+			ShapeBrain.forceReaction = null;
+			this.until(ctx, server, 400, s -> dead(s));
 
 			// ---------------------------------------------------------------- far off, unaware: stalked
 			this.start(ctx, server);
@@ -165,7 +198,14 @@ public class MichaelClientTest implements FabricClientGameTest {
 			this.until(ctx, server, 1200, s -> Townsfolk.bodies().size() < people);
 			LOG.info("townsfolk {} -> {}", people, server.computeOnServer(s -> Townsfolk.bodies().size()));
 			check(stat("spotted.npc") > 0, "he spots townsfolk");
-			check(server.computeOnServer(s -> Townsfolk.bodies().size() < people), "and kills one");
+			check(server.computeOnServer(s -> Townsfolk.bodies().size() < people), "and kills one (no stalking for them)");
+			// Off the body, a look at it, and on.
+			ctx.waitTicks(60);
+			double off = server.computeOnServer(MichaelClientTest::fromBody);
+			LOG.info("off the body: {} ({})", off, server.computeOnServer(s -> ShapeBrain.debug()));
+			check(off > 2.5, "he steps off the body");
+			ctx.waitTicks(140);
+			check(server.computeOnServer(s -> !"leave".equals(ShapeBrain.mode())), "and goes on");
 
 			LOG.info("michael stats: {}", AiStats.snapshot().get("~michael"));
 			server.runCommand("hw stop");
@@ -192,6 +232,36 @@ public class MichaelClientTest implements FabricClientGameTest {
 				"fill " + (c.getX() - 3) + " 200 " + (c.getZ() - 3) + " " + (c.getX() + 3) + " 200 " + (c.getZ() + 3) + " minecraft:smooth_stone");
 			p.teleportTo(s.overworld(), c.getX() + 0.5, 201, c.getZ() + 0.5, java.util.Set.of(), 0f, 30f, false);
 		});
+	}
+
+	/** The player in the middle looking south (0, away from him) or north (180, at him); he {@code back} blocks north, looking at them. */
+	private void place(TestServerContext server, float playerYaw, double back) {
+		server.runOnServer(s -> {
+			ShapeBrain.forget();
+			BlockPos c = at(s, 0, 0, 0);
+			player(s).teleportTo(s.overworld(), c.getX() + 0.5, c.getY(), c.getZ() + 0.5, java.util.Set.of(), playerYaw, 0f, false);
+			ShapeBrain.body().teleportTo(s.overworld(), c.getX() + 0.5, c.getY(), c.getZ() + 0.5 - back, java.util.Set.of(), 0f, 0f, false);
+		});
+	}
+
+	/** Waits for him to grab the player: their stalk level at that moment, or -1 if he doesn't. */
+	private float stalkAtGrab(ClientGameTestContext ctx, TestServerContext server, int ticks) {
+		for (int t = 0; t < ticks; t += 2) {
+			float at = server.computeOnServer(s -> MatchManager.isHeld(player(s)) ? MatchManager.stalkOf(player(s)) : -1f);
+			if (at >= 0) {
+				return at;
+			}
+			ctx.waitTicks(2);
+		}
+		LOG.info("no grab: {} stalk {}", server.computeOnServer(s -> ShapeBrain.debug()), server.computeOnServer(s -> MatchManager.stalkOf(player(s))));
+		return -1f;
+	}
+
+	/** How far he is from the nearest body. */
+	private static double fromBody(MinecraftServer s) {
+		ServerPlayer m = ShapeBrain.body();
+		return s.overworld().getEntities((net.minecraft.world.entity.Entity) null, m.getBoundingBox().inflate(20), e -> e.entityTags().contains(MatchManager.CORPSE_TAG))
+			.stream().mapToDouble(e -> e.distanceTo(m)).min().orElse(99);
 	}
 
 	private void until(ClientGameTestContext ctx, TestServerContext server, int ticks, Function<MinecraftServer, Boolean> done) {

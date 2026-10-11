@@ -42,8 +42,22 @@ public final class ShapeBrain {
 	private static ShapeBrain brain;
 
 	private enum Mode {
-		PATROL, LISTEN, STALK, CHASE, SEARCH, CAMP, WORK
+		PATROL, LISTEN, STALK, CHASE, RETREAT, LEAVE, SEARCH, CAMP, WORK
 	}
+
+	/** What he does about a survivor who noticed him (or ran) before he had stalked them enough: picked at random. */
+	private enum Reaction {
+		NONE,
+		/** Keeps eight to fifteen blocks behind, stopping to stalk them. */
+		FOLLOW,
+		/** Gets out of their sight (into the shadow when he may), waits, and comes back for them. */
+		RETREAT,
+		/** Goes for them there and then. */
+		ATTACK
+	}
+
+	/** Tests: how he reacts when noticed (FOLLOW, RETREAT, ATTACK); null: at random. */
+	public static String forceReaction;
 
 	/** Something heard or shown: where, when, how much it is worth going to. */
 	private record Lead(Vec3 pos, int at, double weight, String kind) {
@@ -57,7 +71,19 @@ public final class ShapeBrain {
 	private Vec3 lastSeen;
 	private Vec3 lastVelocity = Vec3.ZERO;
 	private int lastSeenAt = -1000;
-	private int stalkSince;
+	/** Survivors who got out of his hands: stalked to the full before the next try. */
+	private final java.util.Set<java.util.UUID> gotAway = new java.util.HashSet<>();
+	private Reaction reaction = Reaction.NONE;
+	private java.util.UUID reactionFor;
+	private int noticedAt = -1000;
+	private int retreats;
+	private int retreatUntil;
+	private Vec3 retreatFrom;
+	/** Whom he holds (to tell, when the grab is over, whether they died or got away). */
+	private LivingEntity grabbing;
+	/** The body he just left, and until when he stays to look at it. */
+	private Vec3 corpse;
+	private int leaveUntil;
 	private BlockPos goal;
 	private int goalUntil;
 	private int repathAt;
@@ -139,7 +165,16 @@ public final class ShapeBrain {
 		ShapeBrain b = brain;
 		return b.mode + " at " + b.body.blockPosition().toShortString() + " goal " + (b.goal == null ? "-" : b.goal.toShortString())
 			+ " work " + (b.workAt == null ? "-" : b.workAt.toShortString()) + " walking " + !b.walker.idle()
-			+ " holds " + Holds.working(b.body) + " done " + b.done.size() + " leads " + b.leads.size();
+			+ " holds " + Holds.working(b.body) + " done " + b.done.size() + " leads " + b.leads.size() + " reaction " + b.reaction;
+	}
+
+	/** How far he stalks this survivor before going for them: 2, or 3 once they got out of his hands. */
+	public static int stalkGoal(LivingEntity e) {
+		return brain == null ? 2 : brain.goalFor(e);
+	}
+
+	private int goalFor(LivingEntity e) {
+		return this.gotAway.contains(e.getUUID()) ? 3 : 2;
 	}
 
 	/** The bot playing him, or null. */
@@ -163,6 +198,13 @@ public final class ShapeBrain {
 			b.lockersOpened = 0;
 			b.scanUntil = 0;
 			b.nextScan = 0;
+			b.gotAway.clear();
+			b.reaction = Reaction.NONE;
+			b.reactionFor = null;
+			b.retreats = 0;
+			b.retreatUntil = 0;
+			b.grabbing = null;
+			b.corpse = null;
 			b.mode = Mode.PATROL;
 			b.walker.stop();
 		}
@@ -240,8 +282,11 @@ public final class ShapeBrain {
 		String id = sound.getSound().unwrapKey().map(k -> k.identifier().getPath()).orElse("");
 		double weight;
 		String kind;
-		if (id.startsWith("voice.") || id.equals("npc.scream")) {
-			weight = id.contains("scream") || id.contains("hurt") || id.contains("death") ? 4 : 2;
+		if (id.contains("death")) {
+			// A last scream: nobody left there to find (and mostly his own work).
+			return;
+		} else if (id.startsWith("voice.") || id.equals("npc.scream")) {
+			weight = id.contains("scream") || id.contains("hurt") ? 4 : 2;
 			kind = "voice";
 		} else if (id.startsWith("talk.")) {
 			weight = 1;
@@ -353,8 +398,15 @@ public final class ShapeBrain {
 		this.done.values().removeIf(until -> until < now);
 		this.revealed.values().removeIf(until -> until < now);
 		if (st.grab != null) {
+			this.grabbing = st.grab.victim();
 			this.grab(st, now);
 			return;
+		}
+		if (this.grabbing != null) {
+			// The grab is over: dead, or out of his hands.
+			LivingEntity v = this.grabbing;
+			this.grabbing = null;
+			this.afterGrab(v, now);
 		}
 		if (st.busy() || st.trappedTicks > 0 || Windows.isVaulting(this.body)) {
 			this.walker.halt();
@@ -365,16 +417,19 @@ public final class ShapeBrain {
 		if (seen != null) {
 			if (seen != this.target) {
 				stat("spotted." + (seen instanceof ServerPlayer ? "survivor" : Townsfolk.isNpc(seen) ? "npc" : "other"));
-				this.stalkSince = now;
 			}
-			this.lastVelocity = this.lastSeen == null || seen != this.target ? Vec3.ZERO : seen.position().subtract(this.lastSeen).scale(1.0 / Math.max(1, now - this.lastSeenAt));
+			// How they move, as he sees it (smoothed over a few ticks).
+			Vec3 v = this.lastSeen == null || seen != this.target ? Vec3.ZERO : seen.position().subtract(this.lastSeen).scale(1.0 / Math.max(1, now - this.lastSeenAt));
+			this.lastVelocity = seen != this.target ? v : this.lastVelocity.lerp(v, 0.3);
 			this.target = seen;
 			this.lastSeen = seen.position();
 			this.lastSeenAt = now;
-			this.mode = this.stalkable(st, seen, now) ? Mode.STALK : Mode.CHASE;
+			this.mode = this.decide(st, seen, now);
 		} else if (this.target != null && (this.mode == Mode.CHASE || this.mode == Mode.STALK)) {
-			// Out of sight: on to where they were going.
-			if (now - this.lastSeenAt > 50 || !MatchManager.exposed(this.target)) {
+			if (gone(this.target)) {
+				this.afterDeath(this.target, now);
+			} else if (now - this.lastSeenAt > 50 || !MatchManager.exposed(this.target)) {
+				// Out of sight: on to where they were going.
 				this.mode = Mode.SEARCH;
 				this.lookAroundUntil = 0;
 				stat("lost");
@@ -383,6 +438,8 @@ public final class ShapeBrain {
 		switch (this.mode) {
 			case STALK -> this.stalk(st, now);
 			case CHASE -> this.chase(st, now);
+			case RETREAT -> this.retreat(st, now);
+			case LEAVE -> this.leave(st, now);
 			case SEARCH -> this.search(st, now);
 			default -> this.roam(st, now);
 		}
@@ -392,35 +449,226 @@ public final class ShapeBrain {
 
 	// ---------------------------------------------------------------- stalking
 
-	/** Worth stalking first: a survivor far off, not yet well stalked, who hasn't seen him and isn't running. */
-	private boolean stalkable(ShapeState st, LivingEntity e, int now) {
-		if (!(e instanceof ServerPlayer) || st.shadowTicks > 0) {
-			return false;
+	/**
+	 * Someone in sight: what to do about them. Townsfolk and officers he goes for at once. A survivor he stalks
+	 * first, to level 2 (to 3 if they once got out of his hands), unless they are at a way out. If they notice him
+	 * (or run off) before that, he picks at random: follows them stalking, gets out of sight and comes back, or
+	 * goes for them.
+	 */
+	private Mode decide(ShapeState st, LivingEntity e, int now) {
+		if (!(e instanceof ServerPlayer p) || !MatchManager.role(p).survivor()) {
+			return Mode.CHASE;
 		}
-		double d = this.body.distanceTo(e);
-		if (d < 8 || d > HwConfig.get().senseRange - 2 || MatchManager.stalkOf(e) >= 2 || e.isSprinting()) {
-			return false;
+		if (!p.getUUID().equals(this.reactionFor)) {
+			this.reactionFor = p.getUUID();
+			this.reaction = Reaction.NONE;
+			this.retreats = 0;
 		}
-		if (now - this.stalkSince > 20 * 12) {
-			// Long enough: go.
-			return false;
+		if (MatchManager.stalkOf(p) >= this.goalFor(p) || this.nearExit(p)) {
+			return Mode.CHASE;
 		}
-		// Not while they look at him.
-		Vec3 eye = e.getEyePosition();
-		Vec3 me = FocusPoints.bodyCenter(this.body);
-		return Sight.angleTo(eye, e.getViewVector(1f), me) > 55 || !Sight.canSee(this.level(), eye, me, e);
+		if (this.noticedBy(st, p)) {
+			this.noticedAt = now;
+			if (this.reaction == Reaction.NONE) {
+				this.reaction = this.pick();
+				stat("noticed." + this.reaction.name().toLowerCase(java.util.Locale.ROOT));
+			}
+		} else if (this.reaction != Reaction.NONE && this.reaction != Reaction.RETREAT && now - this.noticedAt > 20 * 8) {
+			// They have calmed down: back to watching them quietly.
+			this.reaction = Reaction.NONE;
+		}
+		return switch (this.reaction) {
+			case ATTACK -> Mode.CHASE;
+			case RETREAT -> Mode.RETREAT;
+			default -> Mode.STALK;
+		};
 	}
 
+	private Reaction pick() {
+		if (forceReaction != null) {
+			return Reaction.valueOf(forceReaction);
+		}
+		List<Reaction> options = new ArrayList<>(List.of(Reaction.FOLLOW, Reaction.RETREAT, Reaction.ATTACK));
+		if (this.retreats >= 2) {
+			// Backed off twice already.
+			options.remove(Reaction.RETREAT);
+		}
+		return options.get(this.random.nextInt(options.size()));
+	}
+
+	/** Have they seen him (eyes on him, as far as one makes him out), or are they running off from him? */
+	private boolean noticedBy(ShapeState st, LivingEntity e) {
+		HwConfig cfg = HwConfig.get();
+		Vec3 eye = e.getEyePosition();
+		Vec3 me = FocusPoints.bodyCenter(this.body);
+		double d = eye.distanceTo(me);
+		double range = Senses.lit(this.level(), this.body) ? cfg.civilianSightRange : 14;
+		if (st.shadowTicks == 0 && d <= range && Sight.angleTo(eye, e.getViewVector(1f), me) <= cfg.civilianSightFovDeg && Sight.canSee(this.level(), eye, me, e)) {
+			return true;
+		}
+		Vec3 away = e.position().subtract(this.body.position()).multiply(1, 0, 1);
+		return d < 25 && away.lengthSqr() > 1e-4 && this.lastVelocity.multiply(1, 0, 1).dot(away.normalize()) > 0.15;
+	}
+
+	/** Right by a way out: no time for stalking. */
+	private boolean nearExit(LivingEntity e) {
+		for (HwNet.ExitInfo x : Exits.infos()) {
+			if (Vec3.atBottomCenterOf(x.pos()).distanceTo(e.position()) < 6) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Watching them with his Sense up: from where he stands while they don't know (closer if they are too far or
+	 * out of sight), eight to fifteen blocks behind them if they do. Sense and focus slow him nearly to a stop,
+	 * so he lets them go to catch up and holds them when he stands.
+	 */
 	private void stalk(ShapeState st, int now) {
-		this.walker.halt();
 		LivingEntity t = this.target;
-		// Eyes on them (on the head: that is where the stalk builds fastest), Sense up while it lasts.
+		double d = this.body.distanceTo(t);
+		boolean visible = now - this.lastSeenAt <= 2;
+		double far = this.reaction == Reaction.FOLLOW ? 14 : HwConfig.get().senseRange - 7;
+		if (st.shadowTicks > 0 && d < far && MatchManager.jumpBlockReason(this.body, st) == 0) {
+			// Nothing is stalked from the shadow.
+			MatchManager.onShapeJump(this.body);
+		}
+		if (d > far || !visible || st.shadowTicks > 0) {
+			this.sense(st, false, false);
+			if (now >= this.repathAt || this.walker.idle()) {
+				this.repathAt = now + 10;
+				this.follow(st, BlockPos.containing(t.position()), 2);
+			}
+			this.walk(st, now);
+			this.lookAt(t.getEyePosition());
+			return;
+		}
+		this.walker.halt();
+		// Eyes on them (on the head: that is where the stalk builds fastest).
 		this.walker.face(t.getEyePosition());
-		boolean tired = st.fatigue > 0.85f;
-		this.sense(st, !tired, !tired && this.body.distanceTo(t) > 14 && st.fatigue < 0.6f);
+		this.sense(st, true, true);
 		if (now % 40 == 0) {
 			stat("stalk");
 		}
+	}
+
+	/** Turns his head (not his walk) towards a point. */
+	private void lookAt(Vec3 point) {
+		Vec3 d = point.subtract(this.body.getEyePosition());
+		this.body.setYHeadRot((float) (net.minecraft.util.Mth.atan2(d.z, d.x) * net.minecraft.util.Mth.RAD_TO_DEG) - 90f);
+		this.body.setXRot((float) -(net.minecraft.util.Mth.atan2(d.y, d.horizontalDistance()) * net.minecraft.util.Mth.RAD_TO_DEG));
+	}
+
+	/** Out of their sight, into the shadow when he may, a while; then back for them from where they were. */
+	private void retreat(ShapeState st, int now) {
+		LivingEntity t = this.target;
+		this.sense(st, false, false);
+		if (this.retreatUntil == 0) {
+			this.retreatUntil = now + 20 * (5 + this.random.nextInt(5));
+			this.retreatFrom = t != null ? t.position() : this.body.position();
+			this.retreats++;
+			stat("retreat");
+			Vec3 away = this.body.position().subtract(this.retreatFrom).multiply(1, 0, 1);
+			away = away.lengthSqr() < 1e-4 ? new Vec3(1, 0, 0) : away.normalize();
+			this.walker.stop();
+			for (int turn = 0; turn < 4 && this.walker.idle(); turn++) {
+				// Twelve blocks away from them (or off to a side if that way is shut).
+				Vec3 dir = away.yRot((float) (turn * Math.PI / 2 * (turn % 2 == 0 ? 1 : -1)));
+				this.follow(st, BlockPos.containing(this.body.position().add(dir.scale(12))), 4);
+			}
+		}
+		boolean watched = t != null && MatchManager.exposed(t) && this.watchedBy(t);
+		if (st.shadowTicks == 0 && !watched && MatchManager.jumpBlockReason(this.body, st) == 0) {
+			// Out of their eyes and in the dark: gone.
+			MatchManager.onShapeJump(this.body);
+			stat("shadow.in_retreat");
+		}
+		if (now < this.retreatUntil) {
+			if (st.shadowTicks > 0 && !watched || this.walker.idle()) {
+				this.walker.halt();
+			} else {
+				this.walk(st, now);
+			}
+			if (t != null && MatchManager.exposed(t)) {
+				this.lookAt(t.getEyePosition());
+			}
+			return;
+		}
+		this.retreatUntil = 0;
+		this.reaction = Reaction.NONE;
+		this.mode = Mode.SEARCH;
+		this.lastSeen = this.retreatFrom;
+		this.lastVelocity = Vec3.ZERO;
+		this.lookAroundUntil = 0;
+		this.walker.stop();
+	}
+
+	// ---------------------------------------------------------------- after a grab, after a kill
+
+	private void afterGrab(LivingEntity v, int now) {
+		if (gone(v)) {
+			this.afterDeath(v, now);
+			return;
+		}
+		if (v instanceof ServerPlayer p && MatchManager.role(p).survivor() && this.gotAway.add(p.getUUID())) {
+			stat("got_away");
+		}
+		// Whatever they do now, he decides afresh.
+		this.reaction = Reaction.NONE;
+	}
+
+	/** Dead (or out of the match): if their body lies there, he steps off it and looks at it a moment. */
+	private void afterDeath(LivingEntity v, int now) {
+		Vec3 at = v.position();
+		this.target = null;
+		this.reaction = Reaction.NONE;
+		this.reactionFor = null;
+		this.walker.stop();
+		boolean body = !this.level().getEntities((Entity) null, new net.minecraft.world.phys.AABB(at, at).inflate(1.5),
+			e -> e.entityTags().contains(MatchManager.CORPSE_TAG)).isEmpty();
+		if (!body) {
+			this.mode = Mode.PATROL;
+			return;
+		}
+		this.corpse = at;
+		this.leaveUntil = now + 20 * 6;
+		this.repathAt = now;
+		this.mode = Mode.LEAVE;
+		stat("kill");
+	}
+
+	private void leave(ShapeState st, int now) {
+		this.sense(st, false, false);
+		if (this.body.position().distanceTo(this.corpse) < 3.2 && now < this.leaveUntil) {
+			// Off the body first.
+			if (this.walker.idle() || now >= this.repathAt) {
+				this.repathAt = now + 20;
+				Vec3 off = this.body.position().subtract(this.corpse).multiply(1, 0, 1);
+				off = off.lengthSqr() < 0.04 ? new Vec3(1, 0, 0).yRot(this.random.nextFloat() * 6.28f) : off.normalize();
+				this.walker.stop();
+				for (int turn = 0; turn < 4 && this.walker.idle(); turn++) {
+					Vec3 dir = off.yRot((float) (turn * Math.PI / 2));
+					this.follow(st, BlockPos.containing(this.corpse.add(dir.scale(4.5))), 1.2);
+				}
+			}
+			this.walk(st, now);
+			return;
+		}
+		this.walker.halt();
+		if (now < this.leaveUntil) {
+			// A look at his work (Bloodthirst for it).
+			this.walker.face(this.corpse.add(0, 0.3, 0));
+			return;
+		}
+		this.corpse = null;
+		this.goal = null;
+		this.mode = Mode.PATROL;
+	}
+
+	/** Dead, or no longer in the match (gone out through an exit). */
+	private static boolean gone(LivingEntity v) {
+		return v.isRemoved() || !v.isAlive() || v instanceof ServerPlayer p && (p.isSpectator() || !MatchManager.role(p).survivor());
 	}
 
 	/** Killer Sense (and focus) held or let go. */
@@ -434,7 +682,16 @@ public final class ShapeBrain {
 	private void chase(ShapeState st, int now) {
 		HwConfig cfg = HwConfig.get();
 		LivingEntity t = this.target;
-		if (t == null || t.isRemoved() || !MatchManager.exposed(t)) {
+		if (t == null) {
+			this.mode = Mode.SEARCH;
+			return;
+		}
+		if (gone(t)) {
+			// Struck down.
+			this.afterDeath(t, now);
+			return;
+		}
+		if (!MatchManager.exposed(t)) {
 			this.mode = Mode.SEARCH;
 			return;
 		}
@@ -452,7 +709,8 @@ public final class ShapeBrain {
 			MatchManager.onShapeJump(this.body);
 			stat("shadow.in_approach");
 		} else {
-			this.sense(st, d > 12, false);
+			// No Sense on the run: it slows him to a walk.
+			this.sense(st, false, false);
 		}
 		if (st.shadowTicks == 0 && visible) {
 			if (d <= cfg.grabRange - 0.2 && st.grabCooldown == 0) {
@@ -468,7 +726,7 @@ public final class ShapeBrain {
 				// No grab in him yet: a blow (a heavy one on someone standing still).
 				this.walker.face(aim);
 				MatchManager.onAim(this.body, this.body.getEyePosition(), aim.subtract(this.body.getEyePosition()).normalize());
-				MatchManager.onShapeAttack(this.body, t.getId(), t.getDeltaMovement().horizontalDistance() < 0.05);
+				MatchManager.onShapeAttack(this.body, t.getId(), this.lastVelocity.horizontalDistance() < 0.05);
 				stat("strike");
 			}
 			if (d > 3.5 && d < 11 && st.dashCooldown == 0 && st.dashTicks == 0) {
@@ -480,7 +738,7 @@ public final class ShapeBrain {
 		if (now >= this.repathAt || this.walker.idle()) {
 			this.repathAt = now + (d < 8 ? 5 : 12);
 			// Where they will be in a moment, if they are running.
-			Vec3 to = visible ? t.position().add(t.getDeltaMovement().multiply(6, 0, 6)) : this.lastSeen.add(this.lastVelocity.scale(30));
+			Vec3 to = visible ? t.position().add(this.lastVelocity.multiply(6, 0, 6)) : this.lastSeen.add(this.lastVelocity.scale(30));
 			this.follow(st, BlockPos.containing(to), 1.0);
 		}
 		this.walk(st, now);
@@ -573,24 +831,24 @@ public final class ShapeBrain {
 				this.repathAt = now + 20;
 				this.follow(st, where, 2);
 				if (this.walker.idle()) {
-					this.lookAroundUntil = now + 50;
+					this.lookAroundUntil = now + 60;
 				}
 			}
-			this.sense(st, true, false);
+			this.sense(st, false, false);
 			Walker.Status status = this.walk(st, now);
 			if (status == Walker.Status.ARRIVED || status == Walker.Status.IDLE) {
-				this.lookAroundUntil = now + 50;
+				this.lookAroundUntil = now + 60;
 			}
 			return;
 		}
 		if (this.lookAroundUntil == 0) {
-			this.lookAroundUntil = now + 50;
+			this.lookAroundUntil = now + 60;
 		}
 		if (now < this.lookAroundUntil) {
 			// Turning round, Sense up, listening.
 			this.walker.halt();
 			this.sense(st, true, false);
-			float yaw = this.body.getYRot() + 9f;
+			float yaw = this.body.getYRot() + 6f;
 			this.body.setYRot(yaw);
 			this.body.setYHeadRot(yaw);
 			this.body.setYBodyRot(yaw);
@@ -727,7 +985,6 @@ public final class ShapeBrain {
 				this.lookAroundUntil = now + 40;
 				return;
 			}
-			this.sense(st, st.fatigue < 0.7f && this.body.position().distanceTo(Vec3.atBottomCenterOf(this.goal)) < 16, false);
 			this.travel(st, now, this.goal, 2);
 			return;
 		}
