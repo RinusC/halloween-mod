@@ -323,6 +323,8 @@ public class HwConfig {
 	public double runtPounceMaxDistance = 9;
 	public int runtPounceMissStunTicks = 100;
 	public int runtPounceCooldownTicks = 500;
+	/** His camera's distance while he rides someone (the default is 4; it is scaled with his size). */
+	public double runtRideCameraDistance = 9;
 	public float runtFearPounce = 12f;
 	public float runtFearPounceNpc = 8f;
 	/** A bot he holds tears his hands off in this many ticks, give or take. */

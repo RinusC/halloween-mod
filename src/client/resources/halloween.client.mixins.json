@@ -9,6 +9,7 @@
 		"LocalPlayerSprintMixin",
 		"LightmapExtractorMixin",
 		"LivingEntityRendererMixin",
+		"ItemInHandRendererMixin",
 		"CameraMixin",
 		"EntityMixin",
 		"EntityRendererMixin",

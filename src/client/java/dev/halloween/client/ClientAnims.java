@@ -92,6 +92,12 @@ public final class ClientAnims {
 		return t < in + hold ? 1 : Math.max(0, 1 - (t - in - hold) / out);
 	}
 
+	/** The hold this entity is in (HwNet.Anim: HOLD, STRUGGLE, STRANGLE), or NONE. */
+	public static int hold(int entityId) {
+		State s = STATES.get(entityId);
+		return s == null ? HwNet.Anim.NONE : s.hold;
+	}
+
 	/** How far over backwards this entity is (degrees): 90 lying flat, 0 standing. */
 	public static float fallAngle(int entityId) {
 		State s = STATES.get(entityId);

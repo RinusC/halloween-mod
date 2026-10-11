@@ -579,6 +579,8 @@ public final class Runt {
 		MatchManager.noJumping(v, true);
 		// Hands round their throat, them clawing at his.
 		GrabSession.anim(runt, HwNet.Anim.STRANGLE);
+		// His camera further back while he rides: his creature's body is in the way close up.
+		runt.getAttribute(Attributes.CAMERA_DISTANCE).setBaseValue(HwConfig.get().runtRideCameraDistance);
 		GrabSession.anim(v, HwNet.Anim.STRUGGLE);
 		if (v instanceof ServerPlayer p) {
 			Notices.send(p, Component.translatable("halloween.runt.holding_you").withStyle(ChatFormatting.DARK_RED));
@@ -646,7 +648,7 @@ public final class Runt {
 		}
 		// On their back, clinging.
 		Vec3 back = v.position().subtract(v.getLookAngle().multiply(1, 0, 1).normalize().scale(0.45));
-		runt.teleportTo(runt.level(), back.x, v.getY() + 0.8, back.z, java.util.Set.of(), v.getYRot(), 20f, false);
+		runt.teleportTo(runt.level(), back.x, v.getY() + 0.8, back.z, java.util.Set.of(), v.getYRot(), 35f, false);
 		if (now % 20 == 0 && v instanceof ServerPlayer p) {
 			Panic.add(p, 0.03f);
 		}
@@ -664,6 +666,8 @@ public final class Runt {
 		net.minecraft.world.entity.LivingEntity v = victim(runt, s);
 		s.holding = null;
 		GrabSession.anim(runt, HwNet.Anim.NONE);
+		var camera = runt.getAttribute(Attributes.CAMERA_DISTANCE);
+		camera.setBaseValue(camera.getAttribute().value().getDefaultValue());
 		if (v != null) {
 			root(v, false);
 			if (v instanceof ServerPlayer p) {
