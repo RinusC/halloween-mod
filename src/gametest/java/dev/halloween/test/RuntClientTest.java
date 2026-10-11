@@ -465,6 +465,15 @@ public class RuntClientTest implements FabricClientGameTest {
 			check(heeled, "it follows him about");
 			// The order wheel: go for that one.
 			int prey = server.computeOnServer(s -> s.getPlayerList().getPlayers().stream().filter(p -> MatchManager.role(p) == Role.CIVILIAN).findFirst().orElseThrow().getId());
+			server.runOnServer(s -> {
+				// On its feet for the order, the one it is sent at out in the open.
+				Runt.State st = Runt.state(Runt.all(s).getFirst());
+				st.stunTicks = 0;
+				st.trappedTicks = 0;
+				if (s.overworld().getEntity(prey) instanceof ServerPlayer target && dev.halloween.game.Lockers.isInside(target)) {
+					dev.halloween.game.Lockers.leave(target, false);
+				}
+			});
 			ctx.runOnClient(mc -> mc.gui.setScreen(new dev.halloween.client.RuntOrderScreen(prey, mc.player.blockPosition())));
 			ctx.waitTicks(5);
 			ctx.takeScreenshot("runt_orders");

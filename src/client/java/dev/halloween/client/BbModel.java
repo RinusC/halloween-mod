@@ -41,6 +41,7 @@ final class BbModel {
 	final int textureWidth;
 	final int textureHeight;
 	private final Map<String, Animation> animations = new HashMap<>();
+	private final Map<String, ModelPart> parts = new HashMap<>();
 
 	private BbModel(ModelPart root, int w, int h) {
 		this.root = root;
@@ -107,6 +108,7 @@ final class BbModel {
 			ModelPart parent = e.getValue() == null ? root : parts.get(e.getValue());
 			parts.put(e.getKey(), parent.getChild(e.getKey()));
 		}
+		model.parts.putAll(parts);
 		JsonObject anims = json.getAsJsonObject("animations");
 		for (String id : anims.keySet()) {
 			JsonObject a = anims.getAsJsonObject(id);
@@ -142,6 +144,48 @@ final class BbModel {
 
 	private static float rad(float deg) {
 		return deg * Mth.DEG_TO_RAD;
+	}
+
+	/** A bone by its name in Blockbench, or null. */
+	ModelPart part(String name) {
+		return this.parts.get(name);
+	}
+
+	/** Turns a bone further by Blockbench's degrees (and moves it by Blockbench's units), as an animation would. */
+	void turn(String name, float x, float y, float z) {
+		ModelPart p = this.parts.get(name);
+		if (p != null) {
+			p.xRot += rad(-x);
+			p.yRot += rad(-y);
+			p.zRot += rad(z);
+		}
+	}
+
+	void move(String name, float x, float y, float z) {
+		ModelPart p = this.parts.get(name);
+		if (p != null) {
+			p.x += -x;
+			p.y += -y;
+			p.z += z;
+		}
+	}
+
+	/** Scales a bone (and everything on it) evenly. */
+	void scale(String name, float s) {
+		ModelPart p = this.parts.get(name);
+		if (p != null) {
+			p.xScale *= s;
+			p.yScale *= s;
+			p.zScale *= s;
+		}
+	}
+
+	/** Back to how the bone stands in the model, whatever was laid over it. */
+	void reset(String name) {
+		ModelPart p = this.parts.get(name);
+		if (p != null) {
+			p.resetPose();
+		}
 	}
 
 	Animation animation(String id) {
