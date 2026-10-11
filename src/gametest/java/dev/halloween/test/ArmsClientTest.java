@@ -51,6 +51,17 @@ public class ArmsClientTest implements FabricClientGameTest {
 			this.stage(server);
 			ctx.waitTicks(10);
 			ctx.takeScreenshot("arms_empty");
+			// Running with nothing in hand: the arms swing.
+			ctx.getInput().holdKey(o -> o.keyUp);
+			ctx.getInput().holdKey(o -> o.keySprint);
+			ctx.waitTicks(7);
+			ctx.takeScreenshot("arms_run_a");
+			ctx.waitTicks(4);
+			ctx.takeScreenshot("arms_run_b");
+			ctx.getInput().releaseKey(o -> o.keySprint);
+			ctx.getInput().releaseKey(o -> o.keyUp);
+			this.stage(server);
+			ctx.waitTicks(10);
 			for (HwItems.Kind kind : new HwItems.Kind[]{HwItems.Kind.REVOLVER, HwItems.Kind.RIFLE, HwItems.Kind.SHOTGUN, HwItems.Kind.BAT, HwItems.Kind.KITCHEN_KNIFE,
 				HwItems.Kind.ICE_PICK, HwItems.Kind.FLASHLIGHT}) {
 				this.hold(ctx, server, kind);
