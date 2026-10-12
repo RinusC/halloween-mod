@@ -757,10 +757,26 @@ public final class ShapeBrain {
 		return Sight.angleTo(eye, e.getViewVector(1f), me) < 50 && Sight.canSee(this.level(), eye, me, e);
 	}
 
-	private void follow(ShapeState st, BlockPos to, double within) {
+	/** Path searches he may still make now: one comes back every few ticks, a few can be saved up (see follow). */
+	private float searches = 4f;
+	private int searchedAt;
+
+	/**
+	 * A path there. Searching is costly (thousands of cells when the place can't be reached), and many callers ask
+	 * again whenever he stands still: at most one search every six ticks on average, or the server chokes.
+	 */
+	private boolean follow(ShapeState st, BlockPos to, double within) {
+		int now = this.level().getServer().getTickCount();
+		this.searches = Math.min(4f, this.searches + (now - this.searchedAt) / 6f);
+		this.searchedAt = now;
+		if (this.searches < 1f) {
+			return false;
+		}
+		this.searches -= 1f;
 		boolean shadow = st.shadowTicks > 0;
 		Nav.Options opt = shadow ? Nav.Options.climber().lockedDoors(0.5) : Nav.Options.walker().lockedDoors(3);
 		this.walker.follow(Nav.to(this.level(), this.body.blockPosition(), to, within, opt.nodes(4000)));
+		return true;
 	}
 
 	/** Steps along the path: a locked door in the way gets broken, a window slipped through as a shadow. */
@@ -786,6 +802,7 @@ public final class ShapeBrain {
 				this.walker.stop();
 			}
 		} else if (status == Walker.Status.STUCK) {
+			stat("stuck");
 			this.walker.stop();
 			this.goal = null;
 		}
@@ -832,8 +849,7 @@ public final class ShapeBrain {
 		if (this.body.position().distanceTo(Vec3.atBottomCenterOf(where)) > 3 && this.lookAroundUntil == 0) {
 			if (now >= this.repathAt || this.walker.idle()) {
 				this.repathAt = now + 20;
-				this.follow(st, where, 2);
-				if (this.walker.idle()) {
+				if (this.follow(st, where, 2) && this.walker.idle()) {
 					this.lookAroundUntil = now + 60;
 				}
 			}
@@ -894,8 +910,7 @@ public final class ShapeBrain {
 			}
 			if (now >= this.repathAt || this.walker.idle()) {
 				this.repathAt = now + 20;
-				this.follow(st, front, 0.8);
-				if (this.walker.idle()) {
+				if (this.follow(st, front, 0.8) && this.walker.idle()) {
 					this.suspects.remove(base);
 					this.done.put(base, now + 600);
 					return false;
@@ -1073,8 +1088,7 @@ public final class ShapeBrain {
 		}
 		if (now >= this.repathAt || this.walker.idle()) {
 			this.repathAt = now + 40;
-			this.follow(st, to, within);
-			if (this.walker.idle() && d > within + 1) {
+			if (this.follow(st, to, within) && this.walker.idle() && d > within + 1) {
 				this.done.put(to, now + 20 * 60);
 				this.goal = null;
 				this.mode = Mode.PATROL;
@@ -1156,8 +1170,7 @@ public final class ShapeBrain {
 			}
 			if (now >= this.repathAt || this.walker.idle()) {
 				this.repathAt = now + 30;
-				this.follow(st, at, 1.6);
-				if (this.walker.idle()) {
+				if (this.follow(st, at, 1.6) && this.walker.idle()) {
 					this.done.put(at, now + 20 * 60);
 					this.workAt = null;
 					this.mode = Mode.PATROL;
