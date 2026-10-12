@@ -62,6 +62,18 @@ public class MichaelNavClientTest implements FabricClientGameTest {
 				cmd(s, "setblock " + (sx - 10) + " 151 " + (sz - 12) + " minecraft:oak_door[facing=north,half=lower]");
 				cmd(s, "setblock " + (sx - 10) + " 152 " + (sz - 12) + " minecraft:oak_door[facing=north,half=upper]");
 				DoorLocks.forceLock(s.overworld(), new BlockPos(sx - 10, 151, sz - 12));
+				// A lit hut (a light nobody can switch off), its door open.
+				cmd(s, "fill " + (sx + 8) + " 150 " + (sz - 12) + " " + (sx + 12) + " 154 " + (sz - 8) + " minecraft:stone_bricks hollow");
+				cmd(s, "setblock " + (sx + 10) + " 151 " + (sz - 12) + " minecraft:oak_door[facing=north,half=lower]");
+				cmd(s, "setblock " + (sx + 10) + " 152 " + (sz - 12) + " minecraft:oak_door[facing=north,half=upper]");
+				cmd(s, "setblock " + (sx + 10) + " 153 " + (sz - 10) + " minecraft:light[level=15]");
+				// A hut lit by house lights, its breaker inside by the far wall.
+				cmd(s, "fill " + (sx + 11) + " 150 " + (sz + 5) + " " + (sx + 15) + " 154 " + (sz + 9) + " minecraft:stone_bricks hollow");
+				cmd(s, "setblock " + (sx + 13) + " 151 " + (sz + 5) + " minecraft:oak_door[facing=north,half=lower]");
+				cmd(s, "setblock " + (sx + 13) + " 152 " + (sz + 5) + " minecraft:oak_door[facing=north,half=upper]");
+				cmd(s, "setblock " + (sx + 12) + " 153 " + (sz + 8) + " minecraft:copper_bulb[lit=true]");
+				cmd(s, "setblock " + (sx + 15) + " 152 " + (sz + 7) + " minecraft:iron_block");
+				cmd(s, "setblock " + (sx + 14) + " 152 " + (sz + 7) + " minecraft:lever[face=wall,facing=west,powered=true]");
 				cmd(s, "fill " + (p.getBlockX() - 2) + " 250 " + (p.getBlockZ() - 2) + " " + (p.getBlockX() + 2) + " 250 " + (p.getBlockZ() + 2) + " minecraft:stone");
 				p.teleportTo(s.overworld(), p.getBlockX() + 0.5, 251, p.getBlockZ() + 0.5, java.util.Set.of(), 180f, 0f, false);
 				return new int[]{sx, sz};
@@ -97,6 +109,42 @@ public class MichaelNavClientTest implements FabricClientGameTest {
 				+ " door " + s.overworld().getBlockState(new BlockPos(sx - 10, 151, sz - 12)) + " locked " + DoorLocks.isLocked(s.overworld(), new BlockPos(sx - 10, 151, sz - 12))
 				+ " shadow " + dev.halloween.game.MatchManager.shapeState(ShapeBrain.body()).shadowTicks + " stats " + AiStats.snapshot().get("~michael")));
 			check(server.computeOnServer(s -> near(inside, 1.8)), "into a locked hut");
+
+			// ---------------------------------------------------------------- a shadow in a lit hut: out to the dark, back on foot
+			BlockPos lit = new BlockPos(sx + 11, 151, sz - 9);
+			server.runOnServer(s -> {
+				ShapeBrain.forget();
+				ShapeBrain.testGoal = null;
+				// Into the shadow out in the dark, then into the lit hut as one.
+				ShapeBrain.body().teleportTo(s.overworld(), sx + 0.5, 151, sz - 16.5, java.util.Set.of(), 0f, 0f, false);
+			});
+			ctx.waitTicks(5);
+			server.runOnServer(s -> {
+				var st = dev.halloween.game.MatchManager.shapeState(ShapeBrain.body());
+				st.jumpCooldown = 0;
+				dev.halloween.game.MatchManager.onShapeJump(ShapeBrain.body());
+			});
+			ctx.waitTicks(5);
+			check(server.computeOnServer(s -> dev.halloween.game.MatchManager.shapeState(ShapeBrain.body()).shadowTicks > 0), "a shadow");
+			server.runOnServer(s -> {
+				ShapeBrain.body().teleportTo(s.overworld(), sx + 9.5, 151, sz - 10.5, java.util.Set.of(), 0f, 0f, false);
+				ShapeBrain.testGoal = lit;
+			});
+			this.until(ctx, server, 500, s -> near(lit, 1.8) && dev.halloween.game.MatchManager.shapeState(ShapeBrain.body()).shadowTicks == 0);
+			LOG.info("lit hut: {}", (Object) server.computeOnServer(s -> ShapeBrain.debug() + " shadow " + dev.halloween.game.MatchManager.shapeState(ShapeBrain.body()).shadowTicks
+				+ " stats " + AiStats.snapshot().get("~michael")));
+			check(server.computeOnServer(s -> near(lit, 1.8) && dev.halloween.game.MatchManager.shapeState(ShapeBrain.body()).shadowTicks == 0),
+				"a shadow caught in the light gets out to the dark and comes back on foot");
+
+			// ---------------------------------------------------------------- lit by house lights: the breaker first
+			BlockPos breaker = new BlockPos(sx + 14, 152, sz + 7);
+			BlockPos room = new BlockPos(sx + 12, 151, sz + 6);
+			check(server.computeOnServer(s -> dev.halloween.game.LightSystem.isOn(s.overworld(), breaker)), "the hut's lights are on");
+			this.place(server, sx + 13.5, sz - 2.5, room);
+			this.until(ctx, server, 500, s -> near(room, 1.8) && !dev.halloween.game.LightSystem.isOn(s.overworld(), breaker));
+			LOG.info("breaker hut: {}", (Object) server.computeOnServer(s -> ShapeBrain.debug() + " on " + dev.halloween.game.LightSystem.isOn(s.overworld(), breaker)));
+			check(server.computeOnServer(s -> !dev.halloween.game.LightSystem.isOn(s.overworld(), breaker)), "he switches the house lights off first");
+			check(server.computeOnServer(s -> near(room, 1.8)), "and goes in");
 
 			Map<String, Integer> stats = AiStats.snapshot().getOrDefault("~michael", Map.of());
 			LOG.info("michael stats: {}", stats);

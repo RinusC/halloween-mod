@@ -99,6 +99,12 @@ public final class ShapeBrain {
 	/** Where his path is meant to take him (a fixed place: a goal, a wardrobe, a job; null when chasing someone). */
 	private BlockPos aim;
 	private Walker.Status lastStatus;
+	/** A shadow caught in the light (he can't step out of it there): making for the dark, until when. */
+	private int escapeUntil;
+	private boolean escaping;
+	/** A breaker to switch off first: the place he is making for is lit by the house lights. */
+	private BlockPos lightJob;
+	private int lightJobUntil;
 	/** How near he has come to it, when that last got better, and what he has tried since to get unstuck. */
 	private double bestDist;
 	private int pathLeft;
@@ -219,6 +225,8 @@ public final class ShapeBrain {
 			b.corpse = null;
 			b.unreachable.clear();
 			b.aim = null;
+			b.escaping = false;
+			b.lightJob = null;
 			b.mode = Mode.PATROL;
 			b.walker.stop();
 		}
@@ -461,6 +469,14 @@ public final class ShapeBrain {
 				stat("lost");
 			}
 		}
+		if (this.escapeLight(st, now)) {
+			MatchManager.onAim(this.body, this.body.getEyePosition(), this.body.getViewVector(1f));
+			return;
+		}
+		if (this.lightJob != null && this.mode != Mode.CHASE && this.mode != Mode.STALK && this.mode != Mode.RETREAT && this.switchOff(st, now)) {
+			MatchManager.onAim(this.body, this.body.getEyePosition(), this.body.getViewVector(1f));
+			return;
+		}
 		switch (this.mode) {
 			case STALK -> this.stalk(st, now);
 			case CHASE -> this.chase(st, now);
@@ -556,9 +572,9 @@ public final class ShapeBrain {
 		double d = this.body.distanceTo(t);
 		boolean visible = now - this.lastSeenAt <= 2;
 		double far = this.reaction == Reaction.FOLLOW ? 14 : HwConfig.get().senseRange - 7;
-		if (st.shadowTicks > 0 && d < far && MatchManager.jumpBlockReason(this.body, st) == 0) {
+		if (st.shadowTicks > 0 && d < far) {
 			// Nothing is stalked from the shadow.
-			MatchManager.onShapeJump(this.body);
+			this.wantOut(st, now);
 		}
 		if (d > far || !visible || st.shadowTicks > 0) {
 			this.sense(st, false, false);
@@ -727,11 +743,10 @@ public final class ShapeBrain {
 		// A shadow to cover the ground unseen, out again close by.
 		if (st.shadowTicks > 0) {
 			this.sense(st, false, false);
-			if (d < 8 && MatchManager.jumpBlockReason(this.body, st) == 0) {
-				MatchManager.onShapeJump(this.body);
+			if (d < 8 && this.wantOut(st, now)) {
 				stat("shadow.out_close");
 			}
-		} else if (d > 14 && !this.watchedBy(t) && MatchManager.jumpBlockReason(this.body, st) == 0 && st.jumpCooldown == 0) {
+		} else if (d > 14 && !this.watchedBy(t) && !this.lit(t.blockPosition()) && MatchManager.jumpBlockReason(this.body, st) == 0 && st.jumpCooldown == 0) {
 			MatchManager.onShapeJump(this.body);
 			stat("shadow.in_approach");
 		} else {
@@ -806,6 +821,14 @@ public final class ShapeBrain {
 		if (!fixed) {
 			this.aim = null;
 		} else if (!to.equals(this.aim)) {
+			if (this.lightJob == null && !to.equals(this.lightJob)) {
+				BlockPos breaker = this.breakerFor(to);
+				if (breaker != null && !breaker.equals(to)) {
+					this.lightJob = breaker;
+					this.lightJobUntil = now + 20 * 25;
+					stat("lights.first");
+				}
+			}
 			this.aim = to;
 			this.bestDist = this.body.position().distanceTo(Vec3.atBottomCenterOf(to));
 			this.bestAt = now;
@@ -835,6 +858,12 @@ public final class ShapeBrain {
 
 	/** Steps along the path: a locked door in the way gets broken, a window slipped through as a shadow. */
 	private Walker.Status walk(ShapeState st, int now) {
+		if (st.shadowTicks > 0 && !this.escaping && this.litAhead(5) && !this.lit(this.body.blockPosition())
+			&& MatchManager.jumpBlockReason(this.body, st) == 0) {
+			// Light ahead: out of the shadow while it is still dark here, and on in his own form.
+			MatchManager.onShapeJump(this.body);
+			stat("shadow.out_before_light");
+		}
 		this.walker.throughDoors = st.shadowTicks > 0;
 		Walker.Status status = this.walker.tick();
 		this.lastStatus = status;
@@ -888,7 +917,7 @@ public final class ShapeBrain {
 		this.bestAt = now;
 		this.unstick++;
 		stat("stall");
-		if (this.unstick == 1 && st.shadowTicks == 0 && MatchManager.jumpBlockReason(this.body, st) == 0) {
+		if (this.unstick == 1 && st.shadowTicks == 0 && MatchManager.jumpBlockReason(this.body, st) == 0 && !this.litAhead(6)) {
 			MatchManager.onShapeJump(this.body);
 			this.walker.stop();
 			this.repathAt = now;
@@ -908,6 +937,141 @@ public final class ShapeBrain {
 			}
 		}
 		this.giveUp(this.aim, now, "unreachable.stall");
+	}
+
+	// ---------------------------------------------------------------- light and the shadow
+
+	/** Is it light here (feet or head): no stepping out of the shadow, everyone sees him. */
+	private boolean lit(BlockPos feet) {
+		int threshold = HwConfig.get().lightThreshold;
+		ServerLevel level = this.level();
+		return level.getBrightness(LightLayer.BLOCK, feet) > threshold || level.getBrightness(LightLayer.BLOCK, feet.above()) > threshold;
+	}
+
+	/** Light within the next few steps of his path. */
+	private boolean litAhead(int steps) {
+		for (Nav.Node n : this.walker.ahead(steps)) {
+			if (this.lit(n.pos())) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Out of the shadow, if he is in it: at once where he may; caught in the light, he makes for the dark first (see
+	 * escapeLight). True when he is in his own form.
+	 */
+	private boolean wantOut(ShapeState st, int now) {
+		if (st.shadowTicks == 0) {
+			return true;
+		}
+		int reason = MatchManager.jumpBlockReason(this.body, st);
+		if (reason == 0) {
+			MatchManager.onShapeJump(this.body);
+			this.walker.stop();
+			this.repathAt = now;
+			return true;
+		}
+		if (reason == 1 && !this.escaping) {
+			this.escaping = true;
+			this.escapeUntil = now + 20 * 10;
+			this.walker.stop();
+			stat("shadow.caught_in_light");
+		}
+		return false;
+	}
+
+	/**
+	 * A shadow in the light can't step out of it: to the nearest dark place (out of the house through a door or a
+	 * window if need be), out of the shadow there, and on in his own form. True while that is what he is doing.
+	 */
+	private boolean escapeLight(ShapeState st, int now) {
+		if (!this.escaping) {
+			return false;
+		}
+		if (st.shadowTicks == 0 || now > this.escapeUntil) {
+			this.escaping = false;
+			return false;
+		}
+		int reason = MatchManager.jumpBlockReason(this.body, st);
+		if (reason == 0) {
+			MatchManager.onShapeJump(this.body);
+			this.escaping = false;
+			this.walker.stop();
+			this.repathAt = now;
+			stat("shadow.out_in_dark");
+			return true;
+		}
+		if (this.walker.idle()) {
+			ServerLevel level = this.level();
+			List<Nav.Node> path = Nav.search(level, this.body.blockPosition(), 24, Nav.Options.climber().lockedDoors(0.5).nodes(3000),
+				(pos, cost) -> this.lit(pos) || level.getBlockState(pos).getBlock() instanceof net.minecraft.world.level.block.DoorBlock ? -1000 : 100 - cost);
+			stat("search");
+			if (path.isEmpty()) {
+				// Nowhere dark within reach: he stays a shadow and goes on as he was.
+				this.escaping = false;
+				stat("shadow.no_dark");
+				return false;
+			}
+			this.walker.follow(path);
+		}
+		this.walk(st, now);
+		return true;
+	}
+
+	/**
+	 * The place he makes for is lit by a house's lights: the breaker that works them, near it, if it is on (and he
+	 * hasn't just been at it).
+	 */
+	private BlockPos breakerFor(BlockPos target) {
+		if (!this.lit(target)) {
+			return null;
+		}
+		ServerLevel level = this.level();
+		BlockPos best = null;
+		for (BlockPos b : LightSystem.breakers(level, target, HwConfig.get().breakerRadius)) {
+			if (LightSystem.isOn(level, b) && !this.done.containsKey(b) && !this.unreachable.containsKey(b)
+				&& (best == null || b.distSqr(target) < best.distSqr(target))) {
+				best = b;
+			}
+		}
+		return best != null && Vec3.atCenterOf(best).distanceTo(this.body.position()) < 40 ? best : null;
+	}
+
+	/** To the breaker in his own form (a shadow can't work it), and off with the lights. True while at it. */
+	private boolean switchOff(ShapeState st, int now) {
+		BlockPos b = this.lightJob;
+		ServerLevel level = this.level();
+		if (!LightSystem.isOn(level, b) || now > this.lightJobUntil) {
+			this.lightJob = null;
+			return false;
+		}
+		if (!this.wantOut(st, now)) {
+			// Still a shadow (escapeLight takes over if he is caught in the light).
+			return false;
+		}
+		Vec3 at = Vec3.atCenterOf(b);
+		if (at.distanceTo(this.body.getEyePosition()) > 2.6) {
+			if (now >= this.repathAt || this.walker.idle()) {
+				this.repathAt = now + 30;
+				if (this.follow(st, b, 2, true) && this.walker.idle()) {
+					this.done.put(b, now + 20 * 120);
+					this.lightJob = null;
+					return false;
+				}
+			}
+			this.walk(st, now);
+			return true;
+		}
+		this.walker.halt();
+		this.walker.face(at);
+		LightSystem.flip(level, b, false);
+		this.done.put(b, now + 20 * 120);
+		this.lightJob = null;
+		this.repathAt = now;
+		stat("power.off.before_going_in");
+		return true;
 	}
 
 	/** No way there: he leaves the place be for three minutes, and stops (his caller sees him idle and moves on). */
@@ -1016,8 +1180,8 @@ public final class ShapeBrain {
 		}
 		BlockPos front = Lockers.front(level, base);
 		if (this.body.position().distanceTo(Vec3.atBottomCenterOf(front)) > HwConfig.get().grabRange) {
-			if (st.shadowTicks > 0 && MatchManager.jumpBlockReason(this.body, st) == 0) {
-				MatchManager.onShapeJump(this.body);
+			if (st.shadowTicks > 0 && this.body.position().distanceTo(Vec3.atBottomCenterOf(front)) < 8) {
+				this.wantOut(st, now);
 			}
 			if (now >= this.repathAt || this.walker.idle()) {
 				this.repathAt = now + 20;
@@ -1030,10 +1194,7 @@ public final class ShapeBrain {
 			this.walk(st, now);
 			return true;
 		}
-		if (st.shadowTicks > 0) {
-			if (MatchManager.jumpBlockReason(this.body, st) == 0) {
-				MatchManager.onShapeJump(this.body);
-			}
+		if (!this.wantOut(st, now)) {
 			return true;
 		}
 		this.walker.halt();
@@ -1203,9 +1364,8 @@ public final class ShapeBrain {
 			MatchManager.onShapeJump(this.body);
 			this.repathAt = now;
 			stat("shadow.in_travel");
-		} else if (st.shadowTicks > 0 && d < 8 && MatchManager.jumpBlockReason(this.body, st) == 0) {
-			MatchManager.onShapeJump(this.body);
-			this.repathAt = now;
+		} else if (st.shadowTicks > 0 && d < 8) {
+			this.wantOut(st, now);
 		}
 		if (now >= this.repathAt || this.walker.idle()) {
 			this.repathAt = now + 40;
@@ -1286,8 +1446,8 @@ public final class ShapeBrain {
 		BlockPos at = this.workAt;
 		if (Vec3.atCenterOf(at).distanceTo(this.body.getEyePosition()) > 2.8) {
 			this.workSince = -1;
-			if (st.shadowTicks > 0 && this.body.position().distanceTo(Vec3.atCenterOf(at)) < 6 && MatchManager.jumpBlockReason(this.body, st) == 0) {
-				MatchManager.onShapeJump(this.body);
+			if (st.shadowTicks > 0 && this.body.position().distanceTo(Vec3.atCenterOf(at)) < 6) {
+				this.wantOut(st, now);
 			}
 			if (now >= this.repathAt || this.walker.idle()) {
 				this.repathAt = now + 30;

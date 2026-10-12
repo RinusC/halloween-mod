@@ -57,6 +57,11 @@ public final class Walker {
 		return this.index >= this.path.size();
 	}
 
+	/** The next few steps of the path. */
+	public List<Nav.Node> ahead(int n) {
+		return this.path.subList(Math.min(this.index, this.path.size()), Math.min(this.index + n, this.path.size()));
+	}
+
 	/** Steps of the path still to go. */
 	public int remaining() {
 		return Math.max(0, this.path.size() - this.index);
