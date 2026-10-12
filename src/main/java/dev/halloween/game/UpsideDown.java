@@ -129,7 +129,7 @@ public final class UpsideDown {
 			return Blocks.AIR.defaultBlockState();
 		}
 		if (id.contains("glass_pane") || id.equals("iron_bars")) {
-			return Blocks.BLACK_STAINED_GLASS_PANE.defaultBlockState();
+			return Blocks.STAINED_GLASS_PANE.black().defaultBlockState();
 		}
 		if (id.contains("glass")) {
 			return Blocks.TINTED_GLASS.defaultBlockState();
