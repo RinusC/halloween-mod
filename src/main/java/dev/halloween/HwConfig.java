@@ -501,7 +501,7 @@ public class HwConfig {
 		w.put("baseball", 8);
 		w.put("kitchen_knife", 10);
 		w.put("bat", 8);
-		w.put("battery", 8);
+		w.put("battery", 3);
 		// Uncommon.
 		w.put("dart", 5);
 		w.put("pocket_knife", 5);
@@ -817,7 +817,7 @@ public class HwConfig {
 
 	/** The file's version: older files get the defaults that changed since moved on (see {@link #migrate}). */
 	public int configVersion;
-	private static final int VERSION = 4;
+	private static final int VERSION = 5;
 
 	public static void load() {
 		Path path = path();
@@ -889,6 +889,9 @@ public class HwConfig {
 		}
 		if (this.configVersion < 4 && java.util.Arrays.equals(this.policeOfficersByLevel, new int[]{2, 2, 2})) {
 			this.policeOfficersByLevel = new int[]{1, 2, 1};
+		}
+		if (this.configVersion < 5 && this.lootWeights != null && Integer.valueOf(8).equals(this.lootWeights.get("battery"))) {
+			this.lootWeights.put("battery", 3);
 		}
 		if (this.configVersion < 4 && this.partyGatherRange == 60) {
 			this.partyGatherRange = 90;

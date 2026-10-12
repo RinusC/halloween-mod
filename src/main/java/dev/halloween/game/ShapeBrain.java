@@ -595,6 +595,27 @@ public final class ShapeBrain {
 		}
 	}
 
+	/** Where he is looking about towards, and when he picks another way to look. */
+	private float glanceYaw = Float.NaN;
+	private int glanceNext;
+
+	/**
+	 * Looking about where he stands: a look one way, held a moment, then another (not turning round and round), the
+	 * head and body turning there at a man's pace.
+	 */
+	private void glance(int now) {
+		if (Float.isNaN(this.glanceYaw) || now >= this.glanceNext) {
+			this.glanceYaw = this.body.getYRot() + (this.random.nextBoolean() ? 1 : -1) * (60f + this.random.nextFloat() * 100f);
+			this.glanceNext = now + 30 + this.random.nextInt(20);
+		}
+		float turn = net.minecraft.util.Mth.clamp(net.minecraft.util.Mth.wrapDegrees(this.glanceYaw - this.body.getYRot()), -9f, 9f);
+		float yaw = this.body.getYRot() + turn;
+		this.body.setYRot(yaw);
+		this.body.setYHeadRot(yaw);
+		this.body.setYBodyRot(yaw);
+		this.body.setXRot(5f);
+	}
+
 	/** Turns his head (not his walk) towards a point. */
 	private void lookAt(Vec3 point) {
 		Vec3 d = point.subtract(this.body.getEyePosition());
@@ -1165,10 +1186,7 @@ public final class ShapeBrain {
 			// Turning round, Sense up, listening.
 			this.walker.halt();
 			this.sense(st, true, false);
-			float yaw = this.body.getYRot() + 6f;
-			this.body.setYRot(yaw);
-			this.body.setYHeadRot(yaw);
-			this.body.setYBodyRot(yaw);
+			this.glance(now);
 			return;
 		}
 		// Nothing: the wardrobes round here, nearest first (a few).
@@ -1328,6 +1346,9 @@ public final class ShapeBrain {
 		}
 		// Someone has a way out going: keep watch there.
 		BlockPos watch = this.exitInTrouble();
+		if (watch != null && this.done.containsKey(watch)) {
+			watch = null;
+		}
 		if (watch != null && (this.camping == null || !this.camping.equals(watch))) {
 			this.camping = watch;
 			this.campUntil = now + 20 * 30;
@@ -1340,12 +1361,13 @@ public final class ShapeBrain {
 			} else {
 				this.walker.halt();
 				this.sense(st, now % 120 < 60, false);
-				float yaw = this.body.getYRot() + 3f;
-				this.body.setYRot(yaw);
-				this.body.setYHeadRot(yaw);
-				this.body.setYBodyRot(yaw);
+				this.glance(now);
 			}
 			return;
+		}
+		if (this.camping != null) {
+			// Watched long enough: not that way out again for two minutes (else he stands there all match).
+			this.done.put(this.camping, now + 20 * 120);
 		}
 		this.camping = null;
 		// Now and then he stops in the dark and looks all round with his Sense (it tires him): someone far off.
@@ -1353,11 +1375,7 @@ public final class ShapeBrain {
 		if (now < this.scanUntil) {
 			this.walker.halt();
 			this.sense(st, true, false);
-			float yaw = this.body.getYRot() + 6f;
-			this.body.setYRot(yaw);
-			this.body.setYHeadRot(yaw);
-			this.body.setYBodyRot(yaw);
-			this.body.setXRot(5f);
+			this.glance(now);
 			return;
 		}
 		if (st.shadowTicks == 0 && st.fatigue < 0.3f && now >= this.nextScan && !MatchManager.inLight(this.body)) {
