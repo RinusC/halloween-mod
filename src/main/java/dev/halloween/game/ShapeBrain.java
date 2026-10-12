@@ -217,6 +217,16 @@ public final class ShapeBrain {
 	/** Where he last ran to head them off. */
 	private BlockPos lastCut;
 	private int impulseAt;
+	/** The way out he keeps watch on (he may wait for it from a hiding place near it, see ambushSpot). */
+	private BlockPos campFor;
+	/** Where he stalks from (dark, against something, their head in view), and when he last looked for such a place. */
+	private BlockPos stalkSpot;
+	private int stalkSpotAt = -1000;
+	/** Who hurt him (a blow, a shove, a shot he saw them fire), until when he keeps it in mind; his meters last tick. */
+	private final Map<java.util.UUID, Integer> hurtBy = new HashMap<>();
+	private float stunWas;
+	private int stunnedWas;
+	private int pushedWas;
 
 	private ShapeBrain(BotPlayer body) {
 		this.body = body;
@@ -350,6 +360,9 @@ public final class ShapeBrain {
 			b.ringing = null;
 			b.escorted.clear();
 			b.glowSeen.clear();
+			b.campFor = null;
+			b.stalkSpot = null;
+			b.hurtBy.clear();
 			b.mode = Mode.PATROL;
 			b.walker.stop();
 		}
@@ -819,6 +832,14 @@ public final class ShapeBrain {
 		this.trapsHeard.values().removeIf(until -> until < now);
 		this.escorted.values().removeIf(at -> now - at > 200);
 		this.panting.values().removeIf(at -> now - at > 20 * 30);
+		this.hurtBy.values().removeIf(until -> until < now);
+		boolean hit = st.stun > this.stunWas + 1e-4f || st.stunnedTicks > 0 && this.stunnedWas == 0 || st.pushedTicks > 0 && this.pushedWas == 0;
+		this.stunWas = st.stun;
+		this.stunnedWas = st.stunnedTicks;
+		this.pushedWas = st.pushedTicks;
+		if (hit) {
+			this.blame(now);
+		}
 		if (Events.quaking() && !this.suspects.isEmpty()) {
 			// Midnight: the wardrobes are jammed, nobody is in one.
 			this.suspects.clear();
@@ -1023,12 +1044,130 @@ public final class ShapeBrain {
 			this.lookAt(t.getEyePosition());
 			return;
 		}
+		if (this.stalkSpot != null && !this.walker.idle() && this.body.position().distanceTo(Vec3.atBottomCenterOf(this.stalkSpot)) > 1.2) {
+			// Into cover first, the Sense down while he goes.
+			this.sense(st, false, false);
+			this.walk(st, now);
+			this.lookAt(t.getEyePosition());
+			return;
+		}
+		if (this.findStalkSpot(t, now)) {
+			return;
+		}
 		this.walker.halt();
 		// Eyes on them (on the head: that is where the stalk builds fastest).
 		this.walker.face(t.getEyePosition());
 		this.sense(st, true, true);
 		if (now % 40 == 0) {
 			stat("stalk");
+		}
+	}
+
+	/**
+	 * Every few seconds while stalking: a better place to stalk from near by, if there is one: in the dark, against a
+	 * wall or a tree, off the middle of their view, their head still in sight, not too near. True if he is off there.
+	 */
+	private boolean findStalkSpot(LivingEntity t, int now) {
+		if (now - this.stalkSpotAt < 100 || this.searches < 1f) {
+			return false;
+		}
+		this.stalkSpotAt = now;
+		this.searches -= 1f;
+		Vec3 head = t.getEyePosition();
+		Vec3 look = t.getViewVector(1f);
+		double far = HwConfig.get().senseRange - 7;
+		BlockPos here = this.body.blockPosition();
+		double stay = this.coverScore(here, head, look, far);
+		List<Nav.Node> path = Nav.search(this.level(), here, 10, Nav.Options.walker().lockedDoors(3).nodes(500),
+			(pos, cost) -> this.coverScore(pos, head, look, far) - cost * 1.5);
+		stat("search");
+		if (path.isEmpty()) {
+			return false;
+		}
+		BlockPos end = path.getLast().pos();
+		if (this.coverScore(end, head, look, far) < stay + 10) {
+			return false;
+		}
+		this.stalkSpot = end;
+		this.walker.follow(path);
+		stat("stalk.cover");
+		return true;
+	}
+
+	/** How good a place this is to stalk them from (or -1000: their head out of sight, too near, too far). */
+	private double coverScore(BlockPos pos, Vec3 head, Vec3 look, double far) {
+		ServerLevel level = this.level();
+		Vec3 eye = Vec3.atBottomCenterOf(pos).add(0, 1.6, 0);
+		double d = eye.distanceTo(head);
+		if (d < 8 || d > far || !Sight.canSee(level, eye, head, this.body)) {
+			return -1000;
+		}
+		double s = this.lit(pos) ? -40 : 0;
+		if (Sight.angleTo(head, look, eye) > 60) {
+			s += 15;
+		}
+		if (this.againstSomething(pos)) {
+			s += 8;
+		}
+		return s;
+	}
+
+	/** Something solid beside him at head height (a wall, a tree, a fence post): no outline against open ground. */
+	private boolean againstSomething(BlockPos pos) {
+		for (net.minecraft.core.Direction dir : net.minecraft.core.Direction.Plane.HORIZONTAL) {
+			if (Nav.passable(this.level(), pos.relative(dir).above()) == 0) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * A dark place near a way out (4 to 10 blocks), against something, the way out in view: where he waits for whoever
+	 * comes to it. Null if there is none.
+	 */
+	private BlockPos ambushSpot(BlockPos exit) {
+		ServerLevel level = this.level();
+		Vec3 x = Vec3.atCenterOf(exit).add(0, 1, 0);
+		Nav.Scorer score = (pos, cost) -> {
+			Vec3 eye = Vec3.atBottomCenterOf(pos).add(0, 1.6, 0);
+			double d = eye.distanceTo(x);
+			if (d < 4 || d > 10 || !Sight.canSee(level, eye, x, this.body)) {
+				return -1000;
+			}
+			return (this.lit(pos) ? -40 : 0) + (this.againstSomething(pos) ? 10 : 0) - Math.abs(d - 6);
+		};
+		List<Nav.Node> path = Nav.search(level, Nav.snap(level, exit), 14, Nav.Options.walker().lockedDoors(3).nodes(600), score);
+		stat("search");
+		if (path.isEmpty()) {
+			return null;
+		}
+		BlockPos end = path.getLast().pos();
+		return score.score(end, 0) > -30 ? end : null;
+	}
+
+	/** Hit just now (a blow, a shove, a shot): the one he sees who did it, kept in mind a few minutes. */
+	private void blame(int now) {
+		ServerLevel level = this.level();
+		Vec3 me = FocusPoints.bodyCenter(this.body);
+		Vec3 eye = this.body.getEyePosition();
+		LivingEntity who = null;
+		double best = Double.MAX_VALUE;
+		for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, this.body.getBoundingBox().inflate(50), MatchManager::exposed)) {
+			double d = e.getEyePosition().distanceTo(me);
+			HwItems.Kind k = HwItems.kindOf(e.getMainHandItem());
+			boolean gun = k != null && (k.gun() || k == HwItems.Kind.FLARE_GUN);
+			// Close by and turned to him (a blow, a shove, a throw), or a gun on him.
+			boolean could = d < 4 ? Sight.angleTo(e.getEyePosition(), e.getViewVector(1f), me) < 60
+				: gun && Sight.angleTo(e.getEyePosition(), e.getViewVector(1f), me) < 12;
+			if (could && d < best && Sight.canSee(level, eye, e.getEyePosition(), this.body)) {
+				best = d;
+				who = e;
+			}
+		}
+		if (who != null) {
+			this.hurtBy.put(who.getUUID(), now + 20 * 180);
+			stat("hurt.by");
 		}
 	}
 
@@ -1201,7 +1340,7 @@ public final class ShapeBrain {
 		boolean officer = Police.isOfficer(t);
 		HwItems.Kind arm = HwItems.kindOf(t.getMainHandItem());
 		// A loaded gun in their hand: come at them as a shadow, out of it only close by.
-		boolean armed = arm != null && (arm.gun() || arm == HwItems.Kind.FLARE_GUN) && this.gunLoaded(t, arm);
+		boolean armed = arm != null && (arm.gun() || arm == HwItems.Kind.FLARE_GUN) && this.gunLoaded(t, arm) || this.hurtBy.containsKey(t.getUUID());
 		if (visible && t instanceof ServerPlayer && d > 6 && d <= 60) {
 			this.sendRunt(t, now);
 		}
@@ -2207,6 +2346,7 @@ public final class ShapeBrain {
 			BlockPos spot = this.watchSpot(b);
 			if (spot != null) {
 				this.camping = spot;
+				this.campFor = null;
 				this.campUntil = now + 20 * 20;
 				this.campWithin = 1.5;
 				this.campFace = b.center;
@@ -2339,6 +2479,7 @@ public final class ShapeBrain {
 				this.raid = null;
 				this.goal = null;
 				this.camping = spot;
+				this.campFor = null;
 				this.campUntil = now + 20 * 30;
 				this.campWithin = 1.5;
 				this.campFace = b.center;
@@ -2707,12 +2848,15 @@ public final class ShapeBrain {
 		if (watch != null && this.done.containsKey(watch)) {
 			watch = null;
 		}
-		if (watch != null && (this.camping == null || !this.camping.equals(watch))) {
-			this.camping = watch;
+		if (watch != null && !watch.equals(this.campFor)) {
+			// Not standing by it in plain sight: waiting near it in the dark, against something, the way out in view.
+			BlockPos hide = this.ambushSpot(watch);
+			this.campFor = watch;
+			this.camping = hide != null ? hide : watch;
 			this.campUntil = now + 20 * 30;
-			this.campWithin = 7;
-			this.campFace = null;
-			stat("camp");
+			this.campWithin = hide != null ? 1.5 : 7;
+			this.campFace = hide != null ? Vec3.atCenterOf(watch) : null;
+			stat(hide != null ? "camp.ambush" : "camp");
 		}
 		if (this.camping != null && now < this.campUntil) {
 			this.mode = Mode.CAMP;
@@ -2743,9 +2887,10 @@ public final class ShapeBrain {
 		}
 		if (this.camping != null) {
 			// Watched long enough: not that way out again for two minutes (else he stands there all match).
-			this.done.put(this.camping, now + 20 * 120);
+			this.done.put(this.campFor != null ? this.campFor : this.camping, now + 20 * 120);
 		}
 		this.camping = null;
+		this.campFor = null;
 		this.campWithin = 7;
 		this.campFace = null;
 		if (this.runtSent != null) {
