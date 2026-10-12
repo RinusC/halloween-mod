@@ -55,10 +55,6 @@ public final class ClientInteractions {
 		if (level.getBlockState(pos).is(HwBlocks.PHONE)) {
 			return 2;
 		}
-		if (ClientState.killer == 1 && level.getBlockState(pos).is(net.minecraft.world.level.block.Blocks.CRIMSON_NYLIUM)) {
-			// The Demogorgon's portal: survivors seal it holding use.
-			return 6;
-		}
 		Vec3 c = Vec3.atCenterOf(pos);
 		for (HwNet.ExitInfo exit : match.exits()) {
 			double radius = exit.type() == 1 ? 3.2 : exit.type() == 2 ? 3.5 : 2.5;
