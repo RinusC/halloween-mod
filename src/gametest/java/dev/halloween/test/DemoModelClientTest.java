@@ -85,6 +85,21 @@ public class DemoModelClientTest implements FabricClientGameTest {
 			ctx.waitTicks(5);
 			ctx.takeScreenshot("demo_fours_look");
 			this.walk(ctx, server, at, "demo_crawl");
+			// Coming at the camera: how wide he goes.
+			this.demo(server, at[0] + 0.5, at[1] - 4.5, 0f);
+			ctx.waitTicks(3);
+			for (int i = 0; i < 26; i++) {
+				server.runOnServer(s -> {
+					ServerPlayer m = ShapeBrain.body();
+					m.teleportTo(s.overworld(), m.getX(), m.getY(), m.getZ() + 0.15, java.util.Set.of(), 0f, 0f, false);
+					m.setYHeadRot(0f);
+					m.setYBodyRot(0f);
+				});
+				ctx.waitTicks(1);
+				if (i == 18 || i == 22) {
+					ctx.takeScreenshot("demo_crawl_front_" + i);
+				}
+			}
 
 			ctx.runOnClient(mc -> DemogorgonModel.forcedPose = HwNet.DemoPose.CHARGING);
 			this.demo(server, at[0] + 0.5, at[1] + 0.5, 270f);
@@ -113,6 +128,36 @@ public class DemoModelClientTest implements FabricClientGameTest {
 			ctx.waitTicks(2);
 			ctx.takeScreenshot("demo_strike_fours");
 
+			// Devouring: the person thrown down on their back in front of him, him over them, mouth open; a bite.
+			int victim = server.computeOnServer(s -> {
+				var list = s.overworld().getEntitiesOfClass(net.minecraft.world.entity.LivingEntity.class,
+					new net.minecraft.world.phys.AABB(at[0] - 10, 140, at[1] - 10, at[0] + 10, 160, at[1] + 10), e -> e.entityTags().contains("hw_test"));
+				var v = list.getFirst();
+				v.teleportTo(at[0] + 0.5 + 0.55, 151, at[1] + 0.5);
+				v.setYRot(90f);
+				v.setYBodyRot(90f);
+				v.setYHeadRot(90f);
+				return v.getId();
+			});
+			this.demo(server, at[0] + 0.5, at[1] + 0.5, 270f);
+			server.runOnServer(s -> {
+				dev.halloween.game.GrabSession.anim(ShapeBrain.body(), HwNet.Anim.DEVOUR);
+				dev.halloween.game.GrabSession.anim(s.overworld().getEntity(victim), HwNet.Anim.PINNED);
+			});
+			ctx.waitTicks(14);
+			ctx.takeScreenshot("demo_devour_1");
+			ctx.waitTicks(7);
+			ctx.takeScreenshot("demo_devour_2");
+			server.runOnServer(s -> dev.halloween.game.GrabSession.anim(ShapeBrain.body(), HwNet.Anim.KNIFE_DOWN));
+			ctx.waitTicks(3);
+			ctx.takeScreenshot("demo_devour_bite");
+			server.runOnServer(s -> player(s).teleportTo(s.overworld(), at[0] + 3.5, 151, at[1] + 3.5, java.util.Set.of(), 135f, 25f, false));
+			ctx.waitTicks(5);
+			ctx.takeScreenshot("demo_devour_close");
+			server.runOnServer(s -> {
+				dev.halloween.game.GrabSession.anim(ShapeBrain.body(), HwNet.Anim.NONE);
+				dev.halloween.game.GrabSession.anim(s.overworld().getEntity(victim), HwNet.Anim.NONE);
+			});
 			server.runCommand("kill @e[tag=hw_test]");
 			server.runCommand("hw stop");
 			ctx.waitTicks(5);

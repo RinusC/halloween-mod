@@ -359,6 +359,10 @@ public final class HwNet {
 		public static final int RISE = 10;
 		/** The Runt on somebody's back, strangling them. */
 		public static final int STRANGLE = 11;
+		/** Thrown down on their back under the Demogorgon: pushing at him, kicking. */
+		public static final int PINNED = 12;
+		/** The Demogorgon over someone on the ground, claws pinning them, his mouth open, tearing at them. */
+		public static final int DEVOUR = 13;
 
 		public static final Type<Anim> TYPE = payloadType("anim");
 		public static final StreamCodec<RegistryFriendlyByteBuf, Anim> CODEC = StreamCodec.of((buf, v) -> {

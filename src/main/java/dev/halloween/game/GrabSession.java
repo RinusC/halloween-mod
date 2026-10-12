@@ -88,8 +88,14 @@ public final class GrabSession {
 		this.level().playSound(null, victim.getX(), victim.getY(), victim.getZ(), HwSounds.GRAB, SoundSource.HOSTILE, 1.2f, 1f);
 		Voices.play(victim, Voices.Kind.SCREAM);
 		this.nextChoke = this.level().getGameTime() + 14;
-		anim(shape, HwNet.Anim.HOLD);
-		anim(victim, HwNet.Anim.STRUGGLE);
+		if (Demogorgon.active()) {
+			// The Demogorgon throws them down on their back and goes for them with his mouth.
+			anim(shape, HwNet.Anim.DEVOUR);
+			anim(victim, HwNet.Anim.PINNED);
+		} else {
+			anim(shape, HwNet.Anim.HOLD);
+			anim(victim, HwNet.Anim.STRUGGLE);
+		}
 		this.startVictimRound(0);
 		this.startShapeRound(0);
 		this.sendState();
@@ -389,6 +395,11 @@ public final class GrabSession {
 		ServerLevel level = this.level();
 		anim(this.shape, HwNet.Anim.KNIFE_DOWN);
 		level.playSound(null, this.victim.getX(), this.victim.getY(), this.victim.getZ(), HwSounds.STAB, SoundSource.HOSTILE, 1.1f, 0.9f + this.random.nextFloat() * 0.2f);
+		if (Demogorgon.active()) {
+			// Not a knife: his mouth.
+			level.playSound(null, this.victim.getX(), this.victim.getY(), this.victim.getZ(), net.minecraft.sounds.SoundEvents.RAVAGER_ATTACK, SoundSource.HOSTILE, 1.2f,
+				0.55f + this.random.nextFloat() * 0.15f);
+		}
 		MatchManager.bleed(level, this.victim, this.bloody ? 30 : 18);
 	}
 
@@ -462,8 +473,10 @@ public final class GrabSession {
 
 	private void pinVictim() {
 		float yaw = this.shape.getYRot() * Mth.DEG_TO_RAD;
-		double x = this.shape.getX() - Mth.sin(yaw) * 0.9;
-		double z = this.shape.getZ() + Mth.cos(yaw) * 0.9;
+		// Held up in front of him; under the Demogorgon, lying, their feet by his.
+		double reach = Demogorgon.active() ? 0.55 : 0.9;
+		double x = this.shape.getX() - Mth.sin(yaw) * reach;
+		double z = this.shape.getZ() + Mth.cos(yaw) * reach;
 		// Face the Shape.
 		float victimYaw = this.shape.getYRot() + 180f;
 		if (this.victim.distanceToSqr(x, this.shape.getY(), z) > 0.04) {

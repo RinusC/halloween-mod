@@ -557,15 +557,20 @@ sub acos { my $x = shift; return atan2(sqrt(1 - $x * $x), $x); }
 sub place {
 	my ($pose, %t) = @_;
 	for my $side (qw(right left)) {
-		if (my $T = $t{"${side}_hand"}) {
+		if (my $T0 = $t{"${side}_hand"}) {
 			my ($W, $A) = fk($pose);
+			# Splayed out sideways the arm reaches less far down: aimed lower in the side view to make up for it.
+			my $S0 = $W->{"${side}_upper_arm"};
+			my $T = [$S0->[0] - ($S0->[0] - $T0->[0]) / cos(($t{abd_arm} // 0) * $PI / 180), $T0->[1]];
 			my ($l1, $l2, $w2) = ik2($W->{"${side}_upper_arm"}, $A->{"${side}_shoulder"}, 9, 8.5, $T, $t{arm_bend} // 'back');
 			$pose->{"${side}_upper_arm"}[0] = $l1;
 			$pose->{"${side}_forearm"}[0] = $l2;
 			$pose->{"${side}_hand"}[0] = ($t{"${side}_hand_ang"} // 20) - $w2;
 		}
-		if (my $T = $t{"${side}_foot"}) {
+		if (my $T0 = $t{"${side}_foot"}) {
 			my ($W, $A) = fk($pose);
+			my $S0 = $W->{"${side}_thigh"};
+			my $T = [$S0->[0] - ($S0->[0] - $T0->[0]) / cos(($t{abd_leg} // 0) * $PI / 180), $T0->[1]];
 			my ($l1, $l2, $w2) = ik2($W->{"${side}_thigh"}, $A->{hips}, 8, 8, $T, 'fwd');
 			$pose->{"${side}_thigh"}[0] = $l1;
 			$pose->{"${side}_shin"}[0] = $l2;
@@ -596,6 +601,8 @@ sub fingers {
 
 sub smooth { my $t = shift; return $t * $t * (3 - 2 * $t); }
 
+sub max { my ($a, $b) = @_; return $a > $b ? $a : $b; }
+
 # ---------------------------------------------------------------- the stances
 # Standing: hunched a little, the long arms hanging slightly forward.
 sub stand {
@@ -618,6 +625,8 @@ sub stand {
 }
 
 # On all fours: the back near level, hips high, the neck up so the head (the bud) points forwards.
+my ($ABD_ARM, $ABD_LEG) = (20, 15);
+
 sub fours {
 	my %o = @_;
 	my $p = {hips_pos => [0, $o{drop} // -4.6, $o{back} // 5.4]};
@@ -628,9 +637,10 @@ sub fours {
 	setr($p, "head", $o{head} // -34);
 	for my $s (qw(right left)) {
 		my $sx = $s eq 'right' ? 1 : -1;
-		setr($p, "${s}_shoulder", 0, 0, 4 * $sx);
-		setr($p, "${s}_upper_arm", 0, 0, 7 * $sx);
-		setr($p, "${s}_thigh", 0, 0, 5 * $sx);
+		# Arms and legs splayed out wide: turned about the forward axis (on all fours his parents' y axes point
+		# forwards), outwards.
+		setr($p, "${s}_upper_arm", 0, -($o{abd_arm} // $ABD_ARM) * $sx, 0);
+		setr($p, "${s}_thigh", 0, -($o{abd_leg} // $ABD_LEG) * $sx, 0);
 	}
 	return $p;
 }
@@ -758,12 +768,12 @@ sub on_fours {
 	for my $s (qw(right left)) {
 		my $dzH = $o{"${s}_hand_dz"} // 0;
 		my $dzF = $o{"${s}_foot_dz"} // 0;
-		$tg{"${s}_hand"} = [2.9 + ($o{"${s}_hand_lift"} // 0), $zs - 1.8 + $dzH];
+		$tg{"${s}_hand"} = [2.9 + ($o{"${s}_hand_lift"} // 0), $zs - 1.8 + ($o{hand_reach} // 0) + $dzH];
 		$tg{"${s}_hand_ang"} = $o{"${s}_hand_ang"} // 28;
 		$tg{"${s}_foot"} = [$ANKLE[0] + ($o{"${s}_foot_lift"} // 0), $zh + 1.2 + $dzF];
 		$tg{"${s}_foot_ang"} = $o{"${s}_foot_ang"} // 0;
 	}
-	place($p, %tg);
+	place($p, %tg, abd_arm => $ABD_ARM, abd_leg => $ABD_LEG);
 	# Fingers flat on the ground ahead of the hand (or curled, lifted).
 	my ($W, $A) = fk($p);
 	for my $s (qw(right left)) {
@@ -797,16 +807,18 @@ sub on_fours {
 	anim("fours_idle", $T, "loop", \@f);
 }
 
-# crawl: diagonal pairs (front right with hind left), stance 62%, the spine rolling, the head held steady.
+# crawl: diagonal pairs (front right with hind left), stance 62%: a sure, swaggering prowl, long strides, the
+# body rolling and swaying from side to side over the planted limbs, the shoulders rolling, the head held steady.
 {
 	my @f;
-	my $T = 0.9;
-	my $N = 18;
-	my ($sH, $sF) = (3.4, 3.2);
+	my $T = 1.0;
+	my $N = 20;
+	my ($sH, $sF) = (4.8, 4.4);
 	for my $i (0 .. $N) {
 		my $t = $T * $i / $N;
 		my $u = $i / $N;
-		my $p = fours(drop => -4.9 + 0.35 * cos($u * 4 * $PI));
+		my $p = fours(drop => -4.9 + 0.5 * cos($u * 4 * $PI));
+		$p->{hips_pos}[0] = 0.9 * sin(2 * $PI * ($u + 0.12));
 		my %o;
 		for my $limb (['right_hand', 0], ['left_foot', 0.08], ['left_hand', 0.5], ['right_foot', 0.58]) {
 			my ($name, $ph) = @$limb;
@@ -818,7 +830,7 @@ sub on_fours {
 			} else {
 				$k = ($lu - 0.62) / 0.38;
 				$z = $st - 2 * $st * smooth($k);
-				$lift = ($name =~ /hand/ ? 2.8 : 2.2) * sin($PI * $k);
+				$lift = ($name =~ /hand/ ? 3.6 : 2.8) * sin($PI * $k);
 			}
 			my ($side, $what) = split /_/, $name;
 			$o{"${side}_${what}_dz"} = $z;
@@ -832,12 +844,19 @@ sub on_fours {
 				$o{"${side}_foot_ang"} = $k < 0 ? ($lu > 0.5 ? -20 * ($lu - 0.5) / 0.12 : 0) : -20 * (1 - $k) + 10 * sin($PI * $k);
 			}
 		}
-		setr($p, "hips", 0, 6 * cos(2 * $PI * $u), 4 * sin(2 * $PI * $u));
-		setr($p, "waist", 2 * sin(4 * $PI * $u), -4 * cos(2 * $PI * $u));
-		setr($p, "chest", -1.5 * sin(4 * $PI * $u), -5 * cos(2 * $PI * $u + 0.5), -4 * sin(2 * $PI * $u + 0.5));
-		# The head held level against the body's roll.
-		setr($p, "neck", 1.5 * sin(4 * $PI * $u + 1), 0, 5 * cos(2 * $PI * $u));
-		setr($p, "head", 0, 0, 4 * sin(2 * $PI * $u + 0.5));
+		# Hips: turning (y) and rolling (z) with the hind legs; the chest the other way with the front ones (its
+		# parent bent forwards: y rolls it, z turns it).
+		setr($p, "hips", 0, 9 * cos(2 * $PI * $u), 7 * sin(2 * $PI * $u));
+		setr($p, "waist", 2.5 * sin(4 * $PI * $u), -5 * cos(2 * $PI * $u), 0);
+		setr($p, "chest", -2 * sin(4 * $PI * $u), 8 * sin(2 * $PI * $u + 0.4), -7 * cos(2 * $PI * $u + 0.4));
+		for my $s (qw(right left)) {
+			# The shoulder rides up as its arm swings through.
+			my $sx = $s eq 'right' ? 1 : -1;
+			setr($p, "${s}_shoulder", 0, 0, 5 * $sx * sin(2 * $PI * $u + ($s eq 'right' ? 0 : $PI)));
+		}
+		# The head held steady against all of it, a slow bob.
+		setr($p, "neck", 2 * sin(4 * $PI * $u + 1), -4 * sin(2 * $PI * $u + 0.4), 6 * cos(2 * $PI * $u + 0.4));
+		setr($p, "head", 1.5 * sin(4 * $PI * $u + 2), 0, 3 * sin(2 * $PI * $u + 0.5));
 		on_fours($p, %o);
 		push @f, [$t, $p];
 	}
@@ -903,6 +922,49 @@ sub on_fours {
 		push @f, [$t, $p];
 	}
 	anim("lunge", 0.4, "hold_on_last_frame", \@f);
+}
+
+# devour: over someone thrown down on their back, his body thrust forwards over them, the claws pinning their
+# shoulders, the head plunging into them twice a second and tearing side to side (the mouth: DemogorgonModel).
+{
+	my @f;
+	my $T = 1.0;
+	my $N = 20;
+	for my $i (0 .. $N) {
+		my $t = $T * $i / $N;
+		my $u = $i / $N;
+		# Two plunges: down fast, a worrying shake, back up slower.
+		my $plunge = 0;
+		for my $at (0.05, 0.55) {
+			my $d = $u - $at;
+			$d += 1 if $d < 0;
+			$plunge = max($plunge, $d < 0.1 ? $d / 0.1 : $d < 0.3 ? 1 : $d < 0.45 ? 1 - ($d - 0.3) / 0.15 : 0);
+		}
+		my $shake = $plunge > 0.9 ? sin($u * 2 * $PI * 7) : 0;
+		my $p = fours(drop => -6.2 + 0.3 * sin(2 * $PI * $u), back => -9, hips => -74, waist => -8, chest => -12 + 5 * $plunge,
+			neck => 20 - 26 * $plunge, head => -40 - 18 * $plunge);
+		setr($p, "head", 0, 14 * $shake, 10 * $shake);
+		setr($p, "neck", 0, -6 * $shake, 0);
+		setr($p, "hips", 0, 3 * sin(2 * $PI * $u), 0);
+		on_fours($p, hand_reach => -3.5, right_hand_dz => -0.5 * $plunge, left_hand_dz => 0.4 * $plunge, right_foot_dz => 1.5, left_foot_dz => 0.5,
+			right_finger => 30, left_finger => 30, right_tip => -50, left_tip => -50, right_hand_ang => 55, left_hand_ang => 55);
+		push @f, [$t, $p];
+	}
+	anim("devour", $T, "loop", \@f);
+}
+
+# bite (laid over devour, each blow of the kill): the head driven down and wrenched back up.
+{
+	my @f;
+	for my $kf ([0, 0, 0], [0.08, 1, 0], [0.18, 1, 1], [0.3, 0.6, -1], [0.4, 0, 0]) {
+		my ($t, $k, $sh) = @$kf;
+		my $p = {};
+		setr($p, "neck", -18 * $k, 8 * $sh, 0);
+		setr($p, "head", -22 * $k, 12 * $sh, 14 * $sh);
+		setr($p, "chest", 8 * $k);
+		push @f, [$t, $p];
+	}
+	anim("bite", 0.4, "once", \@f);
 }
 
 # strike (laid over the standing pose): both claws up over him, the chest drawn back; then raking down hard,

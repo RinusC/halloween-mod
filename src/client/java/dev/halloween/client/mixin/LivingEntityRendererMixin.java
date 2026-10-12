@@ -50,7 +50,9 @@ public abstract class LivingEntityRendererMixin {
 		if (angle > 0f) {
 			// Lifted a little as it goes over, so the back lies on the ground rather than in it.
 			poseStack.translate(0f, 0.18f * (float) Math.sin(Math.toRadians(angle)), 0f);
-			poseStack.mulPose(Axis.XP.rotationDegrees(-angle));
+			// Over towards where they face; thrown down under the Demogorgon, onto their back the other way.
+			boolean back = ClientAnims.onBack(((HwRenderState) state).halloween$entityId());
+			poseStack.mulPose(Axis.XP.rotationDegrees(back ? angle : -angle));
 		}
 	}
 }

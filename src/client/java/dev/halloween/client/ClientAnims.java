@@ -22,6 +22,8 @@ public final class ClientAnims {
 		/** Knocked down (FALL), getting up (RISE): when each began; fallStart below 0 means standing. */
 		float fallStart = -1;
 		float riseStart = -1;
+		/** Down on their back (thrown down under the Demogorgon) rather than face down. */
+		boolean onBack;
 	}
 
 	private static final Map<Integer, State> STATES = new HashMap<>();
@@ -44,19 +46,30 @@ public final class ClientAnims {
 			case HwNet.Anim.FALL -> {
 				s.fallStart = now();
 				s.riseStart = -1;
+				s.onBack = false;
 			}
 			case HwNet.Anim.RISE -> {
 				if (s.fallStart >= 0) {
 					s.riseStart = now();
 				}
 			}
-			case HwNet.Anim.HOLD, HwNet.Anim.STRUGGLE, HwNet.Anim.STRANGLE -> s.hold = payload.kind();
+			case HwNet.Anim.HOLD, HwNet.Anim.STRUGGLE, HwNet.Anim.STRANGLE, HwNet.Anim.DEVOUR -> s.hold = payload.kind();
+			case HwNet.Anim.PINNED -> {
+				// Thrown down on their back.
+				s.hold = payload.kind();
+				s.fallStart = now();
+				s.riseStart = -1;
+				s.onBack = true;
+			}
 			case HwNet.Anim.REACH, HwNet.Anim.KNIFE_DOWN -> {
 				s.once = payload.kind();
 				s.onceStart = now();
 			}
 			default -> {
-				// Torn free or stabbed: the hold is over.
+				// Torn free or stabbed: the hold is over (off the ground again if they were pinned down).
+				if (s.hold == HwNet.Anim.PINNED && s.fallStart >= 0) {
+					s.riseStart = now();
+				}
 				s.hold = HwNet.Anim.NONE;
 				s.once = payload.kind();
 				s.onceStart = now();
@@ -101,7 +114,25 @@ public final class ClientAnims {
 		return s.hold != HwNet.Anim.NONE || s.fallStart >= 0 || s.once != HwNet.Anim.NONE && now() - s.onceStart <= duration(s.once);
 	}
 
-	/** The hold this entity is in (HwNet.Anim: HOLD, STRUGGLE, STRANGLE), or NONE. */
+	/** Is this entity down on its back (see fallAngle), not on its face? */
+	public static boolean onBack(int entityId) {
+		State s = STATES.get(entityId);
+		return s != null && s.onBack;
+	}
+
+	/** The one-off move this entity is playing (HwNet.Anim), or NONE. */
+	public static int once(int entityId) {
+		State s = STATES.get(entityId);
+		return s == null || s.once == HwNet.Anim.NONE || now() - s.onceStart > duration(s.once) ? HwNet.Anim.NONE : s.once;
+	}
+
+	/** Ticks since its one-off move began. */
+	public static float onceTime(int entityId) {
+		State s = STATES.get(entityId);
+		return s == null ? 0f : now() - s.onceStart;
+	}
+
+	/** The hold this entity is in (HwNet.Anim: HOLD, STRUGGLE, STRANGLE, PINNED, DEVOUR), or NONE. */
 	public static int hold(int entityId) {
 		State s = STATES.get(entityId);
 		return s == null ? HwNet.Anim.NONE : s.hold;
@@ -133,6 +164,26 @@ public final class ClientAnims {
 	/** Lays the entity's grab pose over the model's ordinary one. */
 	public static void apply(HumanoidModel<?> m, int entityId) {
 		State s = STATES.get(entityId);
+		if (s != null && s.hold == HwNet.Anim.PINNED) {
+			// On their back under him (the body laid over by fallAngle): arms up pushing at him, legs kicking,
+			// the head twisting away from his mouth.
+			float now = now();
+			float a = Mth.sin(now * 1.1f);
+			float b = Mth.sin(now * 1.3f + 1f);
+			m.rightArm.xRot = -1.5f + a * 0.3f;
+			m.leftArm.xRot = -1.5f - a * 0.3f;
+			m.rightArm.yRot = -0.25f;
+			m.leftArm.yRot = 0.25f;
+			m.rightArm.zRot = 0.25f + b * 0.15f;
+			m.leftArm.zRot = -0.25f - b * 0.15f;
+			m.rightLeg.xRot = -0.35f + Mth.sin(now * 0.9f) * 0.6f;
+			m.leftLeg.xRot = -0.35f - Mth.sin(now * 0.9f) * 0.6f;
+			m.rightLeg.zRot = 0.12f;
+			m.leftLeg.zRot = -0.12f;
+			m.head.yRot = Mth.sin(now * 0.6f) * 0.7f;
+			m.head.xRot = -0.25f;
+			return;
+		}
 		if (s != null && s.fallStart >= 0) {
 			// Down: arms flung out, legs a little apart, head lolling.
 			float k = fallAngle(entityId) / 90f;

@@ -127,10 +127,12 @@ public final class DemogorgonModel extends Model<AvatarRenderState> {
 		float now = now();
 		Carriage c = update(id, now);
 		float t = s.ageInTicks;
-		boolean busy = ClientAnims.busy(id);
-		float four = busy ? 0f : c.four.at(now, 7f, 16f);
-		float charge = busy ? 0f : c.charge.at(now, 5f, 4f);
-		float lunge = busy ? 0f : c.lunge.at(now, 1.5f, 7f);
+		// Over someone thrown down, tearing at them (the kill's bites too): on all fours, a stance of its own.
+		boolean devour = ClientAnims.hold(id) == HwNet.Anim.DEVOUR;
+		boolean busy = ClientAnims.busy(id) && !devour;
+		float four = busy ? 0f : devour ? 1f : c.four.at(now, 7f, 16f);
+		float charge = busy || devour ? 0f : c.charge.at(now, 5f, 4f);
+		float lunge = busy || devour ? 0f : c.lunge.at(now, 1.5f, 7f);
 		float speed = Mth.clamp(s.walkAnimationSpeed * 1.6f, 0f, 1f);
 		// One loop of a gait per stride of the player's walk (cos(pos * 0.6662)); on all fours a quicker step.
 		float stride = s.walkAnimationPos * 0.6662f / Mth.TWO_PI;
@@ -138,20 +140,29 @@ public final class DemogorgonModel extends Model<AvatarRenderState> {
 		// The whole-body stances, weighted to add up to one.
 		float wLunge = four * lunge;
 		float wCharge = four * charge * (1f - lunge);
-		float wFours = Math.max(0f, four - wLunge - wCharge);
+		float wFours = devour ? 0f : Math.max(0f, four - wLunge - wCharge);
 		float wStand = 1f - four;
 		BbModel.Animation walk = this.bb.animation("walk");
 		BbModel.Animation crawl = this.bb.animation("crawl");
 		this.bb.apply("idle", t / 20f, wStand * (1f - speed));
 		this.bb.apply("walk", stride * walk.length(), wStand * speed);
 		this.bb.apply("fours_idle", t / 20f, wFours * (1f - speed));
-		this.bb.apply("crawl", stride * 1.35f * crawl.length(), wFours * speed);
+		this.bb.apply("crawl", stride * crawl.length(), wFours * speed);
 		this.bb.apply("charge", t / 20f, wCharge);
 		this.bb.apply("lunge", (now - c.lungeStart) / 20f, wLunge);
 
 		// A blow: both claws raking down (rearing up on all fours), the petals flung open.
 		float open = 0.04f + 0.03f * Mth.sin(t * 0.09f);
-		if (s.attackTime > 0f) {
+		if (devour) {
+			this.bb.apply("devour", t / 20f, 1f);
+			// The mouth wide, gaping wider as the head plunges; each blow of the kill a bite.
+			open = 0.8f + 0.2f * Mth.sin(t * 0.63f);
+			if (ClientAnims.once(id) == HwNet.Anim.KNIFE_DOWN) {
+				this.bb.apply("bite", ClientAnims.onceTime(id) / 20f, 1f);
+				open = 1f;
+			}
+		}
+		if (s.attackTime > 0f && !devour) {
 			float a = Mth.clamp(s.attackTime, 0f, 1f);
 			this.bb.apply("strike", a * 0.5f, 1f - four);
 			this.bb.apply("strike_fours", a * 0.5f, four);
@@ -167,7 +178,7 @@ public final class DemogorgonModel extends Model<AvatarRenderState> {
 		// Now and then a spasm: the head jerking, the petals twitching.
 		int cycle = 110 + Math.floorMod(id * 37, 60);
 		float phase = Math.floorMod((int) t + id * 13, cycle) + (t - (int) t);
-		if (phase < 32f && lunge < 0.5f && !busy) {
+		if (phase < 32f && lunge < 0.5f && !busy && !devour) {
 			float w = Mth.sin(phase / 32f * Mth.PI);
 			this.bb.apply("twitch", phase / 20f, w);
 			open = Math.max(open, 0.18f * w + 0.08f * Mth.sin(t * 3.1f) * w);
@@ -188,7 +199,7 @@ public final class DemogorgonModel extends Model<AvatarRenderState> {
 			if (ClientAnims.hold(id) != HwNet.Anim.NONE) {
 				open = Math.max(open, 0.45f + 0.1f * Mth.sin(t * 0.4f));
 			}
-		} else {
+		} else if (!devour) {
 			this.look(s, four, lunge);
 		}
 		this.bb.apply("mouth", Mth.clamp(open, 0f, 1f), 1f);
