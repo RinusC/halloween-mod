@@ -23,6 +23,11 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 public final class Blood {
 	private static final Map<UUID, Vec3> LAST_DRIP = new HashMap<>();
 	private static final Map<UUID, Integer> SINCE_DRIP = new HashMap<>();
+	/** The drips still on the ground: where, and when they fell (what Michael sees of a trail, see {@link #drips}). */
+	private static final java.util.ArrayDeque<Drip> DRIPS = new java.util.ArrayDeque<>();
+
+	public record Drip(Vec3 pos, int at) {
+	}
 
 	private Blood() {
 	}
@@ -45,13 +50,18 @@ public final class Blood {
 	/** Wounded survivors leave drips: often while moving, now and then standing still. */
 	public static void tick(MinecraftServer server) {
 		if (!Match.running()) {
-			if (!LAST_DRIP.isEmpty()) {
+			if (!LAST_DRIP.isEmpty() || !DRIPS.isEmpty()) {
 				LAST_DRIP.clear();
 				SINCE_DRIP.clear();
+				DRIPS.clear();
 			}
 			return;
 		}
 		HwConfig cfg = HwConfig.get();
+		int now = server.getTickCount();
+		while (!DRIPS.isEmpty() && now - DRIPS.peekFirst().at() > cfg.bloodTrailSeconds * 20) {
+			DRIPS.pollFirst();
+		}
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
 			if (!MatchManager.role(player).survivor() || player.isSpectator() || Lockers.isInside(player)
 				|| player.getHealth() >= player.getMaxHealth() * cfg.bloodTrailBelowHealth) {
@@ -75,8 +85,14 @@ public final class Blood {
 			double jz = (level.getRandom().nextDouble() - 0.5) * 0.4;
 			level.sendParticles(HwParticles.BLOOD_DRIP, true, true, player.getX() + jx, floor, player.getZ() + jz, 0,
 				0.07 + level.getRandom().nextFloat() * 0.07, cfg.bloodTrailSeconds, 0, 1);
+			DRIPS.addLast(new Drip(new Vec3(player.getX() + jx, floor, player.getZ() + jz), now));
 			AiStats.add(player, "blood.drip");
 		}
+	}
+
+	/** The drips on the ground now, oldest first. */
+	public static java.util.Collection<Drip> drips() {
+		return DRIPS;
 	}
 
 	/** The top of whatever is underfoot at {@code at} (within two blocks down), or NaN. */

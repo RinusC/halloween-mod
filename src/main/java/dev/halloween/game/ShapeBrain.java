@@ -42,7 +42,7 @@ public final class ShapeBrain {
 	private static ShapeBrain brain;
 
 	private enum Mode {
-		PATROL, LISTEN, STALK, CHASE, RETREAT, LEAVE, SEARCH, CAMP, WORK
+		PATROL, LISTEN, STALK, CHASE, RETREAT, LEAVE, SEARCH, CAMP, WORK, RAID
 	}
 
 	/** What he does about a survivor who noticed him (or ran) before he had stalked them enough: picked at random. */
@@ -61,6 +61,21 @@ public final class ShapeBrain {
 
 	/** Something heard or shown: where, when, how much it is worth going to. */
 	private record Lead(Vec3 pos, int at, double weight, String kind) {
+	}
+
+	/**
+	 * A sign that someone has been there (a door moved, a drawer gone through, the lights on again, blood): where,
+	 * when he noticed it, how much it says, and the building it is in or by ({@link #NO_HOUSE} if none).
+	 */
+	private record Clue(Vec3 pos, int at, double weight, long house) {
+	}
+
+	private static final long NO_HOUSE = Long.MIN_VALUE;
+	/** How long a clue counts for anything (it fades out over this). */
+	private static final int CLUE_TICKS = 20 * 120;
+
+	/** What he last saw of a thing that gives people away (a door open, a breaker on, a drawer gone through), and when. */
+	private record Seen(boolean state, int at) {
 	}
 
 	private final BotPlayer body;
@@ -120,6 +135,34 @@ public final class ShapeBrain {
 	private int lockersOpened;
 	private BlockPos camping;
 	private int campUntil;
+	/** How close he goes to where he keeps watch: near a way out, or right on the spot he watches a house from. */
+	private double campWithin = 7;
+	/** What he keeps his eyes on while he watches (the house he left), or null: he looks about. */
+	private Vec3 campFace;
+	private final List<Clue> clues = new ArrayList<>();
+	private final Map<BlockPos, Seen> props = new HashMap<>();
+	/** Noises of his own making a step or two off (a breaker he flips, a wardrobe he throws open, a door he hits), and when. */
+	private final List<Lead> ownNoise = new ArrayList<>();
+	/** The newest drop of blood he has followed. */
+	private int lastDripAt = -1;
+	/** The blackout as he last knew it: when it ends every breaker comes back on, and that is nobody's sign. */
+	private boolean blackoutWas;
+	/** A house he goes through room by room: the rooms in the order he takes them, how far he has got. */
+	private Houses.Building raid;
+	private final List<Houses.Room> raidRooms = new ArrayList<>();
+	private int raidRoom;
+	private int raidSpot;
+	private int raidStarted;
+	private int raidUntil;
+	/** When he got to where he stands looking round the room (-1: not there yet). */
+	private int roomLookAt = -1;
+	private float sweepYaw;
+	private int raidLockers;
+	/** Gone in after someone seen lately or on good signs: worth watching the house a while after, if he finds nobody. */
+	private boolean raidFresh;
+	private int raidCheckAt;
+	/** Houses he went through, by key, and when he was done. */
+	private final Map<Long, Integer> raided = new HashMap<>();
 
 	private ShapeBrain(BotPlayer body) {
 		this.body = body;
@@ -150,6 +193,7 @@ public final class ShapeBrain {
 	/** His mind, once the body has his role. */
 	static void attach(BotPlayer bot) {
 		brain = new ShapeBrain(bot);
+		Houses.clear();
 		if (bot.wire != null) {
 			bot.wire.listener = brain::packet;
 		}
@@ -183,7 +227,8 @@ public final class ShapeBrain {
 			+ " work " + (b.workAt == null ? "-" : b.workAt.toShortString()) + " walking " + !b.walker.idle()
 			+ " holds " + Holds.working(b.body) + " done " + b.done.size() + " leads " + b.leads.size() + " reaction " + b.reaction
 			+ String.format(" pos %.2f %.2f %.2f", b.body.getX(), b.body.getY(), b.body.getZ()) + " status " + b.lastStatus + " aim " + (b.aim == null ? "-" : b.aim.toShortString())
-			+ " best " + String.format("%.1f", b.bestDist) + " unstick " + b.unstick + " tokens " + String.format("%.1f", b.searches) + " zza " + b.body.zza;
+			+ " best " + String.format("%.1f", b.bestDist) + " unstick " + b.unstick + " tokens " + String.format("%.1f", b.searches) + " zza " + b.body.zza
+			+ " raid " + (b.raid == null ? "-" : b.raidRoom + "/" + b.raidRooms.size()) + " clues " + b.clues.size();
 	}
 
 	/** How far he stalks this survivor before going for them: 2, or 3 once they got out of his hands. */
@@ -227,9 +272,21 @@ public final class ShapeBrain {
 			b.aim = null;
 			b.escaping = false;
 			b.lightJob = null;
+			b.clues.clear();
+			b.props.clear();
+			b.lastDripAt = -1;
+			b.raid = null;
+			b.raided.clear();
+			b.campWithin = 7;
+			b.campFace = null;
 			b.mode = Mode.PATROL;
 			b.walker.stop();
 		}
+	}
+
+	/** Tests: how many rooms of the house he is going through he has done, of how many (null: no raid). */
+	public static int[] raidProgress() {
+		return brain == null || brain.raid == null ? null : new int[]{brain.raidRoom, brain.raidRooms.size()};
 	}
 
 	/** Tests: the only place he makes for (nothing else on his mind). */
@@ -306,6 +363,11 @@ public final class ShapeBrain {
 			// His own.
 			return;
 		}
+		for (Lead own : this.ownNoise) {
+			if (now - own.at() < 15 && own.pos().distanceTo(at) < 2) {
+				return;
+			}
+		}
 		for (ServerPlayer p : this.level().players()) {
 			if (MatchManager.role(p) == dev.halloween.Role.RUNT && p.position().distanceTo(at) < 2) {
 				// The Runt's: his own side.
@@ -353,6 +415,12 @@ public final class ShapeBrain {
 			return;
 		}
 		this.lead(at, now, weight, kind);
+	}
+
+	/** A noise he is about to make himself: not one to go and see. */
+	private void own(Vec3 at, int now) {
+		this.ownNoise.removeIf(n -> now - n.at() >= 15);
+		this.ownNoise.add(new Lead(at, now, 0, "own"));
 	}
 
 	private void lead(Vec3 pos, int now, double weight, String kind) {
@@ -431,6 +499,8 @@ public final class ShapeBrain {
 		this.done.values().removeIf(until -> until < now);
 		this.unreachable.values().removeIf(until -> until < now);
 		this.revealed.values().removeIf(until -> until < now);
+		this.clues.removeIf(c -> now - c.at > CLUE_TICKS);
+		this.raided.values().removeIf(at -> now - at > 20 * 300);
 		if (st.grab != null) {
 			this.grabbing = st.grab.victim();
 			this.grab(st, now);
@@ -447,6 +517,9 @@ public final class ShapeBrain {
 			this.sense(st, false, false);
 			return;
 		}
+		if (now % 10 == 0) {
+			this.observe(st, now);
+		}
 		LivingEntity seen = this.look(st, now);
 		if (seen != null) {
 			if (seen != this.target) {
@@ -459,6 +532,8 @@ public final class ShapeBrain {
 			this.lastSeen = seen.position();
 			this.lastSeenAt = now;
 			this.mode = this.decide(st, seen, now);
+			// Someone in sight: the house can wait (gone through again later if they get away in it).
+			this.raid = null;
 		} else if (this.target != null && (this.mode == Mode.CHASE || this.mode == Mode.STALK)) {
 			if (gone(this.target)) {
 				this.afterDeath(this.target, now);
@@ -483,6 +558,7 @@ public final class ShapeBrain {
 			case RETREAT -> this.retreat(st, now);
 			case LEAVE -> this.leave(st, now);
 			case SEARCH -> this.search(st, now);
+			case RAID -> this.raid(st, now);
 			default -> this.roam(st, now);
 		}
 		// His camera follows his eyes (stalking and grabs read it).
@@ -894,6 +970,15 @@ public final class ShapeBrain {
 		this.walker.throughDoors = st.shadowTicks > 0;
 		Walker.Status status = this.walker.tick();
 		this.lastStatus = status;
+		BlockPos passed = this.walker.takePassedDoor();
+		if (passed != null) {
+			// His own doing: no sign of anyone when he sees it open later.
+			BlockPos door = DoorLocks.base(this.level(), passed);
+			net.minecraft.world.level.block.state.BlockState state = this.level().getBlockState(door);
+			if (state.getBlock() instanceof net.minecraft.world.level.block.DoorBlock) {
+				this.props.put(door, new Seen(state.getValue(net.minecraft.world.level.block.DoorBlock.OPEN), now));
+			}
+		}
 		if (this.aim != null && !this.walker.idle() && status != Walker.Status.LOCKED) {
 			// Nearer as the crow flies, or fewer steps to go (going round a wall takes him away first).
 			int left = this.walker.remaining();
@@ -913,6 +998,7 @@ public final class ShapeBrain {
 				Vec3 door = Vec3.atCenterOf(DoorLocks.base(this.level(), node.pos()).above());
 				this.walker.face(door);
 				MatchManager.onAim(this.body, this.body.getEyePosition(), door.subtract(this.body.getEyePosition()).normalize());
+				this.own(door, now);
 				MatchManager.onShapeAttack(this.body, -1, true);
 				stat("door.hit");
 			}
@@ -1110,6 +1196,7 @@ public final class ShapeBrain {
 		}
 		this.walker.halt();
 		this.walker.face(at);
+		this.own(at, now);
 		LightSystem.flip(level, b, false);
 		this.done.put(b, now + 20 * 120);
 		this.lightJob = null;
@@ -1165,6 +1252,18 @@ public final class ShapeBrain {
 		}
 		Vec3 heading = this.lastSeen.add(this.lastVelocity.scale(30));
 		BlockPos where = BlockPos.containing(heading);
+		if (now >= this.raidCheckAt) {
+			// Last seen in a house, or making for one: through it room by room.
+			this.raidCheckAt = now + 20;
+			Houses.Building b = Houses.at(this.level(), BlockPos.containing(this.lastSeen));
+			if (b == null) {
+				b = Houses.at(this.level(), where);
+			}
+			if (b != null && this.mayRaid(b, now, this.lastSeenAt)) {
+				this.startRaid(b, this.lastSeen, now, "lost");
+				return;
+			}
+		}
 		if (this.body.position().distanceTo(Vec3.atBottomCenterOf(where)) > 3 && this.lookAroundUntil == 0) {
 			if (now >= this.repathAt || this.walker.idle()) {
 				this.repathAt = now + 20;
@@ -1188,6 +1287,15 @@ public final class ShapeBrain {
 			this.sense(st, true, false);
 			this.glance(now);
 			return;
+		}
+		if (this.lockersOpened == 0 && now >= this.raidCheckAt) {
+			// Nothing out here: the house by where they were, if there is one.
+			this.raidCheckAt = now + 20;
+			Houses.Building b = Houses.near(this.level(), this.lastSeen, 8);
+			if (b != null && this.mayRaid(b, now, this.lastSeenAt)) {
+				this.startRaid(b, this.lastSeen, now, "near");
+				return;
+			}
 		}
 		// Nothing: the wardrobes round here, nearest first (a few).
 		BlockPos locker = this.lockersOpened < 3 ? this.nearestLocker(BlockPos.containing(this.lastSeen), 7, true) : null;
@@ -1245,6 +1353,7 @@ public final class ShapeBrain {
 			return true;
 		}
 		boolean someone = Lockers.occupied(base);
+		this.own(c, now);
 		Lockers.shapeOpen(this.body, base);
 		this.lockersOpened++;
 		this.suspects.remove(base);
@@ -1264,6 +1373,474 @@ public final class ShapeBrain {
 				}
 				if (best == null || base.distSqr(around) < best.distSqr(around)) {
 					best = base.immutable();
+				}
+			}
+		}
+		return best;
+	}
+
+	// ---------------------------------------------------------------- signs that someone was there
+
+	/**
+	 * What the place tells him, as it would a player looking about: a door not as he last saw it, a drawer gone
+	 * through since, the lights on again where they were off, fresh blood on the ground. Only what is in front of
+	 * him, in plain view and near enough; what is right by him he just takes note of (most likely his own doing).
+	 */
+	private void observe(ShapeState st, int now) {
+		if (st.blindTicks > 0) {
+			return;
+		}
+		ServerLevel level = this.level();
+		Vec3 eye = this.body.getEyePosition();
+		Vec3 facing = this.body.getViewVector(1f);
+		// Blood: the freshest drop in sight he hasn't followed yet.
+		Blood.Drip drip = null;
+		for (Blood.Drip d : Blood.drips()) {
+			if (d.at() > this.lastDripAt && (drip == null || d.at() > drip.at()) && this.sees(eye, facing, d.pos().add(0, 0.1, 0), 20)) {
+				drip = d;
+			}
+		}
+		if (drip != null) {
+			this.lastDripAt = drip.at();
+			this.clue(drip.pos(), now, 4 * Math.max(0.3, 1 - (now - drip.at()) / 1200.0), "blood");
+		}
+		if (now % 20 != 0) {
+			return;
+		}
+		if (Events.blackout() != this.blackoutWas) {
+			this.blackoutWas = Events.blackout();
+			this.props.keySet().removeIf(p -> LightSystem.isBreaker(level, p));
+		}
+		BlockPos me = this.body.blockPosition();
+		int r = 18;
+		for (BlockPos p : BlockPos.betweenClosed(me.offset(-r, -3, -r), me.offset(r, 5, r))) {
+			net.minecraft.world.level.block.state.BlockState state = level.getBlockState(p);
+			if (state.getBlock() instanceof net.minecraft.world.level.block.DoorBlock
+				&& state.getValue(net.minecraft.world.level.block.DoorBlock.HALF) == net.minecraft.world.level.block.state.properties.DoubleBlockHalf.LOWER) {
+				this.notice(p.immutable(), state.getValue(net.minecraft.world.level.block.DoorBlock.OPEN), Vec3.atCenterOf(p.above()), eye, facing, now, 2, "door",
+					false, false);
+			} else if (state.is(net.minecraft.world.level.block.Blocks.LEVER) && LightSystem.isBreaker(level, p)) {
+				// Lights on again where they were off: somebody wants to see (off is his own work, or the blackout's).
+				this.notice(p.immutable(), state.getValue(net.minecraft.world.level.block.LeverBlock.POWERED), Vec3.atCenterOf(p), eye, facing, now, 4,
+					"lights", true, false);
+			}
+		}
+		java.util.Set<BlockPos> searched = new java.util.HashSet<>(Loot.searched());
+		for (BlockPos c : Loot.containers()) {
+			if (c.distSqr(me) <= r * r) {
+				this.notice(c, searched.contains(c), Vec3.atCenterOf(c), eye, facing, now, 3, "drawer", true, true);
+			}
+		}
+	}
+
+	/**
+	 * He sees this thing as {@code state} now: if he saw it otherwise before, someone has been at it (the sooner he
+	 * saw it before, the fresher the sign). {@code onlyOn}: only a change to on (opened, searched, switched on) says
+	 * anything. {@code startsOff}: everyone knows it starts off (a drawer not gone through), so finding it on the
+	 * first time he sees it says a little.
+	 */
+	private void notice(BlockPos pos, boolean state, Vec3 at, Vec3 eye, Vec3 facing, int now, double weight, String kind, boolean onlyOn, boolean startsOff) {
+		boolean near = eye.distanceTo(at) < 3;
+		if (!near && !this.sees(eye, facing, at, 18)) {
+			return;
+		}
+		Seen before = this.props.put(pos, new Seen(state, now));
+		if (near) {
+			return;
+		}
+		if (before == null) {
+			if (startsOff && state) {
+				// Gone through some time before he came by.
+				this.clue(at, now, weight * 0.25, kind + ".old");
+			}
+			return;
+		}
+		if (before.state() == state || onlyOn && !state) {
+			return;
+		}
+		this.clue(at, now, weight * Math.max(0.3, 1 - (now - before.at()) / 1200.0), kind);
+	}
+
+	/** Is this point in front of him, near enough (less far in the dark) and in plain view? */
+	private boolean sees(Vec3 eye, Vec3 facing, Vec3 point, double range) {
+		if (this.level().getBrightness(LightLayer.BLOCK, BlockPos.containing(point)) < 7) {
+			range = Math.min(range, 10);
+		}
+		double d = eye.distanceTo(point);
+		if (d > range || d > 2.5 && Sight.angleTo(eye, facing, point) > 75) {
+			return false;
+		}
+		// Just short of it: the thing itself would stop the ray.
+		Vec3 front = d < 0.7 ? point : point.add(eye.subtract(point).scale(0.6 / d));
+		return Sight.canSee(this.level(), eye, front, this.body);
+	}
+
+	/** A sign noticed: kept a while (it adds to its house's), and something worth going to see when it says enough. */
+	private void clue(Vec3 pos, int now, double weight, String kind) {
+		Houses.Building b = Houses.near(this.level(), pos, 2);
+		this.clues.add(new Clue(pos, now, weight, b == null ? NO_HOUSE : b.key));
+		if (this.clues.size() > 60) {
+			this.clues.removeFirst();
+		}
+		if (weight >= 1.5) {
+			this.lead(pos, now, weight, kind);
+		}
+		stat("clue." + kind);
+	}
+
+	private static double fade(Clue c, int now) {
+		return Math.max(0, 1 - (now - c.at()) / (double) CLUE_TICKS);
+	}
+
+	/** What the signs in (or by) this house add up to now. */
+	private double heat(Houses.Building b, int now) {
+		double h = 0;
+		for (Clue c : this.clues) {
+			if (c.house() == b.key) {
+				h += c.weight() * fade(c, now);
+			}
+		}
+		return h;
+	}
+
+	/** What the signs in this room add up to now. */
+	private double roomHeat(Houses.Building b, Houses.Room room, int now) {
+		double h = 0;
+		for (Clue c : this.clues) {
+			if (c.house() == b.key && b.nearestRoom(c.pos()) == room) {
+				h += c.weight() * fade(c, now);
+			}
+		}
+		return h;
+	}
+
+	/**
+	 * The house the signs point to most (only those since he last went through it count), if they add up to enough:
+	 * its strongest sign, or null.
+	 */
+	private Clue hottest(int now) {
+		Map<Long, Double> sum = new HashMap<>();
+		Map<Long, Clue> best = new HashMap<>();
+		for (Clue c : this.clues) {
+			Integer done = this.raided.get(c.house());
+			if (c.house() == NO_HOUSE || done != null && c.at() <= done || c.pos().distanceTo(this.body.position()) > 80) {
+				continue;
+			}
+			double w = c.weight() * fade(c, now);
+			sum.merge(c.house(), w, Double::sum);
+			Clue b = best.get(c.house());
+			if (b == null || w > b.weight() * fade(b, now)) {
+				best.put(c.house(), c);
+			}
+		}
+		Clue pick = null;
+		double top = 3;
+		for (Map.Entry<Long, Double> e : sum.entrySet()) {
+			if (e.getValue() >= top) {
+				top = e.getValue();
+				pick = best.get(e.getKey());
+			}
+		}
+		return pick;
+	}
+
+	// ---------------------------------------------------------------- going through a house
+
+	/** Not a house he has just been through, unless there is something newer to go by ({@code evidenceAt}). */
+	private boolean mayRaid(Houses.Building b, int now, int evidenceAt) {
+		Integer done = this.raided.get(b.key);
+		return done == null || now - done > 20 * 90 || evidenceAt > done;
+	}
+
+	/**
+	 * Through a house room by room: the room they were last in (or the one by where they were) first, then on from
+	 * room to room, the nearest next, rooms the signs point to sooner. In each he stands where he sees it all, looks
+	 * round with his Sense and throws open its wardrobes. The lights go off as he goes.
+	 */
+	private void startRaid(Houses.Building b, Vec3 hint, int now, String why) {
+		this.raid = b;
+		this.raidRooms.clear();
+		List<Houses.Room> left = new ArrayList<>(b.rooms);
+		Vec3 from = hint != null ? hint : this.body.position();
+		Houses.Room first = b.nearestRoom(from);
+		if (first != null) {
+			this.raidRooms.add(first);
+			left.remove(first);
+			from = first.middle();
+		}
+		while (!left.isEmpty()) {
+			Houses.Room next = null;
+			double best = Double.MAX_VALUE;
+			for (Houses.Room r : left) {
+				double d = r.middle().distanceTo(from) + Math.abs(r.center.getY() - from.y) * 3 - 5 * this.roomHeat(b, r, now);
+				if (d < best) {
+					best = d;
+					next = r;
+				}
+			}
+			this.raidRooms.add(next);
+			left.remove(next);
+			from = next.middle();
+		}
+		this.raidRoom = 0;
+		this.raidSpot = 0;
+		this.roomLookAt = -1;
+		this.raidLockers = 0;
+		this.lockersOpened = 0;
+		this.raidStarted = now;
+		this.raidUntil = now + 20 * Math.min(100, 25 + 10 * this.raidRooms.size());
+		this.raidFresh = now - this.lastSeenAt < 20 * 20 || this.heat(b, now) >= 3;
+		this.mode = Mode.RAID;
+		this.goal = null;
+		this.walker.stop();
+		this.repathAt = now;
+		stat("raid." + why);
+	}
+
+	private void raid(ShapeState st, int now) {
+		Houses.Building b = this.raid;
+		if (b == null) {
+			this.mode = Mode.PATROL;
+			return;
+		}
+		if (now > this.raidUntil || this.raidRoom >= this.raidRooms.size()) {
+			this.endRaid(now, true);
+			return;
+		}
+		if (this.raidHeard(now) || this.suspect(st, now)) {
+			return;
+		}
+		if (st.shadowTicks == 0 && now % 10 == 0) {
+			this.lightsOff();
+		}
+		Houses.Room room = this.raidRooms.get(this.raidRoom);
+		BlockPos spot = room.spots.get(Math.min(this.raidSpot, room.spots.size() - 1));
+		double d = this.body.position().distanceTo(Vec3.atBottomCenterOf(spot));
+		boolean there = d < 1.6 || d < 3.5 && this.walker.idle() && b.roomAt(this.body.blockPosition()) == room;
+		if (this.roomLookAt < 0 && !there) {
+			this.sense(st, false, false);
+			if (this.go(st, now, spot, 1.0)) {
+				stat("raid.no_way");
+				this.nextSpot(room);
+			}
+			return;
+		}
+		if (!this.wantOut(st, now)) {
+			// A shadow sees nothing in there: out of it first.
+			return;
+		}
+		this.walker.halt();
+		if (this.roomLookAt < 0) {
+			this.roomLookAt = now;
+			this.sweepYaw = this.body.getYRot();
+			stat("raid.room");
+		}
+		int looked = now - this.roomLookAt;
+		if (looked < (room.cells.size() < 20 ? 30 : 45)) {
+			// All round the room, Sense up.
+			this.sense(st, true, false);
+			this.sweep(looked);
+			return;
+		}
+		this.sense(st, false, false);
+		if (this.raidSpot >= room.spots.size() - 1) {
+			// Its wardrobes (not those he opened lately), a few in all.
+			for (BlockPos locker : room.lockers) {
+				if (this.raidLockers >= 6) {
+					break;
+				}
+				if (this.done.containsKey(locker)) {
+					continue;
+				}
+				if (this.openLocker(st, locker, now)) {
+					if (this.done.containsKey(locker)) {
+						this.raidLockers++;
+					}
+					return;
+				}
+			}
+		}
+		this.nextSpot(room);
+	}
+
+	/** On to the next place to look from in this room, or to the next room. */
+	private void nextSpot(Houses.Room room) {
+		this.roomLookAt = -1;
+		this.walker.stop();
+		if (++this.raidSpot >= room.spots.size()) {
+			this.raidSpot = 0;
+			this.raidRoom++;
+		}
+	}
+
+	/** Looking all round a room: three looks a third of a turn apart, head and body turning at a man's pace. */
+	private void sweep(int looked) {
+		this.turnTo(this.sweepYaw + 120f * Math.min(2, looked / 15), 12f);
+		this.body.setXRot(8f);
+	}
+
+	private void turnTo(float yaw, float step) {
+		float turn = net.minecraft.util.Mth.clamp(net.minecraft.util.Mth.wrapDegrees(yaw - this.body.getYRot()), -step, step);
+		float y = this.body.getYRot() + turn;
+		this.body.setYRot(y);
+		this.body.setYHeadRot(y);
+		this.body.setYBodyRot(y);
+	}
+
+	/**
+	 * Something heard while he goes through the house. In it: that room comes next. Outside it, at a way out, or a
+	 * window: they are slipping out, and he goes round after them. True when he leaves the house for it.
+	 */
+	private boolean raidHeard(int now) {
+		Lead heard = null;
+		for (Lead l : this.leads) {
+			if (l.at() > this.raidStarted && (l.weight() >= 1.5 || l.kind().equals("step")) && !l.kind().equals("locker")
+				&& (heard == null || l.at() > heard.at())) {
+				heard = l;
+			}
+		}
+		if (heard == null) {
+			return false;
+		}
+		this.leads.remove(heard);
+		Houses.Building b = this.raid;
+		BlockPos at = BlockPos.containing(heard.pos());
+		if (!b.touches(at) || heard.kind().equals("glass") || byWayOut(b, heard.pos())) {
+			BlockPos to = this.outsideOf(b, heard.pos());
+			this.endRaid(now, false);
+			this.mode = Mode.LISTEN;
+			this.goal = to;
+			this.goalUntil = now + 20 * 15;
+			this.lastSeen = Vec3.atBottomCenterOf(to);
+			this.lastVelocity = Vec3.ZERO;
+			this.leadScore = 10;
+			this.repathAt = now;
+			stat("raid.flush");
+			return true;
+		}
+		Houses.Room r = b.nearestRoom(heard.pos());
+		int i = r == null ? -1 : this.raidRooms.indexOf(r);
+		if (r != null && i != this.raidRoom) {
+			if (i >= 0) {
+				this.raidRooms.remove(i);
+				if (i < this.raidRoom) {
+					this.raidRoom--;
+				}
+			}
+			this.raidRooms.add(this.raidRoom, r);
+			this.raidSpot = 0;
+			this.roomLookAt = -1;
+			this.walker.stop();
+			this.raidUntil = Math.max(this.raidUntil, now + 20 * 20);
+			stat("raid.heard");
+		}
+		return false;
+	}
+
+	private static boolean byWayOut(Houses.Building b, Vec3 p) {
+		for (BlockPos w : b.ways) {
+			if (Vec3.atBottomCenterOf(w).distanceTo(p) < 2.5) {
+				return true;
+			}
+		}
+		for (BlockPos g : b.windows) {
+			if (Vec3.atCenterOf(g).distanceTo(p) < 2) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/** Ground outside the house by this point: the nearest way out's, or a few steps out from the wall. */
+	private BlockPos outsideOf(Houses.Building b, Vec3 p) {
+		BlockPos best = null;
+		for (BlockPos o : b.outside) {
+			if (best == null || Vec3.atBottomCenterOf(o).distanceTo(p) < Vec3.atBottomCenterOf(best).distanceTo(p)) {
+				best = o;
+			}
+		}
+		if (best != null && Vec3.atBottomCenterOf(best).distanceTo(p) < 4) {
+			return best;
+		}
+		Vec3 out = p.subtract(b.center).multiply(1, 0, 1);
+		if (out.lengthSqr() > 1e-4) {
+			out = out.normalize();
+			for (double k : new double[]{2.5, 3.5, 5}) {
+				BlockPos c = Nav.snap(this.level(), BlockPos.containing(p.add(out.scale(k))));
+				if (Nav.standable(this.level(), c) && !b.contains(c)) {
+					return c;
+				}
+			}
+		}
+		return best != null ? best : BlockPos.containing(p);
+	}
+
+	/**
+	 * Done with the house. {@code watch}: gone through it all and found nobody; if he went in on good grounds, he
+	 * leaves as if for good and keeps an eye on its ways out from the dark a while (whoever hid well comes out).
+	 */
+	private void endRaid(int now, boolean watch) {
+		Houses.Building b = this.raid;
+		this.raid = null;
+		this.lockersOpened = 0;
+		this.roomLookAt = -1;
+		if (b == null) {
+			return;
+		}
+		this.raided.put(b.key, now);
+		stat(watch ? "raid.done" : "raid.left");
+		this.target = null;
+		this.goal = null;
+		this.mode = Mode.PATROL;
+		this.walker.stop();
+		if (watch && this.raidFresh) {
+			BlockPos spot = this.watchSpot(b);
+			if (spot != null) {
+				this.camping = spot;
+				this.campUntil = now + 20 * 20;
+				this.campWithin = 1.5;
+				this.campFace = b.center;
+				stat("raid.watch");
+			}
+		}
+	}
+
+	/** Where to watch a house from: dark ground out from it with as many of its ways out in view as can be. */
+	private BlockPos watchSpot(Houses.Building b) {
+		ServerLevel level = this.level();
+		List<Vec3> exits = new ArrayList<>();
+		for (BlockPos o : b.outside) {
+			Vec3 v = Vec3.atBottomCenterOf(o);
+			if (exits.stream().noneMatch(e -> e.distanceTo(v) < 3)) {
+				exits.add(v);
+			}
+			if (exits.size() >= 8) {
+				break;
+			}
+		}
+		BlockPos best = null;
+		double bestScore = -10;
+		for (Vec3 e : exits) {
+			Vec3 dir = e.subtract(b.center).multiply(1, 0, 1);
+			if (dir.lengthSqr() < 1e-4) {
+				continue;
+			}
+			dir = dir.normalize();
+			for (double k : new double[]{6, 9}) {
+				BlockPos c = Nav.snap(level, BlockPos.containing(e.add(dir.scale(k))));
+				if (!Nav.standable(level, c) || b.contains(c) || this.unreachable.containsKey(c)) {
+					continue;
+				}
+				Vec3 eye = Vec3.atBottomCenterOf(c).add(0, 1.6, 0);
+				double score = this.lit(c) ? -1.5 : 0;
+				for (Vec3 x : exits) {
+					if (Sight.canSee(level, eye, x.add(0, 1, 0), this.body)) {
+						score += 1;
+					}
+				}
+				if (score > bestScore) {
+					bestScore = score;
+					best = c;
 				}
 			}
 		}
@@ -1352,16 +1929,26 @@ public final class ShapeBrain {
 		if (watch != null && (this.camping == null || !this.camping.equals(watch))) {
 			this.camping = watch;
 			this.campUntil = now + 20 * 30;
+			this.campWithin = 7;
+			this.campFace = null;
 			stat("camp");
 		}
 		if (this.camping != null && now < this.campUntil) {
 			this.mode = Mode.CAMP;
-			if (this.body.position().distanceTo(Vec3.atBottomCenterOf(this.camping)) > 7) {
-				this.travel(st, now, this.camping, 5);
+			if (this.body.position().distanceTo(Vec3.atBottomCenterOf(this.camping)) > this.campWithin) {
+				this.travel(st, now, this.camping, Math.min(5, this.campWithin));
 			} else {
 				this.walker.halt();
 				this.sense(st, now % 120 < 60, false);
-				this.glance(now);
+				if (this.campFace != null) {
+					// Eyes on the house, now a little this way, now that.
+					Vec3 d = this.campFace.subtract(this.body.position());
+					float yaw = (float) (net.minecraft.util.Mth.atan2(d.z, d.x) * net.minecraft.util.Mth.RAD_TO_DEG) - 90f;
+					this.turnTo(yaw + (float) Math.sin(now / 25.0) * 35f, 6f);
+					this.body.setXRot(5f);
+				} else {
+					this.glance(now);
+				}
 			}
 			return;
 		}
@@ -1370,6 +1957,17 @@ public final class ShapeBrain {
 			this.done.put(this.camping, now + 20 * 120);
 		}
 		this.camping = null;
+		this.campWithin = 7;
+		this.campFace = null;
+		// Signs that someone is in a house (a door moved, drawers gone through, the lights on again, blood): through it.
+		if (now % 20 == 0) {
+			Clue hot = this.hottest(now);
+			Houses.Building b = hot == null ? null : Houses.near(this.level(), hot.pos(), 2);
+			if (b != null) {
+				this.startRaid(b, hot.pos(), now, "clues");
+				return;
+			}
+		}
 		// Now and then he stops in the dark and looks all round with his Sense (it tires him): someone far off.
 		this.mode = Mode.PATROL;
 		if (now < this.scanUntil) {
@@ -1400,6 +1998,15 @@ public final class ShapeBrain {
 
 	/** Getting somewhere with nobody about: far, as a shadow through the dark; close, on foot. */
 	private void travel(ShapeState st, int now, BlockPos to, double within) {
+		if (this.go(st, now, to, within)) {
+			this.done.put(to, now + 20 * 60);
+			this.goal = null;
+			this.mode = Mode.PATROL;
+		}
+	}
+
+	/** As travel; true when he finds no way there (the caller decides what then). */
+	private boolean go(ShapeState st, int now, BlockPos to, double within) {
 		double d = this.body.position().distanceTo(Vec3.atBottomCenterOf(to));
 		if (st.shadowTicks == 0 && d > 25 && st.jumpCooldown == 0 && MatchManager.jumpBlockReason(this.body, st) == 0) {
 			MatchManager.onShapeJump(this.body);
@@ -1411,12 +2018,11 @@ public final class ShapeBrain {
 		if (now >= this.repathAt || this.walker.idle()) {
 			this.repathAt = now + 40;
 			if (this.follow(st, to, within, true) && this.walker.idle() && d > within + 1) {
-				this.done.put(to, now + 20 * 60);
-				this.goal = null;
-				this.mode = Mode.PATROL;
+				return true;
 			}
 		}
 		this.walk(st, now);
+		return false;
 	}
 
 	private BlockPos patrolGoal() {
@@ -1452,6 +2058,7 @@ public final class ShapeBrain {
 		for (BlockPos breaker : LightSystem.breakers(this.level(), this.body.blockPosition(), 3)) {
 			if (LightSystem.isOn(this.level(), breaker) && Sight.canSee(this.level(), this.body.getEyePosition(), Vec3.atCenterOf(breaker), this.body)) {
 				this.walker.face(Vec3.atCenterOf(breaker));
+				this.own(Vec3.atCenterOf(breaker), this.level().getServer().getTickCount());
 				LightSystem.flip(this.level(), breaker, false);
 				stat("power.off");
 				return;

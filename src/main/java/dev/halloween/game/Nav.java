@@ -395,6 +395,45 @@ public final class Nav {
 		return best == s ? List.of() : build(best, s, parent, via);
 	}
 
+	/** A step a flood would take out of the part it fills (see {@link #flood}). */
+	@FunctionalInterface
+	public interface Edge {
+		void step(BlockPos from, BlockPos to, Step step, BlockPos glass);
+	}
+
+	/**
+	 * Every node one can walk to from {@code start} without leaving the cells {@code inside} accepts (up to the
+	 * options' node budget). Window climbs never fill: they, and the steps to nodes {@code inside} turns down, go to
+	 * {@code out}.
+	 */
+	public static it.unimi.dsi.fastutil.longs.LongOpenHashSet flood(Level level, BlockPos start, Options opt, Predicate<BlockPos> inside, Edge out) {
+		lockedOk = opt.lockedCost >= 0;
+		try {
+			it.unimi.dsi.fastutil.longs.LongOpenHashSet seen = new it.unimi.dsi.fastutil.longs.LongOpenHashSet();
+			java.util.ArrayDeque<BlockPos> queue = new java.util.ArrayDeque<>();
+			BlockPos s = snap(level, start).immutable();
+			seen.add(s.asLong());
+			queue.add(s);
+			while (!queue.isEmpty() && seen.size() < opt.maxNodes) {
+				BlockPos cur = queue.poll();
+				neighbours(level, cur, opt, (n, step, glass, cost) -> {
+					if (seen.contains(n.asLong())) {
+						return;
+					}
+					if (step != Step.WINDOW && inside.test(n)) {
+						seen.add(n.asLong());
+						queue.add(n.immutable());
+					} else {
+						out.step(cur, n.immutable(), step, glass);
+					}
+				});
+			}
+			return seen;
+		} finally {
+			lockedOk = false;
+		}
+	}
+
 	private static List<Node> build(long end, long start, Long2LongOpenHashMap parent, Long2ObjectOpenHashMap<Node> via) {
 		List<Node> path = new ArrayList<>();
 		long cur = end;
