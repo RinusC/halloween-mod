@@ -380,6 +380,7 @@
 	"halloween.hud.small.cooldown": "%s: %ss",
 	"halloween.hud.health": "Health",
 	"halloween.hud.dead": "You are dead - spectating",
+	"halloween.hud.check.mash": "Tap [%s] fast!",
 	"halloween.hud.qte": "Break free! [%s] in the green zone",
 	"block.halloween.broken_glass_pane": "Broken Glass",
 	"halloween.msg.door_locked.shape": "Locked - break it down or pass through in Shape Jump",

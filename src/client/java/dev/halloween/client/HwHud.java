@@ -689,19 +689,56 @@ public final class HwHud {
 		if (!check.active()) {
 			return;
 		}
-		int cx = w / 2;
-		int cy = h / 2 + 44;
-		float r = 20;
-		ring(g, cx, cy, r, 4, 0f, 1f, 0xC0303030);
-		ring(g, cx, cy, r, 4, check.zoneStart(), check.zoneStart() + check.zoneWidth(), 0xFFF2F2F2);
 		double elapsed = Math.max(0, mc.level.getGameTime() - check.start() + partial);
-		double a = HwNet.needle(elapsed, check.period()) * Math.PI * 2 - Math.PI / 2;
-		for (float t = 0; t <= r + 3; t += 1f) {
-			int x = (int) (cx + Math.cos(a) * t);
-			int y = (int) (cy + Math.sin(a) * t);
-			g.fill(x, y, x + 2, y + 2, BLOOD);
+		drawCheck(g, mc, w / 2, h / 2 + 44, 20, check.kind(), check.zoneStart(), check.zoneWidth(), check.zone2(), check.need(), check.stage(),
+			elapsed, check.period(), 0xFFF2F2F2, BLOOD);
+	}
+
+	/**
+	 * One reaction check of any kind (see HwNet.Check), centred on cx, cy: a needle round a ring (one arc, or two to hit
+	 * in turn), a cursor along a bar, a circle closing in on a band, or taps to fill.
+	 */
+	private static void drawCheck(GuiGraphicsExtractor g, Minecraft mc, int cx, int cy, float r, int kind, float zoneStart, float zoneWidth,
+		float zone2, int need, int stage, double elapsed, int period, int zoneColor, int markColor) {
+		Component key = mc.options.keyAttack.getTranslatedKeyMessage();
+		float mark = HwNet.Check.mark(kind, elapsed, period);
+		switch (kind) {
+			case HwNet.Check.BAR -> {
+				int barW = (int) (r * 8);
+				int x = cx - barW / 2;
+				g.fill(x, cy - 5, x + barW, cy + 5, 0xFF1A1A1A);
+				g.fill(x + (int) (barW * zoneStart), cy - 5, x + (int) (barW * (zoneStart + zoneWidth)), cy + 5, zoneColor);
+				int m = x + (int) (barW * mark);
+				g.fill(m - 1, cy - 8, m + 1, cy + 8, markColor);
+				g.centeredText(mc.font, key, cx, cy - 20, TEXT);
+			}
+			case HwNet.Check.PULSE -> {
+				// The band to catch, and the circle closing in on it.
+				ring(g, cx, cy, r * (zoneStart + zoneWidth / 2) + 1, Math.max(2, (int) (r * zoneWidth)), 0f, 1f, zoneColor);
+				ring(g, cx, cy, Math.max(1, r * mark), 2, 0f, 1f, markColor);
+				g.centeredText(mc.font, key, cx, cy - 4, TEXT);
+			}
+			case HwNet.Check.MASH -> {
+				g.centeredText(mc.font, Component.translatable("halloween.hud.check.mash", key), cx, cy - 12, TEXT);
+				pips(g, cx, cy, stage, need, zoneColor);
+				int barW = (int) (r * 6);
+				bar(g, cx - barW / 2, cy + 8, barW, 2, 1f - mark, DIM);
+			}
+			default -> {
+				ring(g, cx, cy, r, 4, 0f, 1f, 0xC0303030);
+				ring(g, cx, cy, r, 4, zoneStart, zoneStart + zoneWidth, kind == HwNet.Check.DOUBLE && stage > 0 ? 0xFF5A5A5A : zoneColor);
+				if (kind == HwNet.Check.DOUBLE) {
+					ring(g, cx, cy, r, 4, zone2, zone2 + zoneWidth, stage > 0 ? YELLOW : 0xFF8A8A6A);
+				}
+				double a = mark * Math.PI * 2 - Math.PI / 2;
+				for (float t = 0; t <= r + 3; t += 1f) {
+					int x = (int) (cx + Math.cos(a) * t);
+					int y = (int) (cy + Math.sin(a) * t);
+					g.fill(x, y, x + 2, y + 2, markColor);
+				}
+				g.centeredText(mc.font, key, cx, cy - 4, TEXT);
+			}
 		}
-		g.centeredText(mc.font, mc.options.keyAttack.getTranslatedKeyMessage(), cx, cy - 4, TEXT);
 	}
 
 	private static void victimQte(GuiGraphicsExtractor g, Minecraft mc, int w, int h, float partial) {
@@ -713,16 +750,20 @@ public final class HwHud {
 		g.centeredText(mc.font, Component.translatable("halloween.hud.qte", mc.options.keyAttack.getTranslatedKeyMessage()), w / 2, y - 16, TEXT);
 
 		if (mc.level.getGameTime() - qte.roundStart() + partial >= 0) {
-			g.fill(x, y, x + barW, y + 10, 0xFF1A1A1A);
-			int z0 = x + (int) (barW * qte.zoneStart());
-			int z1 = x + (int) (barW * (qte.zoneStart() + qte.zoneWidth()));
-			g.fill(z0, y, z1, y + 10, 0xFF3FA34D);
-
 			double elapsed = mc.level.getGameTime() - qte.roundStart() + partial;
-			float cursor = HwNet.qteCursor(Math.max(0, elapsed), qte.period());
-			int cx = x + (int) (barW * cursor);
-			g.fill(cx - 1, y - 3, cx + 1, y + 13, 0xFFFFFFFF);
-
+			if (qte.kind() == HwNet.Check.BAR) {
+				g.fill(x, y, x + barW, y + 10, 0xFF1A1A1A);
+				int z0 = x + (int) (barW * qte.zoneStart());
+				int z1 = x + (int) (barW * (qte.zoneStart() + qte.zoneWidth()));
+				g.fill(z0, y, z1, y + 10, 0xFF3FA34D);
+				float cursor = HwNet.qteCursor(Math.max(0, elapsed), qte.period());
+				int cx = x + (int) (barW * cursor);
+				g.fill(cx - 1, y - 3, cx + 1, y + 13, 0xFFFFFFFF);
+			} else {
+				// This round's check is another kind: drawn above the bar's place.
+				drawCheck(g, mc, w / 2, y - 44, 18, qte.kind(), qte.zoneStart(), qte.zoneWidth(), qte.zone2(), qte.need(), qte.stage(),
+					Math.max(0, elapsed), qte.period(), 0xFF3FA34D, 0xFFFFFFFF);
+			}
 			float timeLeft = 1f - (float) Mth.clamp(elapsed / qte.roundTicks(), 0, 1);
 			bar(g, x, y + 13, barW, 2, timeLeft, 0xFF8A847A);
 		}

@@ -380,6 +380,7 @@
 	"halloween.hud.small.cooldown": "%s: %sс",
 	"halloween.hud.health": "Здоровье",
 	"halloween.hud.dead": "Вы мертвы — наблюдение",
+	"halloween.hud.check.mash": "Жмите [%s] быстро!",
 	"halloween.hud.qte": "Вырывайтесь! [%s] в зелёной зоне",
 	"block.halloween.broken_glass_pane": "Разбитое стекло",
 	"halloween.msg.door_locked.shape": "Заперто — выбейте дверь ударами или пройдите сквозь неё в Поступи",

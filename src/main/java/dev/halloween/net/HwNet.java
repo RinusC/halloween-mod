@@ -172,10 +172,19 @@ public final class HwNet {
 	 */
 	public record Qte(
 		boolean active, boolean forShape, float zoneStart, float zoneWidth, int period, long roundStart, int roundTicks,
-		int points, int needed, int enemyPoints, int enemyNeeded, boolean window, boolean bloody
+		int points, int needed, int enemyPoints, int enemyNeeded, boolean window, boolean bloody,
+		int kind, float zone2, int need, int stage
 	) implements CustomPacketPayload {
 		public static final Type<Qte> TYPE = payloadType("qte");
 		public static final Qte INACTIVE = new Qte(false, false, 0, 0, 1, 0, 1, 0, 0, 0, 0, false, false);
+
+		/** The plain check: the bar for the victim, the ring for the Shape. */
+		public Qte(boolean active, boolean forShape, float zoneStart, float zoneWidth, int period, long roundStart, int roundTicks,
+			int points, int needed, int enemyPoints, int enemyNeeded, boolean window, boolean bloody) {
+			this(active, forShape, zoneStart, zoneWidth, period, roundStart, roundTicks, points, needed, enemyPoints, enemyNeeded, window, bloody,
+				forShape ? Check.RING : Check.BAR, 0, 0, 0);
+		}
+
 		public static final StreamCodec<RegistryFriendlyByteBuf, Qte> CODEC = StreamCodec.of((buf, v) -> {
 			buf.writeBoolean(v.active);
 			buf.writeBoolean(v.forShape);
@@ -190,9 +199,14 @@ public final class HwNet {
 			buf.writeVarInt(v.enemyNeeded);
 			buf.writeBoolean(v.window);
 			buf.writeBoolean(v.bloody);
+			buf.writeVarInt(v.kind);
+			buf.writeFloat(v.zone2);
+			buf.writeVarInt(v.need);
+			buf.writeVarInt(v.stage);
 		}, buf -> new Qte(
 			buf.readBoolean(), buf.readBoolean(), buf.readFloat(), buf.readFloat(), buf.readVarInt(), buf.readVarLong(), buf.readVarInt(),
-			buf.readVarInt(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt(), buf.readBoolean(), buf.readBoolean()
+			buf.readVarInt(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt(), buf.readBoolean(), buf.readBoolean(),
+			buf.readVarInt(), buf.readFloat(), buf.readVarInt(), buf.readVarInt()
 		));
 
 		@Override
@@ -700,16 +714,28 @@ public final class HwNet {
 	 * A circular reaction check during a long action (a call, a talk): press when the needle crosses the
 	 * zone to gain time. {@code start} is the game time the needle starts from the top.
 	 */
-	public record SkillCheck(boolean active, float zoneStart, float zoneWidth, int period, long start) implements CustomPacketPayload {
+	public record SkillCheck(boolean active, float zoneStart, float zoneWidth, int period, long start, int kind, float zone2, int need, int stage)
+		implements CustomPacketPayload {
 		public static final Type<SkillCheck> TYPE = payloadType("skill_check");
 		public static final SkillCheck INACTIVE = new SkillCheck(false, 0, 0, 1, 0);
+
+		/** The plain ring. */
+		public SkillCheck(boolean active, float zoneStart, float zoneWidth, int period, long start) {
+			this(active, zoneStart, zoneWidth, period, start, Check.RING, 0, 0, 0);
+		}
+
 		public static final StreamCodec<RegistryFriendlyByteBuf, SkillCheck> CODEC = StreamCodec.of((buf, v) -> {
 			buf.writeBoolean(v.active);
 			buf.writeFloat(v.zoneStart);
 			buf.writeFloat(v.zoneWidth);
 			buf.writeVarInt(v.period);
 			buf.writeLong(v.start);
-		}, buf -> new SkillCheck(buf.readBoolean(), buf.readFloat(), buf.readFloat(), buf.readVarInt(), buf.readLong()));
+			buf.writeVarInt(v.kind);
+			buf.writeFloat(v.zone2);
+			buf.writeVarInt(v.need);
+			buf.writeVarInt(v.stage);
+		}, buf -> new SkillCheck(buf.readBoolean(), buf.readFloat(), buf.readFloat(), buf.readVarInt(), buf.readLong(),
+			buf.readVarInt(), buf.readFloat(), buf.readVarInt(), buf.readVarInt()));
 
 		@Override
 		public Type<SkillCheck> type() {
@@ -1182,6 +1208,40 @@ public final class HwNet {
 	}
 
 	/** Position of the Shape's needle in [0, 1) around the ring. */
+	/**
+	 * The kinds of reaction check (survivors' long actions, the victim in Michael's grab) and their timing, the same
+	 * for the server that judges a press and the screen that draws it.
+	 */
+	public static final class Check {
+		/** A needle round a ring: press as it crosses the arc. */
+		public static final int RING = 0;
+		/** A cursor sliding back and forth along a bar: press in the zone. */
+		public static final int BAR = 1;
+		/** Two arcs on the ring: press in the first, then in the second, as the needle goes round. */
+		public static final int DOUBLE = 2;
+		/** A circle closing in: press as it crosses the band. */
+		public static final int PULSE = 3;
+		/** Tap as fast as you can: {@code need} taps before the time runs out. */
+		public static final int MASH = 4;
+
+		private Check() {
+		}
+
+		/** The moving mark, 0..1: the needle, the cursor, the closing circle's size (1 open .. 0 shut); MASH: the time gone. */
+		public static float mark(int kind, double elapsed, int period) {
+			return switch (kind) {
+				case BAR -> qteCursor(elapsed, period);
+				case PULSE -> (float) Math.max(0, 1 - elapsed / period);
+				case MASH -> (float) Math.min(1, elapsed / period);
+				default -> needle(elapsed, period);
+			};
+		}
+
+		public static boolean in(float mark, float start, float width) {
+			return mark >= start && mark <= start + width;
+		}
+	}
+
 	public static float needle(double elapsedTicks, int period) {
 		return (float) ((elapsedTicks % period) / period);
 	}

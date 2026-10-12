@@ -60,6 +60,22 @@ public final class GrabSession {
 		boolean open;
 		int simPressTick;
 		boolean simSuccess;
+		/** The victim's check: a different kind each round (see HwNet.Check). */
+		final CheckRound round = new CheckRound();
+	}
+
+	/** The victim's kinds of check, one picked at random each round. */
+	private static final int[] VICTIM_KINDS = {HwNet.Check.BAR, HwNet.Check.RING, HwNet.Check.DOUBLE, HwNet.Check.PULSE, HwNet.Check.MASH};
+
+	/** How fast the victim's mark moves for this kind: a tapping round is timed by the whole round. */
+	private int victimPeriod() {
+		return this.victimTrack.round.kind == HwNet.Check.MASH ? this.cfg().victimRoundTicks : this.cfg().victimCursorPeriodTicks;
+	}
+
+	/** Ticks the victim has for this round: a closing circle shuts sooner. */
+	private int victimLimit() {
+		int lost = this.victimTrack.round.lostAfter(this.victimPeriod());
+		return lost > 0 ? Math.min(lost, this.cfg().victimRoundTicks) : this.cfg().victimRoundTicks;
 	}
 
 	GrabSession(ServerPlayer shape, ShapeState state, LivingEntity victim, VictimState victimState) {
@@ -107,7 +123,11 @@ public final class GrabSession {
 			- HwConfig.at(cfg.victimZoneShrinkByTier, this.state.tier())
 			- HwConfig.at(cfg.victimZoneShrinkByStalk, this.victimState.level())
 			+ (Perks.has(this.victim, Perks.Perk.SLIPPERY) ? cfg.perkSlipperyZone : 0f));
-		t.zoneStart = 0.1f + this.random.nextFloat() * (0.8f - t.zoneWidth);
+		// Each round a different kind, at random: the narrower the zone (stalked, his Bloodthirst), the more taps.
+		int kind = VICTIM_KINDS[this.random.nextInt(VICTIM_KINDS.length)];
+		int taps = Mth.clamp(Math.round(7 * cfg.victimZoneWidth / t.zoneWidth), 6, 12);
+		t.round.roll(kind, t.zoneWidth, taps, this.random);
+		t.zoneStart = t.round.zoneStart;
 		t.open = true;
 		// Simulated victims (bots, townsfolk) find a narrower zone harder to hit, like a person does.
 		float base = this.victim instanceof BotPlayer ? cfg.botQteSuccessChance : cfg.mannequinQteSuccessChance;
@@ -117,7 +137,7 @@ public final class GrabSession {
 			chance = cfg.policeQteSuccessChance;
 		}
 		t.simSuccess = this.random.nextFloat() < chance;
-		t.simPressTick = 8 + this.random.nextInt(Math.max(1, cfg.victimRoundTicks - 12));
+		t.simPressTick = 8 + this.random.nextInt(Math.max(1, this.victimLimit() - 12));
 	}
 
 	private void startShapeRound(int delay) {
@@ -135,10 +155,10 @@ public final class GrabSession {
 		this.windowShown = windowReady;
 		this.bloody = this.state.level() >= cfg.bloodyExecutionLevel;
 		if (this.victim instanceof ServerPlayer player) {
-			Track t = this.victimTrack;
-			ServerPlayNetworking.send(player, new HwNet.Qte(true, false, t.zoneStart, t.zoneWidth, cfg.victimCursorPeriodTicks,
-				t.roundStart, cfg.victimRoundTicks, this.victimPoints, cfg.victimPointsToEscape, this.shapePoints, this.shapeNeeded(),
-				false, false));
+			CheckRound r = this.victimTrack.round;
+			ServerPlayNetworking.send(player, new HwNet.Qte(true, false, r.zoneStart, r.zoneWidth, this.victimPeriod(),
+				this.victimTrack.roundStart, this.victimLimit(), this.victimPoints, cfg.victimPointsToEscape, this.shapePoints, this.shapeNeeded(),
+				false, false, r.kind, r.zone2, r.need, r.stage));
 		}
 		Track s = this.shapeTrack;
 		ServerPlayNetworking.send(this.shape, new HwNet.Qte(true, true, s.zoneStart, s.zoneWidth, cfg.shapeNeedlePeriodTicks,
@@ -182,8 +202,13 @@ public final class GrabSession {
 			if (elapsed < 3) {
 				return;
 			}
-			float cursor = HwNet.qteCursor(elapsed, cfg.victimCursorPeriodTicks);
-			this.resolveVictim(cursor >= this.victimTrack.zoneStart && cursor <= this.victimTrack.zoneStart + this.victimTrack.zoneWidth);
+			int result = this.victimTrack.round.press(elapsed, this.victimPeriod());
+			if (result == CheckRound.PENDING) {
+				// A tap, or the first of two arcs: not decided yet.
+				this.sendState();
+			} else {
+				this.resolveVictim(result == CheckRound.HIT);
+			}
 		}
 	}
 
@@ -421,7 +446,7 @@ public final class GrabSession {
 		if (this.victimTrack.open) {
 			if ((!(this.victim instanceof ServerPlayer) || this.victim instanceof BotPlayer) && victimElapsed >= this.victimTrack.simPressTick) {
 				this.resolveVictim(this.victimTrack.simSuccess);
-			} else if (victimElapsed >= cfg.victimRoundTicks) {
+			} else if (victimElapsed >= this.victimLimit()) {
 				this.resolveVictim(false);
 			}
 		}

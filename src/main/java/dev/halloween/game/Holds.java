@@ -121,7 +121,7 @@ public final class Holds {
 			}
 			work.ticks++;
 			if (work.hold.checks()) {
-				work.ticks += SkillChecks.tick(player);
+				work.ticks += SkillChecks.tick(player, SkillChecks.kindFor(work.hold.label()));
 			}
 			if (work.ticks >= work.hold.ticks()) {
 				RELEASE.put(entry.getKey(), now);

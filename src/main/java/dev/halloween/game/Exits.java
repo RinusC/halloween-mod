@@ -335,7 +335,7 @@ public final class Exits {
 						carFlags |= CAR_FUEL;
 						level.playSound(null, car, SoundEvents.BUCKET_FILL, SoundSource.BLOCKS, 1f, 0.8f);
 						Match.score(p, cfg.scoreExitProgress, Component.translatable("halloween.score.car_fuel"));
-					});
+					}, true);
 			}
 			if (!repaired) {
 				hint(player, "halloween.hint.car_repair");
@@ -415,7 +415,7 @@ public final class Exits {
 					setNearby(level, gate, true);
 					level.playSound(null, gate, SoundEvents.IRON_DOOR_OPEN, SoundSource.BLOCKS, 3f, 0.5f);
 					Match.score(p, cfg.scoreExitProgress, Component.translatable("halloween.score.gate_open"));
-				});
+				}, true);
 			}
 			if (gateState == OPEN && civilian) {
 				return escapeHold(pos, "halloween.hud.progress.escape_gate", p -> gateState == OPEN, p -> {
@@ -591,7 +591,7 @@ public final class Exits {
 					useRepairKit(p);
 					CUT_PHONES.remove(phone);
 					Match.score(p, cfg.scoreExitProgress, Component.translatable("halloween.score.phone_repair"));
-				});
+				}, true);
 		}
 		if (!Police.callable()) {
 			// Nothing to tell them yet: somebody has to find a body first.

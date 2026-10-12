@@ -12,16 +12,17 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
 
 /**
- * Circular reaction checks during long actions (calling the police, talking a townsperson round). Every
- * few seconds a ring with a zone pops up; pressing the reaction key while the needle is in the zone
- * takes {@link HwConfig#skillCheckBonusTicks} off the action. A miss costs nothing.
+ * Reaction checks during long actions (calling the police, opening a cellar, the gate, fuel, a phone mended, a
+ * townsperson talked round). Every few seconds one pops up, of the action's own kind (see {@link #kindFor}): a needle
+ * round a ring, two arcs one after the other, a circle closing in on a band, a cursor along a bar. Pressing the
+ * reaction key at the right moment takes {@link HwConfig#skillCheckBonusTicks} off the action. A miss costs nothing.
  */
 public final class SkillChecks {
 	private static final class Check {
 		boolean open;
 		long start;
-		float zoneStart;
-		float zoneWidth;
+		final CheckRound round = new CheckRound();
+		int kind = HwNet.Check.RING;
 		int nextAt;
 		long simPress;
 		boolean simHit;
@@ -33,8 +34,23 @@ public final class SkillChecks {
 	private SkillChecks() {
 	}
 
-	/** Runs the checks for one tick of a long action; returns the ticks earned (to add to its progress). */
+	/** The kind of check a long action has (by its progress label): dialling is a ring, cutting a chain a closing circle... */
+	public static int kindFor(String label) {
+		return switch (label) {
+			case "halloween.hud.progress.open_cellar" -> HwNet.Check.PULSE;
+			case "halloween.hud.progress.open_gate", "halloween.hud.progress.repair_phone" -> HwNet.Check.DOUBLE;
+			case "halloween.hud.progress.refuel" -> HwNet.Check.BAR;
+			default -> HwNet.Check.RING;
+		};
+	}
+
+	/** As below, a ring. */
 	public static int tick(ServerPlayer player) {
+		return tick(player, HwNet.Check.RING);
+	}
+
+	/** Runs the checks for one tick of a long action; returns the ticks earned (to add to its progress). */
+	public static int tick(ServerPlayer player, int kind) {
 		HwConfig cfg = HwConfig.get();
 		int now = player.level().getServer().getTickCount();
 		RandomSource random = player.getRandom();
@@ -45,13 +61,15 @@ public final class SkillChecks {
 		});
 		int bonus = c.bonus;
 		c.bonus = 0;
+		c.kind = kind;
 		if (!c.open && now >= c.nextAt) {
 			open(player, c);
 		} else if (c.open) {
 			long elapsed = player.level().getGameTime() - c.start;
+			int lost = c.round.lostAfter(cfg.skillCheckPeriodTicks);
 			if (player instanceof BotPlayer && elapsed == c.simPress) {
 				resolve(player, c, c.simHit);
-			} else if (elapsed >= cfg.skillCheckPeriodTicks + 4) {
+			} else if (elapsed >= (lost > 0 ? lost : cfg.skillCheckPeriodTicks + 4)) {
 				// The needle went all the way round: missed, no harm done.
 				resolve(player, c, false);
 			}
@@ -64,13 +82,18 @@ public final class SkillChecks {
 		RandomSource random = player.getRandom();
 		c.open = true;
 		c.start = player.level().getGameTime();
-		c.zoneWidth = cfg.skillCheckZoneWidth;
-		c.zoneStart = 0.35f + random.nextFloat() * (0.55f - c.zoneWidth);
-		// A bot presses around the zone; whether it lands is a roll.
-		c.simPress = (long) ((c.zoneStart + c.zoneWidth / 2) * cfg.skillCheckPeriodTicks) + random.nextInt(3) - 1;
+		c.round.roll(c.kind, c.kind == HwNet.Check.PULSE ? cfg.skillCheckZoneWidth * 1.2f : cfg.skillCheckZoneWidth, 0, random);
+		// A bot presses some time into it; whether it lands is a roll.
+		c.simPress = 8 + random.nextInt(Math.max(1, cfg.skillCheckPeriodTicks - 10));
 		c.simHit = random.nextFloat() < cfg.botSkillCheckChance;
 		player.level().playSound(null, player.getX(), player.getY(), player.getZ(), HwSounds.QTE_HIT, SoundSource.PLAYERS, 0.5f, 1.8f);
-		ServerPlayNetworking.send(player, new HwNet.SkillCheck(true, c.zoneStart, c.zoneWidth, cfg.skillCheckPeriodTicks, c.start));
+		send(player, c);
+	}
+
+	private static void send(ServerPlayer player, Check c) {
+		CheckRound r = c.round;
+		ServerPlayNetworking.send(player, new HwNet.SkillCheck(true, r.zoneStart, r.zoneWidth, HwConfig.get().skillCheckPeriodTicks, c.start,
+			r.kind, r.zone2, r.need, r.stage));
 	}
 
 	/** The reaction key was pressed. Returns true if a check was open (the press is used up here). */
@@ -83,8 +106,14 @@ public final class SkillChecks {
 		if (elapsed < 2) {
 			return true;
 		}
-		float needle = HwNet.needle(elapsed, HwConfig.get().skillCheckPeriodTicks);
-		resolve(player, c, needle >= c.zoneStart && needle <= c.zoneStart + c.zoneWidth);
+		int result = c.round.press(elapsed, HwConfig.get().skillCheckPeriodTicks);
+		if (result == CheckRound.PENDING) {
+			// The first of two arcs: on to the second.
+			player.level().playSound(null, player.getX(), player.getY(), player.getZ(), HwSounds.QTE_HIT, SoundSource.PLAYERS, 0.5f, 1.5f);
+			send(player, c);
+		} else {
+			resolve(player, c, result == CheckRound.HIT);
+		}
 		return true;
 	}
 
