@@ -85,6 +85,27 @@ public final class HwNet {
 	}
 
 	/**
+	 * How the Demogorgon carries himself, for everyone (client.DemogorgonModel): upright, on all fours (he sees or
+	 * saw a survivor in the last ten seconds), coiled for a Shred, or in its lunge.
+	 */
+	public record DemoPose(int entityId, int pose) implements CustomPacketPayload {
+		public static final int UPRIGHT = 0;
+		public static final int HUNTING = 1;
+		public static final int CHARGING = 2;
+		public static final int LUNGING = 3;
+		public static final Type<DemoPose> TYPE = payloadType("demo_pose");
+		public static final StreamCodec<RegistryFriendlyByteBuf, DemoPose> CODEC = StreamCodec.of((buf, v) -> {
+			buf.writeVarInt(v.entityId);
+			buf.writeVarInt(v.pose);
+		}, buf -> new DemoPose(buf.readVarInt(), buf.readVarInt()));
+
+		@Override
+		public Type<DemoPose> type() {
+			return TYPE;
+		}
+	}
+
+	/**
 	 * Sent only to the Shape several times per second.
 	 * jumpBlock: 0 ready, 1 in light, 2 watched, 3 cooling down, 4 busy. While in Shape Jump it tells whether
 	 * leaving is allowed right now; shadowTicks then counts how long the jump has lasted.
@@ -1179,6 +1200,7 @@ public final class HwNet {
 	public static void registerPayloads() {
 		PayloadTypeRegistry.clientboundPlay().register(WorldSync.TYPE, WorldSync.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(DemoHud.TYPE, DemoHud.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(DemoPose.TYPE, DemoPose.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(ShapeHud.TYPE, ShapeHud.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(RuntHud.TYPE, RuntHud.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(RuntInfo.TYPE, RuntInfo.CODEC);

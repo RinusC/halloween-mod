@@ -64,6 +64,20 @@ public abstract class CameraMixin {
 		}
 	}
 
+	/** The Demogorgon on all fours, in first person: the eyes low to the ground too. */
+	@Inject(method = "alignWithEntity", at = @At("TAIL"))
+	private void halloween$demoLow(float partialTicks, CallbackInfo ci) {
+		Minecraft mc = Minecraft.getInstance();
+		if (this.detached || mc.player == null || dev.halloween.client.Cutscene.active() || !dev.halloween.client.MichaelRenderer.demogorgon()
+			|| !dev.halloween.client.MichaelRenderer.isMichael(mc.player)) {
+			return;
+		}
+		float drop = dev.halloween.client.DemogorgonModel.firstPersonDrop(mc.player.getId());
+		if (drop != 0f) {
+			this.setPosition(this.position().add(0, drop, 0));
+		}
+	}
+
 	/** How far over the shoulder the camera is now (eased back out after a wall), and when the last frame was. */
 	@org.spongepowered.asm.mixin.Unique
 	private static double halloween$shoulderLen;
@@ -88,9 +102,15 @@ public abstract class CameraMixin {
 		Vec3 from = this.position();
 		if (dev.halloween.client.MichaelRenderer.enabled) {
 			// His model is taller than he is: the camera up to where his eyes are drawn (not through a ceiling).
-			Vec3 up = from.add(0, (dev.halloween.client.MichaelRenderer.TALL - 1f) * mc.player.getEyeHeight(), 0);
+			// The Demogorgon: higher standing, low to the ground on all fours.
+			double lift = dev.halloween.client.MichaelRenderer.demogorgon() ? dev.halloween.client.DemogorgonModel.cameraLift(mc.player.getId())
+				: (dev.halloween.client.MichaelRenderer.TALL - 1f) * mc.player.getEyeHeight();
+			Vec3 up = from.add(0, Math.max(0, lift), 0);
 			HitResult roof = mc.level.clip(new ClipContext(from, up, ClipContext.Block.VISUAL, ClipContext.Fluid.NONE, mc.player));
 			from = roof.getType() == HitResult.Type.MISS ? up : from.add(0, Math.max(0, roof.getLocation().y - from.y - 0.15), 0);
+			if (lift < 0) {
+				from = from.add(0, lift, 0);
+			}
 			this.setPosition(from);
 		}
 		Vector3fc left = this.leftVector();

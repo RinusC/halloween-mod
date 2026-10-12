@@ -92,6 +92,15 @@ public final class ClientAnims {
 		return t < in + hold ? 1 : Math.max(0, 1 - (t - in - hold) / out);
 	}
 
+	/** Is this entity in a grab animation, or down, right now (a held pose, a one-off move still playing, a fall)? */
+	public static boolean busy(int entityId) {
+		State s = STATES.get(entityId);
+		if (s == null) {
+			return false;
+		}
+		return s.hold != HwNet.Anim.NONE || s.fallStart >= 0 || s.once != HwNet.Anim.NONE && now() - s.onceStart <= duration(s.once);
+	}
+
 	/** The hold this entity is in (HwNet.Anim: HOLD, STRUGGLE, STRANGLE), or NONE. */
 	public static int hold(int entityId) {
 		State s = STATES.get(entityId);

@@ -246,6 +246,7 @@ public final class ClientState {
 		ClientMinimap.clear();
 		BloodParticles.clear();
 		ClientAnims.clear();
+		DemogorgonModel.clear();
 		stamina = 1f;
 		staminaExhausted = false;
 		panic = 0f;

@@ -68,6 +68,12 @@ public final class Demogorgon {
 	private static int shredCharge = -1;
 	private static int shredTicks;
 	private static Vec3 shredDir = Vec3.ZERO;
+	/** When he last had a survivor in sight (or in his hands), and the pose last told to everyone (HwNet.DemoPose). */
+	private static int sawSurvivorAt = -100000;
+	private static int toldPose = -1;
+	/** On all fours this long after a survivor was last in sight. */
+	private static final int HUNT_TICKS = 200;
+	private static final double SIGHT_RANGE = 40;
 
 	private Demogorgon() {
 	}
@@ -297,8 +303,43 @@ public final class Demogorgon {
 			d.removeEffect(MobEffects.NIGHT_VISION);
 		}
 		tickShred(d, st);
+		tickPose(level, d, st, now);
 		if (now % 10 == 0) {
 			ServerPlayNetworking.send(d, new HwNet.DemoHud(PORTALS.size(), MAX_PORTALS, below, UpsideDown.ready(), shredCharge >= 0));
+		}
+	}
+
+	/**
+	 * Upright while nobody is about; on all fours while he sees a survivor, or saw one in the last ten seconds, or
+	 * holds one; coiled and lunging for a Shred. Told to everyone when it changes, and every two seconds.
+	 */
+	private static void tickPose(ServerLevel level, ServerPlayer d, ShapeState st, int now) {
+		if (now % 4 == 0) {
+			Vec3 eye = d.getEyePosition();
+			Vec3 look = d.getViewVector(1f);
+			for (ServerPlayer p : level.players()) {
+				if (p == d || p.isSpectator() || !p.isAlive() || !MatchManager.role(p).survivor() || Lockers.isInside(p)
+					|| p.distanceTo(d) > SIGHT_RANGE) {
+					continue;
+				}
+				Vec3 body = FocusPoints.bodyCenter(p);
+				if (Sight.angleTo(eye, look, body) <= 65 && Sight.canSee(level, eye, body, d)) {
+					sawSurvivorAt = now;
+					break;
+				}
+			}
+		}
+		if (st.grab != null) {
+			sawSurvivorAt = now;
+		}
+		int pose = shredTicks > 0 ? HwNet.DemoPose.LUNGING : shredCharge >= 0 ? HwNet.DemoPose.CHARGING
+			: now - sawSurvivorAt <= HUNT_TICKS ? HwNet.DemoPose.HUNTING : HwNet.DemoPose.UPRIGHT;
+		if (pose != toldPose || now % 40 == 0) {
+			toldPose = pose;
+			HwNet.DemoPose msg = new HwNet.DemoPose(d.getId(), pose);
+			for (ServerPlayer p : level.getServer().getPlayerList().getPlayers()) {
+				ServerPlayNetworking.send(p, msg);
+			}
 		}
 	}
 
@@ -387,6 +428,8 @@ public final class Demogorgon {
 		quietUntil = 0;
 		abyssUntil = 0;
 		placeAt = 0;
+		sawSurvivorAt = -100000;
+		toldPose = -1;
 		UpsideDown.clear();
 	}
 }

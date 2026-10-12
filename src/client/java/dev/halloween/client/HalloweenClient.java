@@ -70,6 +70,7 @@ public class HalloweenClient implements ClientModInitializer {
 			ClientState.killer = payload.killer();
 		});
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.DemoHud.TYPE, (payload, ctx) -> ClientState.demo = payload);
+		ClientPlayNetworking.registerGlobalReceiver(HwNet.DemoPose.TYPE, (payload, ctx) -> DemogorgonModel.receive(payload));
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.RuntHud.TYPE, (payload, ctx) -> ClientState.runtHud = payload);
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.EventSync.TYPE, (payload, ctx) -> ClientEvents.state = payload);
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.Quake.TYPE, (payload, ctx) -> ClientEvents.quake(payload.ticks(), payload.strength()));
