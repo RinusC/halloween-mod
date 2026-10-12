@@ -57,6 +57,11 @@ public final class Walker {
 		return this.index >= this.path.size();
 	}
 
+	/** Steps of the path still to go. */
+	public int remaining() {
+		return Math.max(0, this.path.size() - this.index);
+	}
+
 	public BlockPos destination() {
 		return this.path.isEmpty() ? null : this.path.get(this.path.size() - 1).pos();
 	}

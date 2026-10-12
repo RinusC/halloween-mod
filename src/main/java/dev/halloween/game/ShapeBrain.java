@@ -94,6 +94,16 @@ public final class ShapeBrain {
 	private final List<Lead> leads = new ArrayList<>();
 	/** Wardrobes he has reason to think someone is in (a door closing, breathing), and until when. */
 	private final Map<BlockPos, Integer> suspects = new HashMap<>();
+	/** Places he found no way to (a room upstairs with no stairs, a yard walled in), and until when he leaves them be. */
+	private final Map<BlockPos, Integer> unreachable = new HashMap<>();
+	/** Where his path is meant to take him (a fixed place: a goal, a wardrobe, a job; null when chasing someone). */
+	private BlockPos aim;
+	private Walker.Status lastStatus;
+	/** How near he has come to it, when that last got better, and what he has tried since to get unstuck. */
+	private double bestDist;
+	private int pathLeft;
+	private int bestAt;
+	private int unstick;
 	/** Places he looked at lately (patrol goals, searched wardrobes) and until when he leaves them be. */
 	private final Map<BlockPos, Integer> done = new HashMap<>();
 	/** Who the Impulse (or the Runt, a firecracker...) showed him, and until when he sees them anywhere. */
@@ -165,7 +175,9 @@ public final class ShapeBrain {
 		ShapeBrain b = brain;
 		return b.mode + " at " + b.body.blockPosition().toShortString() + " goal " + (b.goal == null ? "-" : b.goal.toShortString())
 			+ " work " + (b.workAt == null ? "-" : b.workAt.toShortString()) + " walking " + !b.walker.idle()
-			+ " holds " + Holds.working(b.body) + " done " + b.done.size() + " leads " + b.leads.size() + " reaction " + b.reaction;
+			+ " holds " + Holds.working(b.body) + " done " + b.done.size() + " leads " + b.leads.size() + " reaction " + b.reaction
+			+ String.format(" pos %.2f %.2f %.2f", b.body.getX(), b.body.getY(), b.body.getZ()) + " status " + b.lastStatus + " aim " + (b.aim == null ? "-" : b.aim.toShortString())
+			+ " best " + String.format("%.1f", b.bestDist) + " unstick " + b.unstick + " tokens " + String.format("%.1f", b.searches) + " zza " + b.body.zza;
 	}
 
 	/** How far he stalks this survivor before going for them: 2, or 3 once they got out of his hands. */
@@ -205,9 +217,19 @@ public final class ShapeBrain {
 			b.retreatUntil = 0;
 			b.grabbing = null;
 			b.corpse = null;
+			b.unreachable.clear();
+			b.aim = null;
 			b.mode = Mode.PATROL;
 			b.walker.stop();
 		}
+	}
+
+	/** Tests: the only place he makes for (nothing else on his mind). */
+	public static BlockPos testGoal;
+
+	/** Tests: has he given this place up as one he can't get to? */
+	public static boolean unreachable(BlockPos pos) {
+		return brain != null && brain.unreachable.containsKey(pos);
 	}
 
 	/** Tests: his mind stops (the body stands where it is put). */
@@ -399,6 +421,7 @@ public final class ShapeBrain {
 		this.leads.removeIf(l -> now - l.at > 400);
 		this.suspects.values().removeIf(until -> until < now);
 		this.done.values().removeIf(until -> until < now);
+		this.unreachable.values().removeIf(until -> until < now);
 		this.revealed.values().removeIf(until -> until < now);
 		if (st.grab != null) {
 			this.grabbing = st.grab.victim();
@@ -766,7 +789,28 @@ public final class ShapeBrain {
 	 * again whenever he stands still: at most one search every six ticks on average, or the server chokes.
 	 */
 	private boolean follow(ShapeState st, BlockPos to, double within) {
+		return this.follow(st, to, within, false);
+	}
+
+	/**
+	 * As above; {@code fixed}: a place that stays put (not someone running). One he has found no way to is left be:
+	 * no path (he stops, and the caller sees him idle and gives it up). A search that ends well short of a near place
+	 * means there is no way there: it goes on that list for three minutes.
+	 */
+	private boolean follow(ShapeState st, BlockPos to, double within, boolean fixed) {
 		int now = this.level().getServer().getTickCount();
+		if (fixed && this.unreachable.containsKey(to)) {
+			this.walker.stop();
+			return true;
+		}
+		if (!fixed) {
+			this.aim = null;
+		} else if (!to.equals(this.aim)) {
+			this.aim = to;
+			this.bestDist = this.body.position().distanceTo(Vec3.atBottomCenterOf(to));
+			this.bestAt = now;
+			this.unstick = 0;
+		}
 		this.searches = Math.min(4f, this.searches + (now - this.searchedAt) / 6f);
 		this.searchedAt = now;
 		if (this.searches < 1f) {
@@ -776,6 +820,16 @@ public final class ShapeBrain {
 		boolean shadow = st.shadowTicks > 0;
 		Nav.Options opt = shadow ? Nav.Options.climber().lockedDoors(0.5) : Nav.Options.walker().lockedDoors(3);
 		this.walker.follow(Nav.to(this.level(), this.body.blockPosition(), to, within, opt.nodes(4000)));
+		this.pathLeft = this.walker.remaining();
+		stat("search");
+		if (fixed && this.body.position().distanceTo(Vec3.atBottomCenterOf(to)) < 24) {
+			// No path at all, though he isn't there yet; or one that ends well short of it.
+			BlockPos end = this.walker.destination();
+			double left = this.body.position().distanceTo(Vec3.atBottomCenterOf(to));
+			if (end == null ? left > within + 0.5 : Vec3.atBottomCenterOf(end).distanceTo(Vec3.atBottomCenterOf(to)) > within + 1.5) {
+				this.giveUp(to, now, "unreachable.path");
+			}
+		}
 		return true;
 	}
 
@@ -783,6 +837,20 @@ public final class ShapeBrain {
 	private Walker.Status walk(ShapeState st, int now) {
 		this.walker.throughDoors = st.shadowTicks > 0;
 		Walker.Status status = this.walker.tick();
+		this.lastStatus = status;
+		if (this.aim != null && !this.walker.idle() && status != Walker.Status.LOCKED) {
+			// Nearer as the crow flies, or fewer steps to go (going round a wall takes him away first).
+			int left = this.walker.remaining();
+			boolean onward = left < this.pathLeft;
+			this.pathLeft = left;
+			double d = this.body.position().distanceTo(Vec3.atBottomCenterOf(this.aim));
+			if (d < this.bestDist - 0.5 || onward) {
+				this.bestDist = d;
+				this.bestAt = now;
+			} else if (now - this.bestAt > 80) {
+				this.stalled(st, now);
+			}
+		}
 		if (status == Walker.Status.LOCKED && st.shadowTicks == 0) {
 			Nav.Node node = this.walker.current();
 			if (node != null && st.attackCooldown == 0) {
@@ -803,10 +871,53 @@ public final class ShapeBrain {
 			}
 		} else if (status == Walker.Status.STUCK) {
 			stat("stuck");
-			this.walker.stop();
-			this.goal = null;
+			if (this.aim != null) {
+				this.stalled(st, now);
+			} else {
+				this.walker.stop();
+			}
 		}
 		return status;
+	}
+
+	/**
+	 * Four seconds without getting any nearer: first into the shadow (it goes through doors and windows), then a step
+	 * aside and a fresh path, then he gives the place up.
+	 */
+	private void stalled(ShapeState st, int now) {
+		this.bestAt = now;
+		this.unstick++;
+		stat("stall");
+		if (this.unstick == 1 && st.shadowTicks == 0 && MatchManager.jumpBlockReason(this.body, st) == 0) {
+			MatchManager.onShapeJump(this.body);
+			this.walker.stop();
+			this.repathAt = now;
+			stat("unstick.shadow");
+			return;
+		}
+		if (this.unstick <= 2) {
+			// A step aside, then a fresh path from there.
+			for (int k = 0; k < 8; k++) {
+				BlockPos side = this.body.blockPosition().offset(this.random.nextInt(5) - 2, 0, this.random.nextInt(5) - 2);
+				if (Nav.standable(this.level(), side) && !side.equals(this.body.blockPosition())) {
+					this.walker.follow(List.of(new Nav.Node(side, Nav.Step.WALK, null)));
+					this.repathAt = now + 15;
+					stat("unstick.step");
+					return;
+				}
+			}
+		}
+		this.giveUp(this.aim, now, "unreachable.stall");
+	}
+
+	/** No way there: he leaves the place be for three minutes, and stops (his caller sees him idle and moves on). */
+	private void giveUp(BlockPos place, int now, String why) {
+		if (place != null) {
+			this.unreachable.put(place, now + 20 * 180);
+			stat(why);
+		}
+		this.aim = null;
+		this.walker.stop();
 	}
 
 	// ---------------------------------------------------------------- the grab
@@ -849,7 +960,7 @@ public final class ShapeBrain {
 		if (this.body.position().distanceTo(Vec3.atBottomCenterOf(where)) > 3 && this.lookAroundUntil == 0) {
 			if (now >= this.repathAt || this.walker.idle()) {
 				this.repathAt = now + 20;
-				if (this.follow(st, where, 2) && this.walker.idle()) {
+				if (this.follow(st, where, 2, true) && this.walker.idle()) {
 					this.lookAroundUntil = now + 60;
 				}
 			}
@@ -910,7 +1021,7 @@ public final class ShapeBrain {
 			}
 			if (now >= this.repathAt || this.walker.idle()) {
 				this.repathAt = now + 20;
-				if (this.follow(st, front, 0.8) && this.walker.idle()) {
+				if (this.follow(st, front, 0.8, true) && this.walker.idle()) {
 					this.suspects.remove(base);
 					this.done.put(base, now + 600);
 					return false;
@@ -961,6 +1072,16 @@ public final class ShapeBrain {
 
 	private void roam(ShapeState st, int now) {
 		this.sense(st, false, false);
+		if (testGoal != null) {
+			this.mode = Mode.PATROL;
+			this.goal = testGoal;
+			if (this.body.position().distanceTo(Vec3.atBottomCenterOf(testGoal)) > 1.8 && !this.unreachable.containsKey(testGoal)) {
+				this.travel(st, now, testGoal, 1.2);
+			} else {
+				this.walker.halt();
+			}
+			return;
+		}
 		if (this.suspect(st, now)) {
 			this.mode = Mode.SEARCH;
 			this.lastSeen = this.body.position();
@@ -1088,7 +1209,7 @@ public final class ShapeBrain {
 		}
 		if (now >= this.repathAt || this.walker.idle()) {
 			this.repathAt = now + 40;
-			if (this.follow(st, to, within) && this.walker.idle() && d > within + 1) {
+			if (this.follow(st, to, within, true) && this.walker.idle() && d > within + 1) {
 				this.done.put(to, now + 20 * 60);
 				this.goal = null;
 				this.mode = Mode.PATROL;
@@ -1115,7 +1236,7 @@ public final class ShapeBrain {
 				spots.add(c);
 			}
 		}
-		spots.removeIf(p -> this.done.containsKey(p) || p.distSqr(this.body.blockPosition()) < 36);
+		spots.removeIf(p -> this.done.containsKey(p) || this.unreachable.containsKey(p) || p.distSqr(this.body.blockPosition()) < 36);
 		if (spots.isEmpty()) {
 			BlockPos center = MapPoints.get(level).first(MapPoints.Type.CENTER);
 			return center == null ? null : center.offset(this.random.nextInt(41) - 20, 0, this.random.nextInt(41) - 20);
@@ -1141,7 +1262,7 @@ public final class ShapeBrain {
 	private BlockPos job(int now) {
 		Vec3 me = this.body.position();
 		for (HwNet.ExitInfo e : Exits.infos()) {
-			if (this.done.containsKey(e.pos()) || Vec3.atCenterOf(e.pos()).distanceTo(me) > 30) {
+			if (this.done.containsKey(e.pos()) || this.unreachable.containsKey(e.pos()) || Vec3.atCenterOf(e.pos()).distanceTo(me) > 30) {
 				continue;
 			}
 			if (e.type() == Exits.CAR && (e.state() & Exits.CAR_FUEL) != 0 && (e.state() & (Exits.CAR_GONE | Exits.CAR_RUNNING)) == 0) {
@@ -1153,7 +1274,7 @@ public final class ShapeBrain {
 		}
 		if (Exits.policePoint() != null && Police.wanted() < HwConfig.get().policeMaxCalls) {
 			for (BlockPos phone : MapPoints.get(this.level()).list(MapPoints.Type.PHONE)) {
-				if (Exits.phoneWorks(phone) && !this.done.containsKey(phone) && Vec3.atCenterOf(phone).distanceTo(me) < 14) {
+				if (Exits.phoneWorks(phone) && !this.done.containsKey(phone) && !this.unreachable.containsKey(phone) && Vec3.atCenterOf(phone).distanceTo(me) < 14) {
 					return phone;
 				}
 			}
@@ -1170,7 +1291,7 @@ public final class ShapeBrain {
 			}
 			if (now >= this.repathAt || this.walker.idle()) {
 				this.repathAt = now + 30;
-				if (this.follow(st, at, 1.6) && this.walker.idle()) {
+				if (this.follow(st, at, 1.6, true) && this.walker.idle()) {
 					this.done.put(at, now + 20 * 60);
 					this.workAt = null;
 					this.mode = Mode.PATROL;
