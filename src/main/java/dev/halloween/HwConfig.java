@@ -452,7 +452,7 @@ public class HwConfig {
 	/** Storm cellars open for escape in a match (each takes one survivor). */
 	public int cellarsPerMatch = 2;
 	/** Share of the containers left after the escape items that hide something. */
-	public float lootFillShare = 0.6f;
+	public float lootFillShare = 0.55f;
 	/** How likely each find is, as draw weights (common 10, uncommon 5, rare 2, very rare 1). */
 	public java.util.Map<String, Integer> lootWeights = defaultLootWeights();
 	/** Each relic (amulet, hourglass, brass lantern) turns up in a match with this chance. */
@@ -817,7 +817,7 @@ public class HwConfig {
 
 	/** The file's version: older files get the defaults that changed since moved on (see {@link #migrate}). */
 	public int configVersion;
-	private static final int VERSION = 5;
+	private static final int VERSION = 6;
 
 	public static void load() {
 		Path path = path();
@@ -889,6 +889,9 @@ public class HwConfig {
 		}
 		if (this.configVersion < 4 && java.util.Arrays.equals(this.policeOfficersByLevel, new int[]{2, 2, 2})) {
 			this.policeOfficersByLevel = new int[]{1, 2, 1};
+		}
+		if (this.configVersion < 6 && this.lootFillShare == 0.6f) {
+			this.lootFillShare = 0.55f;
 		}
 		if (this.configVersion < 5 && this.lootWeights != null && Integer.valueOf(8).equals(this.lootWeights.get("battery"))) {
 			this.lootWeights.put("battery", 3);
