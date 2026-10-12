@@ -164,6 +164,11 @@ public final class ShapeBrain {
 	/** Houses he went through, by key, and when he was done. */
 	private final Map<Long, Integer> raided = new HashMap<>();
 	private boolean raidImpulse;
+	/** The raid's shadow: tried once at its start; the wardrobes left for a pass in his own form at the end. */
+	private boolean raidShadowTried;
+	private boolean raidLockersLeft;
+	private boolean raidLockerPass;
+	private int slipRepath;
 
 	// What his screen and his eyes and ears give him of the others (a person's knowledge, no more).
 	/** His Runt as his screen shows it (HwNet.RuntInfo, every 5 ticks): entity id, whom it holds (-1), bot or not, status, when. */
@@ -915,7 +920,8 @@ public final class ShapeBrain {
 			MatchManager.onAim(this.body, this.body.getEyePosition(), this.body.getViewVector(1f));
 			return;
 		}
-		if (this.lightJob != null && this.mode != Mode.CHASE && this.mode != Mode.STALK && this.mode != Mode.RETREAT && this.switchOff(st, now)) {
+		if (this.lightJob != null && st.shadowTicks == 0 && this.mode != Mode.CHASE && this.mode != Mode.STALK && this.mode != Mode.RETREAT
+			&& this.switchOff(st, now)) {
 			MatchManager.onAim(this.body, this.body.getEyePosition(), this.body.getViewVector(1f));
 			return;
 		}
@@ -1031,7 +1037,10 @@ public final class ShapeBrain {
 		boolean visible = now - this.lastSeenAt <= 2;
 		double far = this.reaction == Reaction.FOLLOW ? 14 : HwConfig.get().senseRange - 7;
 		if (st.shadowTicks > 0 && d < far) {
-			// Nothing is stalked from the shadow.
+			// Nothing is stalked from the shadow: out of it (out of the house first, if they are in it with him).
+			if (this.slipOut(st, now, t)) {
+				return;
+			}
 			this.wantOut(st, now);
 		}
 		if (d > far || !visible || st.shadowTicks > 0) {
@@ -1347,7 +1356,7 @@ public final class ShapeBrain {
 		// A shadow to cover the ground unseen, out again close by.
 		if (st.shadowTicks > 0) {
 			this.sense(st, false, false);
-			if (d < (armed ? 5 : 12) && this.wantOut(st, now)) {
+			if (d < 4.5 && this.wantOut(st, now)) {
 				stat("shadow.out_close");
 			}
 			if (st.shadowTicks > 0 && d < 3.5) {
@@ -1356,7 +1365,7 @@ public final class ShapeBrain {
 				this.walker.face(aim);
 				return;
 			}
-		} else if ((d > 14 || armed && d > 6) && !this.watchedBy(t) && !this.lit(t.blockPosition()) && MatchManager.jumpBlockReason(this.body, st) == 0
+		} else if ((d > 14 || armed && d > 6 || d > 8 && this.lastVelocity.horizontalDistance() > 0.2) && !this.watchedBy(t) && !this.lit(t.blockPosition()) && MatchManager.jumpBlockReason(this.body, st) == 0
 			&& st.jumpCooldown == 0) {
 			MatchManager.onShapeJump(this.body);
 			stat(armed ? "shadow.in_approach.armed" : "shadow.in_approach");
@@ -1436,7 +1445,7 @@ public final class ShapeBrain {
 		if (!fixed) {
 			this.aim = null;
 		} else if (!to.equals(this.aim)) {
-			if (this.lightJob == null && !to.equals(this.lightJob)) {
+			if (st.shadowTicks == 0 && this.lightJob == null && !to.equals(this.lightJob)) {
 				BlockPos breaker = this.breakerFor(to);
 				if (breaker != null && !breaker.equals(to)) {
 					this.lightJob = breaker;
@@ -1479,7 +1488,9 @@ public final class ShapeBrain {
 
 	/** Steps along the path: a locked door in the way gets broken, a window slipped through as a shadow. */
 	private Walker.Status walk(ShapeState st, int now) {
-		if (st.shadowTicks > 0 && !this.escaping && this.litAhead(5) && !this.lit(this.body.blockPosition())
+		boolean soonOut = this.mode == Mode.WORK || this.mode == Mode.CAMP || testGoal != null
+			|| this.mode == Mode.CHASE && this.target != null && this.body.distanceTo(this.target) < 6;
+		if (soonOut && st.shadowTicks > 0 && !this.escaping && this.litAhead(5) && !this.lit(this.body.blockPosition())
 			&& MatchManager.jumpBlockReason(this.body, st) == 0) {
 			// Light ahead: out of the shadow while it is still dark here, and on in his own form.
 			MatchManager.onShapeJump(this.body);
@@ -2128,6 +2139,9 @@ public final class ShapeBrain {
 		this.lockersOpened = 0;
 		this.raidStarted = now;
 		this.raidImpulse = false;
+		this.raidShadowTried = false;
+		this.raidLockersLeft = false;
+		this.raidLockerPass = false;
 		this.raidUntil = now + 20 * Math.min(100, 25 + 10 * this.raidRooms.size());
 		this.raidFresh = now - this.lastSeenAt < 20 * 20 || this.heat(b, now) >= 3;
 		this.mode = Mode.RAID;
@@ -2143,9 +2157,27 @@ public final class ShapeBrain {
 			this.mode = Mode.PATROL;
 			return;
 		}
+		if (this.raidRoom >= this.raidRooms.size() && !this.raidLockerPass && this.raidLockersLeft && this.raidFresh && !Events.quaking()
+			&& now <= this.raidUntil) {
+			// Nobody in the rooms, but good reason to think someone is here: the wardrobes, in his own form.
+			this.raidLockerPass = true;
+			this.raidRoom = 0;
+			this.raidSpot = 0;
+			this.roomLookAt = -1;
+			this.raidUntil = Math.max(this.raidUntil, now + 20 * 25);
+			stat("raid.lockers");
+		}
 		if (now > this.raidUntil || this.raidRoom >= this.raidRooms.size()) {
 			this.endRaid(now, true);
 			return;
+		}
+		if (!this.raidShadowTried) {
+			// Through the house unseen, as a shadow (through its doors, through walls of light).
+			this.raidShadowTried = true;
+			if (st.shadowTicks == 0 && MatchManager.jumpBlockReason(this.body, st) == 0) {
+				MatchManager.onShapeJump(this.body);
+				stat("raid.shadow");
+			}
 		}
 		if (!this.raidImpulse) {
 			this.raidImpulse = true;
@@ -2162,6 +2194,24 @@ public final class ShapeBrain {
 			this.lightsOff();
 		}
 		Houses.Room room = this.raidRooms.get(this.raidRoom);
+		if (this.raidLockerPass) {
+			// The second pass: only the wardrobes, room after room.
+			for (BlockPos locker : room.lockers) {
+				if (this.raidLockers >= 6) {
+					break;
+				}
+				if (!this.done.containsKey(locker) && this.openLocker(st, locker, now)) {
+					if (this.done.containsKey(locker)) {
+						this.raidLockers++;
+					}
+					return;
+				}
+			}
+			this.raidSpot = 0;
+			this.roomLookAt = -1;
+			this.raidRoom++;
+			return;
+		}
 		BlockPos spot = room.spots.get(Math.min(this.raidSpot, room.spots.size() - 1));
 		double d = this.body.position().distanceTo(Vec3.atBottomCenterOf(spot));
 		boolean there = d < 1.6 || d < 3.5 && this.walker.idle() && b.roomAt(this.body.blockPosition()) == room;
@@ -2171,10 +2221,6 @@ public final class ShapeBrain {
 				stat("raid.no_way");
 				this.nextSpot(room);
 			}
-			return;
-		}
-		if (!this.wantOut(st, now)) {
-			// A shadow sees nothing in there: out of it first.
 			return;
 		}
 		this.walker.halt();
@@ -2191,7 +2237,10 @@ public final class ShapeBrain {
 			return;
 		}
 		this.sense(st, false, false);
-		if (this.raidSpot >= room.spots.size() - 1 && !Events.quaking()) {
+		if (st.shadowTicks > 0 && !room.lockers.isEmpty()) {
+			// A shadow can't throw a wardrobe open: left for the end, if there is reason to.
+			this.raidLockersLeft = true;
+		} else if (this.raidSpot >= room.spots.size() - 1 && !Events.quaking()) {
 			// Its wardrobes (not those he opened lately), a few in all.
 			for (BlockPos locker : room.lockers) {
 				if (this.raidLockers >= 6) {
@@ -2209,6 +2258,47 @@ public final class ShapeBrain {
 			}
 		}
 		this.nextSpot(room);
+	}
+
+	/**
+	 * A shadow indoors with someone in sight in the same house, not chasing yet: not out of the shadow in there (they
+	 * would see him come out, and the light, the doorways, standing close may not let him): out of the house first,
+	 * by a way out they can't see, and out of the shadow there. True while at it.
+	 */
+	private boolean slipOut(ShapeState st, int now, LivingEntity t) {
+		if (st.shadowTicks == 0) {
+			return false;
+		}
+		Houses.Building b = Houses.at(this.level(), this.body.blockPosition());
+		if (b == null || !b.touches(t.blockPosition()) || b.outside.isEmpty()) {
+			return false;
+		}
+		if (now >= this.slipRepath || this.walker.idle()) {
+			this.slipRepath = now + 20;
+			BlockPos best = null;
+			double bestD = Double.MAX_VALUE;
+			for (BlockPos o : b.outside) {
+				double d = o.distSqr(this.body.blockPosition());
+				if (Sight.canSee(this.level(), t.getEyePosition(), Vec3.atBottomCenterOf(o).add(0, 1, 0), t)) {
+					// They would see him step out there.
+					d += 400;
+				}
+				if (d < bestD) {
+					bestD = d;
+					best = o;
+				}
+			}
+			if (best == null) {
+				return false;
+			}
+			if (this.walker.idle()) {
+				stat("shadow.slip_out");
+			}
+			this.follow(st, best, 1.0, true);
+		}
+		this.sense(st, false, false);
+		this.walk(st, now);
+		return true;
 	}
 
 	/** On to the next place to look from in this room, or to the next room. */
@@ -2777,7 +2867,7 @@ public final class ShapeBrain {
 			this.mode = Mode.PATROL;
 			this.goal = testGoal;
 			if (this.body.position().distanceTo(Vec3.atBottomCenterOf(testGoal)) > 1.8 && !this.unreachable.containsKey(testGoal)) {
-				this.travel(st, now, testGoal, 1.2);
+				this.travel(st, now, testGoal, 1.2, true);
 			} else {
 				this.walker.halt();
 			}
@@ -2861,7 +2951,7 @@ public final class ShapeBrain {
 		if (this.camping != null && now < this.campUntil) {
 			this.mode = Mode.CAMP;
 			if (this.body.position().distanceTo(Vec3.atBottomCenterOf(this.camping)) > this.campWithin) {
-				this.travel(st, now, this.camping, Math.min(5, this.campWithin));
+				this.travel(st, now, this.camping, Math.min(5, this.campWithin), true);
 			} else {
 				this.walker.halt();
 				this.sense(st, now % 120 < 60, false);
@@ -2947,23 +3037,32 @@ public final class ShapeBrain {
 		}
 	}
 
-	/** Getting somewhere with nobody about: far, as a shadow through the dark; close, on foot. */
+	/** Getting somewhere with nobody about: far, as a shadow through the dark; a shadow still when he gets there. */
 	private void travel(ShapeState st, int now, BlockPos to, double within) {
-		if (this.go(st, now, to, within)) {
+		this.travel(st, now, to, within, false);
+	}
+
+	/** As above; {@code out}: in his own form when he gets there (to keep watch, the tests' places). */
+	private void travel(ShapeState st, int now, BlockPos to, double within, boolean out) {
+		if (this.go(st, now, to, within, out)) {
 			this.done.put(to, now + 20 * 60);
 			this.goal = null;
 			this.mode = Mode.PATROL;
 		}
 	}
 
-	/** As travel; true when he finds no way there (the caller decides what then). */
+	/** As travel (a shadow still when he gets there); true when he finds no way there (the caller decides what then). */
 	private boolean go(ShapeState st, int now, BlockPos to, double within) {
+		return this.go(st, now, to, within, false);
+	}
+
+	private boolean go(ShapeState st, int now, BlockPos to, double within, boolean out) {
 		double d = this.body.position().distanceTo(Vec3.atBottomCenterOf(to));
 		if (st.shadowTicks == 0 && d > 25 && st.jumpCooldown == 0 && MatchManager.jumpBlockReason(this.body, st) == 0) {
 			MatchManager.onShapeJump(this.body);
 			this.repathAt = now;
 			stat("shadow.in_travel");
-		} else if (st.shadowTicks > 0 && d < 8) {
+		} else if (out && st.shadowTicks > 0 && d < 8) {
 			this.wantOut(st, now);
 		}
 		if (now >= this.repathAt || this.walker.idle()) {
