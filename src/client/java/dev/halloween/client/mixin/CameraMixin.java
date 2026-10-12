@@ -86,7 +86,7 @@ public abstract class CameraMixin {
 			return;
 		}
 		Vec3 from = this.position();
-		if (dev.halloween.client.MichaelRenderer.enabled && !dev.halloween.client.MichaelRenderer.demogorgon()) {
+		if (dev.halloween.client.MichaelRenderer.enabled) {
 			// His model is taller than he is: the camera up to where his eyes are drawn (not through a ceiling).
 			Vec3 up = from.add(0, (dev.halloween.client.MichaelRenderer.TALL - 1f) * mc.player.getEyeHeight(), 0);
 			HitResult roof = mc.level.clip(new ClipContext(from, up, ClipContext.Block.VISUAL, ClipContext.Fluid.NONE, mc.player));

@@ -91,7 +91,9 @@ public final class Holds {
 		if (hold == null) {
 			hold = LightSystem.resolve(player, pos);
 		}
-
+		if (hold == null && Demogorgon.active()) {
+			hold = Demogorgon.resolve(player, pos);
+		}
 		if (hold != null) {
 			WORK.put(player.getUUID(), new Work(hold, now));
 		}

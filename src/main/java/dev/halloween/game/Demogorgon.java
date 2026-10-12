@@ -18,41 +18,52 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
 /**
  * The Demogorgon (Stranger Things), the other killer (/hw killer demogorgon): played by a person (a bot always plays
- * Michael). Everything a killer does (Sense, stalking, the grab and the kill, the Impulse) is as Michael's; his own
- * powers take the place of Shape Jump and the dash on the same keys.
+ * Michael). Everything a killer does (Sense, stalking, the grab and the kill) is as Michael's; his own powers take the
+ * place of Michael's on the same keys.
  * <ul>
- * <li>The Upside Down (the Shape Jump key), anywhere: five seconds up on his hind legs tearing the air open (a rift
- * everyone near sees and hears), through it, and it closes behind him. Down there (a dark copy of the town, see
- * {@link UpsideDown}) he runs very fast and feels every survivor near him through the world above. Out again
- * anywhere: five seconds of the ceiling over that place splitting (or the air, out of doors), dripping, then he drops
- * through it.</li>
- * <li>Shred (the dash key): a second's charge, then a lunge forwards that strikes the first one in his way and breaks
- * a door or a window it runs into.</li>
+ * <li>Portals (the Shape Jump key): a portal where he stands (up to six, apart from each other: the ground turns to
+ * flesh, spores rise from it); standing on one, down into the Upside Down (a dark copy of the town, see
+ * {@link UpsideDown}); down there, at the same place as any portal, up through it, quietly for a few seconds.</li>
+ * <li>Of the Abyss (the Impulse key): on a portal or in the Upside Down, everyone near any portal shows to him.
+ * Down there those right by a portal show by themselves.</li>
+ * <li>Shred (the dash key): a second's charge, then a lunge forwards that strikes the first one in his way and
+ * breaks a door or a window it runs into.</li>
  * </ul>
+ * Survivors seal a portal holding use on it (twelve seconds, with reaction checks): it is gone.
  */
 public final class Demogorgon {
-	/** Five seconds to tear a way in, or out. */
-	public static final int RIFT_TICKS = 100;
-	/** After coming out, before he can go down again. */
-	private static final int RIFT_COOLDOWN = 20 * 20;
+	public static final int MAX_PORTALS = 6;
+	/** How far apart two portals must be. */
+	private static final double PORTAL_GAP = 8;
+	private static final int SEAL_TICKS = 240;
+	private static final int TRAVERSE_COOLDOWN = 200;
+	private static final int EMERGE_QUIET = 100;
 	private static final int SHRED_CHARGE = 20;
 	private static final int SHRED_TICKS = 7;
-	/** How far round him he feels survivors from the Upside Down (horizontally). */
-	private static final double FEEL_RANGE = 40;
+	/** Of the Abyss: how near a portal one shows, and for how long. */
+	private static final double ABYSS_RANGE = 16;
+	private static final double PASSIVE_RANGE = 8;
 
 	private static boolean chosen;
 
-	/** Tearing a rift: 1 down into the Upside Down, 2 up out of it; 0 not at it. */
-	private static int rift;
-	private static int riftStart;
-	/** Where the rift is (up in the town): in the air before him, or in the ceiling over where he comes out. */
-	private static Vec3 riftAt;
-	/** Where he lands coming out. */
-	private static Vec3 landing;
+	/** A portal: the floor block turned to flesh, and what was there before. */
+	private record Portal(BlockPos floor, BlockState before) {
+		Vec3 top() {
+			return Vec3.atBottomCenterOf(this.floor.above());
+		}
+	}
+
+	private static final List<Portal> PORTALS = new ArrayList<>();
+	private static int placeAt;
+	private static int quietUntil;
+	private static int abyssUntil;
 	/** Shred: ticks charged (-1: not charging), ticks of lunge left, its way. */
 	private static int shredCharge = -1;
 	private static int shredTicks;
@@ -80,96 +91,166 @@ public final class Demogorgon {
 		return active() && shredCharge >= 0;
 	}
 
-	/** Tearing a rift: he stays where he is. */
-	public static boolean rooted() {
-		return active() && rift != 0;
-	}
-
-	/** Down in the Upside Down: he runs very fast there. */
-	public static boolean fast(ServerPlayer p) {
-		return active() && rift == 0 && UpsideDown.isBelow(p);
+	public static int portals() {
+		return PORTALS.size();
 	}
 
 	// ---------------------------------------------------------------- the keys
 
-	/** The Shape Jump key: a rift down into the Upside Down from here, or (down there) up out of it here. */
-	static void riftKey(ServerPlayer p, ShapeState st) {
-		if (st.busy() || rift != 0 || shredCharge >= 0 || shredTicks > 0) {
+	/** The Shape Jump key: up through a portal from below, down through the one he stands on, or a new portal here. */
+	static void portalKey(ServerPlayer p, ShapeState st) {
+		if (st.busy() || shredCharge >= 0 || shredTicks > 0) {
 			return;
 		}
-		ServerLevel level = p.level();
-		int now = level.getServer().getTickCount();
+		int now = p.level().getServer().getTickCount();
 		if (UpsideDown.isBelow(p)) {
-			Vec3 up = UpsideDown.above(p.position());
-			Vec3 land = landing(level, up);
-			if (land == null) {
-				p.sendOverlayMessage(Component.translatable("halloween.msg.demo.no_way_up").withStyle(ChatFormatting.GRAY));
+			Portal at = nearest(UpsideDown.above(p.position()), 2.5);
+			if (at == null) {
+				p.sendOverlayMessage(Component.translatable("halloween.msg.demo.no_portal_below").withStyle(ChatFormatting.GRAY));
 				return;
 			}
-			landing = land;
-			riftAt = ceiling(level, land);
-			start(p, 2, now);
-			// Up there the ceiling begins to give: everyone near hears it.
-			level.playSound(null, riftAt.x, riftAt.y, riftAt.z, SoundEvents.SCULK_SHRIEKER_SHRIEK, SoundSource.HOSTILE, 1.4f, 0.55f);
+			emerge(p, st, at, now);
 			return;
 		}
-		if (st.jumpCooldown > 0) {
-			p.sendOverlayMessage(Component.translatable("halloween.msg.demo.cooldown").withStyle(ChatFormatting.GRAY));
+		Portal at = nearest(p.position(), 2);
+		if (at != null) {
+			if (st.jumpCooldown > 0) {
+				p.sendOverlayMessage(Component.translatable("halloween.msg.demo.cooldown").withStyle(ChatFormatting.GRAY));
+			} else if (!UpsideDown.ready()) {
+				p.sendOverlayMessage(Component.translatable("halloween.msg.demo.not_ready").withStyle(ChatFormatting.GRAY));
+			} else {
+				enter(p, at);
+			}
 			return;
 		}
-		if (!UpsideDown.ready()) {
-			p.sendOverlayMessage(Component.translatable("halloween.msg.demo.not_ready").withStyle(ChatFormatting.GRAY));
-			return;
-		}
-		Vec3 look = p.getLookAngle().multiply(1, 0, 1);
-		look = look.lengthSqr() < 1e-4 ? new Vec3(0, 0, 1) : look.normalize();
-		riftAt = p.position().add(look.scale(1.3)).add(0, 1.1, 0);
-		start(p, 1, now);
-		level.playSound(null, riftAt.x, riftAt.y, riftAt.z, SoundEvents.PORTAL_TRIGGER, SoundSource.HOSTILE, 0.9f, 0.6f);
+		place(p, now);
 	}
 
-	private static void start(ServerPlayer p, int kind, int now) {
-		rift = kind;
-		riftStart = now;
-		GrabSession.anim(p, HwNet.Anim.RIFT);
-		AiStats.add(p, kind == 1 ? "demo.rift_down" : "demo.rift_up");
+	private static void place(ServerPlayer p, int now) {
+		ServerLevel level = p.level();
+		if (now < placeAt) {
+			return;
+		}
+		if (PORTALS.size() >= MAX_PORTALS) {
+			p.sendOverlayMessage(Component.translatable("halloween.msg.demo.max", MAX_PORTALS).withStyle(ChatFormatting.GRAY));
+			return;
+		}
+		if (nearest(p.position(), PORTAL_GAP) != null) {
+			p.sendOverlayMessage(Component.translatable("halloween.msg.demo.too_close").withStyle(ChatFormatting.GRAY));
+			return;
+		}
+		BlockPos floor = p.blockPosition().below();
+		BlockState before = level.getBlockState(floor);
+		if (!p.onGround() || !before.isFaceSturdy(level, floor, Direction.UP) || before.hasBlockEntity() || Exits.isProp(floor)) {
+			p.sendOverlayMessage(Component.translatable("halloween.msg.demo.bad_ground").withStyle(ChatFormatting.GRAY));
+			return;
+		}
+		placeAt = now + 60;
+		PORTALS.add(new Portal(floor.immutable(), before));
+		level.setBlock(floor, Blocks.CRIMSON_NYLIUM.defaultBlockState(), Block.UPDATE_ALL);
+		level.playSound(null, floor, SoundEvents.SCULK_BLOCK_SPREAD, SoundSource.HOSTILE, 1.4f, 0.6f);
+		level.sendParticles(ParticleTypes.CRIMSON_SPORE, floor.getX() + 0.5, floor.getY() + 1.2, floor.getZ() + 0.5, 40, 0.6, 0.4, 0.6, 0.02);
+		AiStats.add(p, "demo.portal");
 		Match.markDirty();
 	}
 
-	/** Where he would stand coming out over this place below: the floor there (or next to it). */
-	private static Vec3 landing(ServerLevel level, Vec3 up) {
-		BlockPos at = Nav.snap(level, BlockPos.containing(up));
-		if (Nav.standable(level, at)) {
-			return Vec3.atBottomCenterOf(at);
+	/** Down through this portal: the same place in the Upside Down, his eyes made for the dark. */
+	private static void enter(ServerPlayer p, Portal at) {
+		ServerLevel level = p.level();
+		Vec3 to = UpsideDown.below(at.top());
+		level.playSound(null, at.floor().above(), SoundEvents.SCULK_SHRIEKER_SHRIEK, SoundSource.HOSTILE, 0.8f, 0.5f);
+		level.sendParticles(ParticleTypes.CRIMSON_SPORE, at.top().x, at.top().y + 0.5, at.top().z, 60, 0.4, 0.8, 0.4, 0.05);
+		p.teleportTo(level, to.x, to.y, to.z, java.util.Set.of(), p.getYRot(), p.getXRot(), false);
+		p.addEffect(new MobEffectInstance(MobEffects.NIGHT_VISION, 20 * 60 * 30, 0, true, false));
+		AiStats.add(p, "demo.down");
+	}
+
+	/** Up through this portal, quiet for a few seconds; the portals rest a while before he goes down again. */
+	private static void emerge(ServerPlayer p, ShapeState st, Portal at, int now) {
+		ServerLevel level = p.level();
+		Vec3 to = at.top();
+		p.teleportTo(level, to.x, to.y, to.z, java.util.Set.of(), p.getYRot(), p.getXRot(), false);
+		p.removeEffect(MobEffects.NIGHT_VISION);
+		p.setSilent(true);
+		quietUntil = now + EMERGE_QUIET;
+		st.jumpCooldownMax = TRAVERSE_COOLDOWN;
+		st.jumpCooldown = TRAVERSE_COOLDOWN;
+		level.sendParticles(ParticleTypes.CRIMSON_SPORE, to.x, to.y + 0.5, to.z, 30, 0.4, 0.8, 0.4, 0.03);
+		AiStats.add(p, "demo.up");
+		Match.markDirty();
+	}
+
+	/** The Impulse key: Of the Abyss, on a portal or down below: everyone near any portal shows to him a while. */
+	static void abyss(ServerPlayer p, ShapeState st) {
+		if (st.busy() || st.impulseCooldown > 0) {
+			return;
 		}
-		for (Direction d : Direction.Plane.HORIZONTAL) {
-			BlockPos side = Nav.snap(level, at.relative(d));
-			if (Nav.standable(level, side)) {
-				return Vec3.atBottomCenterOf(side);
+		boolean below = UpsideDown.isBelow(p);
+		if (!below && nearest(p.position(), 2.5) == null) {
+			p.sendOverlayMessage(Component.translatable("halloween.msg.demo.abyss_portal").withStyle(ChatFormatting.GRAY));
+			return;
+		}
+		HwConfig cfg = HwConfig.get();
+		int now = p.level().getServer().getTickCount();
+		List<Integer> ids = nearPortals(p.level(), ABYSS_RANGE);
+		st.impulseCooldownMax = HwConfig.at(cfg.impulseCooldownByTier, st.tier());
+		st.impulseCooldown = st.impulseCooldownMax;
+		abyssUntil = now + 100;
+		p.level().playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.WARDEN_HEARTBEAT, SoundSource.HOSTILE, 1.5f, 0.7f);
+		ServerPlayNetworking.send(p, new HwNet.Impulse(ids, List.of(), 100));
+		AiStats.add(p, "demo.abyss");
+	}
+
+	/** The dash key: Shred, a second's charge then a lunge. */
+	static void shredKey(ServerPlayer p, ShapeState st) {
+		if (st.busy() || st.dashCooldown > 0 || shredCharge >= 0 || shredTicks > 0 || UpsideDown.isBelow(p)) {
+			return;
+		}
+		shredCharge = 0;
+		p.level().playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.RAVAGER_STUNNED, SoundSource.HOSTILE, 1f, 1.4f);
+	}
+
+	// ---------------------------------------------------------------- survivors
+
+	/** A survivor holding use on a portal: sealing it, twelve seconds (reaction checks on the way). */
+	static Holds.Hold resolve(ServerPlayer player, BlockPos pos) {
+		if (!MatchManager.role(player).survivor()) {
+			return null;
+		}
+		Portal at = portalAt(pos);
+		if (at == null) {
+			return null;
+		}
+		BlockPos floor = at.floor();
+		return new Holds.Hold(floor, "halloween.hud.progress.seal_portal", false, SEAL_TICKS, p -> portalAt(floor) != null, p -> {
+			Portal still = portalAt(floor);
+			if (still != null) {
+				remove(p.level(), still);
+				p.level().playSound(null, floor, SoundEvents.SCULK_SHRIEKER_BREAK, SoundSource.BLOCKS, 1.2f, 0.8f);
+				Match.score(p, HwConfig.get().scoreExitProgress, Component.translatable("halloween.score.portal_sealed"));
+				ServerPlayer shape = Senses.shape(p.level());
+				if (shape != null) {
+					shape.sendOverlayMessage(Component.translatable("halloween.msg.demo.sealed").withStyle(ChatFormatting.DARK_RED));
+				}
+			}
+		}, true);
+	}
+
+	private static Portal portalAt(BlockPos floor) {
+		for (Portal p : PORTALS) {
+			if (p.floor().equals(floor)) {
+				return p;
 			}
 		}
 		return null;
 	}
 
-	/** The ceiling over this place (the underside of the first block up within six), or the air three blocks up. */
-	private static Vec3 ceiling(ServerLevel level, Vec3 floor) {
-		BlockPos p = BlockPos.containing(floor);
-		for (int dy = 2; dy <= 6; dy++) {
-			BlockPos q = p.above(dy);
-			if (!level.getBlockState(q).getCollisionShape(level, q).isEmpty()) {
-				return new Vec3(floor.x, q.getY() - 0.1, floor.z);
-			}
+	private static void remove(ServerLevel level, Portal p) {
+		PORTALS.remove(p);
+		if (level.getBlockState(p.floor()).is(Blocks.CRIMSON_NYLIUM)) {
+			level.setBlock(p.floor(), p.before(), Block.UPDATE_ALL);
 		}
-		return floor.add(0, 3.2, 0);
-	}
-
-	/** The dash key: Shred, a second's charge then a lunge. */
-	static void shredKey(ServerPlayer p, ShapeState st) {
-		if (st.busy() || st.dashCooldown > 0 || shredCharge >= 0 || shredTicks > 0 || rift != 0 || UpsideDown.isBelow(p)) {
-			return;
-		}
-		shredCharge = 0;
-		p.level().playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.RAVAGER_STUNNED, SoundSource.HOSTILE, 1f, 1.4f);
+		Match.markDirty();
 	}
 
 	// ---------------------------------------------------------------- every tick
@@ -181,6 +262,16 @@ public final class Demogorgon {
 		UpsideDown.tick();
 		ServerLevel level = server.overworld();
 		int now = server.getTickCount();
+		// The portals breathe: spores rising, a low sound now and then (survivors find them so).
+		if (now % 10 == 0) {
+			for (Portal p : PORTALS) {
+				Vec3 t = p.top();
+				level.sendParticles(ParticleTypes.CRIMSON_SPORE, t.x, t.y + 0.3, t.z, 4, 0.4, 0.2, 0.4, 0.01);
+				if (now % 80 == 0) {
+					level.playSound(null, p.floor().above(), SoundEvents.SCULK_BLOCK_SPREAD, SoundSource.BLOCKS, 0.6f, 0.5f);
+				}
+			}
+		}
 		ServerPlayer d = Senses.shape(level);
 		if (d == null) {
 			return;
@@ -189,94 +280,26 @@ public final class Demogorgon {
 		if (st == null) {
 			return;
 		}
-		tickRift(level, d, st, now);
+		if (quietUntil > 0 && now >= quietUntil) {
+			quietUntil = 0;
+			d.setSilent(false);
+		}
 		boolean below = UpsideDown.isBelow(d);
 		if (below && now % 5 == 0) {
 			// Ash drifting in the dark (for his eyes).
 			level.sendParticles(d, ParticleTypes.WHITE_ASH, true, false, d.getX(), d.getY() + 1.5, d.getZ(), 30, 8, 3, 8, 0.01);
 		}
-		if (below && now % 10 == 0) {
-			// He feels them through the world above: every survivor near him, wherever they are.
-			ServerPlayNetworking.send(d, new HwNet.Impulse(survivorsNear(level, UpsideDown.above(d.position()), FEEL_RANGE), List.of(), 15));
+		if (below && now % 20 == 0 && now > abyssUntil) {
+			// From below he feels whoever stands right by a portal.
+			ServerPlayNetworking.send(d, new HwNet.Impulse(nearPortals(level, PASSIVE_RANGE), List.of(), 30));
 		}
-		if (!below && rift == 0 && d.hasEffect(MobEffects.NIGHT_VISION)) {
+		if (!below && d.hasEffect(MobEffects.NIGHT_VISION)) {
 			d.removeEffect(MobEffects.NIGHT_VISION);
 		}
 		tickShred(d, st);
-		if (now % 5 == 0) {
-			ServerPlayNetworking.send(d, new HwNet.DemoHud(rift == 0 ? 0 : now - riftStart, RIFT_TICKS, below, UpsideDown.ready(), shredCharge >= 0));
+		if (now % 10 == 0) {
+			ServerPlayNetworking.send(d, new HwNet.DemoHud(PORTALS.size(), MAX_PORTALS, below, UpsideDown.ready(), shredCharge >= 0));
 		}
-	}
-
-	private static void tickRift(ServerLevel level, ServerPlayer d, ShapeState st, int now) {
-		if (rift == 0) {
-			return;
-		}
-		if (st.busy()) {
-			// Struck down or grabbed mid-way: the rift falls shut.
-			cancel(level, d);
-			return;
-		}
-		int t = now - riftStart;
-		float k = Math.min(1f, t / (float) RIFT_TICKS);
-		if (now % 3 == 0) {
-			if (rift == 1) {
-				// A tear in the air before him, growing: red spores, the dark beyond it pulling at the light.
-				double h = 0.3 + 1.9 * k;
-				for (int i = 0; i < 6; i++) {
-					double y = (level.getRandom().nextDouble() - 0.5) * h;
-					level.sendParticles(ParticleTypes.CRIMSON_SPORE, riftAt.x, riftAt.y + y, riftAt.z, 2, 0.05, 0.05, 0.05, 0.02);
-					level.sendParticles(ParticleTypes.REVERSE_PORTAL, riftAt.x, riftAt.y + y, riftAt.z, 1, 0.05, 0.05, 0.05, 0.05);
-				}
-			} else {
-				// The ceiling splitting where he will come through: dripping, spores falling.
-				double r = 0.2 + 0.9 * k;
-				level.sendParticles(ParticleTypes.FALLING_OBSIDIAN_TEAR, riftAt.x, riftAt.y, riftAt.z, 2 + (int) (6 * k), r, 0.02, r, 0);
-				level.sendParticles(ParticleTypes.CRIMSON_SPORE, riftAt.x, riftAt.y - 0.3, riftAt.z, 3, r, 0.1, r, 0.01);
-				if (t % 30 == 0) {
-					level.playSound(null, riftAt.x, riftAt.y, riftAt.z, SoundEvents.SCULK_BLOCK_SPREAD, SoundSource.HOSTILE, 1f, 0.5f);
-				}
-			}
-		}
-		if (t < RIFT_TICKS) {
-			return;
-		}
-		if (rift == 1) {
-			// Through, and it closes behind him.
-			Vec3 to = UpsideDown.below(d.position());
-			level.sendParticles(ParticleTypes.REVERSE_PORTAL, riftAt.x, riftAt.y, riftAt.z, 80, 0.3, 1.0, 0.3, 0.4);
-			level.playSound(null, riftAt.x, riftAt.y, riftAt.z, SoundEvents.PORTAL_TRAVEL, SoundSource.HOSTILE, 0.35f, 0.6f);
-			d.teleportTo(level, to.x, to.y, to.z, java.util.Set.of(), d.getYRot(), d.getXRot(), false);
-			d.addEffect(new MobEffectInstance(MobEffects.NIGHT_VISION, 20 * 60 * 30, 0, true, false));
-			GrabSession.anim(d, HwNet.Anim.NONE);
-			AiStats.add(d, "demo.down");
-		} else {
-			// Down through the ceiling.
-			Vec3 to = landing;
-			d.teleportTo(level, to.x, to.y, to.z, java.util.Set.of(), d.getYRot(), d.getXRot(), false);
-			d.removeEffect(MobEffects.NIGHT_VISION);
-			st.jumpCooldownMax = RIFT_COOLDOWN;
-			st.jumpCooldown = RIFT_COOLDOWN;
-			level.sendParticles(ParticleTypes.CRIMSON_SPORE, riftAt.x, riftAt.y - 0.5, riftAt.z, 60, 0.6, 0.4, 0.6, 0.05);
-			level.playSound(null, to.x, to.y, to.z, SoundEvents.WARDEN_ROAR, SoundSource.HOSTILE, 1.3f, 1.25f);
-			GrabSession.anim(d, HwNet.Anim.EMERGE);
-			AiStats.add(d, "demo.up");
-		}
-		rift = 0;
-		riftAt = null;
-		landing = null;
-		Match.markDirty();
-	}
-
-	private static void cancel(ServerLevel level, ServerPlayer d) {
-		if (riftAt != null) {
-			level.sendParticles(ParticleTypes.SMOKE, riftAt.x, riftAt.y, riftAt.z, 20, 0.2, 0.6, 0.2, 0.01);
-		}
-		rift = 0;
-		riftAt = null;
-		landing = null;
-		GrabSession.anim(d, HwNet.Anim.NONE);
-		AiStats.add(d, "demo.rift_broken");
 	}
 
 	private static void tickShred(ServerPlayer d, ShapeState st) {
@@ -325,24 +348,45 @@ public final class Demogorgon {
 		}
 	}
 
-	/** Survivors (not in a wardrobe) within {@code r} of this point, across (horizontally). */
-	private static List<Integer> survivorsNear(ServerLevel level, Vec3 at, double r) {
+	/** Survivors (not in a wardrobe) within {@code r} of any portal. */
+	private static List<Integer> nearPortals(ServerLevel level, double r) {
 		List<Integer> ids = new ArrayList<>();
 		for (ServerPlayer s : level.players()) {
-			if (MatchManager.role(s).survivor() && MatchManager.exposed(s) && s.position().multiply(1, 0, 1).distanceTo(at.multiply(1, 0, 1)) <= r) {
+			if (!MatchManager.role(s).survivor() || !MatchManager.exposed(s)) {
+				continue;
+			}
+			if (nearest(s.position(), r) != null) {
 				ids.add(s.getId());
 			}
 		}
 		return ids;
 	}
 
-	/** A match over: no rift open, the Upside Down left as it is. */
+	/** The portal within {@code r} of this point (up in the town), the nearest, or null. */
+	private static Portal nearest(Vec3 at, double r) {
+		Portal best = null;
+		double bestD = r;
+		for (Portal p : PORTALS) {
+			double d = p.top().distanceTo(at);
+			if (d <= bestD) {
+				bestD = d;
+				best = p;
+			}
+		}
+		return best;
+	}
+
+	/** A match over: the portals gone, the ground as it was, the Upside Down left as it is. */
 	public static void clear(ServerLevel level) {
-		rift = 0;
-		riftAt = null;
-		landing = null;
+		for (Portal p : new ArrayList<>(PORTALS)) {
+			remove(level, p);
+		}
+		PORTALS.clear();
 		shredCharge = -1;
 		shredTicks = 0;
+		quietUntil = 0;
+		abyssUntil = 0;
+		placeAt = 0;
 		UpsideDown.clear();
 	}
 }

@@ -1112,12 +1112,11 @@ public final class HwHud {
 		abilityDiamond(g, font, jumpX, baseY, demo ? "◈" : "»", HalloweenClient.KEY_SHAPE_JUMP,
 			demo && dh.below() ? 0xE08A2A2A : inShadow ? (jumpReady ? 0xE07A5CC8 : 0xE0602A6A) : jumpReady ? DARK_FILL : RED_FILL, jumpProgress, 0xFF606060, TEXT);
 		if (demo) {
-			// The rift: how far torn, the Upside Down (out anywhere), its rest, or whether it is there yet.
-			Component line = dh.rift() > 0 ? Component.translatable("halloween.hud.demo.tearing", 100 * dh.rift() / Math.max(1, dh.riftTicks()))
-				: !dh.ready() ? Component.translatable("halloween.hud.demo.building")
+			// His portals: how many, or (down below) how to get out.
+			Component line = !dh.ready() ? Component.translatable("halloween.hud.demo.building")
 				: dh.below() ? Component.translatable("halloween.hud.demo.below")
 				: hud.jumpBlock() == 3 ? Component.literal(seconds(hud.jumpCooldown()))
-				: Component.translatable("halloween.hud.demo.rift");
+				: Component.translatable("halloween.hud.demo.portals", dh.portals(), dh.max());
 			g.centeredText(font, line, jumpX, baseY - 26, dh.below() ? 0xFFE07070 : DIM);
 		} else if (inShadow && hud.jumpBlock() != 0) {
 			// Leaving the shadow is refused here: say why.
@@ -1138,7 +1137,7 @@ public final class HwHud {
 		int impulseY = baseY - 36;
 		boolean impulseReady = hud.impulseCooldown() == 0;
 		float impulseProgress = impulseReady ? 1f : 1f - (float) hud.impulseCooldown() / Math.max(1, hud.impulseCooldownMax());
-		abilityDiamond(g, font, impulseX, impulseY, "◎", HalloweenClient.KEY_IMPULSE,
+		abilityDiamond(g, font, impulseX, impulseY, demo ? "✺" : "◎", HalloweenClient.KEY_IMPULSE,
 			impulseReady ? DARK_FILL : RED_FILL, impulseProgress, 0xFF606060, TEXT);
 
 		// Weapon.

@@ -27,7 +27,7 @@ import net.minecraft.world.entity.Entity;
  */
 public final class MichaelRenderer {
 	private static final Identifier TEXTURE = Halloween.id("textures/entity/michael.png");
-	/** The Demogorgon, when he is this match's killer: his own model on all fours (DemogorgonModel). */
+	/** The Demogorgon, when he is this match's killer (art/demogorgon.bbmodel, the same bones, a bud of petals for a head). */
 	private static final Identifier DEMO_TEXTURE = Halloween.id("textures/entity/demogorgon.png");
 	/** 2.1 blocks tall instead of 1.8. */
 	public static final float TALL = 2.1f / 1.8f;
@@ -36,9 +36,7 @@ public final class MichaelRenderer {
 	/** For tests: draw him as a player with his skin again. */
 	public static boolean enabled = true;
 	private static MichaelModel model;
-	private static DemogorgonModel demoModel;
-	/** The Demogorgon is bigger than a man on all fours. */
-	public static final float DEMO_SCALE = 1.2f;
+	private static MichaelModel demoModel;
 
 	private MichaelRenderer() {
 	}
@@ -67,6 +65,16 @@ public final class MichaelRenderer {
 			copy("left_arm", this.source.leftArm);
 			copy("right_leg", this.source.rightLeg);
 			copy("left_leg", this.source.leftLeg);
+			if (this.bb.part("petal0") != null) {
+				// The Demogorgon's head: a closed bud, flung open as he strikes.
+				float open = s.attackTime > 0f ? Mth.sin(Math.min(1f, s.attackTime * 1.6f) * Mth.PI) : 0f;
+				for (int k = 0; k < 5; k++) {
+					ModelPart petal = this.bb.part("petal" + k);
+					if (petal != null) {
+						petal.xRot = Mth.lerp(open, -0.22f, 1.2f);
+					}
+				}
+			}
 		}
 
 		private void copy(String bone, ModelPart from) {
@@ -77,37 +85,13 @@ public final class MichaelRenderer {
 		}
 	}
 
-	private static DemogorgonModel demoModel() {
-		if (demoModel == null) {
-			demoModel = DemogorgonModel.load();
-		}
-		return demoModel;
-	}
-
-	/** How much bigger than a player the killer is drawn. */
-	public static float scale() {
-		return demogorgon() ? DEMO_SCALE : TALL;
-	}
-
-	/**
-	 * The Demogorgon coming down from a ceiling (HwNet.Anim.EMERGE): for the first moments he hangs upside down up
-	 * there and drops, turning over as he falls (from mixin.LivingEntityRendererMixin, in the entity's own space).
-	 */
-	public static void emerge(EntityRenderState state, PoseStack pose) {
-		if (!enabled || !demogorgon() || !isMichael(state)) {
-			return;
-		}
-		float e = ClientAnims.demoTime(((HwRenderState) state).halloween$entityId(), dev.halloween.net.HwNet.Anim.EMERGE);
-		if (e < 0f || e >= 14f) {
-			return;
-		}
-		float k = e / 14f;
-		float turn = 1f - k * k * (3f - 2f * k);
-		pose.translate(0f, 2.6f * (1f - k * k), 0f);
-		pose.mulPose(com.mojang.math.Axis.ZP.rotationDegrees(180f * turn));
-	}
-
 	private static MichaelModel model() {
+		if (demogorgon()) {
+			if (demoModel == null) {
+				demoModel = new MichaelModel(BbModel.load("/assets/halloween/models/entity/demogorgon.json", Set.of()));
+			}
+			return demoModel;
+		}
 		if (model == null) {
 			model = new MichaelModel(BbModel.load("/assets/halloween/models/entity/michael.json", Set.of()));
 		}
@@ -138,7 +122,7 @@ public final class MichaelRenderer {
 			return;
 		}
 		if (demogorgon()) {
-			// He has his own model, moved by itself (DemogorgonModel).
+			demoPose(m, s);
 			return;
 		}
 		// No swinging walk: legs and arms from rest, then his heavy one laid on.
@@ -180,6 +164,41 @@ public final class MichaelRenderer {
 		}
 	}
 
+	/** The Demogorgon's stalking gait (his model's "walk"), long arms hanging forward; a strike rakes down with both. */
+	private static void demoPose(HumanoidModel<?> m, AvatarRenderState s) {
+		m.rightLeg.xRot = 0f;
+		m.leftLeg.xRot = 0f;
+		m.rightArm.xRot = -0.18f;
+		m.rightArm.yRot = 0f;
+		m.rightArm.zRot = 0.1f;
+		m.leftArm.xRot = -0.18f;
+		m.leftArm.yRot = 0f;
+		m.leftArm.zRot = -0.1f;
+		BbModel.Animation walk = model().bb.animation("walk");
+		if (walk != null) {
+			float weight = Mth.clamp(s.walkAnimationSpeed * 1.5f, 0f, 1f);
+			float seconds = s.walkAnimationPos * 0.6662f / Mth.TWO_PI * walk.length();
+			model().bb.applyTo("walk", seconds, weight, Map.of("head", m.head, "body", m.body, "right_arm", m.rightArm, "left_arm", m.leftArm,
+				"right_leg", m.rightLeg, "left_leg", m.leftLeg));
+		}
+		if (s.attackTime > 0f) {
+			// Both claws up over him, then raking down.
+			float a = s.attackTime;
+			float up = Math.min(1f, a / 0.3f);
+			float down = a < 0.3f ? 0f : Math.min(1f, (a - 0.3f) / 0.25f);
+			float x = Mth.lerp(down, Mth.lerp(up, -0.18f, -2.6f), -0.4f);
+			m.rightArm.xRot = x;
+			m.leftArm.xRot = x;
+			m.rightArm.zRot = 0.25f * (1 - down);
+			m.leftArm.zRot = -0.25f * (1 - down);
+			m.body.yRot = 0f;
+			m.rightArm.x = -5f;
+			m.rightArm.z = 0f;
+			m.leftArm.x = 5f;
+			m.leftArm.z = 0f;
+		}
+	}
+
 	/**
 	 * Draws him in place of the player model (from mixin.LivingEntityRendererMixin, where the renderer submits its
 	 * model). True if it was him; the renderer's layers (the knife in his hand) are drawn as ever.
@@ -189,18 +208,11 @@ public final class MichaelRenderer {
 		if (!enabled || !(state instanceof AvatarRenderState avatar) || !(playerModel instanceof HumanoidModel<?> humanoid) || !isMichael(avatar)) {
 			return false;
 		}
-		if (demogorgon()) {
-			Identifier texture = DEMO_TEXTURE;
-			net.minecraft.client.renderer.rendertype.RenderType type = tint != -1 ? RenderTypes.entityTranslucentCullItemTarget(texture)
-				: avatar.isInvisible ? RenderTypes.outline(texture) : RenderTypes.entityCutout(texture);
-			collector.submitModel(demoModel(), avatar, pose, type, light, overlay, tint, null, outline, null);
-			return true;
-		}
 		MichaelModel m = model();
 		m.source = humanoid;
 		// As the player model would be: whole; see-through (invisible, to those who see the invisible); or only his
 		// outline (invisible but glowing).
-		Identifier texture = TEXTURE;
+		Identifier texture = demogorgon() ? DEMO_TEXTURE : TEXTURE;
 		net.minecraft.client.renderer.rendertype.RenderType type = tint != -1 ? RenderTypes.entityTranslucentCullItemTarget(texture)
 			: avatar.isInvisible ? RenderTypes.outline(texture) : RenderTypes.entityCutout(texture);
 		collector.submitModel(m, avatar, pose, type, light, overlay, tint, null, outline, null);

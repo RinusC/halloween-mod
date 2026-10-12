@@ -40,13 +40,12 @@ public abstract class LivingEntityRendererMixin {
 	@Inject(method = "extractRenderState(Lnet/minecraft/world/entity/LivingEntity;Lnet/minecraft/client/renderer/entity/state/LivingEntityRenderState;F)V", at = @At("TAIL"))
 	private void halloween$tall(net.minecraft.world.entity.LivingEntity entity, LivingEntityRenderState state, float partialTicks, CallbackInfo ci) {
 		if (dev.halloween.client.MichaelRenderer.isMichael(entity)) {
-			state.scale *= dev.halloween.client.MichaelRenderer.scale();
+			state.scale *= dev.halloween.client.MichaelRenderer.TALL;
 		}
 	}
 
 	@Inject(method = "setupRotations", at = @At("TAIL"))
 	private void halloween$knockedDown(LivingEntityRenderState state, PoseStack poseStack, float bodyRot, float entityScale, CallbackInfo ci) {
-		dev.halloween.client.MichaelRenderer.emerge(state, poseStack);
 		float angle = ClientAnims.fallAngle(((HwRenderState) state).halloween$entityId());
 		if (angle > 0f) {
 			// Lifted a little as it goes over, so the back lies on the ground rather than in it.

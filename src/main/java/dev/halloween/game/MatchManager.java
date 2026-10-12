@@ -439,11 +439,8 @@ public final class MatchManager {
 		if (state.grab != null && state.grab.struggling() && state.stunnedTicks == 0 && !Match.frozen()) {
 			// Holding someone: he can still shuffle along, very slowly, dragging them.
 			speed = cfg.grabSpeedModifier;
-		} else if (state.busy() || Match.frozen() || state.trappedTicks > 0 && state.shadowTicks == 0 || Demogorgon.rooted()) {
+		} else if (state.busy() || Match.frozen() || state.trappedTicks > 0 && state.shadowTicks == 0) {
 			speed = -1;
-		} else if (Demogorgon.fast(player)) {
-			// The Demogorgon in the Upside Down: very fast.
-			speed += 1.5;
 		} else if (state.shadowTicks > 0) {
 			speed += HwConfig.at(cfg.shapeJumpSpeedByTier, state.tier());
 		} else if (Demogorgon.charging()) {
@@ -721,7 +718,7 @@ public final class MatchManager {
 	 */
 	static int jumpBlockReason(ServerPlayer player, ShapeState state) {
 		if (Demogorgon.active()) {
-			// His rifts: only being busy or the rest after coming out hold him back.
+			// His portals: only being busy or the rest after a crossing hold him back.
 			return state.busy() ? 4 : state.jumpCooldown > 0 ? 3 : 0;
 		}
 		if (state.shadowTicks > 0) {
@@ -742,8 +739,8 @@ public final class MatchManager {
 			return;
 		}
 		if (Demogorgon.active()) {
-			// The Demogorgon tears his way into the Upside Down (and out) in place of Shape Jump.
-			Demogorgon.riftKey(player, state);
+			// The Demogorgon has portals in place of Shape Jump.
+			Demogorgon.portalKey(player, state);
 			return;
 		}
 		if (Windows.isVaulting(player)) {
@@ -821,6 +818,11 @@ public final class MatchManager {
 	public static void onImpulse(ServerPlayer player) {
 		ShapeState state = SHAPES.get(player.getUUID());
 		if (role(player) != Role.SHAPE || state == null || state.busy() || state.impulseCooldown > 0) {
+			return;
+		}
+		if (Demogorgon.active()) {
+			// The Demogorgon's Of the Abyss in place of the Impulse.
+			Demogorgon.abyss(player, state);
 			return;
 		}
 		HwConfig cfg = HwConfig.get();

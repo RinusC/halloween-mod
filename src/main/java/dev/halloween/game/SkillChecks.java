@@ -40,6 +40,7 @@ public final class SkillChecks {
 			case "halloween.hud.progress.open_cellar" -> HwNet.Check.PULSE;
 			case "halloween.hud.progress.open_gate", "halloween.hud.progress.repair_phone" -> HwNet.Check.DOUBLE;
 			case "halloween.hud.progress.refuel" -> HwNet.Check.BAR;
+			case "halloween.hud.progress.seal_portal" -> HwNet.Check.PULSE;
 			default -> HwNet.Check.RING;
 		};
 	}
