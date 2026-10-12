@@ -232,6 +232,7 @@ public final class Townsfolk {
 	public static void clear(MinecraftServer server) {
 		spawnedCount = 0;
 		PARTY_HOMES.clear();
+		PARTY_ASKED.clear();
 		rescuedCount = 0;
 		deadCount = 0;
 		for (Npc npc : NPCS.values()) {
@@ -476,16 +477,26 @@ public final class Townsfolk {
 	/** Townsfolk the party drew away, and the homes they go back to afterwards. */
 	private static final Map<UUID, BlockPos> PARTY_HOMES = new LinkedHashMap<>();
 
-	/** A party at {@code house} (see Events): some of the townsfolk at home round it go over and stay there a while. */
-	public static void gather(BlockPos house, double range, float share, RandomSource random) {
+	/** Townsfolk already asked to the party (whether they came or not): each is asked once. */
+	private static final java.util.Set<UUID> PARTY_ASKED = new java.util.HashSet<>();
+
+	/**
+	 * A party at {@code house} (see Events): some of the townsfolk at home round it go over and stay there a while,
+	 * each on a spot of its floor. Called again while it lasts: those out and about when it began come later.
+	 */
+	public static void gather(List<BlockPos> spots, BlockPos house, double range, float share, RandomSource random) {
 		for (Npc npc : NPCS.values()) {
 			if (npc.state != State.HOME || npc.body.isRemoved() || Lockers.isInside(npc.body) || MatchManager.isHeld(npc.body)
-				|| npc.body.position().distanceTo(Vec3.atCenterOf(house)) > range || random.nextFloat() >= share) {
+				|| npc.body.position().distanceTo(Vec3.atCenterOf(house)) > range || PARTY_ASKED.contains(npc.body.getUUID())) {
+				continue;
+			}
+			PARTY_ASKED.add(npc.body.getUUID());
+			if (random.nextFloat() >= share) {
 				continue;
 			}
 			ServerLevel level = (ServerLevel) npc.body.level();
 			PARTY_HOMES.putIfAbsent(npc.body.getUUID(), npc.home);
-			npc.home = Nav.snap(level, house);
+			npc.home = spots.get(random.nextInt(spots.size()));
 			npc.walker.speed = 0.8f;
 			setSpeed(npc, HwConfig.get().npcWalkSpeed);
 			npc.walker.follow(Nav.to(level, npc.body.blockPosition(), npc.home, 2.0, Nav.Options.walker()));
@@ -507,6 +518,7 @@ public final class Townsfolk {
 			}
 		}
 		PARTY_HOMES.clear();
+		PARTY_ASKED.clear();
 	}
 
 	/** A house on fire (see Events): those in it or near run out, screaming. */

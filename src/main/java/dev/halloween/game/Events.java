@@ -1199,6 +1199,8 @@ public final class Events {
 	static final class Party extends Event {
 		BlockPos house;
 		Holder<SoundEvent> music;
+		/** Where the guests stand: the floor inside the house (not the breaker on its wall). */
+		List<BlockPos> spots = List.of();
 
 		Party() {
 			super("party", Side.NEUTRAL);
@@ -1237,7 +1239,9 @@ public final class Events {
 			List<Holder<SoundEvent>> songs = List.of(SoundEvents.MUSIC_DISC_CHIRP, SoundEvents.MUSIC_DISC_MALL, SoundEvents.MUSIC_DISC_CAT, SoundEvents.MUSIC_DISC_BLOCKS);
 			this.music = songs.get(level.getRandom().nextInt(songs.size()));
 			level.playSound(null, this.house.getX() + 0.5, this.house.getY() + 1.0, this.house.getZ() + 0.5, this.music, SoundSource.RECORDS, 4f, 1f);
-			Townsfolk.gather(this.house, HwConfig.get().partyGatherRange, HwConfig.get().partyGatherShare, level.getRandom());
+			List<BlockPos> floor = Fire.interior(level, this.house);
+			this.spots = floor.isEmpty() ? List.of(Nav.snap(level, this.house)) : floor;
+			Townsfolk.gather(this.spots, this.house, HwConfig.get().partyGatherRange, HwConfig.get().partyGatherShare, level.getRandom());
 		}
 
 		@Override
@@ -1245,6 +1249,10 @@ public final class Events {
 			if (now % 10 == 0) {
 				Vec3 c = Vec3.atCenterOf(this.house);
 				level.sendParticles(ParticleTypes.NOTE, c.x, c.y + 1.5, c.z, 3, 3, 1.5, 3, 1);
+			}
+			if (now % 200 == 100) {
+				// Those who were out and about when it started hear it now.
+				Townsfolk.gather(this.spots, this.house, HwConfig.get().partyGatherRange, HwConfig.get().partyGatherShare, level.getRandom());
 			}
 		}
 
@@ -1271,6 +1279,8 @@ public final class Events {
 		Vec3 smoke;
 		final List<BlockPos> fires = new ArrayList<>();
 		final List<BlockPos> roof = new ArrayList<>();
+		/** The floor of the burning house: smoke over all of it. */
+		final List<BlockPos> inside = new ArrayList<>();
 		BlockPos crate;
 		BlockState crateBefore;
 		HwItems.Kind prize;
@@ -1305,7 +1315,7 @@ public final class Events {
 		}
 
 		/** Floor spots under the house's roof round its breaker: room to stand, no door beside. */
-		private List<BlockPos> interior(ServerLevel level, BlockPos b) {
+		static List<BlockPos> interior(ServerLevel level, BlockPos b) {
 			List<BlockPos> out = new ArrayList<>();
 			for (BlockPos p : BlockPos.betweenClosed(b.offset(-7, -3, -7), b.offset(7, 6, 7))) {
 				if (!level.getBlockState(p).isAir() || !level.getBlockState(p.above()).isAir() || level.canSeeSky(p)
@@ -1361,6 +1371,8 @@ public final class Events {
 			}
 			// Flames inside, and the crate with something for getting out.
 			List<BlockPos> floor = this.interior(level, this.house);
+			this.inside.clear();
+			this.inside.addAll(floor);
 			java.util.Collections.shuffle(floor, new java.util.Random(random.nextLong()));
 			this.crate = null;
 			for (BlockPos p : floor) {
@@ -1444,6 +1456,28 @@ public final class Events {
 			if (now % 3 == 0) {
 				level.sendParticles(ParticleTypes.LARGE_SMOKE, this.smoke.x, this.smoke.y, this.smoke.z, 6, 4, 1.5, 4, 0.01);
 			}
+			// Smoke in every room, thick under the ceiling.
+			for (int i = 0; i < 4 && !this.inside.isEmpty(); i++) {
+				BlockPos p = this.inside.get(random.nextInt(this.inside.size()));
+				level.sendParticles(ParticleTypes.LARGE_SMOKE, p.getX() + 0.5, p.getY() + 1.4 + random.nextFloat(), p.getZ() + 0.5, 2, 0.5, 0.3, 0.5, 0.005);
+				if (random.nextInt(3) == 0) {
+					level.sendParticles(ParticleTypes.CAMPFIRE_COSY_SMOKE, p.getX() + 0.5, p.getY() + 0.3, p.getZ() + 0.5, 1, 0.3, 0.1, 0.3, 0.01);
+				}
+			}
+			if (now % 20 == 0) {
+				// The smoke and the heat hurt anyone under the burning roof (never to death: see allowDamage).
+				float hurt = HwConfig.get().fireSmokeDamage;
+				for (net.minecraft.world.entity.LivingEntity e : level.getEntitiesOfClass(net.minecraft.world.entity.LivingEntity.class,
+					new net.minecraft.world.phys.AABB(this.house).inflate(8, 7, 8), e -> e.isAlive() && !e.isSpectator())) {
+					BlockPos at = e.blockPosition();
+					boolean under = Math.abs(at.getX() - this.house.getX()) <= 7 && Math.abs(at.getZ() - this.house.getZ()) <= 7
+						&& at.getY() >= this.house.getY() - 3 && at.getY() <= this.house.getY() + 6 && !level.canSeeSky(at.above());
+					boolean counts = e instanceof ServerPlayer p ? MatchManager.role(p).survivor() : MatchManager.isVictim(e);
+					if (under && counts) {
+						e.hurtServer(level, level.damageSources().inFire(), hurt);
+					}
+				}
+			}
 			if (now % 40 == 0) {
 				Townsfolk.flee(Vec3.atCenterOf(this.house), 10, now);
 			}
@@ -1458,6 +1492,7 @@ public final class Events {
 			}
 			this.fires.clear();
 			this.roof.clear();
+			this.inside.clear();
 			if (this.crate != null && level.getBlockState(this.crate).is(HwBlocks.CRATE)) {
 				level.setBlock(this.crate, this.crateBefore == null ? Blocks.AIR.defaultBlockState() : this.crateBefore, 3);
 			}

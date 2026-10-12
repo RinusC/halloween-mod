@@ -142,6 +142,10 @@ public final class Exits {
 
 	public static void clear(ServerLevel level) {
 		removeVan(level);
+		// What this match built, and what a match left behind when the game was closed in the middle of it.
+		ExitProps saved = ExitProps.get(level.getServer());
+		saved.panes().forEach((pos, old) -> level.setBlock(pos, old, Block.UPDATE_ALL));
+		saved.clear();
 		PROPS.forEach((pos, old) -> level.setBlock(pos, old, Block.UPDATE_ALL));
 		PROPS.clear();
 		CELLARS.clear();
@@ -788,7 +792,9 @@ public final class Exits {
 	}
 
 	private static void place(ServerLevel level, BlockPos pos, BlockState state, Map<BlockPos, BlockState> undo) {
-		undo.putIfAbsent(pos.immutable(), level.getBlockState(pos));
+		if (undo.putIfAbsent(pos.immutable(), level.getBlockState(pos)) == null) {
+			ExitProps.get(level.getServer()).add(pos, undo.get(pos));
+		}
 		level.setBlock(pos, state, Block.UPDATE_ALL);
 	}
 
@@ -963,7 +969,11 @@ public final class Exits {
 	}
 
 	private static void removeVan(ServerLevel level) {
-		VAN.forEach((pos, old) -> level.setBlock(pos, old, Block.UPDATE_ALL));
+		ExitProps saved = ExitProps.get(level.getServer());
+		VAN.forEach((pos, old) -> {
+			level.setBlock(pos, old, Block.UPDATE_ALL);
+			saved.remove(pos);
+		});
 		VAN.clear();
 		if (vanModel != null) {
 			vanModel.remove();

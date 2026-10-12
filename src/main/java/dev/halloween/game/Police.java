@@ -57,6 +57,8 @@ public final class Police {
 
 	private static final class Officer {
 		Mannequin body;
+		/** His baton broke on Michael: no new one comes out (bare fists from then on). */
+		boolean batonBroken;
 		Walker walker;
 		UUID ward;
 		int wardCheckAt;
@@ -470,7 +472,16 @@ public final class Police {
 					officer.nextHit = now + cfg.policeHitCooldownTicks;
 					body.swing(InteractionHand.MAIN_HAND, true);
 					level.playSound(null, shape.getX(), shape.getY(), shape.getZ(), SoundEvents.PLAYER_ATTACK_STRONG, SoundSource.NEUTRAL, 1.2f, 0.8f);
-					Fight.stun(shape, cfg.policeBatonStun, null);
+					// The baton wears out like anyone's (its hits are counted); with it broken, bare fists, half as hard.
+					net.minecraft.world.item.ItemStack held = body.getMainHandItem();
+					boolean baton = HwItems.is(held, HwItems.Kind.BATON);
+					Fight.stun(shape, baton ? cfg.policeBatonStun : cfg.policeBatonStun * 0.5f, null);
+					if (baton && HwItems.wear(held)) {
+						body.setItemSlot(EquipmentSlot.MAINHAND, net.minecraft.world.item.ItemStack.EMPTY);
+						level.playSound(null, body.getX(), body.getY(), body.getZ(), SoundEvents.ITEM_BREAK.value(), SoundSource.NEUTRAL, 1f, 0.9f);
+						officer.batonBroken = true;
+						AiStats.add(body, "police.baton_broke");
+					}
 					AiStats.add(body, "police.hit");
 				}
 				return;
@@ -573,7 +584,7 @@ public final class Police {
 	private static void tickReload(ServerLevel level, Officer officer) {
 		HwConfig cfg = HwConfig.get();
 		if (officer.reloadTicks < 0) {
-			if (officer.cylinder <= 0 && officer.spare <= 0 && !HwItems.is(officer.body.getMainHandItem(), HwItems.Kind.BATON)) {
+			if (officer.cylinder <= 0 && officer.spare <= 0 && !HwItems.is(officer.body.getMainHandItem(), HwItems.Kind.BATON) && !officer.batonBroken) {
 				officer.body.setItemSlot(EquipmentSlot.MAINHAND, HwItems.create(HwItems.Kind.BATON));
 			}
 			return;

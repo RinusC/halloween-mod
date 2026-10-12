@@ -226,6 +226,15 @@ public final class HwItems {
 		return data == null ? 0 : data.copyTag().getIntOr(USES, 1);
 	}
 
+	/** Marks a flashlight as shining or not (the first custom-model flag; the item's model turns on it). Only when it changes. */
+	public static void setLit(ItemStack stack, boolean lit) {
+		net.minecraft.world.item.component.CustomModelData cmd = stack.get(DataComponents.CUSTOM_MODEL_DATA);
+		boolean now = cmd != null && !cmd.flags().isEmpty() && cmd.flags().getFirst();
+		if (now != lit) {
+			stack.set(DataComponents.CUSTOM_MODEL_DATA, new net.minecraft.world.item.component.CustomModelData(java.util.List.of(), java.util.List.of(lit), java.util.List.of(), java.util.List.of()));
+		}
+	}
+
 	/** Uses up one hit of a weapon (one spray of a can); returns true when it just broke (ran out). */
 	public static boolean wear(ItemStack stack) {
 		return wear(stack, 1);

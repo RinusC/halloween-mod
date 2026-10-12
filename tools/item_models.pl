@@ -504,6 +504,14 @@ my %hold = (
 	gate_key => [4, 0.55], padlock_key => [4, 0.55], sedan_keys => [4, 0.55], bear_trap => [0, 0.6], hourglass => [0, 0.5],
 );
 
+# The flashlight switched on: held like a gun, the lens forward where one looks (the item carries a flag, see
+# HwItems.setLit).
+model('flashlight_on', 'gun',
+	cyl('z', [8, 8.4, 0], 1.4, 5, 14, 'black_rubber'),
+	box([8, 9.4, 9], [8.6, 10.2, 10.5], 'steel'),
+	cyl('z', [8, 8.4, 0], 2.1, 2, 5, 'black_plastic'),
+	box([6.2, 6.6, 1.6], [9.8, 10.2, 2], 'steel', faces => {north => 'lens'}));
+
 # ---------------------------------------------------------------- writing it out
 my %display = (
 	tool => {
@@ -601,11 +609,18 @@ for my $key (sort keys %models) {
 		elements => \@elements,
 		display => \%disp,
 	});
+	# Variants have no item of their own.
+	next if $key eq 'flashlight_on';
 	my $iconModel = $icon{$key} // "halloween:item/$key";
+	my $held = {type => "minecraft:model", model => "halloween:item/${key}_3d"};
+	if ($key eq 'flashlight') {
+		$held = {type => "minecraft:condition", property => "minecraft:custom_model_data", index => 0,
+			on_true => {type => "minecraft:model", model => "halloween:item/flashlight_on_3d"}, on_false => $held};
+	}
 	write_json("$res/items/$key.json", {model => {
 		type => "minecraft:select", property => "minecraft:display_context",
 		cases => [{when => ["gui"], model => {type => "minecraft:model", model => $iconModel}}],
-		fallback => {type => "minecraft:model", model => "halloween:item/${key}_3d"},
+		fallback => $held,
 	}});
 	push @written, $key;
 }

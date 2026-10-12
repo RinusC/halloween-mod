@@ -51,6 +51,16 @@ public class BoardShotClientTest implements FabricClientGameTest {
 			ctx.waitTicks(80);
 			List<BlockPos> boards = server.computeOnServer(s -> MapPoints.get(s.overworld()).list(MapPoints.Type.MAP_BOARD));
 			LOG.info("Boards at {}", boards);
+			LOG.info("Exit markers: {}", (Object) server.computeOnServer(s -> {
+				StringBuilder b = new StringBuilder();
+				for (dev.halloween.game.Exits.Marker m : dev.halloween.game.Exits.markers()) {
+					b.append(m.cellar() ? "cellar " : "gate ").append(m.pos().toShortString()).append(" block below: ").append(s.overworld().getBlockState(m.pos().below())).append("; ");
+				}
+				for (net.minecraft.core.BlockPos p : MapPoints.get(s.overworld()).list(MapPoints.Type.CELLAR)) {
+					b.append("spot ").append(p.toShortString()).append(" ").append(s.overworld().getBlockState(p.below())).append("; ");
+				}
+				return b.toString();
+			}));
 			for (int b = 0; b < boards.size(); b++) {
 				BlockPos board = boards.get(b);
 				int[] argb = server.computeOnServer(s -> {

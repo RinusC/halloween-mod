@@ -12,8 +12,17 @@
    }
   ],
   "fallback" : {
-   "model" : "halloween:item/flashlight_3d",
-   "type" : "minecraft:model"
+   "index" : 0,
+   "on_false" : {
+    "model" : "halloween:item/flashlight_3d",
+    "type" : "minecraft:model"
+   },
+   "on_true" : {
+    "model" : "halloween:item/flashlight_on_3d",
+    "type" : "minecraft:model"
+   },
+   "property" : "minecraft:custom_model_data",
+   "type" : "minecraft:condition"
   },
   "property" : "minecraft:display_context",
   "type" : "minecraft:select"

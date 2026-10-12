@@ -53,6 +53,8 @@ public class MatchClientTest implements FabricClientGameTest {
 			server.runOnServer(s -> {
 				HwConfig cfg = HwConfig.get();
 				cfg.countdownSeconds = 2;
+				// The arena's furniture stands where the checks below expect it: none of it thinned out.
+				cfg.lootMinSpacing = 0;
 				cfg.deputyRespawnSeconds = 2;
 				cfg.policeArriveSeconds = 2;
 				// The lone civilian plays this one alone: bots would take the exits it is testing.
@@ -332,7 +334,7 @@ public class MatchClientTest implements FabricClientGameTest {
 				server.runOnServer(s -> player(s).teleportTo(s.overworld(), back.x, back.y, back.z, java.util.Set.of(), player(s).getYRot(), 0f, false));
 				ctx.waitTicks(5);
 			}
-			check(server.computeOnServer(s -> dev.halloween.game.Police.officers()) == 2, "two officers come with level 1");
+			check(server.computeOnServer(s -> dev.halloween.game.Police.officers()) == 1, "one officer comes with level 1");
 			ctx.waitTicks(40);
 			String wards = server.computeOnServer(s -> String.join(", ", dev.halloween.game.Police.wards(s.overworld())));
 			String me = server.computeOnServer(s -> player(s).getPlainTextName());
@@ -356,7 +358,7 @@ public class MatchClientTest implements FabricClientGameTest {
 				dev.halloween.game.Police.reportCall(s.overworld(), net.minecraft.network.chat.Component.literal("test call"));
 			});
 			ctx.waitTicks(HwConfig.get().policeArriveSeconds * 20 + 20);
-			check(server.computeOnServer(s -> dev.halloween.game.Police.officers()) == 4, "level 2 brings two more officers");
+			check(server.computeOnServer(s -> dev.halloween.game.Police.officers()) == 3, "level 2 brings two more officers");
 			// The third call by flare: up into the sky, as good as a phone call.
 			int flareSlot = server.computeOnServer(s -> Inventory.slotOf(player(s), HwItems.Kind.FLARE_GUN));
 			ctx.runOnClient(mc -> mc.player.getInventory().setSelectedSlot(flareSlot));
@@ -368,8 +370,8 @@ public class MatchClientTest implements FabricClientGameTest {
 				"the flare gun fired into the sky calls the police (wanted level 3)");
 			ctx.takeScreenshot("m04c_distress_flare");
 			ctx.waitTicks(HwConfig.get().policeArriveSeconds * 20 + 20);
-			check(server.computeOnServer(s -> dev.halloween.game.Police.officers()) == 6 && dev.halloween.game.Police.wanted() == 3,
-				"level 3 brings two more");
+			check(server.computeOnServer(s -> dev.halloween.game.Police.officers()) == 4 && dev.halloween.game.Police.wanted() == 3,
+				"level 3 brings one more");
 			check(server.computeOnServer(s -> Exits.vanSeats()) == 2, "and one more seat in the van");
 			check(ctx.computeOnClient(mc -> ClientState.match.wanted()) == 3, "the wanted meter is full");
 			// Out of the way of the rest of the test.

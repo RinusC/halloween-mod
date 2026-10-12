@@ -43,6 +43,49 @@ public final class Loot {
 	private Loot() {
 	}
 
+	/**
+	 * Too much furniture to search in one place (a kitchen counter of cabinets, a room of crates): a container closer
+	 * than {@link HwConfig#lootMinSpacing} to one kept on the same floor goes (a kitchen cabinet turns into a plain
+	 * counter, anything else is taken away). Always the same ones, in the same order: once thinned, a map stays so.
+	 */
+	private static void thin(ServerLevel level) {
+		double spacing = HwConfig.get().lootMinSpacing;
+		if (spacing <= 0) {
+			return;
+		}
+		List<BlockPos> sorted = new ArrayList<>(CONTAINERS);
+		sorted.sort((a, b) -> a.getY() != b.getY() ? Integer.compare(a.getY(), b.getY()) : a.getX() != b.getX() ? Integer.compare(a.getX(), b.getX()) : Integer.compare(a.getZ(), b.getZ()));
+		List<BlockPos> kept = new ArrayList<>();
+		int removed = 0;
+		for (BlockPos p : sorted) {
+			if (GunCase.isCase(p)) {
+				kept.add(p);
+				continue;
+			}
+			boolean crowded = false;
+			for (BlockPos k : kept) {
+				if (Math.abs(k.getY() - p.getY()) <= 2 && Math.hypot(k.getX() - p.getX(), k.getZ() - p.getZ()) < spacing) {
+					crowded = true;
+					break;
+				}
+			}
+			if (!crowded) {
+				kept.add(p);
+				continue;
+			}
+			net.minecraft.world.level.block.state.BlockState state = level.getBlockState(p);
+			level.removeBlockEntity(p);
+			level.setBlock(p, state.is(dev.halloween.HwBlocks.KITCHEN_CABINET) ? net.minecraft.world.level.block.Blocks.SPRUCE_PLANKS.defaultBlockState()
+				: net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), net.minecraft.world.level.block.Block.UPDATE_ALL);
+			removed++;
+		}
+		CONTAINERS.clear();
+		CONTAINERS.addAll(kept);
+		if (removed > 0) {
+			dev.halloween.Halloween.LOGGER.info("Loot: {} containers too close to others taken away, {} left", removed, kept.size());
+		}
+	}
+
 	public static void setup(ServerLevel level, BlockPos center, RandomSource random) {
 		clear();
 		// Containers count within the usual radius of the centre, and anywhere in the square the map points
@@ -97,6 +140,7 @@ public final class Loot {
 				}
 			}
 		}
+		thin(level);
 		// What the exits need comes first: if a map has few containers, the extras are what gets left out.
 		List<HwItems.Kind> items = new ArrayList<>(List.of(
 			HwItems.Kind.BOLT_CUTTERS, HwItems.Kind.PADLOCK_KEY, HwItems.Kind.FUSE, HwItems.Kind.GATE_KEY,

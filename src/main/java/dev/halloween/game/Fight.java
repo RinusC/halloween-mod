@@ -284,6 +284,11 @@ public final class Fight {
 			}
 		}
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+			// The torch in his hand shows whether it shines (its model points the lens forward when it does).
+			ItemStack hand = player.getMainHandItem();
+			if (HwItems.is(hand, HwItems.Kind.FLASHLIGHT)) {
+				HwItems.setLit(hand, holdsLight(player));
+			}
 			if (!holdsLight(player)) {
 				continue;
 			}

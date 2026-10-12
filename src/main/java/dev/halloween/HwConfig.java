@@ -261,7 +261,9 @@ public class HwConfig {
 	/** Calls that can get through in a match; each needs a body someone has found. */
 	public int policeMaxCalls = 3;
 	/** Officers arriving at wanted levels 1, 2, 3. */
-	public int[] policeOfficersByLevel = {2, 2, 2};
+	public int[] policeOfficersByLevel = {1, 2, 1};
+	/** Search furniture closer than this to another on the same floor is taken away at the start of a match (one a room or so). */
+	public double lootMinSpacing = 4.5;
 	/** Wanted levels whose police bring a van one survivor can leave in. */
 	public int[] policeVanLevels = {1, 3};
 	public String[] policeNames = {"Officer Miller", "Officer Hayes", "Officer Reed", "Officer Cole", "Officer Grant", "Officer Walsh"};
@@ -413,13 +415,15 @@ public class HwConfig {
 	/** The party: how long, how far round it nothing is heard, how far townsfolk come from and what share of them. */
 	public int partySeconds = 120;
 	public double partyMuffleRange = 20;
-	public double partyGatherRange = 60;
+	public double partyGatherRange = 90;
 	public float partyGatherShare = 0.6f;
 	/** The fire: how long, flames on the roof and inside, how far the smoke hides things. */
 	public int fireSeconds = 150;
 	public int fireRoofFlames = 12;
 	public int fireInsideFlames = 7;
 	public double fireSmokeRadius = 6;
+	/** Health lost every second by anyone inside the burning house (smoke and heat; it never kills, see Events). */
+	public float fireSmokeDamage = 1.5f;
 	/** Midnight: this long before the end; Michael sees everyone this often, for this long. */
 	public boolean midnightEnabled = true;
 	public int midnightSeconds = 300;
@@ -813,7 +817,7 @@ public class HwConfig {
 
 	/** The file's version: older files get the defaults that changed since moved on (see {@link #migrate}). */
 	public int configVersion;
-	private static final int VERSION = 3;
+	private static final int VERSION = 4;
 
 	public static void load() {
 		Path path = path();
@@ -882,6 +886,12 @@ public class HwConfig {
 		}
 		if (this.configVersion < 3 && this.runtPounceCooldownTicks == 280) {
 			this.runtPounceCooldownTicks = 500;
+		}
+		if (this.configVersion < 4 && java.util.Arrays.equals(this.policeOfficersByLevel, new int[]{2, 2, 2})) {
+			this.policeOfficersByLevel = new int[]{1, 2, 1};
+		}
+		if (this.configVersion < 4 && this.partyGatherRange == 60) {
+			this.partyGatherRange = 90;
 		}
 		if (this.configVersion < VERSION) {
 			Halloween.LOGGER.info("Config moved on to version {}", VERSION);
