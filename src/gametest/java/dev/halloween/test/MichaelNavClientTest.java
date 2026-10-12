@@ -146,6 +146,30 @@ public class MichaelNavClientTest implements FabricClientGameTest {
 			check(server.computeOnServer(s -> !dev.halloween.game.LightSystem.isOn(s.overworld(), breaker)), "he switches the house lights off first");
 			check(server.computeOnServer(s -> near(room, 1.8)), "and goes in");
 
+			// ---------------------------------------------------------------- a shadow right by a townsperson in a lit room
+			int grabs = AiStats.snapshot().getOrDefault("~michael", Map.of()).getOrDefault("grab", 0);
+			server.runOnServer(s -> {
+				ShapeBrain.forget();
+				ShapeBrain.testGoal = null;
+				ShapeBrain.body().teleportTo(s.overworld(), sx + 0.5, 151, sz - 16.5, java.util.Set.of(), 0f, 0f, false);
+			});
+			ctx.waitTicks(5);
+			server.runOnServer(s -> {
+				dev.halloween.game.MatchManager.shapeState(ShapeBrain.body()).jumpCooldown = 0;
+				dev.halloween.game.MatchManager.onShapeJump(ShapeBrain.body());
+			});
+			ctx.waitTicks(5);
+			server.runOnServer(s -> {
+				cmd(s, "summon minecraft:mannequin " + (sx + 11.5) + " 151 " + (sz - 9.5) + " {Tags:[\"" + dev.halloween.game.MatchManager.VICTIM_TAG + "\",\"hw_test\"]}");
+				ShapeBrain.body().teleportTo(s.overworld(), sx + 10.2, 151, sz - 9.5, java.util.Set.of(), 270f, 0f, false);
+			});
+			check(server.computeOnServer(s -> dev.halloween.game.MatchManager.shapeState(ShapeBrain.body()).shadowTicks > 0), "a shadow right by someone, in the light");
+			this.until(ctx, server, 500, s -> AiStats.snapshot().getOrDefault("~michael", Map.of()).getOrDefault("grab", 0) > grabs);
+			LOG.info("by someone: {}", (Object) server.computeOnServer(s -> ShapeBrain.debug() + " shadow " + dev.halloween.game.MatchManager.shapeState(ShapeBrain.body()).shadowTicks
+				+ " stats " + AiStats.snapshot().get("~michael")));
+			check(AiStats.snapshot().getOrDefault("~michael", Map.of()).getOrDefault("grab", 0) > grabs, "steps off, out of the shadow, and grabs them");
+			server.runCommand("kill @e[tag=hw_test]");
+
 			Map<String, Integer> stats = AiStats.snapshot().getOrDefault("~michael", Map.of());
 			LOG.info("michael stats: {}", stats);
 			ShapeBrain.testGoal = null;

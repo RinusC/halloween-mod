@@ -743,8 +743,14 @@ public final class ShapeBrain {
 		// A shadow to cover the ground unseen, out again close by.
 		if (st.shadowTicks > 0) {
 			this.sense(st, false, false);
-			if (d < 8 && this.wantOut(st, now)) {
+			if (d < 12 && this.wantOut(st, now)) {
 				stat("shadow.out_close");
+			}
+			if (st.shadowTicks > 0 && d < 3.5) {
+				// No nearer as a shadow: he couldn't step out of it there (see wantOut).
+				this.walker.halt();
+				this.walker.face(aim);
+				return;
 			}
 		} else if (d > 14 && !this.watchedBy(t) && !this.lit(t.blockPosition()) && MatchManager.jumpBlockReason(this.body, st) == 0 && st.jumpCooldown == 0) {
 			MatchManager.onShapeJump(this.body);
@@ -973,18 +979,20 @@ public final class ShapeBrain {
 			this.repathAt = now;
 			return true;
 		}
-		if (reason == 1 && !this.escaping) {
+		// In the light (1), inside a door (5), right by someone (6): a step to where he may comes first.
+		if ((reason == 1 || reason == 5 || reason == 6) && !this.escaping) {
 			this.escaping = true;
 			this.escapeUntil = now + 20 * 10;
 			this.walker.stop();
-			stat("shadow.caught_in_light");
+			stat(reason == 1 ? "shadow.caught_in_light" : reason == 5 ? "shadow.caught_in_door" : "shadow.caught_too_close");
 		}
 		return false;
 	}
 
 	/**
-	 * A shadow in the light can't step out of it: to the nearest dark place (out of the house through a door or a
-	 * window if need be), out of the shadow there, and on in his own form. True while that is what he is doing.
+	 * A shadow can't step out of it in the light, inside a door, or right by someone: to the nearest place where he
+	 * may (out of the house through a door or a window if need be), out of the shadow there, and on in his own form.
+	 * True while that is what he is doing.
 	 */
 	private boolean escapeLight(ShapeState st, int now) {
 		if (!this.escaping) {
@@ -1005,8 +1013,23 @@ public final class ShapeBrain {
 		}
 		if (this.walker.idle()) {
 			ServerLevel level = this.level();
-			List<Nav.Node> path = Nav.search(level, this.body.blockPosition(), 24, Nav.Options.climber().lockedDoors(0.5).nodes(3000),
-				(pos, cost) -> this.lit(pos) || level.getBlockState(pos).getBlock() instanceof net.minecraft.world.level.block.DoorBlock ? -1000 : 100 - cost);
+			double room = HwConfig.get().shapeJumpExitMinDistance + 1;
+			List<Vec3> people = new ArrayList<>();
+			for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, this.body.getBoundingBox().inflate(28), MatchManager::isVictim)) {
+				people.add(e.position());
+			}
+			List<Nav.Node> path = Nav.search(level, this.body.blockPosition(), 24, Nav.Options.climber().lockedDoors(0.5).nodes(3000), (pos, cost) -> {
+				if (this.lit(pos) || level.getBlockState(pos).getBlock() instanceof net.minecraft.world.level.block.DoorBlock) {
+					return -1000;
+				}
+				Vec3 c = Vec3.atBottomCenterOf(pos);
+				for (Vec3 p : people) {
+					if (p.distanceTo(c) < room) {
+						return -1000;
+					}
+				}
+				return 100 - cost;
+			});
 			stat("search");
 			if (path.isEmpty()) {
 				// Nowhere dark within reach: he stays a shadow and goes on as he was.
