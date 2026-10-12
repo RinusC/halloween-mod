@@ -146,7 +146,8 @@ public final class Stamina {
 	private static void pant(ServerPlayer who, boolean on) {
 		HwNet.Pant payload = new HwNet.Pant(who.getId(), on, Voices.female(who), HwConfig.get().staminaPantVolume);
 		for (ServerPlayer p : who.level().getServer().getPlayerList().getPlayers()) {
-			if (!Bots.isBot(p) && p.level() == who.level() && p.distanceToSqr(who) < 48 * 48) {
+			// People hear it, and so does the bot playing Michael (he listens as a person would).
+			if ((!Bots.isBot(p) || p == ShapeBrain.body()) && p.level() == who.level() && p.distanceToSqr(who) < 48 * 48) {
 				ServerPlayNetworking.send(p, payload);
 			}
 		}

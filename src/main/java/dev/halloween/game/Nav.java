@@ -43,6 +43,13 @@ public final class Nav {
 		net.minecraft.world.phys.Vec3 avoid;
 		double avoidRadius = 10;
 		double avoidCost = 6;
+		/** Extra cost to step into a cell (feet): a trap he saw, flames. Null: none. */
+		java.util.function.ToDoubleFunction<BlockPos> cellCost;
+
+		public Options cellCost(java.util.function.ToDoubleFunction<BlockPos> cost) {
+			this.cellCost = cost;
+			return this;
+		}
 
 		public Options lockedDoors(double cost) {
 			this.lockedCost = cost;
@@ -187,6 +194,9 @@ public final class Nav {
 				if (d < opt.avoidRadius) {
 					extra += opt.avoidCost * (1 - d / opt.avoidRadius);
 				}
+			}
+			if (opt.cellCost != null) {
+				extra += opt.cellCost.applyAsDouble(pos);
 			}
 			raw.accept(pos, step, glass, cost + extra);
 		};

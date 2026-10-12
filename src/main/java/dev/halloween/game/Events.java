@@ -474,6 +474,16 @@ public final class Events {
 		return current instanceof Blackout;
 	}
 
+	/** The transformer's lower panel while the blackout is unmended (everyone's screen marks it), or null. */
+	public static BlockPos transformer() {
+		return current instanceof Blackout b && !b.fixed ? b.box : null;
+	}
+
+	/** The forgotten bag while it lies there untaken (everyone's screen marks it), or null. */
+	public static BlockPos bagSpot() {
+		return current instanceof ForgottenBag b && !b.taken ? b.spot : null;
+	}
+
 	private static void sync(MinecraftServer server) {
 		int now = server.getTickCount();
 		List<Mark> marks = new ArrayList<>(LINGER);

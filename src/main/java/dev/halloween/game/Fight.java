@@ -81,6 +81,11 @@ public final class Fight {
 		return SWITCHED_ON.contains(player.getUUID());
 	}
 
+	/** The beam is on and in hand right now (what others see: the lit flashlight and its beam). */
+	public static boolean shining(ServerPlayer player) {
+		return holdsLight(player);
+	}
+
 	// ---------------------------------------------------------------- stun
 
 	/** Adds to the Shape's stun meter on behalf of {@code by}. */

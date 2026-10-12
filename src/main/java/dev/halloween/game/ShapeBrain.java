@@ -163,6 +163,60 @@ public final class ShapeBrain {
 	private int raidCheckAt;
 	/** Houses he went through, by key, and when he was done. */
 	private final Map<Long, Integer> raided = new HashMap<>();
+	private boolean raidImpulse;
+
+	// What his screen and his eyes and ears give him of the others (a person's knowledge, no more).
+	/** His Runt as his screen shows it (HwNet.RuntInfo, every 5 ticks): entity id, whom it holds (-1), bot or not, status, when. */
+	private int runtId = -1;
+	private int runtHolding = -1;
+	private boolean runtBot;
+	private int runtStatus = -1;
+	private int runtInfoAt = -1000;
+	/** His last order (the wheel takes a moment), and whom he last sent it at and when (not the same one again at once). */
+	private int runtOrderAt = -1000;
+	private int runtAttackId = -1;
+	private int runtAttackAt = -1000;
+	/** A house he sent the Runt into while he watches its ways out, whether he still has to point it in, houses sent to. */
+	private Houses.Building runtSent;
+	private boolean runtSearchPending;
+	private final java.util.Set<Long> runtSentTo = new java.util.HashSet<>();
+	/** Who he hears breathing hard out in the open (entity id), since when. */
+	private final Map<Integer, Integer> panting = new HashMap<>();
+
+	/** A gun he has seen in someone's hand: what, and the rounds he reckons are in it (by the shots and reloads he heard). */
+	private record Gun(HwItems.Kind kind, int loaded, int at) {
+	}
+
+	private final Map<java.util.UUID, Gun> guns = new HashMap<>();
+	/** Someone in sight with a gun on him that would floor him (this tick), and whom he keeps out of the line of, until when. */
+	private LivingEntity threat;
+	private LivingEntity shooter;
+	private int evadeUntil;
+	private int evadeRepath;
+	/** Traps he has seen (until when he keeps them in mind), and spots he heard one being set. */
+	private final Map<BlockPos, Integer> traps = new HashMap<>();
+	private final Map<BlockPos, Integer> trapsHeard = new HashMap<>();
+	private int trappedWas;
+	/** Flames about (a house on fire near him): paths keep out of them. */
+	private boolean fireNear;
+	/** A firecracker landed by him: where, and until when he keeps away from it and his eyes off it. */
+	private Vec3 cracker;
+	private int crackerUntil;
+	/** The patrol car, last heard (its engine) or seen (its light bar): when. */
+	private int patrolAtTick = -1000;
+	/** A phone heard ringing (someone calling the police, Loomis on the line): which, and until when it is worth cutting. */
+	private BlockPos ringing;
+	private int ringingUntil;
+	/** Townsfolk he saw at a survivor's heels lately (being led out), by entity id, and when. */
+	private final Map<Integer, Integer> escorted = new HashMap<>();
+	/** Midnight reveals already followed (ids glowing now), and when he last followed the beams. */
+	private final java.util.Set<Integer> glowSeen = new java.util.HashSet<>();
+	private int beamsAt = -1000;
+	/** No grab tried again for a moment (each try is a lunge everyone sees). */
+	private int grabTryAt;
+	/** Where he last ran to head them off. */
+	private BlockPos lastCut;
+	private int impulseAt;
 
 	private ShapeBrain(BotPlayer body) {
 		this.body = body;
@@ -228,7 +282,8 @@ public final class ShapeBrain {
 			+ " holds " + Holds.working(b.body) + " done " + b.done.size() + " leads " + b.leads.size() + " reaction " + b.reaction
 			+ String.format(" pos %.2f %.2f %.2f", b.body.getX(), b.body.getY(), b.body.getZ()) + " status " + b.lastStatus + " aim " + (b.aim == null ? "-" : b.aim.toShortString())
 			+ " best " + String.format("%.1f", b.bestDist) + " unstick " + b.unstick + " tokens " + String.format("%.1f", b.searches) + " zza " + b.body.zza
-			+ " raid " + (b.raid == null ? "-" : b.raidRoom + "/" + b.raidRooms.size()) + " clues " + b.clues.size();
+			+ " raid " + (b.raid == null ? "-" : b.raidRoom + "/" + b.raidRooms.size()) + " clues " + b.clues.size()
+			+ " traps " + b.traps.size() + " runt " + b.runtStatus + (b.runtHolding >= 0 ? " holding " + b.runtHolding : "");
 	}
 
 	/** How far he stalks this survivor before going for them: 2, or 3 once they got out of his hands. */
@@ -279,6 +334,22 @@ public final class ShapeBrain {
 			b.raided.clear();
 			b.campWithin = 7;
 			b.campFace = null;
+			b.runtSent = null;
+			b.runtSearchPending = false;
+			b.runtSentTo.clear();
+			b.runtAttackId = -1;
+			b.panting.clear();
+			b.guns.clear();
+			b.threat = null;
+			b.shooter = null;
+			b.evadeUntil = 0;
+			b.traps.clear();
+			b.trapsHeard.clear();
+			b.cracker = null;
+			b.crackerUntil = 0;
+			b.ringing = null;
+			b.escorted.clear();
+			b.glowSeen.clear();
 			b.mode = Mode.PATROL;
 			b.walker.stop();
 		}
@@ -340,12 +411,56 @@ public final class ShapeBrain {
 				}
 				case HwNet.Pant pant -> {
 					Entity who = this.level().getEntity(pant.entityId());
-					if (pant.on() && who != null) {
+					if (pant.volume() >= HwConfig.get().staminaPantVolume - 1e-3f) {
+						// Breathing hard out in the open (run out, or scared): heard a few blocks off.
+						if (pant.on() && who != null && who.distanceTo(this.body) <= 16) {
+							this.panting.put(pant.entityId(), now);
+							this.lead(who.position(), now, 2.5, "pant");
+						} else if (!pant.on()) {
+							this.panting.remove(pant.entityId());
+						}
+					} else if (pant.on() && who != null) {
 						// Breathing in a wardrobe right by him.
 						BlockPos locker = this.nearestLocker(who.blockPosition(), 2, false);
 						if (locker != null) {
 							this.suspects.put(locker, now + 400);
 							stat("heard.breathing");
+						}
+					}
+				}
+				case HwNet.RuntInfo info -> {
+					this.runtId = info.runtId();
+					this.runtHolding = info.holdingId();
+					this.runtBot = info.bot();
+					this.runtStatus = info.status();
+					this.runtInfoAt = now;
+					// Shared sight (outlined on his screen while fresh), and whom it holds (marked wherever they are).
+					for (int id : info.scent()) {
+						this.revealed.merge(id, now + 20, Integer::max);
+					}
+					if (info.holdingId() >= 0) {
+						this.revealed.merge(info.holdingId(), now + 40, Integer::max);
+					}
+				}
+				case HwNet.EventSync sync -> {
+					// The midnight bell: every survivor shown to him a moment, once a minute.
+					for (int id : sync.glows()) {
+						this.revealed.merge(id, now + 15, Integer::max);
+						if (this.glowSeen.add(id)) {
+							Entity e = this.level().getEntity(id);
+							if (e != null) {
+								this.lead(e.position(), now, 6, "shown");
+							}
+						}
+					}
+					this.glowSeen.retainAll(sync.glows());
+				}
+				case HwNet.ShapeHud hud -> {
+					// Bloodthirst at its height, a shadow: beams over everyone now and then.
+					if (!hud.beams().isEmpty() && now - this.beamsAt > 40) {
+						this.beamsAt = now;
+						for (Vec3 b : hud.beams()) {
+							this.lead(b, now, 4, "beam");
 						}
 					}
 				}
@@ -375,11 +490,70 @@ public final class ShapeBrain {
 			}
 		}
 		String id = sound.getSound().unwrapKey().map(k -> k.identifier().getPath()).orElse("");
+		float pitch = sound.getPitch();
 		double weight;
 		String kind;
 		if (id.contains("death")) {
 			// A last scream: nobody left there to find (and mostly his own work).
 			return;
+		} else if (id.contains("minecart.riding") && Math.abs(pitch - 0.45f) < 0.03f) {
+			// The patrol car's engine (lower than the getaway car's): keep out of its headlights, nobody to find there.
+			this.patrolAtTick = now;
+			return;
+		} else if (id.equals("entity.tnt.primed")) {
+			// A firecracker down by him: it goes off in a moment.
+			if (at.distanceTo(this.body.getEyePosition()) < 8) {
+				this.cracker = at;
+				this.crackerUntil = now + 34;
+				stat("heard.cracker");
+			}
+			return;
+		} else if (id.equals("gun.ricochet")) {
+			// Where the bullet went, not who fired it.
+			return;
+		} else if (id.equals("block.iron_trapdoor.open") || id.equals("block.chain.place") || id.equals("block.iron_chain.place")) {
+			// A trap being set (jaws opened, a can string staked).
+			this.trapsHeard.put(BlockPos.containing(at), now + 20 * 120);
+			weight = 2;
+			kind = "trap.set";
+		} else if (id.equals("block.note_block.bell") && sound.getSource() != net.minecraft.sounds.SoundSource.MASTER) {
+			// A phone ringing: someone calling the police, or Loomis on the line. Cut it.
+			BlockPos phone = this.phoneNear(at, 3);
+			if (phone != null && Exits.phoneWorks(phone)) {
+				this.ringing = phone;
+				this.ringingUntil = now + 20 * 20;
+			}
+			weight = 4;
+			kind = "phone";
+		} else if (id.equals("block.chain.break") || id.equals("block.iron_chain.break")) {
+			// A padlock coming off a cellar (or a can string set off).
+			weight = 5;
+			kind = "exit";
+		} else if (id.equals("item.bucket.fill") || id.equals("block.anvil.use") || id.equals("block.copper_bulb.turn_on")) {
+			// Fuel going in, a car being mended, a fuse clicking home.
+			weight = 4;
+			kind = "exit";
+		} else if (id.equals("block.bell.use")) {
+			// The police are here.
+			weight = 3;
+			kind = "police";
+		} else if (id.equals("gun.revolver") || id.equals("gun.rifle")) {
+			this.gunHeard(at, now, 0);
+			weight = 4;
+			kind = "shot";
+		} else if (id.equals("gun.dry")) {
+			this.gunHeard(at, now, 1);
+			weight = 2;
+			kind = "shot";
+		} else if (id.equals("gun.load_round")) {
+			this.gunHeard(at, now, 2);
+			weight = 2;
+			kind = "shot";
+		} else if (id.equals("gun.bolt") && pitch < 0.9f) {
+			// The rifle's bolt home again: loaded.
+			this.gunHeard(at, now, 3);
+			weight = 1.5;
+			kind = "shot";
 		} else if (id.startsWith("voice.") || id.equals("npc.scream")) {
 			weight = id.contains("scream") || id.contains("hurt") ? 4 : 2;
 			kind = "voice";
@@ -437,7 +611,7 @@ public final class ShapeBrain {
 		HwConfig cfg = HwConfig.get();
 		double range;
 		int light = this.level().getBrightness(LightLayer.BLOCK, BlockPos.containing(e.getEyePosition()));
-		if (light >= 7 || e instanceof ServerPlayer p && Fight.flashlightOn(p)) {
+		if (light >= 7 || e instanceof ServerPlayer p && Fight.shining(p)) {
 			range = 40;
 		} else if (e.isCrouching()) {
 			range = 4;
@@ -453,38 +627,178 @@ public final class ShapeBrain {
 		return range;
 	}
 
-	/** The best one in sight: survivors first, then officers, then townsfolk; nearer first. */
+	/**
+	 * Who is in sight (marked ones, outlined red on his screen, at any distance in his line of sight), what they hold,
+	 * who walks at whose heels, whether a gun is on him; and the best one to go for (see preyScore).
+	 */
 	private LivingEntity look(ShapeState st, int now) {
+		this.threat = null;
 		if (st.blindTicks > 0) {
 			return null;
 		}
 		ServerLevel level = this.level();
 		Vec3 eye = this.body.getEyePosition();
 		Vec3 facing = this.body.getViewVector(1f);
-		LivingEntity best = null;
-		double bestScore = Double.MAX_VALUE;
+		List<LivingEntity> seen = new ArrayList<>();
 		for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, this.body.getBoundingBox().inflate(45), MatchManager::exposed)) {
 			Vec3 c = FocusPoints.bodyCenter(e);
 			double d = eye.distanceTo(c);
 			boolean shown = this.revealed.getOrDefault(e.getId(), 0) > now;
 			if (!shown) {
-				if (d > this.sightRange(e, st) || d > 2.5 && Sight.angleTo(eye, facing, c) > 75) {
+				double range = MatchManager.marked(e) ? 256 : this.sightRange(e, st);
+				if (d > range || d > 2.5 && Sight.angleTo(eye, facing, c) > 75) {
 					continue;
 				}
 				if (!Sight.canSee(level, eye, c, this.body) && !Sight.canSee(level, eye, e.getEyePosition(), this.body)) {
 					continue;
 				}
 			}
-			double score = d + (e instanceof ServerPlayer ? 0 : Police.isOfficer(e) ? 12 : 25);
-			if (e == this.target) {
-				score -= 6;
+			seen.add(e);
+		}
+		for (LivingEntity e : seen) {
+			this.noteArms(e, now);
+			if (Townsfolk.isNpc(e) && e.getDeltaMovement().horizontalDistanceSqr() > 0.0009) {
+				for (LivingEntity o : seen) {
+					if (o instanceof ServerPlayer && o.distanceTo(e) < 4.5) {
+						// At a survivor's heels, on the move: being led out.
+						this.escorted.put(e.getId(), now);
+						break;
+					}
+				}
 			}
+			if (st.shadowTicks == 0 && this.body.distanceTo(e) > 4.5 && this.gunOnMe(e) && this.deadly(e, st)) {
+				this.threat = e;
+			}
+		}
+		LivingEntity best = null;
+		double bestScore = Double.MAX_VALUE;
+		for (LivingEntity e : seen) {
+			double score = this.preyScore(e, seen, eye.distanceTo(FocusPoints.bodyCenter(e)), now);
 			if (score < bestScore) {
 				bestScore = score;
 				best = e;
 			}
 		}
 		return best;
+	}
+
+	/**
+	 * Whom to go for among those in sight (lower is better): the nearest; survivors before officers before townsfolk;
+	 * and whoever is easiest or matters most: held by his Runt, at a way out, a way out in hand (keys, a fuse...),
+	 * bleeding, out of breath, a neighbour being led out. A loaded gun in hand, an armed officer, friends about count
+	 * against.
+	 */
+	private double preyScore(LivingEntity e, List<LivingEntity> seen, double d, int now) {
+		HwItems.Kind k = HwItems.kindOf(e.getMainHandItem());
+		boolean armed = k != null && (k.gun() || k == HwItems.Kind.FLARE_GUN) && this.gunLoaded(e, k);
+		double s = d;
+		if (Police.isOfficer(e)) {
+			s += armed ? 40 : 12;
+		} else if (!(e instanceof ServerPlayer)) {
+			s += 25;
+			if (Townsfolk.isNpc(e) && now - this.escorted.getOrDefault(e.getId(), -1000) < 60) {
+				// Being led out: a resident lost and a way out used up.
+				s -= 12;
+			}
+		} else {
+			if (k != null && k.escape()) {
+				s -= 8;
+			}
+			if (this.nearExit(e)) {
+				s -= 10;
+			}
+			if (Blood.bleeding(e)) {
+				s -= 4;
+			}
+			if (this.panting.containsKey(e.getId()) && !e.isSprinting() && e.distanceTo(this.body) <= 16) {
+				s -= 5;
+			}
+			if (armed) {
+				s += 6;
+			}
+			for (LivingEntity o : seen) {
+				if (o != e && o instanceof ServerPlayer && o.distanceTo(e) < 6) {
+					HwItems.Kind ok = HwItems.kindOf(o.getMainHandItem());
+					s += ok != null && (ok.gun() || ok.melee()) ? 5 : 2;
+				}
+			}
+		}
+		if (e == this.target) {
+			s -= 6;
+		}
+		if (e.getId() == this.runtHolding && this.runtFresh(now)) {
+			s -= 30;
+		}
+		return s;
+	}
+
+	/** A gun he sees in someone's hand: noted, full unless he has heard otherwise. */
+	private void noteArms(LivingEntity e, int now) {
+		HwItems.Kind k = HwItems.kindOf(e.getMainHandItem());
+		if (k != null && k.gun()) {
+			Gun g = this.guns.get(e.getUUID());
+			if (g == null || g.kind() != k) {
+				this.guns.put(e.getUUID(), new Gun(k, Guns.capacity(k), now));
+			}
+		}
+	}
+
+	/** Is there anything in it, by his count? (A flare gun is good for one shot, and it goes once fired.) */
+	private boolean gunLoaded(LivingEntity e, HwItems.Kind k) {
+		Gun g = this.guns.get(e.getUUID());
+		return !k.gun() || g == null || g.kind() != k || g.loaded() > 0;
+	}
+
+	/**
+	 * A gun heard where someone stands whose gun he has seen: {@code what} 0 a shot, 1 a dry click, 2 a round going in,
+	 * 3 the rifle's bolt home. His count of what is left in it.
+	 */
+	private void gunHeard(Vec3 at, int now, int what) {
+		for (LivingEntity e : this.level().getEntitiesOfClass(LivingEntity.class, new net.minecraft.world.phys.AABB(at, at).inflate(2), MatchManager::isVictim)) {
+			Gun g = this.guns.get(e.getUUID());
+			if (g == null) {
+				continue;
+			}
+			int full = Guns.capacity(g.kind());
+			int loaded = switch (what) {
+				case 0 -> Math.max(0, g.loaded() - 1);
+				case 2 -> Math.min(full, g.loaded() + 1);
+				case 3 -> full;
+				default -> 0;
+			};
+			this.guns.put(e.getUUID(), new Gun(g.kind(), loaded, now));
+			if (what == 0 && loaded == 0) {
+				stat("gun.empty");
+			}
+			return;
+		}
+	}
+
+	/** A gun levelled at him: in their hand (loaded by his count), their face turned on him, a clear line, in its range. */
+	private boolean gunOnMe(LivingEntity e) {
+		HwItems.Kind k = HwItems.kindOf(e.getMainHandItem());
+		if (k == null || !(k.gun() || k == HwItems.Kind.FLARE_GUN) || !this.gunLoaded(e, k)) {
+			return false;
+		}
+		Vec3 me = FocusPoints.bodyCenter(this.body);
+		Vec3 eye = e.getEyePosition();
+		double range = k == HwItems.Kind.RIFLE ? 110 : k == HwItems.Kind.SHOTGUN ? 18 : k == HwItems.Kind.FLARE_GUN ? 40 : 50;
+		return eye.distanceTo(me) <= range && Sight.angleTo(eye, e.getViewVector(1f), me) < 12
+			&& Guns.lineClear(this.level(), e, eye, me, this.body);
+	}
+
+	/** Would one more hit from it floor him: a rifle, a flare, a shotgun close by, or his stun meter near full? */
+	private boolean deadly(LivingEntity e, ShapeState st) {
+		HwItems.Kind k = HwItems.kindOf(e.getMainHandItem());
+		if (k == null) {
+			return false;
+		}
+		return switch (k) {
+			case RIFLE, FLARE_GUN -> true;
+			case SHOTGUN -> this.body.distanceTo(e) < 10 || st.stun > 0.5f;
+			case REVOLVER -> st.stun > 0.6f;
+			default -> false;
+		};
 	}
 
 	// ---------------------------------------------------------------- the tick
@@ -501,6 +815,14 @@ public final class ShapeBrain {
 		this.revealed.values().removeIf(until -> until < now);
 		this.clues.removeIf(c -> now - c.at > CLUE_TICKS);
 		this.raided.values().removeIf(at -> now - at > 20 * 300);
+		this.traps.values().removeIf(until -> until < now);
+		this.trapsHeard.values().removeIf(until -> until < now);
+		this.escorted.values().removeIf(at -> now - at > 200);
+		this.panting.values().removeIf(at -> now - at > 20 * 30);
+		if (Events.quaking() && !this.suspects.isEmpty()) {
+			// Midnight: the wardrobes are jammed, nobody is in one.
+			this.suspects.clear();
+		}
 		if (st.grab != null) {
 			this.grabbing = st.grab.victim();
 			this.grab(st, now);
@@ -512,7 +834,19 @@ public final class ShapeBrain {
 			this.grabbing = null;
 			this.afterGrab(v, now);
 		}
-		if (st.busy() || st.trappedTicks > 0 || Windows.isVaulting(this.body)) {
+		if (st.trappedTicks > 0 && this.trappedWas == 0) {
+			// Caught: that trap is spent (it was here).
+			this.traps.keySet().removeIf(p -> Vec3.atBottomCenterOf(p).distanceTo(this.body.position()) < 1.8);
+			stat("trapped");
+		}
+		this.trappedWas = st.trappedTicks;
+		if (st.trappedTicks > 0 && st.shadowTicks == 0 && !st.busy() && !this.strikeNear(st, now)
+			&& MatchManager.jumpBlockReason(this.body, st) == 0) {
+			// Held by the jaws: a blow at anyone in reach, else out as a shadow (a shadow walks free of it).
+			MatchManager.onShapeJump(this.body);
+			stat("shadow.out_of_trap");
+		}
+		if (st.busy() || st.trappedTicks > 0 && st.shadowTicks == 0 || Windows.isVaulting(this.body)) {
 			this.walker.halt();
 			this.sense(st, false, false);
 			return;
@@ -544,7 +878,19 @@ public final class ShapeBrain {
 				stat("lost");
 			}
 		}
-		if (this.escapeLight(st, now)) {
+		this.rushToRunt(now);
+		if (this.threat != null && (this.mode == Mode.CHASE || this.mode == Mode.STALK || this.mode == Mode.RETREAT)) {
+			// A gun on him that would floor him: out of its line first.
+			if (now >= this.evadeUntil) {
+				stat("evade");
+			}
+			this.shooter = this.threat;
+			this.evadeUntil = now + 30;
+		}
+		if (now < this.evadeUntil && this.evade(st, now)
+			|| now < this.crackerUntil && this.dodge(st, now)
+			|| this.avoidPatrol(st, now)
+			|| this.escapeLight(st, now)) {
 			MatchManager.onAim(this.body, this.body.getEyePosition(), this.body.getViewVector(1f));
 			return;
 		}
@@ -582,7 +928,13 @@ public final class ShapeBrain {
 			this.reaction = Reaction.NONE;
 			this.retreats = 0;
 		}
-		if (MatchManager.stalkOf(p) >= this.goalFor(p) || this.nearExit(p)) {
+		if (p.getId() == this.runtHolding && this.runtFresh(now)) {
+			// Pinned by his Runt: no stalking, take them now.
+			return Mode.CHASE;
+		}
+		HwItems.Kind held = HwItems.kindOf(p.getMainHandItem());
+		if (MatchManager.stalkOf(p) >= this.goalFor(p) || this.nearExit(p) || held != null && held.escape() && this.nearExit(p, 20)) {
+			// Stalked enough, or about to get out (at a way out, or making for one with its key in hand).
 			return Mode.CHASE;
 		}
 		if (this.noticedBy(st, p)) {
@@ -624,14 +976,23 @@ public final class ShapeBrain {
 		if (st.shadowTicks == 0 && d <= range && Sight.angleTo(eye, e.getViewVector(1f), me) <= cfg.civilianSightFovDeg && Sight.canSee(this.level(), eye, me, e)) {
 			return true;
 		}
+		if (st.shadowTicks == 0 && MatchManager.jumpBlockReason(this.body, st) == 2 && this.watchedBy(e)) {
+			// His screen says someone has eyes on him (dark or not), and these are turned his way.
+			return true;
+		}
 		Vec3 away = e.position().subtract(this.body.position()).multiply(1, 0, 1);
 		return d < 25 && away.lengthSqr() > 1e-4 && this.lastVelocity.multiply(1, 0, 1).dot(away.normalize()) > 0.15;
 	}
 
 	/** Right by a way out: no time for stalking. */
 	private boolean nearExit(LivingEntity e) {
+		return this.nearExit(e, 6);
+	}
+
+	/** Within {@code r} of a way out that could still take someone. */
+	private boolean nearExit(LivingEntity e, double r) {
 		for (HwNet.ExitInfo x : Exits.infos()) {
-			if (Vec3.atBottomCenterOf(x.pos()).distanceTo(e.position()) < 6) {
+			if (exitProgress(x) >= 0 && Vec3.atBottomCenterOf(x.pos()).distanceTo(e.position()) < r) {
 				return true;
 			}
 		}
@@ -771,7 +1132,7 @@ public final class ShapeBrain {
 			return;
 		}
 		this.corpse = at;
-		this.leaveUntil = now + 20 * 6;
+		this.leaveUntil = now + 20 * 11;
 		this.repathAt = now;
 		this.mode = Mode.LEAVE;
 		stat("kill");
@@ -837,10 +1198,17 @@ public final class ShapeBrain {
 		boolean visible = now - this.lastSeenAt <= 2;
 		Vec3 aim = visible ? FocusPoints.bodyCenter(t) : this.lastSeen.add(0, 1, 0);
 		double d = this.body.distanceTo(t);
+		boolean officer = Police.isOfficer(t);
+		HwItems.Kind arm = HwItems.kindOf(t.getMainHandItem());
+		// A loaded gun in their hand: come at them as a shadow, out of it only close by.
+		boolean armed = arm != null && (arm.gun() || arm == HwItems.Kind.FLARE_GUN) && this.gunLoaded(t, arm);
+		if (visible && t instanceof ServerPlayer && d > 6 && d <= 60) {
+			this.sendRunt(t, now);
+		}
 		// A shadow to cover the ground unseen, out again close by.
 		if (st.shadowTicks > 0) {
 			this.sense(st, false, false);
-			if (d < 12 && this.wantOut(st, now)) {
+			if (d < (armed ? 5 : 12) && this.wantOut(st, now)) {
 				stat("shadow.out_close");
 			}
 			if (st.shadowTicks > 0 && d < 3.5) {
@@ -849,15 +1217,19 @@ public final class ShapeBrain {
 				this.walker.face(aim);
 				return;
 			}
-		} else if (d > 14 && !this.watchedBy(t) && !this.lit(t.blockPosition()) && MatchManager.jumpBlockReason(this.body, st) == 0 && st.jumpCooldown == 0) {
+		} else if ((d > 14 || armed && d > 6) && !this.watchedBy(t) && !this.lit(t.blockPosition()) && MatchManager.jumpBlockReason(this.body, st) == 0
+			&& st.jumpCooldown == 0) {
 			MatchManager.onShapeJump(this.body);
-			stat("shadow.in_approach");
+			stat(armed ? "shadow.in_approach.armed" : "shadow.in_approach");
 		} else {
 			// No Sense on the run: it slows him to a walk.
 			this.sense(st, false, false);
 		}
 		if (st.shadowTicks == 0 && visible) {
-			if (d <= cfg.grabRange - 0.2 && st.grabCooldown == 0) {
+			// Officers he strikes down (in a grab they nearly always break free); a grab tried at most every few ticks
+			// (every try is a lunge).
+			if (!officer && d <= cfg.grabRange - 0.2 && st.grabCooldown == 0 && now >= this.grabTryAt) {
+				this.grabTryAt = now + 4;
 				this.walker.face(aim);
 				MatchManager.onAim(this.body, this.body.getEyePosition(), aim.subtract(this.body.getEyePosition()).normalize());
 				MatchManager.onGrab(this.body, t.getId());
@@ -866,7 +1238,7 @@ public final class ShapeBrain {
 					return;
 				}
 			}
-			if (d <= cfg.attackReach && st.grabCooldown > 0 && st.attackCooldown == 0) {
+			if (d <= cfg.attackReach && (st.grabCooldown > 0 || officer) && st.attackCooldown == 0) {
 				// No grab in him yet: a blow (a heavy one on someone standing still).
 				this.walker.face(aim);
 				MatchManager.onAim(this.body, this.body.getEyePosition(), aim.subtract(this.body.getEyePosition()).normalize());
@@ -881,9 +1253,10 @@ public final class ShapeBrain {
 		}
 		if (now >= this.repathAt || this.walker.idle()) {
 			this.repathAt = now + (d < 8 ? 5 : 12);
-			// Where they will be in a moment, if they are running.
+			// Where they will be in a moment, if they are running; or, running for a way out, there ahead of them.
 			Vec3 to = visible ? t.position().add(this.lastVelocity.multiply(6, 0, 6)) : this.lastSeen.add(this.lastVelocity.scale(30));
-			this.follow(st, BlockPos.containing(to), 1.0);
+			BlockPos cut = visible && d > 10 ? this.cutOff(t) : null;
+			this.follow(st, cut != null ? cut : BlockPos.containing(to), 1.0);
 		}
 		this.walk(st, now);
 		if (visible && d < 6) {
@@ -945,6 +1318,12 @@ public final class ShapeBrain {
 		this.searches -= 1f;
 		boolean shadow = st.shadowTicks > 0;
 		Nav.Options opt = shadow ? Nav.Options.climber().lockedDoors(0.5) : Nav.Options.walker().lockedDoors(3);
+		BlockPos fire = Events.fireHouse();
+		this.fireNear = fire != null && Vec3.atCenterOf(fire).distanceTo(this.body.position()) < 60;
+		if (!shadow && (!this.traps.isEmpty() || !this.trapsHeard.isEmpty() || this.fireNear)) {
+			// A shadow walks over traps and through fire unharmed; in his own form he keeps off them.
+			opt.cellCost(this::hazardCost);
+		}
 		this.walker.follow(Nav.to(this.level(), this.body.blockPosition(), to, within, opt.nodes(4000)));
 		this.pathLeft = this.walker.remaining();
 		stat("search");
@@ -1260,7 +1639,7 @@ public final class ShapeBrain {
 				b = Houses.at(this.level(), where);
 			}
 			if (b != null && this.mayRaid(b, now, this.lastSeenAt)) {
-				this.startRaid(b, this.lastSeen, now, "lost");
+				this.raidOrSend(b, this.lastSeen, now, "lost");
 				return;
 			}
 		}
@@ -1280,6 +1659,11 @@ public final class ShapeBrain {
 		}
 		if (this.lookAroundUntil == 0) {
 			this.lookAroundUntil = now + 60;
+			if (st.impulseCooldown == 0 && !st.busy()) {
+				// Lost them: the Impulse, if he has it.
+				MatchManager.onImpulse(this.body);
+				stat("impulse.lost");
+			}
 		}
 		if (now < this.lookAroundUntil) {
 			// Turning round, Sense up, listening.
@@ -1293,12 +1677,12 @@ public final class ShapeBrain {
 			this.raidCheckAt = now + 20;
 			Houses.Building b = Houses.near(this.level(), this.lastSeen, 8);
 			if (b != null && this.mayRaid(b, now, this.lastSeenAt)) {
-				this.startRaid(b, this.lastSeen, now, "near");
+				this.raidOrSend(b, this.lastSeen, now, "near");
 				return;
 			}
 		}
 		// Nothing: the wardrobes round here, nearest first (a few).
-		BlockPos locker = this.lockersOpened < 3 ? this.nearestLocker(BlockPos.containing(this.lastSeen), 7, true) : null;
+		BlockPos locker = this.lockersOpened < 3 && !Events.quaking() ? this.nearestLocker(BlockPos.containing(this.lastSeen), 7, true) : null;
 		if (locker != null && this.openLocker(st, locker, now)) {
 			return;
 		}
@@ -1419,11 +1803,27 @@ public final class ShapeBrain {
 				&& state.getValue(net.minecraft.world.level.block.DoorBlock.HALF) == net.minecraft.world.level.block.state.properties.DoubleBlockHalf.LOWER) {
 				this.notice(p.immutable(), state.getValue(net.minecraft.world.level.block.DoorBlock.OPEN), Vec3.atCenterOf(p.above()), eye, facing, now, 2, "door",
 					false, false);
-			} else if (state.is(net.minecraft.world.level.block.Blocks.LEVER) && LightSystem.isBreaker(level, p)) {
+			} else if (state.getBlock() instanceof TrapBlock) {
+				// A trap on the ground (small: seen only near, less in the dark).
+				Vec3 at = Vec3.atBottomCenterOf(p).add(0, 0.1, 0);
+				if (eye.distanceTo(at) < 2.5 || this.sees(eye, facing, at, 9)) {
+					if (this.traps.put(p.immutable(), now + 20 * 300) == null) {
+						stat("trap.seen");
+					}
+				}
+			} else if (state.is(net.minecraft.world.level.block.Blocks.LEVER) && LightSystem.isBreaker(level, p) && !p.equals(Events.partyHouse())) {
 				// Lights on again where they were off: somebody wants to see (off is his own work, or the blackout's).
 				this.notice(p.immutable(), state.getValue(net.minecraft.world.level.block.LeverBlock.POWERED), Vec3.atCenterOf(p), eye, facing, now, 4,
 					"lights", true, false);
 			}
+		}
+		// Traps he finds gone (sprung by someone, or by his Runt).
+		this.traps.keySet().removeIf(t -> t.distSqr(me) <= r * r && !(level.getBlockState(t).getBlock() instanceof TrapBlock)
+			&& this.sees(eye, facing, Vec3.atBottomCenterOf(t).add(0, 0.1, 0), 9));
+		// The patrol car's light bar, lit even in the dark.
+		Vec3 car = Events.patrolPosition();
+		if (car != null && eye.distanceTo(car) < 48 && Sight.canSee(level, eye, car.add(0, 1.6, 0), this.body)) {
+			this.patrolAtTick = now;
 		}
 		java.util.Set<BlockPos> searched = new java.util.HashSet<>(Loot.searched());
 		for (BlockPos c : Loot.containers()) {
@@ -1588,6 +1988,7 @@ public final class ShapeBrain {
 		this.raidLockers = 0;
 		this.lockersOpened = 0;
 		this.raidStarted = now;
+		this.raidImpulse = false;
 		this.raidUntil = now + 20 * Math.min(100, 25 + 10 * this.raidRooms.size());
 		this.raidFresh = now - this.lastSeenAt < 20 * 20 || this.heat(b, now) >= 3;
 		this.mode = Mode.RAID;
@@ -1606,6 +2007,14 @@ public final class ShapeBrain {
 		if (now > this.raidUntil || this.raidRoom >= this.raidRooms.size()) {
 			this.endRaid(now, true);
 			return;
+		}
+		if (!this.raidImpulse) {
+			this.raidImpulse = true;
+			if (st.impulseCooldown == 0 && !st.busy()) {
+				// Whoever is in there shows as a blur: that room first.
+				MatchManager.onImpulse(this.body);
+				stat("impulse.raid");
+			}
 		}
 		if (this.raidHeard(now) || this.suspect(st, now)) {
 			return;
@@ -1643,7 +2052,7 @@ public final class ShapeBrain {
 			return;
 		}
 		this.sense(st, false, false);
-		if (this.raidSpot >= room.spots.size() - 1) {
+		if (this.raidSpot >= room.spots.size() - 1 && !Events.quaking()) {
 			// Its wardrobes (not those he opened lately), a few in all.
 			for (BlockPos locker : room.lockers) {
 				if (this.raidLockers >= 6) {
@@ -1694,8 +2103,9 @@ public final class ShapeBrain {
 	private boolean raidHeard(int now) {
 		Lead heard = null;
 		for (Lead l : this.leads) {
+			// Only what is in or by this house (something far off waits till he is done).
 			if (l.at() > this.raidStarted && (l.weight() >= 1.5 || l.kind().equals("step")) && !l.kind().equals("locker")
-				&& (heard == null || l.at() > heard.at())) {
+				&& l.pos().distanceTo(this.raid.center) < 24 && (heard == null || l.at() > heard.at())) {
 				heard = l;
 			}
 		}
@@ -1847,6 +2257,377 @@ public final class ShapeBrain {
 		return best;
 	}
 
+	// ---------------------------------------------------------------- his Runt
+
+	/** His screen still shows the Runt (the HUD and the order wheel drop it after two seconds). */
+	private boolean runtFresh(int now) {
+		return now - this.runtInfoAt <= 40;
+	}
+
+	/** Whom his Runt holds (his screen marks them wherever they are), or null. */
+	private LivingEntity runtHeld(int now) {
+		if (!this.runtFresh(now) || this.runtHolding < 0) {
+			return null;
+		}
+		Entity e = this.level().getEntity(this.runtHolding);
+		if (!(e instanceof LivingEntity l) || gone(l)) {
+			return null;
+		}
+		return l;
+	}
+
+	/**
+	 * An order, as the wheel gives it: only to a bot Runt on his screen, a second at least between orders. The callers
+	 * keep to what the wheel needs (whom he points at in view within 60 blocks, a spot in sight within 80).
+	 */
+	private boolean orderRunt(int kind, LivingEntity at, BlockPos pos, int now) {
+		if (!this.runtFresh(now) || !this.runtBot || now - this.runtOrderAt < 20) {
+			return false;
+		}
+		this.runtOrderAt = now;
+		Runt.order(this.body, kind, at == null ? -1 : at.getId(), pos == null ? BlockPos.ZERO : pos);
+		stat("runt.order." + kind);
+		return true;
+	}
+
+	/** Someone getting away from him: the Runt (on its feet, not at someone already, near enough to them) sent at them. */
+	private void sendRunt(LivingEntity t, int now) {
+		if (!this.runtFresh(now) || !this.runtBot || this.runtStatus == 2 || this.runtStatus >= 5
+			|| t.getId() == this.runtAttackId && now - this.runtAttackAt < 20 * 10) {
+			return;
+		}
+		Entity runt = this.level().getEntity(this.runtId);
+		if (runt != null && runt.distanceTo(t) < 40 && this.orderRunt(HwNet.RuntOrder.ATTACK, t, t.blockPosition(), now)) {
+			this.runtAttackId = t.getId();
+			this.runtAttackAt = now;
+		}
+	}
+
+	/** His Runt holds someone he can't see from here (his screen marks them): straight there, nothing else matters. */
+	private void rushToRunt(int now) {
+		LivingEntity held = this.runtHeld(now);
+		if (held == null || this.mode == Mode.CHASE || this.mode == Mode.STALK
+			|| this.mode == Mode.LISTEN && this.goal != null && Vec3.atBottomCenterOf(this.goal).distanceTo(held.position()) < 4) {
+			return;
+		}
+		this.raid = null;
+		this.camping = null;
+		this.workAt = null;
+		this.mode = Mode.LISTEN;
+		this.goal = held.blockPosition();
+		this.goalUntil = now + 20 * 20;
+		this.lastSeen = held.position();
+		this.lastVelocity = Vec3.ZERO;
+		this.leadScore = 100;
+		this.repathAt = now;
+		stat("runt.rush");
+	}
+
+	/**
+	 * A house to go through: his bot Runt sent in while he watches its ways out from the dark (the first time for a
+	 * house), whoever bolts runs into him; else in himself.
+	 */
+	private void raidOrSend(Houses.Building b, Vec3 hint, int now, String why) {
+		Entity runt = this.runtFresh(now) ? this.level().getEntity(this.runtId) : null;
+		if (runt != null && this.runtBot && !this.runtSentTo.contains(b.key) && (this.runtStatus == 0 || this.runtStatus == 4)
+			&& !b.ways.isEmpty() && runt.position().distanceTo(b.center) < 70) {
+			BlockPos spot = this.watchSpot(b);
+			if (spot != null) {
+				this.runtSent = b;
+				this.runtSentTo.add(b.key);
+				this.runtSearchPending = true;
+				this.raid = null;
+				this.goal = null;
+				this.camping = spot;
+				this.campUntil = now + 20 * 30;
+				this.campWithin = 1.5;
+				this.campFace = b.center;
+				this.mode = Mode.PATROL;
+				this.walker.stop();
+				stat("runt.send." + why);
+				return;
+			}
+		}
+		this.startRaid(b, hint, now, why);
+	}
+
+	/** From where he watches: the Runt pointed in through a way in he can see (the cell inside if it is open, else the step). */
+	private void pointRuntIn(int now) {
+		Houses.Building b = this.runtSent;
+		Vec3 eye = this.body.getEyePosition();
+		for (int i = 0; i < b.ways.size(); i++) {
+			BlockPos in = b.ways.get(i);
+			BlockPos out = b.outside.get(i);
+			BlockPos spot = Sight.canSee(this.level(), eye, Vec3.atCenterOf(in), this.body) ? in
+				: Sight.canSee(this.level(), eye, Vec3.atCenterOf(out), this.body) ? out : null;
+			if (spot != null && eye.distanceTo(Vec3.atCenterOf(spot)) <= 80) {
+				this.walker.face(Vec3.atCenterOf(spot));
+				if (this.orderRunt(HwNet.RuntOrder.SEARCH, null, spot, now)) {
+					this.runtSearchPending = false;
+				}
+				return;
+			}
+		}
+	}
+
+	// ---------------------------------------------------------------- what can hurt him
+
+	/** Caught in a trap: a blow at whomever he is after if they are in reach. True if he struck. */
+	private boolean strikeNear(ShapeState st, int now) {
+		LivingEntity t = this.target;
+		if (t == null || st.attackCooldown > 0 || !MatchManager.exposed(t) || now - this.lastSeenAt > 2
+			|| this.body.distanceTo(t) > HwConfig.get().attackReach) {
+			return false;
+		}
+		Vec3 aim = FocusPoints.bodyCenter(t);
+		this.walker.face(aim);
+		MatchManager.onAim(this.body, this.body.getEyePosition(), aim.subtract(this.body.getEyePosition()).normalize());
+		MatchManager.onShapeAttack(this.body, t.getId(), false);
+		stat("strike.trapped");
+		return true;
+	}
+
+	/**
+	 * A gun on him that would floor him: out of its line. Into the shadow if he may (nothing hits a shadow); else to the
+	 * nearest cover from them, a few steps, towards whom he is after. True while at it.
+	 */
+	private boolean evade(ShapeState st, int now) {
+		LivingEntity s = this.shooter;
+		if (s == null || gone(s) || st.shadowTicks > 0) {
+			this.evadeUntil = 0;
+			return false;
+		}
+		if (MatchManager.jumpBlockReason(this.body, st) == 0) {
+			MatchManager.onShapeJump(this.body);
+			stat("evade.shadow");
+			this.evadeUntil = 0;
+			return false;
+		}
+		ServerLevel level = this.level();
+		Vec3 eye = s.getEyePosition();
+		if (!Guns.lineClear(level, s, eye, FocusPoints.bodyCenter(this.body), this.body)) {
+			// Out of the line already (a wall, someone in between).
+			this.evadeUntil = 0;
+			return false;
+		}
+		if (this.walker.idle() || now >= this.evadeRepath) {
+			this.evadeRepath = now + 10;
+			Vec3 toward = this.target != null ? this.target.position() : this.body.position();
+			List<Nav.Node> path = Nav.search(level, this.body.blockPosition(), 9, Nav.Options.walker().lockedDoors(3).nodes(400), (pos, cost) -> {
+				Vec3 c = Vec3.atBottomCenterOf(pos).add(0, 1.1, 0);
+				return (Sight.canSee(level, eye, c, s) ? 0 : 100) - cost * 2 - c.distanceTo(toward) * 0.3;
+			});
+			stat("search");
+			if (path.isEmpty()) {
+				this.evadeUntil = 0;
+				return false;
+			}
+			this.walker.follow(path);
+		}
+		this.sense(st, false, false);
+		this.walk(st, now);
+		return true;
+	}
+
+	/**
+	 * A firecracker by him about to go off: a shadow if he may (it can't touch one); else away from it, six blocks or
+	 * out of its sight, his face turned from it (the flash blinds only those looking). True while at it.
+	 */
+	private boolean dodge(ShapeState st, int now) {
+		Vec3 c = this.cracker;
+		if (c == null || st.shadowTicks > 0) {
+			this.crackerUntil = 0;
+			return false;
+		}
+		ServerLevel level = this.level();
+		Vec3 eye = this.body.getEyePosition();
+		Vec3 bang = c.add(0, 0.3, 0);
+		boolean safe = eye.distanceTo(bang) > 6.5 || !Sight.canSee(level, bang, eye, this.body);
+		if (!safe && MatchManager.jumpBlockReason(this.body, st) == 0) {
+			MatchManager.onShapeJump(this.body);
+			stat("cracker.shadow");
+			this.crackerUntil = 0;
+			return false;
+		}
+		this.sense(st, false, false);
+		if (!safe) {
+			if (this.walker.idle() || now >= this.evadeRepath) {
+				this.evadeRepath = now + 10;
+				List<Nav.Node> path = Nav.search(level, this.body.blockPosition(), 10, Nav.Options.walker().lockedDoors(3).nodes(500), (pos, cost) -> {
+					Vec3 p = Vec3.atBottomCenterOf(pos).add(0, 1.6, 0);
+					double d = p.distanceTo(bang);
+					return (d > 6.5 || !Sight.canSee(level, bang, p, this.body) ? 100 : d * 5) - cost;
+				});
+				stat("cracker.dodge");
+				this.walker.follow(path);
+			}
+			this.walk(st, now);
+			return true;
+		}
+		this.walker.halt();
+		Vec3 away = eye.subtract(bang);
+		this.turnTo((float) (net.minecraft.util.Mth.atan2(away.z, away.x) * net.minecraft.util.Mth.RAD_TO_DEG) - 90f, 30f);
+		return true;
+	}
+
+	/**
+	 * The patrol car about (heard or seen lately) with him in the cone of its headlights: a shadow if he may (it can't
+	 * see one); else out of its way, sideways off the road. True while at it.
+	 */
+	private boolean avoidPatrol(ShapeState st, int now) {
+		Vec3 car = Events.patrolPosition();
+		Vec3 heading = Events.patrolHeading();
+		if (car == null || heading == null || now - this.patrolAtTick > 60 || st.shadowTicks > 0 || !this.inPatrolCone(car, heading)) {
+			return false;
+		}
+		if (MatchManager.jumpBlockReason(this.body, st) == 0) {
+			MatchManager.onShapeJump(this.body);
+			stat("patrol.shadow");
+			return false;
+		}
+		if (this.walker.idle() || now >= this.evadeRepath) {
+			this.evadeRepath = now + 10;
+			Vec3 side = new Vec3(-heading.z, 0, heading.x);
+			Vec3 me = this.body.position();
+			if (me.subtract(car).dot(side) < 0) {
+				side = side.scale(-1);
+			}
+			this.walker.stop();
+			for (double k : new double[]{5, 3, 7}) {
+				BlockPos to = Nav.snap(this.level(), BlockPos.containing(me.add(side.scale(k))));
+				if (Nav.standable(this.level(), to)) {
+					this.walker.follow(Nav.to(this.level(), this.body.blockPosition(), to, 1, Nav.Options.walker().lockedDoors(3).nodes(300)));
+					break;
+				}
+			}
+			stat("patrol.step_aside");
+			if (this.walker.idle()) {
+				return false;
+			}
+		}
+		this.walk(st, now);
+		return true;
+	}
+
+	/** In front of the car within the reach of its headlights (a little wider than they see, to be safe). */
+	private boolean inPatrolCone(Vec3 car, Vec3 heading) {
+		HwConfig cfg = HwConfig.get();
+		Vec3 front = car.add(heading.scale(2.5)).add(0, 0.8, 0);
+		Vec3 me = FocusPoints.bodyCenter(this.body);
+		return me.distanceTo(front) <= cfg.patrolSightRange + 3 && Sight.angleTo(front, heading, me) <= cfg.patrolSightAngle + 10;
+	}
+
+	/** What a step into this cell costs him in his own form: a trap he saw (beside one too), where he heard one set, flames. */
+	private double hazardCost(BlockPos p) {
+		double c = 0;
+		if (this.traps.containsKey(p)) {
+			c += 40;
+		} else {
+			for (net.minecraft.core.Direction d : net.minecraft.core.Direction.Plane.HORIZONTAL) {
+				if (this.traps.containsKey(p.relative(d))) {
+					// A trap springs on whoever passes close by it, corners cut.
+					c += 4;
+					break;
+				}
+			}
+		}
+		for (BlockPos h : this.trapsHeard.keySet()) {
+			if (h.distManhattan(p) <= 1) {
+				c += 6;
+				break;
+			}
+		}
+		if (this.fireNear) {
+			ServerLevel level = this.level();
+			if (level.getBlockState(p).getBlock() instanceof net.minecraft.world.level.block.BaseFireBlock) {
+				c += 60;
+			} else if (level.getBlockState(p.above()).getBlock() instanceof net.minecraft.world.level.block.BaseFireBlock) {
+				c += 30;
+			}
+		}
+		return c;
+	}
+
+	// ---------------------------------------------------------------- the ways out
+
+	/**
+	 * How near a way out is to taking someone, as his screen shows it: 0 nothing done yet, up to 1 open (a cellar
+	 * open, the car running, the police car waiting, the gate open); -1 used up or gone.
+	 */
+	private static double exitProgress(HwNet.ExitInfo e) {
+		HwConfig cfg = HwConfig.get();
+		double p = switch (e.type()) {
+			case Exits.CELLAR -> e.state() == Exits.OPEN ? 1 : e.state() == Exits.USED ? -1 : 0;
+			case Exits.CAR -> (e.state() & Exits.CAR_GONE) != 0 ? -1 : (e.state() & Exits.CAR_RUNNING) != 0 ? 1
+				: Integer.bitCount(e.state() & (Exits.CAR_FUEL | Exits.CAR_REPAIRED)) / 3.0;
+			case Exits.POLICE -> switch (e.state()) {
+				case Exits.POLICE_HERE -> 1;
+				case Exits.POLICE_COMING -> 0.5 + 0.4 * (1 - Math.min(1, e.extra() / (cfg.policeArriveSeconds * 20.0)));
+				case Exits.POLICE_IDLE -> 0.25;
+				case Exits.POLICE_NEED_BODY -> 0;
+				default -> -1;
+			};
+			default -> e.state() == Exits.OPEN ? 1 : e.state() == Exits.USED ? -1 : e.extra() != 0 ? 0.5 : 0;
+		};
+		if (e.type() == Exits.GATE && p >= 0 && cfg.gateOpenLastSeconds > 0 && Match.ticksLeft() > cfg.gateOpenLastSeconds * 20) {
+			// The gate won't open before the last minutes.
+			p = Math.min(p, 0.25);
+		}
+		return p;
+	}
+
+	/**
+	 * Running off at full tilt for a way out that is open or nearly so, ahead of them along that line: he makes for it
+	 * (a shadow outruns anyone) rather than for their heels. Null if there is none, or he wouldn't be there first.
+	 */
+	private BlockPos cutOff(LivingEntity t) {
+		Vec3 v = this.lastVelocity.multiply(1, 0, 1);
+		if (v.lengthSqr() < 0.04) {
+			return null;
+		}
+		Vec3 dir = v.normalize();
+		Vec3 from = t.position();
+		BlockPos best = null;
+		double bestScore = Double.MAX_VALUE;
+		for (HwNet.ExitInfo e : Exits.infos()) {
+			if (exitProgress(e) < 0.5) {
+				continue;
+			}
+			Vec3 x = Vec3.atBottomCenterOf(e.pos());
+			Vec3 to = x.subtract(from).multiply(1, 0, 1);
+			double dist = to.length();
+			if (dist < 6 || dist > 60) {
+				continue;
+			}
+			double angle = Math.toDegrees(Math.acos(net.minecraft.util.Mth.clamp(to.scale(1 / dist).dot(dir), -1, 1)));
+			if (angle > 30 || this.body.position().distanceTo(x) > dist * 1.4) {
+				continue;
+			}
+			double score = angle + dist * 0.2;
+			if (score < bestScore) {
+				bestScore = score;
+				best = e.pos();
+			}
+		}
+		if (best != null && !best.equals(this.lastCut)) {
+			stat("cutoff");
+		}
+		this.lastCut = best;
+		return best;
+	}
+
+	/** The phone (a map point) within {@code r} of this point, or null. */
+	private BlockPos phoneNear(Vec3 at, double r) {
+		BlockPos best = null;
+		for (BlockPos phone : MapPoints.get(this.level()).list(MapPoints.Type.PHONE)) {
+			double d = Vec3.atCenterOf(phone).distanceTo(at);
+			if (d <= r && (best == null || d < Vec3.atCenterOf(best).distanceTo(at))) {
+				best = phone;
+			}
+		}
+		return best;
+	}
+
 	// ---------------------------------------------------------------- nobody in sight
 
 	private void roam(ShapeState st, int now) {
@@ -1949,6 +2730,14 @@ public final class ShapeBrain {
 				} else {
 					this.glance(now);
 				}
+				if (this.runtSent != null) {
+					if (this.runtSearchPending) {
+						this.pointRuntIn(now);
+					} else if (this.runtFresh(now) && (this.runtStatus == 1 || this.runtStatus == 2)) {
+						// It is still at it in there: keep watching.
+						this.campUntil = Math.max(this.campUntil, now + 40);
+					}
+				}
 			}
 			return;
 		}
@@ -1959,14 +2748,31 @@ public final class ShapeBrain {
 		this.camping = null;
 		this.campWithin = 7;
 		this.campFace = null;
+		if (this.runtSent != null) {
+			// The Runt found nobody (or nobody bolted): in himself.
+			Houses.Building b = this.runtSent;
+			this.runtSent = null;
+			this.runtSearchPending = false;
+			if (this.mayRaid(b, now, this.lastSeenAt)) {
+				this.startRaid(b, b.center, now, "after_runt");
+				return;
+			}
+		}
 		// Signs that someone is in a house (a door moved, drawers gone through, the lights on again, blood): through it.
 		if (now % 20 == 0) {
 			Clue hot = this.hottest(now);
 			Houses.Building b = hot == null ? null : Houses.near(this.level(), hot.pos(), 2);
 			if (b != null) {
-				this.startRaid(b, hot.pos(), now, "clues");
+				this.raidOrSend(b, hot.pos(), now, "clues");
 				return;
 			}
+		}
+		// Nothing to go by: the Impulse, when he has it (whoever it shows becomes something to go and see).
+		if (st.impulseCooldown == 0 && !st.busy() && now >= this.impulseAt) {
+			this.impulseAt = now + 40;
+			MatchManager.onImpulse(this.body);
+			stat("impulse");
+			return;
 		}
 		// Now and then he stops in the dark and looks all round with his Sense (it tires him): someone far off.
 		this.mode = Mode.PATROL;
@@ -2025,32 +2831,52 @@ public final class ShapeBrain {
 		return false;
 	}
 
+	/** A place worth looking in on, and how much. */
+	private record Spot(BlockPos pos, double weight) {
+	}
+
+	/**
+	 * Where they have to come: the ways out (the further along, the more), the phones, the drawers not yet gone
+	 * through, the event spots everyone's screen marks (the transformer, the bag, the burning house), the party's
+	 * crowd. Nearer and weightier first, but not always the very best: he covers the town.
+	 */
 	private BlockPos patrolGoal() {
 		ServerLevel level = this.level();
-		List<BlockPos> spots = new ArrayList<>();
+		List<Spot> spots = new ArrayList<>();
 		for (HwNet.ExitInfo e : Exits.infos()) {
-			spots.add(e.pos());
-			spots.add(e.pos());
+			double p = exitProgress(e);
+			if (p >= 0) {
+				spots.add(new Spot(e.pos(), 1 + 4 * p));
+			}
 		}
+		boolean calls = Exits.policePoint() != null && Police.wanted() < HwConfig.get().policeMaxCalls;
 		for (BlockPos phone : MapPoints.get(level).list(MapPoints.Type.PHONE)) {
 			if (Exits.phoneWorks(phone)) {
-				spots.add(phone);
+				spots.add(new Spot(phone, calls ? 1.2 : 0.4));
 			}
 		}
 		List<BlockPos> searched = Loot.searched();
 		for (BlockPos c : Loot.containers()) {
 			if (!searched.contains(c)) {
-				spots.add(c);
+				spots.add(new Spot(c, 0.5));
 			}
 		}
-		spots.removeIf(p -> this.done.containsKey(p) || this.unreachable.containsKey(p) || p.distSqr(this.body.blockPosition()) < 36);
+		for (BlockPos ev : new BlockPos[]{Events.transformer(), Events.bagSpot(), Events.fireHouse()}) {
+			if (ev != null) {
+				spots.add(new Spot(ev, 3));
+			}
+		}
+		if (Events.partyHouse() != null) {
+			spots.add(new Spot(Events.partyHouse(), 2));
+		}
+		BlockPos me = this.body.blockPosition();
+		spots.removeIf(p -> this.done.containsKey(p.pos()) || this.unreachable.containsKey(p.pos()) || p.pos().distSqr(me) < 36);
 		if (spots.isEmpty()) {
 			BlockPos center = MapPoints.get(level).first(MapPoints.Type.CENTER);
 			return center == null ? null : center.offset(this.random.nextInt(41) - 20, 0, this.random.nextInt(41) - 20);
 		}
-		// Not always the nearest: he covers the town.
-		spots.sort((a, b) -> Double.compare(a.distSqr(this.body.blockPosition()), b.distSqr(this.body.blockPosition())));
-		return spots.get(this.random.nextInt(Math.min(6, spots.size())));
+		spots.sort((a, b) -> Double.compare(b.weight() * 30 / (15 + Math.sqrt(b.pos().distSqr(me))), a.weight() * 30 / (15 + Math.sqrt(a.pos().distSqr(me)))));
+		return spots.get(this.random.nextInt(Math.min(5, spots.size()))).pos();
 	}
 
 	/** Lights off where he goes: darkness is his. */
@@ -2066,19 +2892,28 @@ public final class ShapeBrain {
 		}
 	}
 
-	/** Something to undo near: a working phone, fuel in the car, an opened cellar. */
+	/**
+	 * Something to undo: an opened cellar (anywhere: his screen shows it open), fuel in the car (further off once it
+	 * is mended too), a phone ringing (someone calling the police, Loomis), a working phone near him.
+	 */
 	private BlockPos job(int now) {
 		Vec3 me = this.body.position();
 		for (HwNet.ExitInfo e : Exits.infos()) {
-			if (this.done.containsKey(e.pos()) || this.unreachable.containsKey(e.pos()) || Vec3.atCenterOf(e.pos()).distanceTo(me) > 30) {
+			if (this.done.containsKey(e.pos()) || this.unreachable.containsKey(e.pos())) {
 				continue;
 			}
-			if (e.type() == Exits.CAR && (e.state() & Exits.CAR_FUEL) != 0 && (e.state() & (Exits.CAR_GONE | Exits.CAR_RUNNING)) == 0) {
+			double d = Vec3.atCenterOf(e.pos()).distanceTo(me);
+			if (e.type() == Exits.CAR && (e.state() & Exits.CAR_FUEL) != 0 && (e.state() & (Exits.CAR_GONE | Exits.CAR_RUNNING)) == 0
+				&& d <= ((e.state() & Exits.CAR_REPAIRED) != 0 ? 70 : 30)) {
 				return e.pos();
 			}
-			if (e.type() == Exits.CELLAR && e.state() == Exits.OPEN) {
+			if (e.type() == Exits.CELLAR && e.state() == Exits.OPEN && d <= 150) {
 				return e.pos();
 			}
+		}
+		if (this.ringing != null && now < this.ringingUntil && Exits.phoneWorks(this.ringing) && Police.wanted() < HwConfig.get().policeMaxCalls
+			&& !this.done.containsKey(this.ringing) && !this.unreachable.containsKey(this.ringing) && Vec3.atCenterOf(this.ringing).distanceTo(me) < 70) {
+			return this.ringing;
 		}
 		if (Exits.policePoint() != null && Police.wanted() < HwConfig.get().policeMaxCalls) {
 			for (BlockPos phone : MapPoints.get(this.level()).list(MapPoints.Type.PHONE)) {
@@ -2126,29 +2961,33 @@ public final class ShapeBrain {
 		}
 	}
 
-	/** A way out someone is getting going: the gate's fuse in, the car mended or fuelled, the police van waiting. */
+	/**
+	 * A way out someone is getting going (the furthest along): the gate open or its fuse in, the car running or
+	 * mended, the police car waiting or half a minute off. Else where the survivors have to come during an event (the
+	 * transformer in a blackout, the forgotten bag).
+	 */
 	private BlockPos exitInTrouble() {
+		BlockPos best = null;
+		double top = 0;
 		for (HwNet.ExitInfo e : Exits.infos()) {
-			switch (e.type()) {
-				case Exits.GATE -> {
-					if (e.extra() != 0 || e.state() == Exits.OPEN) {
-						return e.pos();
-					}
-				}
-				case Exits.CAR -> {
-					if ((e.state() & (Exits.CAR_REPAIRED | Exits.CAR_RUNNING)) != 0 && (e.state() & Exits.CAR_GONE) == 0) {
-						return e.pos();
-					}
-				}
-				case Exits.POLICE -> {
-					if (e.state() == Exits.POLICE_HERE) {
-						return e.pos();
-					}
-				}
-				default -> {
+			double p = switch (e.type()) {
+				case Exits.GATE -> e.state() == Exits.OPEN ? 1 : e.state() != Exits.USED && e.extra() != 0 ? 0.6 : 0;
+				case Exits.CAR -> (e.state() & Exits.CAR_GONE) != 0 ? 0 : (e.state() & Exits.CAR_RUNNING) != 0 ? 1 : (e.state() & Exits.CAR_REPAIRED) != 0 ? 0.6 : 0;
+				case Exits.POLICE -> e.state() == Exits.POLICE_HERE ? 1 : e.state() == Exits.POLICE_COMING && e.extra() < 20 * 30 ? 0.7 : 0;
+				default -> 0;
+			};
+			if (p > top && !this.done.containsKey(e.pos())) {
+				top = p;
+				best = e.pos();
+			}
+		}
+		if (best == null) {
+			for (BlockPos ev : new BlockPos[]{Events.transformer(), Events.bagSpot()}) {
+				if (ev != null && !this.done.containsKey(ev)) {
+					return ev;
 				}
 			}
 		}
-		return null;
+		return best;
 	}
 }

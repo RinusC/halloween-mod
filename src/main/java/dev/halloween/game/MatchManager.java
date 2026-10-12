@@ -136,6 +136,12 @@ public final class MatchManager {
 		return vs == null ? 0 : vs.stalk;
 	}
 
+	/** Marked by his stalking: the Shape's screen outlines them red wherever they are in his line of sight. */
+	public static boolean marked(Entity entity) {
+		VictimState vs = entity == null ? null : VICTIMS.get(entity.getUUID());
+		return vs != null && vs.marked();
+	}
+
 	public static void applyRole(ServerPlayer player, Role role) {
 		HwConfig cfg = HwConfig.get();
 		Role old = role(player);

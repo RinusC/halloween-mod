@@ -90,6 +90,12 @@ public final class Blood {
 		}
 	}
 
+	/** Leaves a trail right now (what anyone sees: drops falling behind them). */
+	public static boolean bleeding(LivingEntity who) {
+		return who instanceof ServerPlayer p && MatchManager.role(p).survivor() && !p.isSpectator() && !Lockers.isInside(p)
+			&& p.getHealth() < p.getMaxHealth() * HwConfig.get().bloodTrailBelowHealth;
+	}
+
 	/** The drips on the ground now, oldest first. */
 	public static java.util.Collection<Drip> drips() {
 		return DRIPS;

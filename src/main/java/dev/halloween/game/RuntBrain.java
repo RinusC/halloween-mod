@@ -127,7 +127,8 @@ final class RuntBrain {
 			this.tickCharge(s);
 			return;
 		}
-		if (this.humanMichael() != null) {
+		if (this.humanMichael() != null || this.order != -1) {
+			// A person playing Michael, or an order a bot Michael has given it: carry it out.
 			this.tickCommanded(now, s, michael);
 		} else {
 			this.tickAlone(now, s, michael);
@@ -139,6 +140,10 @@ final class RuntBrain {
 	private void tickCommanded(int now, Runt.State s, ServerPlayer michael) {
 		if (this.order != -1 && now > this.orderUntil) {
 			this.clearOrder();
+			if (this.humanMichael() == null) {
+				// A bot Michael's order run out: back to hunting alone (no heel to a bot).
+				return;
+			}
 		}
 		switch (this.order) {
 			case HwNet.RuntOrder.SEARCH -> this.tickSearch(now, s);
