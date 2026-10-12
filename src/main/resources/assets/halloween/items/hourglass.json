@@ -1,6 +1,21 @@
 {
-	"model": {
-		"type": "minecraft:model",
-		"model": "halloween:item/hourglass"
-	}
+ "model" : {
+  "cases" : [
+   {
+    "model" : {
+     "model" : "halloween:item/hourglass",
+     "type" : "minecraft:model"
+    },
+    "when" : [
+     "gui"
+    ]
+   }
+  ],
+  "fallback" : {
+   "model" : "halloween:item/hourglass_3d",
+   "type" : "minecraft:model"
+  },
+  "property" : "minecraft:display_context",
+  "type" : "minecraft:select"
+ }
 }

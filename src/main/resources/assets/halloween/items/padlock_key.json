@@ -1,0 +1,21 @@
+{
+ "model" : {
+  "cases" : [
+   {
+    "model" : {
+     "model" : "minecraft:item/trial_key",
+     "type" : "minecraft:model"
+    },
+    "when" : [
+     "gui"
+    ]
+   }
+  ],
+  "fallback" : {
+   "model" : "halloween:item/padlock_key_3d",
+   "type" : "minecraft:model"
+  },
+  "property" : "minecraft:display_context",
+  "type" : "minecraft:select"
+ }
+}

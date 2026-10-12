@@ -34,6 +34,74 @@
             0
          ]
       },
+      "fixed" : {
+         "rotation" : [
+            0,
+            90,
+            0
+         ],
+         "scale" : [
+            0.5,
+            0.5,
+            0.5
+         ],
+         "translation" : [
+            0,
+            0,
+            0
+         ]
+      },
+      "ground" : {
+         "rotation" : [
+            0,
+            0,
+            0
+         ],
+         "scale" : [
+            0.38,
+            0.38,
+            0.38
+         ],
+         "translation" : [
+            0,
+            2,
+            0
+         ]
+      },
+      "head" : {
+         "rotation" : [
+            0,
+            180,
+            0
+         ],
+         "scale" : [
+            1,
+            1,
+            1
+         ],
+         "translation" : [
+            0,
+            13,
+            7
+         ]
+      },
+      "on_shelf" : {
+         "rotation" : [
+            0,
+            90,
+            0
+         ],
+         "scale" : [
+            0.45,
+            0.45,
+            0.45
+         ],
+         "translation" : [
+            0,
+            0,
+            0
+         ]
+      },
       "thirdperson_lefthand" : {
          "rotation" : [
             90,

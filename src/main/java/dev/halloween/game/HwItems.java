@@ -25,34 +25,34 @@ public final class HwItems {
 
 	public enum Kind {
 		// Escape: every match hides one of each (two repair kits).
-		BOLT_CUTTERS("minecraft:shears"),
-		PADLOCK_KEY("minecraft:trial_key"),
-		SEDAN_KEYS("minecraft:ominous_trial_key"),
+		BOLT_CUTTERS(OWN),
+		PADLOCK_KEY(OWN),
+		SEDAN_KEYS(OWN),
 		GAS_CAN(OWN),
-		REPAIR_KIT("minecraft:bundle"),
+		REPAIR_KIT(OWN),
 		FUSE(OWN),
 		GATE_KEY(OWN),
 		// Breaking free of a grab (the ice pick and the lawn dart also fight).
 		POCKET_KNIFE(OWN),
 		BUTTERFLY_KNIFE(OWN),
 		ICE_PICK(OWN, 4, 0.22f, 12),
-		DART("minecraft:arrow", 1, 1f, 0),
+		DART(OWN, 1, 1f, 0),
 		// Melee: hits before it breaks, stun per hit, ticks between swings (two-handed tools are slow).
-		KITCHEN_KNIFE("minecraft:stone_sword", 6, 0.22f, 12),
+		KITCHEN_KNIFE(OWN, 6, 0.22f, 12),
 		CLEAVER(OWN, 5, 0.28f, 15),
-		HATCHET("minecraft:stone_axe", 5, 0.28f, 15),
+		HATCHET(OWN, 5, 0.28f, 15),
 		PIPE_WRENCH(OWN, 7, 0.30f, 18),
 		BAT(OWN, 5, 0.34f, 18),
 		FIRE_POKER(OWN, 6, 0.30f, 16),
-		AXE("minecraft:iron_axe", 4, 0.45f, 26),
-		PICKAXE("minecraft:iron_pickaxe", 4, 0.45f, 26),
-		PITCHFORK("minecraft:trident", 4, 0.40f, 22),
-		BATON("minecraft:breeze_rod", 8, 0.5f, 15),
+		AXE(OWN, 4, 0.45f, 26),
+		PICKAXE(OWN, 4, 0.45f, 26),
+		PITCHFORK(OWN, 4, 0.40f, 22),
+		BATON(OWN, 8, 0.5f, 15),
 		// Thrown: stun on a hit (firecrackers go off where they land).
-		BRICK("minecraft:brick", 0, 0.30f, 0),
-		ROCK("minecraft:flint", 0, 0.25f, 0),
-		BASEBALL("minecraft:snowball", 0, 0.20f, 0),
-		FIRECRACKERS("minecraft:firework_rocket"),
+		BRICK(OWN, 0, 0.30f, 0),
+		ROCK(OWN, 0, 0.25f, 0),
+		BASEBALL(OWN, 0, 0.20f, 0),
+		FIRECRACKERS(OWN),
 		// Traps: set down at your feet.
 		BEAR_TRAP(OWN),
 		TIN_CANS(OWN),
@@ -61,7 +61,7 @@ public final class HwItems {
 		MED_KIT(OWN),
 		// Light.
 		FLASHLIGHT(OWN),
-		BATTERY("minecraft:iron_nugget"),
+		BATTERY(OWN),
 		ROAD_FLARE(OWN),
 		FLARE_GUN(OWN),
 		// Relics: not in every match.

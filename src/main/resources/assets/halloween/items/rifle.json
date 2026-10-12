@@ -3,7 +3,7 @@
 		"type": "minecraft:select",
 		"property": "minecraft:display_context",
 		"cases": [
-			{"when": ["gui", "ground", "fixed", "on_shelf"], "model": {"type": "minecraft:model", "model": "halloween:item/rifle"}}
+			{"when": ["gui"], "model": {"type": "minecraft:model", "model": "halloween:item/rifle"}}
 		],
 		"fallback": {"type": "minecraft:model", "model": "halloween:item/rifle_3d"}
 	}

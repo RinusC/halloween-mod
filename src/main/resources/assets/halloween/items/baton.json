@@ -1,0 +1,21 @@
+{
+ "model" : {
+  "cases" : [
+   {
+    "model" : {
+     "model" : "minecraft:item/breeze_rod",
+     "type" : "minecraft:model"
+    },
+    "when" : [
+     "gui"
+    ]
+   }
+  ],
+  "fallback" : {
+   "model" : "halloween:item/baton_3d",
+   "type" : "minecraft:model"
+  },
+  "property" : "minecraft:display_context",
+  "type" : "minecraft:select"
+ }
+}

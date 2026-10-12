@@ -1,6 +1,21 @@
 {
-	"model": {
-		"type": "minecraft:model",
-		"model": "halloween:item/road_flare"
-	}
+ "model" : {
+  "cases" : [
+   {
+    "model" : {
+     "model" : "halloween:item/road_flare",
+     "type" : "minecraft:model"
+    },
+    "when" : [
+     "gui"
+    ]
+   }
+  ],
+  "fallback" : {
+   "model" : "halloween:item/road_flare_3d",
+   "type" : "minecraft:model"
+  },
+  "property" : "minecraft:display_context",
+  "type" : "minecraft:select"
+ }
 }

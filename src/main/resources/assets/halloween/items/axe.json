@@ -1,0 +1,21 @@
+{
+ "model" : {
+  "cases" : [
+   {
+    "model" : {
+     "model" : "minecraft:item/iron_axe",
+     "type" : "minecraft:model"
+    },
+    "when" : [
+     "gui"
+    ]
+   }
+  ],
+  "fallback" : {
+   "model" : "halloween:item/axe_3d",
+   "type" : "minecraft:model"
+  },
+  "property" : "minecraft:display_context",
+  "type" : "minecraft:select"
+ }
+}
