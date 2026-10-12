@@ -1334,7 +1334,8 @@ public final class HwHud {
 			}
 		} else if (state.getBlock() instanceof dev.halloween.game.LockerBlock) {
 			// Survivors are only ever invisible while hiding in a locker.
-			line = Component.translatable(mc.player.isInvisible() ? "halloween.hud.prompt.locker_out" : "halloween.hud.prompt.locker");
+			line = Component.translatable(mc.player.isInvisible() ? "halloween.hud.prompt.locker_out"
+				: (ClientEvents.state.flags() & dev.halloween.net.HwNet.EventSync.MIDNIGHT) != 0 ? "halloween.locker.jammed" : "halloween.hud.prompt.locker");
 		} else 		if (state.getBlock() instanceof net.minecraft.world.level.block.DoorBlock) {
 			var base = ClientInteractions.doorBase(mc.level, pos);
 			line = Component.translatable(ClientState.BROKEN_LOCKS.contains(base) ? "halloween.hud.prompt.door_broken"

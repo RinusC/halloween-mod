@@ -315,6 +315,8 @@ public final class Match {
 		state = State.IDLE;
 		Events.clear(server);
 		Exits.clear(server.overworld());
+		// The windows broken this match (the earthquake's too) are glass again.
+		Windows.clear(server);
 		Minimap.clear(server.overworld());
 		Loot.clear();
 		StreetWeapons.clear(server);

@@ -798,6 +798,17 @@ public final class Exits {
 		level.setBlock(pos, state, Block.UPDATE_ALL);
 	}
 
+	/**
+	 * Takes a block away for this match (the earthquake's doors): put back with the exits' props when the match is
+	 * over, or at the next one if the game was closed first. No neighbour updates (a door's other half stays put).
+	 */
+	static void removeForMatch(ServerLevel level, BlockPos pos) {
+		if (PROPS.putIfAbsent(pos.immutable(), level.getBlockState(pos)) == null) {
+			ExitProps.get(level.getServer()).add(pos, PROPS.get(pos));
+		}
+		level.setBlock(pos, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE);
+	}
+
 	/** Exit hatches and gates can't be opened by hand, only by the exit's own actions. */
 	public static boolean isProp(BlockPos pos) {
 		return PROPS.containsKey(pos);

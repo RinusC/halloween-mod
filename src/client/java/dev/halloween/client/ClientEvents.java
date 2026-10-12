@@ -21,6 +21,34 @@ public final class ClientEvents {
 	public static HwNet.EventSync state = HwNet.EventSync.NONE;
 	/** How red the night is (Samhain), 0..1, easing in and out. */
 	private static float red;
+	/** The earthquake's tremor: until when (game time) and how hard. */
+	private static float quakeStart;
+	private static float quakeUntil;
+	private static float quakeStrength;
+
+	static void quake(int ticks, float strength) {
+		Minecraft mc = Minecraft.getInstance();
+		float now = mc.level == null ? 0 : mc.level.getGameTime();
+		quakeStart = now;
+		quakeUntil = now + ticks;
+		quakeStrength = strength;
+	}
+
+	/**
+	 * The view shaking in a tremor (degrees: yaw, pitch), or null: hard at first, easing off at its end; jolts on a
+	 * quick tremble.
+	 */
+	public static float[] quakeShake(float time) {
+		if (time >= quakeUntil || time < quakeStart) {
+			return null;
+		}
+		float in = Math.min(1f, (time - quakeStart) / 6f);
+		float out = Math.min(1f, (quakeUntil - time) / 25f);
+		float amp = quakeStrength * 1.6f * in * out;
+		float yaw = amp * (net.minecraft.util.Mth.sin(time * 2.9f) * 0.5f + net.minecraft.util.Mth.sin(time * 7.7f) * 0.35f + net.minecraft.util.Mth.sin(time * 13.1f) * 0.15f);
+		float pitch = amp * (net.minecraft.util.Mth.sin(time * 3.7f + 1.1f) * 0.5f + net.minecraft.util.Mth.sin(time * 9.3f) * 0.35f + net.minecraft.util.Mth.sin(time * 15.7f) * 0.15f);
+		return new float[]{yaw, pitch};
+	}
 	private static SoundInstance music;
 
 	private ClientEvents() {

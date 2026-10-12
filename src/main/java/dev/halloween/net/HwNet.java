@@ -408,6 +408,20 @@ public final class HwNet {
 	}
 
 	/** Michael hears footsteps: where they came from, and whether off a loud surface (see game.Noise). */
+	/** A tremor of the midnight earthquake: the screen shakes this long, this hard (0..1). */
+	public record Quake(int ticks, float strength) implements CustomPacketPayload {
+		public static final Type<Quake> TYPE = payloadType("quake");
+		public static final StreamCodec<RegistryFriendlyByteBuf, Quake> CODEC = StreamCodec.of((buf, v) -> {
+			buf.writeVarInt(v.ticks);
+			buf.writeFloat(v.strength);
+		}, buf -> new Quake(buf.readVarInt(), buf.readFloat()));
+
+		@Override
+		public Type<Quake> type() {
+			return TYPE;
+		}
+	}
+
 	public record NoiseBurst(Vec3 pos, boolean loud) implements CustomPacketPayload {
 		public static final Type<NoiseBurst> TYPE = payloadType("noise");
 		public static final StreamCodec<RegistryFriendlyByteBuf, NoiseBurst> CODEC = StreamCodec.of((buf, v) -> {
@@ -1135,6 +1149,7 @@ public final class HwNet {
 		PayloadTypeRegistry.clientboundPlay().register(StaminaSync.TYPE, StaminaSync.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(Pant.TYPE, Pant.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(NoiseBurst.TYPE, NoiseBurst.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(Quake.TYPE, Quake.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(Cutscene.TYPE, Cutscene.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(LobbyInfo.TYPE, LobbyInfo.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(Roster.TYPE, Roster.CODEC);

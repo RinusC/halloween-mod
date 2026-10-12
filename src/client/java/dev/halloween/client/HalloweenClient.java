@@ -70,6 +70,7 @@ public class HalloweenClient implements ClientModInitializer {
 		});
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.RuntHud.TYPE, (payload, ctx) -> ClientState.runtHud = payload);
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.EventSync.TYPE, (payload, ctx) -> ClientEvents.state = payload);
+		ClientPlayNetworking.registerGlobalReceiver(HwNet.Quake.TYPE, (payload, ctx) -> ClientEvents.quake(payload.ticks(), payload.strength()));
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.RuntInfo.TYPE, (payload, ctx) -> {
 			ClientState.runtInfo = payload;
 			ClientState.runtInfoAt = ctx.client().level == null ? 0 : ctx.client().level.getGameTime();

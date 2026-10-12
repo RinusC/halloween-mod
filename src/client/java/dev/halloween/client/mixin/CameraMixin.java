@@ -51,6 +51,19 @@ public abstract class CameraMixin {
 		}
 	}
 
+	/** The midnight earthquake: the view shakes in a tremor, whatever the camera (see ClientEvents). */
+	@Inject(method = "alignWithEntity", at = @At("TAIL"))
+	private void halloween$quakeShake(float partialTicks, CallbackInfo ci) {
+		Minecraft mc = Minecraft.getInstance();
+		if (mc.level == null || dev.halloween.client.Cutscene.active()) {
+			return;
+		}
+		float[] shake = dev.halloween.client.ClientEvents.quakeShake(mc.level.getGameTime() + partialTicks);
+		if (shake != null) {
+			this.setRotation(this.yRot() + shake[0], this.xRot() + shake[1]);
+		}
+	}
+
 	/** How far over the shoulder the camera is now (eased back out after a wall), and when the last frame was. */
 	@org.spongepowered.asm.mixin.Unique
 	private static double halloween$shoulderLen;

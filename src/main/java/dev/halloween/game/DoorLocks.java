@@ -238,6 +238,17 @@ public final class DoorLocks {
 		return true;
 	}
 
+	/** A door the earthquake knocks off its hinges: no lock on it any more, nor anyone working one. */
+	static void knockedOut(ServerLevel level, BlockPos pos) {
+		BlockPos door = base(level, pos);
+		LOCKED.remove(door);
+		LOCKED_BY.remove(door);
+		DAMAGE.remove(door);
+		BROKEN.add(door);
+		WORK.values().removeIf(w -> w.door.equals(door));
+		sync(level.getServer());
+	}
+
 	private static void setOpen(Level level, BlockPos door, boolean open) {
 		BlockState lower = level.getBlockState(door);
 		BlockState upper = level.getBlockState(door.above());

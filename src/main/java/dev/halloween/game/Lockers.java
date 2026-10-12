@@ -72,6 +72,14 @@ public final class Lockers {
 	private Lockers() {
 	}
 
+	/** The earthquake: everyone in a wardrobe tumbles out of it. */
+	static void evictAll() {
+		for (Inside inside : new ArrayList<>(INSIDE.values())) {
+			leave(inside.who, false);
+		}
+		CLIMBING.clear();
+	}
+
 	public static boolean isInside(Entity entity) {
 		return entity != null && INSIDE.containsKey(entity.getUUID());
 	}
@@ -223,6 +231,13 @@ public final class Lockers {
 		BlockPos base = LockerBlock.base(level, clicked);
 		BlockState state = level.getBlockState(base);
 		if (!Match.running() || !LockerBlock.is(state) || isInside(who) || MatchManager.isHeld(who) || needsAir(who)) {
+			return false;
+		}
+		if (Events.quaking()) {
+			// The earthquake has the doors jammed.
+			if (who instanceof ServerPlayer p) {
+				p.sendOverlayMessage(Component.translatable("halloween.locker.jammed").withStyle(ChatFormatting.GRAY));
+			}
 			return false;
 		}
 		ServerPlayer player = who instanceof ServerPlayer p ? p : null;

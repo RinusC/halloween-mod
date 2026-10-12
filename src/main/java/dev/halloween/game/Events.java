@@ -145,6 +145,8 @@ public final class Events {
 	private static int nextAt;
 	private static int count;
 	private static boolean midnight;
+	/** The earthquake that comes with midnight (null until then). */
+	private static Quake quake;
 	private static int nextReveal;
 	private static final List<Mark> LINGER = new ArrayList<>();
 	private static final List<Glow> GLOWS = new ArrayList<>();
@@ -183,6 +185,8 @@ public final class Events {
 		USED.clear();
 		count = 0;
 		midnight = false;
+		quake = null;
+		server.getCommands().performPrefixedCommand(server.createCommandSourceStack().withSuppressedOutput(), "kill @e[tag=" + Quake.TAG + "]");
 		LINGER.clear();
 		GLOWS.clear();
 		for (UUID id : LENT.keySet()) {
@@ -235,6 +239,9 @@ public final class Events {
 		}
 		if (cfg.midnightEnabled && !midnight && Match.ticksLeft() <= cfg.midnightSeconds * 20) {
 			midnight(level, now);
+		}
+		if (quake != null) {
+			quake.tick(level, now);
 		}
 		if (midnight && now >= nextReveal) {
 			nextReveal = now + cfg.midnightRevealEverySeconds * 20;
@@ -434,6 +441,12 @@ public final class Events {
 				.withStyle(ChatFormatting.DARK_RED));
 		}
 		AiStats.add("*total", "event.midnight");
+		quake = Quake.begin(level, now, Match.ticksLeft());
+	}
+
+	/** The midnight earthquake is on: the wardrobes are jammed. */
+	public static boolean quaking() {
+		return quake != null;
 	}
 
 	/** The ways out still open to someone, for the survivors' screens at midnight. */
