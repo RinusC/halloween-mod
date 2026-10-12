@@ -22,6 +22,9 @@ public final class ClientAnims {
 		/** Knocked down (FALL), getting up (RISE): when each began; fallStart below 0 means standing. */
 		float fallStart = -1;
 		float riseStart = -1;
+		/** The Demogorgon tearing a rift (RIFT) or dropping from a ceiling (EMERGE), and since when. */
+		int demo;
+		float demoStart;
 	}
 
 	private static final Map<Integer, State> STATES = new HashMap<>();
@@ -35,7 +38,12 @@ public final class ClientAnims {
 		State s = STATES.computeIfAbsent(payload.entityId(), k -> new State());
 		LAST.put(payload.entityId(), payload.kind());
 		switch (payload.kind()) {
+			case HwNet.Anim.RIFT, HwNet.Anim.EMERGE -> {
+				s.demo = payload.kind();
+				s.demoStart = now();
+			}
 			case HwNet.Anim.NONE -> {
+				s.demo = HwNet.Anim.NONE;
 				s.hold = HwNet.Anim.NONE;
 				s.once = HwNet.Anim.NONE;
 				s.fallStart = -1;
@@ -90,6 +98,16 @@ public final class ClientAnims {
 			return k * k * (3 - 2 * k);
 		}
 		return t < in + hold ? 1 : Math.max(0, 1 - (t - in - hold) / out);
+	}
+
+	/** Ticks since this entity began the Demogorgon's {@code kind} (RIFT, EMERGE), or -1 if it isn't at it. */
+	public static float demoTime(int entityId, int kind) {
+		State s = STATES.get(entityId);
+		if (s == null || s.demo != kind) {
+			return -1f;
+		}
+		float t = now() - s.demoStart;
+		return t > (kind == HwNet.Anim.RIFT ? 110f : 40f) ? -1f : t;
 	}
 
 	/** The hold this entity is in (HwNet.Anim: HOLD, STRUGGLE, STRANGLE), or NONE. */

@@ -66,13 +66,13 @@ public final class HwNet {
 	public record RoleEntry(UUID player, Role role) {
 	}
 
-	/** The Demogorgon's own screen: his portals (of how many), down in the Upside Down or not, whether it is built, charging a Shred. */
-	public record DemoHud(int portals, int max, boolean below, boolean ready, boolean charging) implements CustomPacketPayload {
+	/** The Demogorgon's own screen: how far along a rift he is tearing (of how long), down in the Upside Down or not, whether it is built, charging a Shred. */
+	public record DemoHud(int rift, int riftTicks, boolean below, boolean ready, boolean charging) implements CustomPacketPayload {
 		public static final Type<DemoHud> TYPE = payloadType("demo_hud");
 		public static final DemoHud NONE = new DemoHud(0, 0, false, false, false);
 		public static final StreamCodec<RegistryFriendlyByteBuf, DemoHud> CODEC = StreamCodec.of((buf, v) -> {
-			buf.writeVarInt(v.portals);
-			buf.writeVarInt(v.max);
+			buf.writeVarInt(v.rift);
+			buf.writeVarInt(v.riftTicks);
 			buf.writeBoolean(v.below);
 			buf.writeBoolean(v.ready);
 			buf.writeBoolean(v.charging);
@@ -338,6 +338,10 @@ public final class HwNet {
 		public static final int RISE = 10;
 		/** The Runt on somebody's back, strangling them. */
 		public static final int STRANGLE = 11;
+		/** The Demogorgon up on his hind legs tearing a rift into the Upside Down (or, down there, out of it). */
+		public static final int RIFT = 12;
+		/** The Demogorgon dropping down from a ceiling. */
+		public static final int EMERGE = 13;
 
 		public static final Type<Anim> TYPE = payloadType("anim");
 		public static final StreamCodec<RegistryFriendlyByteBuf, Anim> CODEC = StreamCodec.of((buf, v) -> {
