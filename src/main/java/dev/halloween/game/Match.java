@@ -199,6 +199,11 @@ public final class Match {
 		Guns.clear();
 		GunCase.clear(server.overworld());
 		Nav.setArea(area(points));
+		Demogorgon.clear(level);
+		if (Demogorgon.active()) {
+			// The Upside Down under the town, built while the match runs.
+			UpsideDown.start(level);
+		}
 		GunCase.setup(level, level.getRandom());
 		Loot.setup(level, center, level.getRandom());
 		StreetWeapons.setup(level, center, Loot.radius(), level.getRandom());
@@ -342,6 +347,7 @@ public final class Match {
 		Guns.clear();
 		GunCase.clear(server.overworld());
 		PEOPLE.clear();
+		Demogorgon.clear(server.overworld());
 		Nav.setArea(null);
 		Townsfolk.clear(server);
 		Police.clear(server);

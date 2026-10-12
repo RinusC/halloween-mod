@@ -36,7 +36,8 @@ public final class HwNet {
 	// ---------------------------------------------------------------- S2C
 
 	/** Broadcast to everyone: who plays what, and whether the Shape is currently hidden in Shape Jump. */
-	public record WorldSync(List<RoleEntry> roles, int shapeEntityId, boolean shadow) implements CustomPacketPayload {
+	/** {@code killer}: 0 Michael, 1 the Demogorgon (see game.Demogorgon). */
+	public record WorldSync(List<RoleEntry> roles, int shapeEntityId, boolean shadow, int killer) implements CustomPacketPayload {
 		public static final Type<WorldSync> TYPE = payloadType("world_sync");
 		public static final StreamCodec<RegistryFriendlyByteBuf, WorldSync> CODEC = StreamCodec.of((buf, v) -> {
 			buf.writeVarInt(v.roles.size());
@@ -46,13 +47,14 @@ public final class HwNet {
 			}
 			buf.writeVarInt(v.shapeEntityId);
 			buf.writeBoolean(v.shadow);
+			buf.writeVarInt(v.killer);
 		}, buf -> {
 			int n = buf.readVarInt();
 			List<RoleEntry> roles = new ArrayList<>(n);
 			for (int i = 0; i < n; i++) {
 				roles.add(new RoleEntry(buf.readUUID(), Role.byId(buf.readVarInt())));
 			}
-			return new WorldSync(roles, buf.readVarInt(), buf.readBoolean());
+			return new WorldSync(roles, buf.readVarInt(), buf.readBoolean(), buf.readVarInt());
 		});
 
 		@Override
@@ -62,6 +64,24 @@ public final class HwNet {
 	}
 
 	public record RoleEntry(UUID player, Role role) {
+	}
+
+	/** The Demogorgon's own screen: his portals (of how many), down in the Upside Down or not, whether it is built, charging a Shred. */
+	public record DemoHud(int portals, int max, boolean below, boolean ready, boolean charging) implements CustomPacketPayload {
+		public static final Type<DemoHud> TYPE = payloadType("demo_hud");
+		public static final DemoHud NONE = new DemoHud(0, 0, false, false, false);
+		public static final StreamCodec<RegistryFriendlyByteBuf, DemoHud> CODEC = StreamCodec.of((buf, v) -> {
+			buf.writeVarInt(v.portals);
+			buf.writeVarInt(v.max);
+			buf.writeBoolean(v.below);
+			buf.writeBoolean(v.ready);
+			buf.writeBoolean(v.charging);
+		}, buf -> new DemoHud(buf.readVarInt(), buf.readVarInt(), buf.readBoolean(), buf.readBoolean(), buf.readBoolean()));
+
+		@Override
+		public Type<DemoHud> type() {
+			return TYPE;
+		}
 	}
 
 	/**
@@ -1158,6 +1178,7 @@ public final class HwNet {
 
 	public static void registerPayloads() {
 		PayloadTypeRegistry.clientboundPlay().register(WorldSync.TYPE, WorldSync.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(DemoHud.TYPE, DemoHud.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(ShapeHud.TYPE, ShapeHud.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(RuntHud.TYPE, RuntHud.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(RuntInfo.TYPE, RuntInfo.CODEC);

@@ -73,6 +73,9 @@ public final class ClientState {
 	public static long impulseStart;
 	/** Reaction check during a long action (a call, a talk). */
 	public static HwNet.SkillCheck skill = HwNet.SkillCheck.INACTIVE;
+	/** This match's killer: 0 Michael, 1 the Demogorgon (WorldSync); and the Demogorgon's own screen. */
+	public static int killer;
+	public static HwNet.DemoHud demo = HwNet.DemoHud.NONE;
 
 	/** Talking a townsperson round right now (the server shows it as a progress bar). */
 	public static boolean talking() {
@@ -260,6 +263,7 @@ public final class ClientState {
 		impulseUntil = 0;
 		ALERTS.clear();
 		skill = HwNet.SkillCheck.INACTIVE;
+		demo = HwNet.DemoHud.NONE;
 		NOTICES.clear();
 		FEED.clear();
 		LOCKED_DOORS.clear();

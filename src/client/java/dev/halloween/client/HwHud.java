@@ -1107,9 +1107,18 @@ public final class HwHud {
 		boolean jumpReady = hud.jumpBlock() == 0;
 		boolean inShadow = hud.shadowTicks() > 0;
 		float jumpProgress = !inShadow && hud.jumpBlock() == 3 ? 1f - (float) hud.jumpCooldown() / Math.max(1, hud.jumpCooldownMax()) : 1f;
-		abilityDiamond(g, font, jumpX, baseY, "»", HalloweenClient.KEY_SHAPE_JUMP,
-			inShadow ? (jumpReady ? 0xE07A5CC8 : 0xE0602A6A) : jumpReady ? DARK_FILL : RED_FILL, jumpProgress, 0xFF606060, TEXT);
-		if (inShadow && hud.jumpBlock() != 0) {
+		boolean demo = MichaelRenderer.demogorgon();
+		HwNet.DemoHud dh = ClientState.demo;
+		abilityDiamond(g, font, jumpX, baseY, demo ? "◈" : "»", HalloweenClient.KEY_SHAPE_JUMP,
+			demo && dh.below() ? 0xE08A2A2A : inShadow ? (jumpReady ? 0xE07A5CC8 : 0xE0602A6A) : jumpReady ? DARK_FILL : RED_FILL, jumpProgress, 0xFF606060, TEXT);
+		if (demo) {
+			// His portals: how many, or (down below) how to get out.
+			Component line = !dh.ready() ? Component.translatable("halloween.hud.demo.building")
+				: dh.below() ? Component.translatable("halloween.hud.demo.below")
+				: hud.jumpBlock() == 3 ? Component.literal(seconds(hud.jumpCooldown()))
+				: Component.translatable("halloween.hud.demo.portals", dh.portals(), dh.max());
+			g.centeredText(font, line, jumpX, baseY - 26, dh.below() ? 0xFFE07070 : DIM);
+		} else if (inShadow && hud.jumpBlock() != 0) {
 			// Leaving the shadow is refused here: say why.
 			g.centeredText(font, Component.translatable(switch (hud.jumpBlock()) {
 				case 1 -> "halloween.hud.jump.light";
@@ -1128,7 +1137,7 @@ public final class HwHud {
 		int impulseY = baseY - 36;
 		boolean impulseReady = hud.impulseCooldown() == 0;
 		float impulseProgress = impulseReady ? 1f : 1f - (float) hud.impulseCooldown() / Math.max(1, hud.impulseCooldownMax());
-		abilityDiamond(g, font, impulseX, impulseY, "◎", HalloweenClient.KEY_IMPULSE,
+		abilityDiamond(g, font, impulseX, impulseY, demo ? "✺" : "◎", HalloweenClient.KEY_IMPULSE,
 			impulseReady ? DARK_FILL : RED_FILL, impulseProgress, 0xFF606060, TEXT);
 
 		// Weapon.
@@ -1143,8 +1152,8 @@ public final class HwHud {
 		int sx = weaponX - 10;
 		int sy = baseY - 30;
 		smallAction(g, font, sx, sy + 11, Component.translatable("halloween.hud.grab"), mc.options.keyUse.getTranslatedKeyMessage(), hud.grabCooldown());
-		smallAction(g, font, sx, sy + 22, Component.translatable("halloween.hud.dash"), mc.options.keySprint.getTranslatedKeyMessage(),
-			hud.dashTicks() > 0 ? 0 : hud.dashCooldown());
+		smallAction(g, font, sx, sy + 22, Component.translatable(demo ? (dh.charging() ? "halloween.hud.shred.charging" : "halloween.hud.shred") : "halloween.hud.dash"),
+			mc.options.keySprint.getTranslatedKeyMessage(), hud.dashTicks() > 0 ? 0 : hud.dashCooldown());
 	}
 
 	private static void abilityDiamond(GuiGraphicsExtractor g, Font font, int cx, int cy, String glyph, KeyMapping key,

@@ -183,10 +183,13 @@ public final class MatchManager {
 				SHAPES.put(player.getUUID(), state);
 				player.setGameMode(GameType.ADVENTURE);
 				player.getInventory().clearContent();
-				ItemStack knife = new ItemStack(Items.IRON_SWORD);
-				knife.set(DataComponents.CUSTOM_NAME, Component.translatable("halloween.item.knife"));
-				knife.set(DataComponents.ITEM_MODEL, Halloween.id("michael_knife"));
-				player.getInventory().setItem(0, knife);
+				if (!Demogorgon.active()) {
+					// Michael's kitchen knife (the Demogorgon has his claws).
+					ItemStack knife = new ItemStack(Items.IRON_SWORD);
+					knife.set(DataComponents.CUSTOM_NAME, Component.translatable("halloween.item.knife"));
+					knife.set(DataComponents.ITEM_MODEL, Halloween.id("michael_knife"));
+					player.getInventory().setItem(0, knife);
+				}
 				player.getInventory().setSelectedSlot(0);
 				maxHealth.setBaseValue(20);
 				camera.setBaseValue(cfg.shapeCameraDistance);
@@ -287,6 +290,7 @@ public final class MatchManager {
 		Traps.tick(server);
 		Runt.tick(server);
 		ShapeBrain.tick(server);
+		Demogorgon.tick(server);
 		Panic.tick(server);
 		Stamina.tick(server);
 		Holds.tick(server);
@@ -439,6 +443,9 @@ public final class MatchManager {
 			speed = -1;
 		} else if (state.shadowTicks > 0) {
 			speed += HwConfig.at(cfg.shapeJumpSpeedByTier, state.tier());
+		} else if (Demogorgon.charging()) {
+			// Gathering himself for a Shred.
+			speed += cfg.senseSpeedModifier;
 		} else if (state.focusActive()) {
 			speed += cfg.focusSpeedModifier;
 		} else if (state.senseActive()) {
@@ -710,6 +717,10 @@ public final class MatchManager {
 	 * In Shape Jump: whether leaving is allowed right now (0, 1 light, 2 watched, 5 inside a door, 6 right next to a victim).
 	 */
 	static int jumpBlockReason(ServerPlayer player, ShapeState state) {
+		if (Demogorgon.active()) {
+			// His portals: only being busy or the rest after a crossing hold him back.
+			return state.busy() ? 4 : state.jumpCooldown > 0 ? 3 : 0;
+		}
 		if (state.shadowTicks > 0) {
 			return insideDoor(player) ? 5 : tooCloseToVictim(player) ? 6 : exposure(player);
 		}
@@ -725,6 +736,11 @@ public final class MatchManager {
 	public static void onShapeJump(ServerPlayer player) {
 		ShapeState state = SHAPES.get(player.getUUID());
 		if (role(player) != Role.SHAPE || state == null) {
+			return;
+		}
+		if (Demogorgon.active()) {
+			// The Demogorgon has portals in place of Shape Jump.
+			Demogorgon.portalKey(player, state);
 			return;
 		}
 		if (Windows.isVaulting(player)) {
@@ -778,6 +794,11 @@ public final class MatchManager {
 
 	public static void onDash(ServerPlayer player) {
 		ShapeState state = SHAPES.get(player.getUUID());
+		if (Demogorgon.active() && role(player) == Role.SHAPE && state != null) {
+			// The Demogorgon's Shred in place of the dash.
+			Demogorgon.shredKey(player, state);
+			return;
+		}
 		if (role(player) != Role.SHAPE || state == null || state.busy() || state.shadowTicks > 0 || state.dashCooldown > 0 || state.dashTicks > 0) {
 			return;
 		}
@@ -797,6 +818,11 @@ public final class MatchManager {
 	public static void onImpulse(ServerPlayer player) {
 		ShapeState state = SHAPES.get(player.getUUID());
 		if (role(player) != Role.SHAPE || state == null || state.busy() || state.impulseCooldown > 0) {
+			return;
+		}
+		if (Demogorgon.active()) {
+			// The Demogorgon's Of the Abyss in place of the Impulse.
+			Demogorgon.abyss(player, state);
 			return;
 		}
 		HwConfig cfg = HwConfig.get();
@@ -1264,7 +1290,7 @@ public final class MatchManager {
 				shadow = state.shadowTicks > 0;
 			}
 		}
-		HwNet.WorldSync sync = new HwNet.WorldSync(roles, shapeId, shadow);
+		HwNet.WorldSync sync = new HwNet.WorldSync(roles, shapeId, shadow, Demogorgon.active() ? 1 : 0);
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
 			ServerPlayNetworking.send(player, sync);
 		}

@@ -50,6 +50,17 @@ public final class HwCommands {
 					ctx.getSource().sendSuccess(() -> Component.translatable("halloween.cmd.shape_off"), true);
 					return 1;
 				})))
+			.then(Commands.literal("killer")
+				.then(Commands.literal("michael").executes(ctx -> {
+					Demogorgon.choose(false);
+					ctx.getSource().sendSuccess(() -> Component.translatable("halloween.cmd.killer_michael"), true);
+					return 1;
+				}))
+				.then(Commands.literal("demogorgon").executes(ctx -> {
+					Demogorgon.choose(true);
+					ctx.getSource().sendSuccess(() -> Component.translatable("halloween.cmd.killer_demogorgon"), true);
+					return 1;
+				})))
 			.then(Commands.literal("runt")
 				.then(Commands.literal("bot").executes(ctx -> {
 					Runt.chooseBot();
