@@ -30,7 +30,9 @@ public final class ClientGuns {
 	}
 
 	public static HwItems.Kind heldGun(Minecraft mc) {
-		if (mc.player == null || !ClientState.myRole().survivor() || mc.player.isSpectator()) {
+		// A survivor in a match, or anyone at the school's range between matches.
+		boolean range = !ClientState.inMatch() && ClientState.lobby.inLobby();
+		if (mc.player == null || !(ClientState.myRole().survivor() || range) || mc.player.isSpectator()) {
 			return null;
 		}
 		HwItems.Kind kind = HwItems.kindOf(mc.player.getMainHandItem());

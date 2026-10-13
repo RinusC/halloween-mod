@@ -137,6 +137,10 @@ public final class Guns {
 	}
 
 	private static boolean canHandle(ServerPlayer player) {
+		if (ShootingRange.allowed(player)) {
+			// The school's range, between matches.
+			return true;
+		}
 		return Match.running() && MatchManager.role(player).survivor() && !player.isSpectator() && !MatchManager.isGrabbed(player)
 			&& !Windows.isVaulting(player) && !Lockers.isInside(player) && !Minigames.active(player);
 	}
@@ -167,7 +171,12 @@ public final class Guns {
 			NEXT_SHOT.put(player.getUUID(), now + 6);
 			return;
 		}
-		setLoaded(gun, rounds - 1);
+		if (ShootingRange.allowed(player)) {
+			// Never runs dry on the range.
+			ShootingRange.shot(player);
+		} else {
+			setLoaded(gun, rounds - 1);
+		}
 		HwConfig cfg = HwConfig.get();
 		NEXT_SHOT.put(player.getUUID(), now + shotTicks(kind));
 		// Trust the client's aim if it is close to where the server thinks the player looks (it is the newer of the two).
@@ -499,6 +508,9 @@ public final class Guns {
 			level.sendParticles(ParticleTypes.CRIT, hitAt.x, hitAt.y, hitAt.z, 6, 0.05, 0.05, 0.05, 0.2);
 			MatchManager.bleed(level, hit, kind == HwItems.Kind.RIFLE ? 30 : kind == HwItems.Kind.SHOTGUN ? 6 : 16);
 			return new Hit(hit, hitAt.distanceTo(eye));
+		} else if (block.getType() != HitResult.Type.MISS && ShootingRange.hit(level, shooter, block.getBlockPos())) {
+			// A range target: down (ShootingRange scores it).
+			return null;
 		} else if (block.getType() != HitResult.Type.MISS) {
 			// Splinters and dust where it struck.
 			BlockState state = level.getBlockState(block.getBlockPos());

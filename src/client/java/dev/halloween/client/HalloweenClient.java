@@ -218,7 +218,8 @@ public class HalloweenClient implements ClientModInitializer {
 			VanillaHudElements.HELD_ITEM_TOOLTIP, VanillaHudElements.AIR_BAR, VanillaHudElements.CROSSHAIR
 		}) {
 			HudElementRegistry.replaceElement(id, original -> (graphics, delta) -> {
-				if (!ClientState.inMatch()) {
+				// (With a gun at the range, no crosshair: the sights, or our dot.)
+				if (!ClientState.inMatch() && !(id == VanillaHudElements.CROSSHAIR && ClientGuns.heldGun(Minecraft.getInstance()) != null)) {
 					original.extractRenderState(graphics, delta);
 				}
 			});
@@ -304,6 +305,10 @@ public class HalloweenClient implements ClientModInitializer {
 	 * with no weapon in hand it shoves the Shape. Returns true when the vanilla attack must not run.
 	 */
 	private static boolean survivorAttack(Minecraft mc, int clickCount) {
+		if (clickCount > 0 && mc.player != null && mc.level != null && !ClientState.inMatch() && ClientState.lobby.inLobby()) {
+			// The school's range: a gun fires, anything else as vanilla has it.
+			return ClientGuns.trigger(mc);
+		}
 		if (clickCount <= 0 || mc.player == null || mc.level == null || !ClientState.myRole().survivor() || mc.player.isSpectator()) {
 			return false;
 		}

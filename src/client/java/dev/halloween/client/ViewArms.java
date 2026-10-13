@@ -200,7 +200,9 @@ public final class ViewArms {
 	/** Draws the hands; true if it did (vanilla's are then skipped). */
 	public static boolean render(ItemInHandRenderer renderer, float partial, PoseStack pose, SubmitNodeCollector collector, LocalPlayer player, int light) {
 		Role role = ClientState.myRole();
-		if (!enabled || ClientState.match.state() == 0 || !(role.survivor() || role == Role.RUNT)) {
+		// At the school's range between matches: hands on the gun too.
+		boolean range = !ClientState.inMatch() && ClientState.lobby.inLobby() && ClientGuns.heldGun(Minecraft.getInstance()) != null;
+		if (!enabled || !range && (ClientState.match.state() == 0 || !(role.survivor() || role == Role.RUNT))) {
 			return false;
 		}
 		if (player.isInvisible() || player.isSpectator()) {

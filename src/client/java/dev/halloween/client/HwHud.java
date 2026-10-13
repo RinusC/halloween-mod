@@ -46,6 +46,10 @@ public final class HwHud {
 		}
 		if (!ClientState.inMatch() && ClientState.lobby.inLobby()) {
 			lobby(g, mc);
+			if (ClientGuns.heldGun(mc) != null && !ClientGuns.aiming()) {
+				// At the range from the hip: a small dot (aimed: the sights).
+				g.fill(g.guiWidth() / 2, g.guiHeight() / 2, g.guiWidth() / 2 + 1, g.guiHeight() / 2 + 1, 0x90E8E2D6);
+			}
 		}
 		// The whole match HUD is drawn a little smaller than the GUI scale.
 		float scale = (float) HwConfig.get().hudScale;

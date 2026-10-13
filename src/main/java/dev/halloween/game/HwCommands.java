@@ -144,7 +144,7 @@ public final class HwCommands {
 					// Builds the gym (beside the town if there is one, else here) and sends everyone in.
 					MinecraftServer server = ctx.getSource().getServer();
 					BlockPos center = MapPoints.get(server.overworld()).first(MapPoints.Type.CENTER);
-					Lobby.build(server.overworld(), center != null ? center.offset(-Lobby.W / 2, 0, -420) : BlockPos.containing(ctx.getSource().getPosition()));
+					Lobby.build(server.overworld(), center != null ? Lobby.placeFor(center) : BlockPos.containing(ctx.getSource().getPosition()));
 					Lobby.returnAll(server);
 					ctx.getSource().sendSuccess(() -> Component.translatable("halloween.cmd.lobby_built"), true);
 					return 1;
