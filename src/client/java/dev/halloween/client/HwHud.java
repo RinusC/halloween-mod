@@ -389,7 +389,7 @@ public final class HwHud {
 		}
 	}
 
-	/** With a gun in hand: a reticle as wide as the cone of fire, and the rounds in it and in the pockets. */
+	/** With a gun in hand: a small dot from the hip (aimed, only the gun's own sights), and the rounds in it and in the pockets. */
 	private static void gunHud(GuiGraphicsExtractor g, Minecraft mc, int w, int h) {
 		dev.halloween.game.HwItems.Kind kind = ClientGuns.heldGun(mc);
 		if (kind == null || mc.gui.screen() != null) {
@@ -397,17 +397,9 @@ public final class HwHud {
 		}
 		int cx = w / 2;
 		int cy = h / 2;
-		// The cone's edge on screen: tan(spread) over tan(half the view), times half the screen height.
-		double fov = mc.options.fov().get() * ClientState.fovMultiplier();
-		double spread = ClientGuns.spread(mc) + ClientGuns.bloom() * 4;
-		int gap = (int) Math.round(2 + Math.tan(Math.toRadians(spread)) / Math.tan(Math.toRadians(fov / 2)) * (h / 2.0));
-		int len = 4;
-		int color = ClientGuns.aiming() ? 0xE0FFFFFF : 0xB0E8E2D6;
-		g.fill(cx - gap - len, cy, cx - gap, cy + 1, color);
-		g.fill(cx + gap + 1, cy, cx + gap + 1 + len, cy + 1, color);
-		g.fill(cx, cy - gap - len, cx + 1, cy - gap, color);
-		g.fill(cx, cy + gap + 1, cx + 1, cy + gap + 1 + len, color);
-		g.fill(cx, cy, cx + 1, cy + 1, color);
+		if (!ClientGuns.aiming()) {
+			g.fill(cx, cy, cx + 1, cy + 1, 0x90E8E2D6);
+		}
 		var held = mc.player.getMainHandItem();
 		int loaded = dev.halloween.game.Guns.loaded(held);
 		int cap = dev.halloween.game.Guns.capacity(kind);

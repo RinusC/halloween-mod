@@ -863,6 +863,23 @@ public final class HwNet {
 	}
 
 	/** The gun raised (right mouse held) or lowered. */
+	/** Someone's gun, for everyone to see (client.GunPoses): raised to the eye, lowered, or a shot's kick. */
+	public record GunPose(int entityId, int state) implements CustomPacketPayload {
+		public static final int LOWERED = 0;
+		public static final int AIMED = 1;
+		public static final int SHOT = 2;
+		public static final Type<GunPose> TYPE = payloadType("gun_pose");
+		public static final StreamCodec<RegistryFriendlyByteBuf, GunPose> CODEC = StreamCodec.of((buf, v) -> {
+			buf.writeVarInt(v.entityId);
+			buf.writeVarInt(v.state);
+		}, buf -> new GunPose(buf.readVarInt(), buf.readVarInt()));
+
+		@Override
+		public Type<GunPose> type() {
+			return TYPE;
+		}
+	}
+
 	public record GunAim(boolean aiming) implements CustomPacketPayload {
 		public static final Type<GunAim> TYPE = payloadType("gun_aim");
 		public static final StreamCodec<RegistryFriendlyByteBuf, GunAim> CODEC = StreamCodec.of(
@@ -1205,6 +1222,7 @@ public final class HwNet {
 		PayloadTypeRegistry.clientboundPlay().register(WorldSync.TYPE, WorldSync.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(DemoHud.TYPE, DemoHud.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(DemoPose.TYPE, DemoPose.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(GunPose.TYPE, GunPose.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(ShapeHud.TYPE, ShapeHud.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(RuntHud.TYPE, RuntHud.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(RuntInfo.TYPE, RuntInfo.CODEC);

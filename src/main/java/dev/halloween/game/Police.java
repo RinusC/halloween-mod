@@ -556,6 +556,7 @@ public final class Police {
 			officer.walker.stop();
 			officer.walker.face(FocusPoints.bodyCenter(shape));
 			officer.aimTicks = 0;
+			Guns.markAiming(body);
 			return true;
 		}
 		Vec3 eye = body.getEyePosition();
@@ -565,13 +566,13 @@ public final class Police {
 		}
 		officer.walker.stop();
 		officer.walker.face(target);
+		Guns.markAiming(body);
 		if (++officer.aimTicks < cfg.policeAimTicks || now < officer.nextHit) {
 			return true;
 		}
 		officer.aimTicks = cfg.policeAimTicks / 2;
 		officer.nextHit = now + cfg.revolverShotTicks + 6;
 		officer.cylinder--;
-		body.swing(InteractionHand.MAIN_HAND, true);
 		Guns.shoot(body, HwItems.Kind.REVOLVER, eye, target.subtract(eye), cfg.policeSpread, null);
 		AiStats.add(body, "police.shot");
 		if (officer.cylinder <= 0 && officer.spare > 0) {

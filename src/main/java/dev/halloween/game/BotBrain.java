@@ -818,13 +818,13 @@ final class BotBrain {
 		this.bot.getInventory().setSelectedSlot(slot);
 		this.walker.halt();
 		this.walker.face(target);
+		Guns.markAiming(this.bot);
 		if (++this.gunAim < cfg.botAimTicks) {
 			return true;
 		}
 		this.gunAim = 0;
 		this.nextGunShot = now + cfg.revolverShotTicks + 8;
 		Guns.setLoaded(gun, Guns.loaded(gun) - 1);
-		this.bot.swing(InteractionHand.MAIN_HAND, true);
 		AiStats.add(this.bot, "shot." + kind.key());
 		Guns.shoot(this.bot, kind, eye, target.subtract(eye), cfg.botSpread, this.bot);
 		return true;

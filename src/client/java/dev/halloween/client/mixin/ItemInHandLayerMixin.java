@@ -18,6 +18,19 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  */
 @Mixin(ItemInHandLayer.class)
 public abstract class ItemInHandLayerMixin {
+	/** A gun raised to the eye (GunPoses): turned at the wrist to point where they look, not where the arm does. */
+	@Inject(method = "submitArmWithItem", at = @At(value = "INVOKE",
+		target = "Lnet/minecraft/client/renderer/item/ItemStackRenderState;submit(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;III)V"))
+	private void halloween$gunWrist(ArmedEntityRenderState state, net.minecraft.client.renderer.item.ItemStackRenderState item, net.minecraft.world.item.ItemStack stack,
+		HumanoidArm arm, PoseStack pose, net.minecraft.client.renderer.SubmitNodeCollector collector, int light, CallbackInfo ci) {
+		if (arm == HumanoidArm.RIGHT && state instanceof dev.halloween.client.HwRenderState hw) {
+			float turn = dev.halloween.client.GunPoses.wrist(hw.halloween$entityId());
+			if (turn != 0f) {
+				pose.mulPose(Axis.XP.rotation(turn));
+			}
+		}
+	}
+
 	/** The Demogorgon holds nothing in his claws (his arms are his own, not the player model's). */
 	@Inject(method = "submitArmWithItem", at = @At("HEAD"), cancellable = true)
 	private void halloween$demoNoItem(ArmedEntityRenderState state, net.minecraft.client.renderer.item.ItemStackRenderState item, net.minecraft.world.item.ItemStack stack,

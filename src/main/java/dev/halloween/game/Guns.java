@@ -60,6 +60,9 @@ public final class Guns {
 	}
 
 	private static final Set<UUID> AIMING = new HashSet<>();
+	/** Bots and officers with a gun up (entity id: the tick they last had it up), and who everyone was last told aims. */
+	private static final Map<Integer, Integer> AIM_MARKS = new HashMap<>();
+	private static final Set<Integer> TOLD_AIMING = new HashSet<>();
 	private static final Map<UUID, Reload> RELOADS = new HashMap<>();
 	private static final Map<UUID, Integer> NEXT_SHOT = new HashMap<>();
 
@@ -207,6 +210,7 @@ public final class Guns {
 			ServerPlayer p = server.getPlayerList().getPlayer(id);
 			return p == null || !canHandle(p) || gunIn(p.getMainHandItem()) == null;
 		});
+		tellPoses(server);
 		Iterator<Map.Entry<UUID, Reload>> it = RELOADS.entrySet().iterator();
 		while (it.hasNext()) {
 			Map.Entry<UUID, Reload> e = it.next();
@@ -255,8 +259,51 @@ public final class Guns {
 		}
 	}
 
+	/** A bot or an officer has his gun up this tick (seen so by everyone: HwNet.GunPose). */
+	public static void markAiming(LivingEntity who) {
+		if (who.level() instanceof ServerLevel level) {
+			AIM_MARKS.put(who.getId(), level.getServer().getTickCount());
+		}
+	}
+
+	/** Everyone is told who raised a gun or lowered it. */
+	private static void tellPoses(MinecraftServer server) {
+		int now = server.getTickCount();
+		Set<Integer> aiming = new HashSet<>();
+		for (UUID id : AIMING) {
+			ServerPlayer p = server.getPlayerList().getPlayer(id);
+			if (p != null) {
+				aiming.add(p.getId());
+			}
+		}
+		AIM_MARKS.values().removeIf(at -> now - at > 2);
+		aiming.addAll(AIM_MARKS.keySet());
+		for (int id : aiming) {
+			if (!TOLD_AIMING.contains(id)) {
+				tellAll(server, new HwNet.GunPose(id, HwNet.GunPose.AIMED));
+			}
+		}
+		for (int id : TOLD_AIMING) {
+			if (!aiming.contains(id)) {
+				tellAll(server, new HwNet.GunPose(id, HwNet.GunPose.LOWERED));
+			}
+		}
+		TOLD_AIMING.clear();
+		TOLD_AIMING.addAll(aiming);
+	}
+
+	private static void tellAll(MinecraftServer server, HwNet.GunPose pose) {
+		for (ServerPlayer p : server.getPlayerList().getPlayers()) {
+			if (!Bots.isBot(p)) {
+				ServerPlayNetworking.send(p, pose);
+			}
+		}
+	}
+
 	public static void clear() {
 		AIMING.clear();
+		AIM_MARKS.clear();
+		TOLD_AIMING.clear();
 		RELOADS.clear();
 		NEXT_SHOT.clear();
 	}
@@ -336,6 +383,8 @@ public final class Guns {
 		HwConfig cfg = HwConfig.get();
 		ServerLevel level = (ServerLevel) shooter.level();
 		LivingEntity first = null;
+		// Everyone sees the kick.
+		tellAll(level.getServer(), new HwNet.GunPose(shooter.getId(), HwNet.GunPose.SHOT));
 		if (kind == HwItems.Kind.SHOTGUN) {
 			// A spread of pellets: up close nearly all of them land, each worth a little; far off they fade to nothing.
 			float stun = 0f;

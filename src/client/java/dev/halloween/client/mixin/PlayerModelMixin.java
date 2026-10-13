@@ -16,6 +16,7 @@ public class PlayerModelMixin {
 	@Inject(method = "setupAnim(Lnet/minecraft/client/renderer/entity/state/AvatarRenderState;)V", at = @At("TAIL"))
 	private void halloween$grabPose(AvatarRenderState state, CallbackInfo ci) {
 		dev.halloween.client.MichaelRenderer.pose((HumanoidModel<?>) (Object) this, state);
+		dev.halloween.client.GunPoses.apply((HumanoidModel<?>) (Object) this, state, ((HwRenderState) state).halloween$entityId());
 		ClientAnims.apply((HumanoidModel<?>) (Object) this, ((HwRenderState) state).halloween$entityId());
 	}
 }

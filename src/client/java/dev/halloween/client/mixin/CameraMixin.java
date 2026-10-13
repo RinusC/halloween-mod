@@ -51,6 +51,19 @@ public abstract class CameraMixin {
 		}
 	}
 
+	/** A shot: the camera jolts; the kick coming back down (see ClientGuns). */
+	@Inject(method = "alignWithEntity", at = @At("TAIL"))
+	private void halloween$gunJolt(float partialTicks, CallbackInfo ci) {
+		Minecraft mc = Minecraft.getInstance();
+		if (mc.level == null || dev.halloween.client.Cutscene.active()) {
+			return;
+		}
+		float[] jolt = dev.halloween.client.ClientGuns.frame(mc, partialTicks);
+		if (jolt != null && !this.detached) {
+			this.setRotation(this.yRot() + jolt[0], this.xRot() + jolt[1]);
+		}
+	}
+
 	/** The midnight earthquake: the view shakes in a tremor, whatever the camera (see ClientEvents). */
 	@Inject(method = "alignWithEntity", at = @At("TAIL"))
 	private void halloween$quakeShake(float partialTicks, CallbackInfo ci) {

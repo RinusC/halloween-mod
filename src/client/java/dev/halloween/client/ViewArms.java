@@ -46,7 +46,10 @@ public final class ViewArms {
 	private static HwItems.Kind lastKind;
 	private static float equipStart = -100;
 	private static float aim;
+	private static float aimBefore;
 	private static long aimAt;
+	/** Which way the last shot's kick throws the gun (random each shot: -1 left .. 1 right). */
+	private static float kickSide;
 	private static BbModel claws;
 	private static final Identifier RUNT_TEXTURE = Halloween.id("textures/entity/runt.png");
 
@@ -57,6 +60,50 @@ public final class ViewArms {
 	public static void trigger(Act a) {
 		act = a;
 		actStart = now(0f);
+		if (a == Act.RECOIL) {
+			Minecraft mc = Minecraft.getInstance();
+			kickSide = mc.level == null ? 0f : mc.level.getRandom().nextFloat() * 2f - 1f;
+		}
+	}
+
+	// ---------------------------------------------------------------- iron sights
+
+	/**
+	 * A gun's iron sights in its 3D model (model units, 16 a block, as the model files have them): the top of the
+	 * rear sight and of the front sight, the line one looks along; how far ahead of the eye the rear sight is held
+	 * (a revolver out at arm's length, a long gun shouldered with the cheek on the stock); and the model's
+	 * first-person display (turn about y in degrees, offset in units, scale), as in its file.
+	 */
+	private record Sights(Vector3f rear, Vector3f front, float eye, float displayYaw, Vector3f displayOffset, float displayScale) {
+		/** A point of the model where the item renderer puts it, before our own placing and turning of it. */
+		Vector3f local(Vector3f m) {
+			Vector3f v = new Vector3f(m).div(16f).sub(0.5f, 0.5f, 0.5f).mul(this.displayScale);
+			new Quaternionf().rotationY(this.displayYaw * Mth.DEG_TO_RAD).transform(v);
+			return v.add(new Vector3f(this.displayOffset).div(16f));
+		}
+	}
+
+	private static Sights sights(HwItems.Kind kind) {
+		return switch (kind) {
+			case REVOLVER -> new Sights(new Vector3f(8f, 9.82f, 11.73f), new Vector3f(8f, 9.82f, 2.84f), 0.4f, 0f, new Vector3f(1f, 2.5f, -1f), 0.8f);
+			case RIFLE -> new Sights(new Vector3f(7.245f, 11.55f, 7.15f), new Vector3f(7.245f, 11.55f, 24.7f), 0.3f, 180f, new Vector3f(1f, 1.5f, 0f), 0.65f);
+			case SHOTGUN -> new Sights(new Vector3f(8f, 12.6f, 10.8f), new Vector3f(8f, 12.6f, 21.65f), 0.38f, 180f, new Vector3f(1f, 1.5f, 0f), 0.65f);
+			default -> null;
+		};
+	}
+
+	/**
+	 * Brought up to the eye ({@code k} of the way): turned so the line over the sights runs straight ahead and moved
+	 * so it runs through the middle of the view, the rear sight its distance ahead of the eye.
+	 */
+	private static void toSights(Pose p, Sights s, float k) {
+		Vector3f rear = p.itemTurn.transform(s.local(s.rear));
+		Vector3f front = p.itemTurn.transform(s.local(s.front));
+		Vector3f along = front.sub(rear).normalize();
+		Quaternionf turned = new Quaternionf().rotationTo(along, new Vector3f(0, 0, -1)).mul(p.itemTurn);
+		Vector3f at = new Vector3f(0, 0, -s.eye).sub(turned.transform(s.local(s.rear)));
+		p.item.lerp(at, k);
+		p.itemTurn.slerp(turned, k);
 	}
 
 	/** Using what is in hand: a throw for what is thrown, a spray for the spray. */
@@ -85,7 +132,7 @@ public final class ViewArms {
 			case VAULT -> 14;
 			case THROW -> 10;
 			case SPRAY -> 12;
-			case RECOIL -> 6;
+			case RECOIL -> 18;
 			case RELOAD -> 20;
 			case STAB -> 8;
 			case KNOCK -> 8;
@@ -188,8 +235,12 @@ public final class ViewArms {
 		long gameTime = mc.level.getGameTime();
 		if (gameTime != aimAt) {
 			aimAt = gameTime;
+			aimBefore = aim;
 			aim = Mth.clamp(aim + ((testAim != null ? testAim : ClientGuns.aiming()) ? 0.25f : -0.25f), 0f, 1f);
 		}
+		// Smooth between ticks, eased in and out.
+		float aimed = Mth.lerp(partial, aimBefore, aim);
+		aimed = aimed * aimed * (3 - 2 * aimed);
 		Pose p = new Pose();
 		switch (grip) {
 			case LONG_GUN -> p.item.set(0.34f, -0.24f, -0.72f);
@@ -290,30 +341,25 @@ public final class ViewArms {
 		} else {
 			actions(p, grip, t, attack);
 		}
-		// Aiming down the sights.
-		if (aim > 0 && (grip == Grip.LONG_GUN || grip == Grip.PISTOL)) {
-			Vector3f sights = grip == Grip.LONG_GUN ? new Vector3f(0.14f, -0.26f, -0.66f) : new Vector3f(0.1f, -0.27f, -0.7f);
-			Vector3f before = new Vector3f(p.item);
-			p.item.lerp(sights, aim);
-			p.itemTurn.rotateY(0.12f * aim);
-			Vector3f shift = new Vector3f(p.item).sub(before);
-			p.right.add(shift);
-			p.left.add(shift);
+		// Aiming down the sights: the gun up to the eye, the line over its sights through the middle of the view.
+		Sights sights = kind == null ? null : sights(kind);
+		boolean reloading = work.endsWith(".reload") || actProgress(Act.RELOAD, t) >= 0;
+		if (aimed > 0 && sights != null && !grabbed && !strangled && !reloading && work.isEmpty()) {
+			toSights(p, sights, aimed);
+			hands(p, grip, t);
 			if (grip == Grip.PISTOL) {
-				// Both hands on it.
-				p.left.lerp(new Vector3f(p.right).add(-0.07f, -0.03f, 0.01f), aim);
-				p.leftFrom = new Vector3f(p.left).add(-0.2f, -0.5f, 0.25f);
+				// Both hands on it: the left cupped under the right, elbows out.
+				p.left.lerp(held(p, 0.02f, -0.07f, 0.13f), aimed);
+				p.leftFrom = new Vector3f(p.left).add(-0.25f, -0.45f, 0.2f);
+				p.rightFrom = new Vector3f(p.right).add(0.22f, -0.45f, 0.22f);
 				p.showLeft = true;
+			} else {
+				// The elbows up and out, the stock in the shoulder.
+				p.rightFrom = new Vector3f(p.right).add(0.32f, -0.3f, 0.25f);
+				p.leftFrom = new Vector3f(p.left).add(-0.12f, -0.45f, 0.25f);
 			}
 		}
-		float kick = actProgress(Act.RECOIL, t);
-		if (kick >= 0) {
-			float k = (1 - kick) * (1 - kick);
-			p.item.add(0, 0.03f * k, 0.12f * k);
-			p.right.add(0, 0.03f * k, 0.12f * k);
-			p.left.add(0, 0.02f * k, 0.08f * k);
-			p.itemTurn.rotateX(0.35f * k);
-		}
+		recoil(p, grip, kind, t, aimed);
 
 		Identifier skin = player.getSkin().body().texturePath();
 		AvatarRenderer<net.minecraft.client.player.AbstractClientPlayer> avatar = mc.getEntityRenderDispatcher().getPlayerRenderer(player);
@@ -329,6 +375,62 @@ public final class ViewArms {
 		}
 		if (p.showLeft) {
 			arm(pose, collector, light, avatar, skin, player, false, p.left, p.leftFrom != null ? p.leftFrom : below(p.left, -1f));
+		}
+	}
+
+	/**
+	 * A shot's kick: the gun driven back (into the shoulder, or the arms giving at the elbows), the muzzle thrown up
+	 * and a little to one side, and brought back down. The shotgun is then pumped: the left hand runs the fore-end
+	 * back and forward.
+	 */
+	private static void recoil(Pose p, Grip grip, HwItems.Kind kind, float t, float aimed) {
+		if (act != Act.RECOIL) {
+			return;
+		}
+		boolean shotgun = kind == HwItems.Kind.SHOTGUN;
+		float len = shotgun ? 18f : kind == HwItems.Kind.RIFLE ? 10f : 8f;
+		float e = t - actStart;
+		if (e < 0 || e > len) {
+			if (e > len) {
+				act = Act.NONE;
+			}
+			return;
+		}
+		float strength = shotgun ? 1.25f : kind == HwItems.Kind.RIFLE ? 1f : kind == HwItems.Kind.REVOLVER ? 0.75f : 0.6f;
+		// Up in a tick, down over five or six (the shoulder held firm brings it back sooner).
+		float settle = grip == Grip.PISTOL ? 5f : 6f - 1.5f * aimed;
+		float k = e < 1f ? e : Math.max(0f, 1f - (e - 1f) / settle);
+		k = k * k * (3 - 2 * k) * strength;
+		// Up at the eye the kick moves it less (the hold is firm), and the muzzle climbs about the shoulder (a long gun)
+		// or the wrists (a revolver held out), not about the hand.
+		float near = 1f - 0.75f * aimed;
+		Vector3f back = new Vector3f(0.012f * kickSide * k * near, 0.03f * k * near, 0.12f * k * near);
+		p.item.add(back);
+		p.right.add(back);
+		p.left.add(new Vector3f(back).mul(0.8f));
+		// (Aimed, the view itself is thrown up with it: in the view the gun barely moves.)
+		Vector3f grip0 = grip == Grip.PISTOL ? new Vector3f(p.right) : new Vector3f(0.12f * (1f - aimed), -0.1f - 0.1f * (1f - aimed), 0.1f);
+		float climb = (0.24f - 0.19f * aimed) * k;
+		Quaternionf flip = new Quaternionf().rotateX(climb).rotateY(-0.04f * kickSide * k).rotateZ(-0.05f * kickSide * k);
+		p.item.sub(grip0);
+		flip.transform(p.item);
+		p.item.add(grip0);
+		p.itemTurn.premul(flip);
+		p.left.sub(grip0);
+		flip.transform(p.left);
+		p.left.add(grip0);
+		p.right.sub(grip0);
+		flip.transform(p.right);
+		p.right.add(grip0);
+		if (shotgun && e > 4f) {
+			// Racking it: the fore-end back and forward again, the gun dipping a little with it.
+			float r = Mth.clamp((e - 4f) / 12f, 0f, 1f);
+			float pump = Mth.sin(r * Mth.PI);
+			Vector3f slide = p.itemTurn.transform(new Vector3f(0f, 0f, 0.11f * pump));
+			p.left.add(slide);
+			p.item.add(0f, -0.02f * pump, 0.02f * pump);
+			p.right.add(0f, -0.02f * pump, 0.02f * pump);
+			p.left.add(0f, -0.02f * pump, 0.02f * pump);
 		}
 	}
 

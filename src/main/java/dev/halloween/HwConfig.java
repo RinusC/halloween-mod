@@ -218,8 +218,10 @@ public class HwConfig {
 	/** Walking with the gun raised. */
 	public double aimSpeedModifier = -0.35;
 	/** Field of view while aiming (1 = no zoom). */
-	public float revolverAimZoom = 0.82f;
-	public float rifleAimZoom = 0.55f;
+	public float revolverAimZoom = 0.93f;
+	public float rifleAimZoom = 0.8f;
+	/** Of a kick, this share comes back down by itself over the next few ticks (the hands bring it back). */
+	public float recoilReturn = 0.35f;
 	/** A shot is heard far off: the Shape sees where for this long; townsfolk this close are frightened. */
 	public int gunshotRevealTicks = 60;
 	public double gunshotHearRange = 48;
@@ -244,7 +246,7 @@ public class HwConfig {
 	public int shotgunPumpTicks = 16;
 	public int shotgunShellTicks = 18;
 	public float shotgunRecoil = 9f;
-	public float shotgunAimZoom = 0.85f;
+	public float shotgunAimZoom = 0.92f;
 	public int shotgunShellsPerFind = 4;
 	/** Gun case: cutting the lock with bolt cutters takes this long. */
 	public int caseCutTicks = 200;
@@ -817,7 +819,7 @@ public class HwConfig {
 
 	/** The file's version: older files get the defaults that changed since moved on (see {@link #migrate}). */
 	public int configVersion;
-	private static final int VERSION = 6;
+	private static final int VERSION = 7;
 
 	public static void load() {
 		Path path = path();
@@ -898,6 +900,18 @@ public class HwConfig {
 		}
 		if (this.configVersion < 4 && this.partyGatherRange == 60) {
 			this.partyGatherRange = 90;
+		}
+		if (this.configVersion < 7) {
+			// Iron sights, not scopes: a slight zoom.
+			if (this.revolverAimZoom == 0.82f) {
+				this.revolverAimZoom = 0.93f;
+			}
+			if (this.rifleAimZoom == 0.55f) {
+				this.rifleAimZoom = 0.8f;
+			}
+			if (this.shotgunAimZoom == 0.85f) {
+				this.shotgunAimZoom = 0.92f;
+			}
 		}
 		if (this.configVersion < VERSION) {
 			Halloween.LOGGER.info("Config moved on to version {}", VERSION);
