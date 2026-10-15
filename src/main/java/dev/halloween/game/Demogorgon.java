@@ -334,8 +334,23 @@ public final class Demogorgon {
 			if (!MatchManager.role(s).survivor() || s.isSpectator() || !s.isAlive() || UpsideDown.isBelow(s)) {
 				continue;
 			}
+			// The house they are in; one whose door they are at (on the stairs, in a wardrobe the scan misses).
 			Houses.Building b = Houses.at(level, s.blockPosition());
-			if (b == null || seen.contains(b.key)) {
+			if (b == null) {
+				b = Houses.near(level, s.position(), 3);
+			}
+			if (b == null) {
+				if (!level.canSeeSky(s.blockPosition().above())) {
+					// Under a roof all the same, but no house found: the block of ground round them, roughly.
+					int gx = Math.floorDiv(s.getBlockX(), 8) * 8;
+					int gz = Math.floorDiv(s.getBlockZ(), 8) * 8;
+					Vec3 lo = UpsideDown.below(new Vec3(gx - 2, s.getBlockY() - 1, gz - 2));
+					out.add(BlockPos.containing(lo));
+					out.add(BlockPos.containing(lo.add(12, 5, 12)));
+				}
+				continue;
+			}
+			if (seen.contains(b.key)) {
 				continue;
 			}
 			seen.add(b.key);

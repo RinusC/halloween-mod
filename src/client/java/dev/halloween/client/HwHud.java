@@ -548,34 +548,66 @@ public final class HwHud {
 		for (int i = 0; i < 8; i++) {
 			c[i] = new Vec3(xs[i & 1], ys[(i >> 1) & 1], zs[(i >> 2) & 1]);
 		}
-		// Each edge split in four (enough to clip it where it passes behind the eye), drawn as a few dashes.
+		// Each edge cut where it passes behind the eye (a point there has no place on screen), then cut to the screen.
+		net.minecraft.client.Camera cam = Minecraft.getInstance().gameRenderer.mainCamera();
+		Vec3 eye = cam.position();
+		Vec3 fwd = new Vec3(cam.forwardVector().x(), cam.forwardVector().y(), cam.forwardVector().z());
+		double near = 0.3;
 		for (int[] e : edges) {
 			Vec3 a = c[e[0]];
 			Vec3 b = c[e[1]];
-			Projection.Point prev = null;
-			for (int s = 0; s <= 4; s++) {
-				Projection.Point p = Projection.toScreen(a.lerp(b, s / 4.0), w, h);
-				if (p != null && prev != null) {
-					segment(g, prev.x(), prev.y(), p.x(), p.y(), w, h, color);
-				}
-				prev = p;
+			double da = a.subtract(eye).dot(fwd);
+			double db = b.subtract(eye).dot(fwd);
+			if (da < near && db < near) {
+				continue;
+			}
+			if (da < near) {
+				a = a.lerp(b, (near - da) / (db - da));
+			} else if (db < near) {
+				b = b.lerp(a, (near - db) / (da - db));
+			}
+			Projection.Point pa = Projection.toScreen(a, w, h);
+			Projection.Point pb = Projection.toScreen(b, w, h);
+			if (pa != null && pb != null) {
+				segment(g, pa.x(), pa.y(), pb.x(), pb.y(), w, h, color);
 			}
 		}
 	}
 
-	/** A line as dots 3 px apart, only the part on screen (and none absurdly long). */
+	/** A line cut to the screen (Liang-Barsky), drawn as dots 3 px apart. */
 	private static void segment(GuiGraphicsExtractor g, float x0, float y0, float x1, float y1, int w, int h, int color) {
-		float len = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
-		if (len > 4 * Math.max(w, h)) {
+		float dx = x1 - x0;
+		float dy = y1 - y0;
+		float t0 = 0f;
+		float t1 = 1f;
+		float[] p = {-dx, dx, -dy, dy};
+		float[] q = {x0, w - 1 - x0, y0, h - 1 - y0};
+		for (int i = 0; i < 4; i++) {
+			if (p[i] == 0f) {
+				if (q[i] < 0f) {
+					return;
+				}
+				continue;
+			}
+			float r = q[i] / p[i];
+			if (p[i] < 0f) {
+				t0 = Math.max(t0, r);
+			} else {
+				t1 = Math.min(t1, r);
+			}
+		}
+		if (t0 > t1) {
 			return;
 		}
-		int n = Math.max(1, (int) (len / 3));
+		float ax = x0 + dx * t0;
+		float ay = y0 + dy * t0;
+		float bx = x0 + dx * t1;
+		float by = y0 + dy * t1;
+		int n = Math.max(1, (int) (Math.max(Math.abs(bx - ax), Math.abs(by - ay)) / 3));
 		for (int i = 0; i <= n; i++) {
-			int x = Math.round(Mth.lerp(i / (float) n, x0, x1));
-			int y = Math.round(Mth.lerp(i / (float) n, y0, y1));
-			if (x >= 0 && y >= 0 && x < w && y < h) {
-				g.fill(x, y, x + 2, y + 2, color);
-			}
+			int x = Math.round(Mth.lerp(i / (float) n, ax, bx));
+			int y = Math.round(Mth.lerp(i / (float) n, ay, by));
+			g.fill(x, y, x + 2, y + 2, color);
 		}
 	}
 
