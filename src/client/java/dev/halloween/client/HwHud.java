@@ -548,30 +548,34 @@ public final class HwHud {
 		for (int i = 0; i < 8; i++) {
 			c[i] = new Vec3(xs[i & 1], ys[(i >> 1) & 1], zs[(i >> 2) & 1]);
 		}
+		// Each edge split in four (enough to clip it where it passes behind the eye), drawn as a few dashes.
 		for (int[] e : edges) {
 			Vec3 a = c[e[0]];
 			Vec3 b = c[e[1]];
-			int steps = (int) Math.max(4, a.distanceTo(b) * 2);
 			Projection.Point prev = null;
-			for (int s = 0; s <= steps; s++) {
-				Projection.Point p = Projection.toScreen(a.lerp(b, s / (double) steps), w, h);
+			for (int s = 0; s <= 4; s++) {
+				Projection.Point p = Projection.toScreen(a.lerp(b, s / 4.0), w, h);
 				if (p != null && prev != null) {
-					segment(g, prev.x(), prev.y(), p.x(), p.y(), color);
+					segment(g, prev.x(), prev.y(), p.x(), p.y(), w, h, color);
 				}
 				prev = p;
 			}
 		}
 	}
 
-	private static void segment(GuiGraphicsExtractor g, float x0, float y0, float x1, float y1, int color) {
-		int n = (int) Math.max(1, Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)));
-		if (n > 2000) {
+	/** A line as dots 3 px apart, only the part on screen (and none absurdly long). */
+	private static void segment(GuiGraphicsExtractor g, float x0, float y0, float x1, float y1, int w, int h, int color) {
+		float len = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
+		if (len > 4 * Math.max(w, h)) {
 			return;
 		}
+		int n = Math.max(1, (int) (len / 3));
 		for (int i = 0; i <= n; i++) {
 			int x = Math.round(Mth.lerp(i / (float) n, x0, x1));
 			int y = Math.round(Mth.lerp(i / (float) n, y0, y1));
-			g.fill(x, y, x + 2, y + 2, color);
+			if (x >= 0 && y >= 0 && x < w && y < h) {
+				g.fill(x, y, x + 2, y + 2, color);
+			}
 		}
 	}
 

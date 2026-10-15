@@ -55,7 +55,7 @@ public final class Demogorgon {
 	/** Sinking and climbing out: rooted to the spot. */
 	private static final Identifier ROOTED_ID = Halloween.id("upside_down_rooted");
 	private static final int SHRED_CHARGE = 20;
-	private static final int SHRED_TICKS = 7;
+	private static final int SHRED_TICKS = 10;
 
 	/** Where he is in a crossing (HwNet.DemoHud's phase). */
 	public static final int UP = 0;

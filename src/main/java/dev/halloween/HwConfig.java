@@ -213,6 +213,8 @@ public class HwConfig {
 	public int revolverRoundTicks = 16;
 	public int rifleReloadTicks = 80;
 	/** Muzzle rise per shot in degrees (the camera kicks up). */
+	/** The Demogorgon moves this many times as fast as Michael. */
+	public float demoSpeedFactor = 1.2f;
 	/** Arrest: knocked down this many times within this many ticks with an officer this close, and the survivors win. */
 	public int arrestKnockdowns = 5;
 	public int arrestWindowTicks = 1200;

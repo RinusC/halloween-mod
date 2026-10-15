@@ -177,6 +177,18 @@ public final class DemogorgonModel extends Model<AvatarRenderState> {
 		}
 		if (s.attackTime > 0f && !devour) {
 			float a = Mth.clamp(s.attackTime, 0f, 1f);
+			// The arms leave the gait for the blow (laid over a stride they'd be thrown anywhere), and go back to it.
+			float take = Mth.clamp(Mth.sin(a * Mth.PI) * 1.6f, 0f, 1f) * (1f - four);
+			for (String side : new String[]{"right", "left"}) {
+				for (String bone : new String[]{"_shoulder", "_upper_arm", "_forearm", "_hand"}) {
+					ModelPart p = this.bb.part(side + bone);
+					if (p != null) {
+						p.xRot = Mth.lerp(take, p.xRot, p.getInitialPose().xRot());
+						p.yRot = Mth.lerp(take, p.yRot, p.getInitialPose().yRot());
+						p.zRot = Mth.lerp(take, p.zRot, p.getInitialPose().zRot());
+					}
+				}
+			}
 			this.bb.apply("strike", a * 0.5f, 1f - four);
 			this.bb.apply("strike_fours", a * 0.5f, four);
 			open = Math.max(open, Mth.sin(Math.min(1f, a * 1.5f) * Mth.PI));

@@ -136,7 +136,7 @@ public final class UpsideDown {
 				return Blocks.NETHER_WART_BLOCK.defaultBlockState();
 			}
 			if (h % 41 == 3) {
-				return Blocks.CRYING_OBSIDIAN.defaultBlockState();
+				return Blocks.GILDED_BLACKSTONE.defaultBlockState();
 			}
 		}
 		if (state.is(dev.halloween.HwBlocks.PHONE) || state.getBlock() instanceof TrapBlock || state.is(Blocks.LEVER)) {

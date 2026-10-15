@@ -453,6 +453,10 @@ public final class MatchManager {
 		} else if (state.dashTicks > 0) {
 			speed += cfg.dashSpeedModifier;
 		}
+		if (Demogorgon.active() && speed > -1) {
+			// The Demogorgon is faster than Michael.
+			speed = (1 + speed) * cfg.demoSpeedFactor - 1;
+		}
 		if (state.trappedTicks > 0) {
 			state.trappedTicks--;
 		}
