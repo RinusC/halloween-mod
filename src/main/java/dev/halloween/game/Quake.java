@@ -128,7 +128,7 @@ final class Quake {
 		for (int k = 0; k < now2 && this.done < this.targets.size(); k++) {
 			Target t = this.targets.get(this.done++);
 			if (t.door) {
-				this.knockOut(level, t.pos);
+				knockOut(level, t.pos);
 			} else if (Windows.isWindow(level.getBlockState(t.pos))) {
 				Windows.breakColumn(level, t.pos);
 			}
@@ -139,7 +139,7 @@ final class Quake {
 	}
 
 	/** A door off its hinges: gone from the doorway, lying on the floor across it. */
-	private void knockOut(ServerLevel level, BlockPos lower) {
+	static void knockOut(ServerLevel level, BlockPos lower) {
 		BlockState state = level.getBlockState(lower);
 		if (!(state.getBlock() instanceof DoorBlock)) {
 			return;

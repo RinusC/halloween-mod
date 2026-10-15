@@ -416,6 +416,10 @@ public final class Demogorgon {
 			return;
 		}
 		shredTicks--;
+		// What is right ahead: a door goes flying off its hinges, a window he dives through.
+		if (smash(d)) {
+			return;
+		}
 		d.setDeltaMovement(shredDir.x * 0.95, d.getDeltaMovement().y, shredDir.z * 0.95);
 		d.hurtMarked = true;
 		Vec3 eye = d.getEyePosition();
@@ -432,10 +436,61 @@ public final class Demogorgon {
 			}
 		}
 		if (d.horizontalCollision) {
-			// Into a door or a window: through it.
-			MatchManager.onShapeAttack(d, -1, true);
+			// Into a wall.
 			shredTicks = 0;
 		}
+	}
+
+	/**
+	 * In a Shred, what is right in his way: a door (shut, locked or not) is knocked clean out, lying on the floor as
+	 * the earthquake leaves them, and he runs on; a window he dives through, the glass smashed, landing on the other
+	 * side (still lunging). True if he went through a window (moved already this tick).
+	 */
+	private static boolean smash(ServerPlayer d) {
+		ServerLevel level = d.level();
+		Vec3 ahead = d.position().add(shredDir.scale(0.9));
+		for (int dy = 0; dy <= 1; dy++) {
+			BlockPos at = BlockPos.containing(ahead.x, d.getY() + 0.2 + dy, ahead.z);
+			BlockState state = level.getBlockState(at);
+			if (state.getBlock() instanceof net.minecraft.world.level.block.DoorBlock) {
+				BlockPos lower = state.getValue(net.minecraft.world.level.block.state.properties.BlockStateProperties.DOUBLE_BLOCK_HALF)
+					== net.minecraft.world.level.block.state.properties.DoubleBlockHalf.LOWER ? at : at.below();
+				Quake.knockOut(level, lower);
+				level.playSound(null, at, SoundEvents.ZOMBIE_BREAK_WOODEN_DOOR, SoundSource.HOSTILE, 2f, 0.8f);
+				Bots.alert(Vec3.atCenterOf(at), level.getServer().getTickCount());
+				Townsfolk.hearNoise(level, Vec3.atCenterOf(at), level.getServer().getTickCount());
+				AiStats.add(d, "demo.shred_door");
+				return false;
+			}
+			if (Windows.isWindow(state)) {
+				// The bottom of the window: a sill he can leap (no higher than a jump).
+				int bottom = at.getY();
+				while (Windows.isWindow(level.getBlockState(new BlockPos(at.getX(), bottom - 1, at.getZ())))) {
+					bottom--;
+				}
+				if (bottom - d.getY() > 1.6) {
+					return false;
+				}
+				Windows.breakColumn(level, at);
+				Vec3 c = Vec3.atBottomCenterOf(at);
+				boolean acrossZ = Math.abs(shredDir.z) >= Math.abs(shredDir.x);
+				Vec3 across = acrossZ ? new Vec3(0, 0, Math.signum(shredDir.z)) : new Vec3(Math.signum(shredDir.x), 0, 0);
+				Vec3 land = new Vec3(c.x + across.x * 1.3, d.getY(), c.z + across.z * 1.3);
+				if (!level.noCollision(d, d.getBoundingBox().move(land.subtract(d.position()).add(0, 0.01, 0)))) {
+					shredTicks = 0;
+					return true;
+				}
+				d.teleportTo(level, land.x, land.y, land.z, java.util.Set.of(), d.getYRot(), d.getXRot(), false);
+				d.setDeltaMovement(shredDir.x * 0.95, 0.15, shredDir.z * 0.95);
+				d.hurtMarked = true;
+				level.sendParticles(ParticleTypes.CRIT, c.x, c.y + 1, c.z, 20, 0.3, 0.5, 0.3, 0.2);
+				Bots.alert(c, level.getServer().getTickCount());
+				Townsfolk.hearNoise(level, c, level.getServer().getTickCount());
+				AiStats.add(d, "demo.shred_window");
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/** Back to school: nothing of the Upside Down left on him (its speed, rooted, silent). */
