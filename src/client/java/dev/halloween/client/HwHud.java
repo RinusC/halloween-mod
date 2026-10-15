@@ -538,15 +538,7 @@ public final class HwHud {
 	}
 
 
-	/** A heart, pixel by pixel: rows of the shape, 'X' filled. */
-	private static final String[] HEART = {
-		".XX.XX.",
-		"XXXXXXX",
-		"XXXXXXX",
-		".XXXXX.",
-		"..XXX..",
-		"...X...",
-	};
+	private static final net.minecraft.resources.Identifier HEART_TEXTURE = dev.halloween.Halloween.id("textures/gui/heart.png");
 
 	/**
 	 * A house with someone in it, seen from the Upside Down: a heart hanging over it, beating (a double beat),
@@ -559,31 +551,23 @@ public final class HwHud {
 		}
 		float beat = ClientUpsideDown.beat(partial);
 		float near = (float) Mth.clamp(1.0 - p.distance() / 90.0, 0.25, 1.0);
-		int px = (int) Math.max(1, Math.round((2.2f + 3f * near) * (1f + 0.25f * beat)));
-		int alpha = (int) (110 + 145 * near);
-		int bw = HEART[0].length() * px;
-		int bh = HEART.length * px;
-		int left = Math.round(p.x()) - bw / 2;
-		int top = Math.round(p.y()) - bh / 2;
-		// The glow round it, swelling with the beat.
-		int glow = (int) ((40 + 80 * beat) * near);
-		g.fill(left - px * 2, top - px * 2, left + bw + px * 2, top + bh + px * 2, (glow / 3 << 24) | 0x8A0A0A);
-		g.fill(left - px, top - px, left + bw + px, top + bh + px, (glow << 24) | 0xB01010);
-		for (int row = 0; row < HEART.length; row++) {
-			for (int col = 0; col < HEART[row].length(); col++) {
-				if (HEART[row].charAt(col) != 'X') {
-					continue;
-				}
-				// Darker towards the bottom, a highlight up on the left lobe.
-				int c = row == 1 && col == 1 ? 0xFF8A80 : row >= 4 ? 0x9A0C10 : 0xE0141A;
-				g.fill(left + col * px, top + row * px, left + (col + 1) * px, top + (row + 1) * px, (alpha << 24) | c);
-			}
-		}
+		// The heart drawn for it (tools/heart_texture.pl), swelling with each beat.
+		int size = Math.round((22f + 30f * near) * (1f + 0.18f * beat));
+		int alpha = (int) (120 + 135 * near);
+		int left = Math.round(p.x()) - size / 2;
+		int top = Math.round(p.y()) - size / 2;
+		// A dark-red haze round it, swelling with the beat.
+		int glow = (int) ((25 + 55 * beat) * near);
+		int halo = size / 4;
+		g.fill(left - halo, top - halo, left + size + halo, top + size + halo, (glow / 3 << 24) | 0x5A0006);
+		g.fill(left, top, left + size, top + size, (glow / 2 << 24) | 0x7A0008);
+		g.blit(net.minecraft.client.renderer.RenderPipelines.GUI_TEXTURED, HEART_TEXTURE, left, top, 0, 0, size, size, 48, 48, 48, 48,
+			(alpha << 24) | 0xFFFFFF);
 		// The beat going out in rings.
 		float phase = ClientUpsideDown.beatPhase(partial);
-		int ringAlpha = (int) (alpha * (1f - phase));
+		int ringAlpha = (int) (alpha * 0.8f * (1f - phase));
 		if (ringAlpha > 8) {
-			ring(g, p.x(), p.y(), bw * (0.7f + 1.8f * phase), 2, 0f, 1f, (ringAlpha << 24) | 0xFF2A1A);
+			ring(g, p.x(), p.y(), size * (0.6f + 1.6f * phase), 2, 0f, 1f, (ringAlpha << 24) | 0x9A1010);
 		}
 	}
 
