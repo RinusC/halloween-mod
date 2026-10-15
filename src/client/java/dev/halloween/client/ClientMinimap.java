@@ -87,9 +87,17 @@ public final class ClientMinimap {
 		return switch (plan[i]) {
 			case Minimap.ROAD -> ROAD;
 			case Minimap.TREES -> TREES;
-			case Minimap.BUILDING -> edge[i] ? OUTLINE : BUILDING;
+			case Minimap.BUILDING -> ClientUpsideDown.active() && ClientUpsideDown.occupied(x, z)
+				? (edge[i] ? 0xFFFF5040 : beatRed()) : edge[i] ? OUTLINE : BUILDING;
 			default -> GROUND;
 		};
+	}
+
+	/** A house with someone in it, from the Upside Down: red, beating. */
+	private static int beatRed() {
+		float b = ClientUpsideDown.beat(0f);
+		int r = (int) (110 + 120 * b);
+		return 0xFF000000 | r << 16 | (int) (10 + 20 * b) << 8 | 14;
 	}
 
 	/** Draws the map with its top left at (x, y), {@code size} GUI pixels across. */

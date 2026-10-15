@@ -532,82 +532,58 @@ public final class HwHud {
 		if (flash > 0.01f) {
 			g.fill(0, 0, w, h, ((int) (flash * 120) << 24) | 0xFF4030);
 		}
-		java.util.List<net.minecraft.core.BlockPos> corners = ClientState.demoHouses;
-		for (int i = 0; i + 1 < corners.size(); i += 2) {
-			box(g, corners.get(i), corners.get(i + 1), w, h, 0xE0FF2A1A);
+		for (Vec3 heart : ClientUpsideDown.hearts()) {
+			heart(g, heart, w, h, partial);
 		}
 	}
 
-	/** A box's twelve edges drawn on screen (each edge in short steps, the part behind the eye left out). */
-	private static void box(GuiGraphicsExtractor g, net.minecraft.core.BlockPos lo, net.minecraft.core.BlockPos hi, int w, int h, int color) {
-		double[] xs = {lo.getX(), hi.getX()};
-		double[] ys = {lo.getY(), hi.getY()};
-		double[] zs = {lo.getZ(), hi.getZ()};
-		int[][] edges = {{0, 1}, {2, 3}, {4, 5}, {6, 7}, {0, 2}, {1, 3}, {4, 6}, {5, 7}, {0, 4}, {1, 5}, {2, 6}, {3, 7}};
-		Vec3[] c = new Vec3[8];
-		for (int i = 0; i < 8; i++) {
-			c[i] = new Vec3(xs[i & 1], ys[(i >> 1) & 1], zs[(i >> 2) & 1]);
-		}
-		// Each edge cut where it passes behind the eye (a point there has no place on screen), then cut to the screen.
-		net.minecraft.client.Camera cam = Minecraft.getInstance().gameRenderer.mainCamera();
-		Vec3 eye = cam.position();
-		Vec3 fwd = new Vec3(cam.forwardVector().x(), cam.forwardVector().y(), cam.forwardVector().z());
-		double near = 0.3;
-		for (int[] e : edges) {
-			Vec3 a = c[e[0]];
-			Vec3 b = c[e[1]];
-			double da = a.subtract(eye).dot(fwd);
-			double db = b.subtract(eye).dot(fwd);
-			if (da < near && db < near) {
-				continue;
-			}
-			if (da < near) {
-				a = a.lerp(b, (near - da) / (db - da));
-			} else if (db < near) {
-				b = b.lerp(a, (near - db) / (da - db));
-			}
-			Projection.Point pa = Projection.toScreen(a, w, h);
-			Projection.Point pb = Projection.toScreen(b, w, h);
-			if (pa != null && pb != null) {
-				segment(g, pa.x(), pa.y(), pb.x(), pb.y(), w, h, color);
-			}
-		}
-	}
 
-	/** A line cut to the screen (Liang-Barsky), drawn as dots 3 px apart. */
-	private static void segment(GuiGraphicsExtractor g, float x0, float y0, float x1, float y1, int w, int h, int color) {
-		float dx = x1 - x0;
-		float dy = y1 - y0;
-		float t0 = 0f;
-		float t1 = 1f;
-		float[] p = {-dx, dx, -dy, dy};
-		float[] q = {x0, w - 1 - x0, y0, h - 1 - y0};
-		for (int i = 0; i < 4; i++) {
-			if (p[i] == 0f) {
-				if (q[i] < 0f) {
-					return;
-				}
-				continue;
-			}
-			float r = q[i] / p[i];
-			if (p[i] < 0f) {
-				t0 = Math.max(t0, r);
-			} else {
-				t1 = Math.min(t1, r);
-			}
-		}
-		if (t0 > t1) {
+	/** A heart, pixel by pixel: rows of the shape, 'X' filled. */
+	private static final String[] HEART = {
+		".XX.XX.",
+		"XXXXXXX",
+		"XXXXXXX",
+		".XXXXX.",
+		"..XXX..",
+		"...X...",
+	};
+
+	/**
+	 * A house with someone in it, seen from the Upside Down: a heart hanging over it, beating (a double beat),
+	 * glowing, rings of the beat spreading out from it; through any wall, smaller and dimmer far off.
+	 */
+	private static void heart(GuiGraphicsExtractor g, Vec3 at, int w, int h, float partial) {
+		Projection.Point p = Projection.toScreen(at, w, h);
+		if (p == null) {
 			return;
 		}
-		float ax = x0 + dx * t0;
-		float ay = y0 + dy * t0;
-		float bx = x0 + dx * t1;
-		float by = y0 + dy * t1;
-		int n = Math.max(1, (int) (Math.max(Math.abs(bx - ax), Math.abs(by - ay)) / 3));
-		for (int i = 0; i <= n; i++) {
-			int x = Math.round(Mth.lerp(i / (float) n, ax, bx));
-			int y = Math.round(Mth.lerp(i / (float) n, ay, by));
-			g.fill(x, y, x + 2, y + 2, color);
+		float beat = ClientUpsideDown.beat(partial);
+		float near = (float) Mth.clamp(1.0 - p.distance() / 90.0, 0.25, 1.0);
+		int px = (int) Math.max(1, Math.round((2.2f + 3f * near) * (1f + 0.25f * beat)));
+		int alpha = (int) (110 + 145 * near);
+		int bw = HEART[0].length() * px;
+		int bh = HEART.length * px;
+		int left = Math.round(p.x()) - bw / 2;
+		int top = Math.round(p.y()) - bh / 2;
+		// The glow round it, swelling with the beat.
+		int glow = (int) ((40 + 80 * beat) * near);
+		g.fill(left - px * 2, top - px * 2, left + bw + px * 2, top + bh + px * 2, (glow / 3 << 24) | 0x8A0A0A);
+		g.fill(left - px, top - px, left + bw + px, top + bh + px, (glow << 24) | 0xB01010);
+		for (int row = 0; row < HEART.length; row++) {
+			for (int col = 0; col < HEART[row].length(); col++) {
+				if (HEART[row].charAt(col) != 'X') {
+					continue;
+				}
+				// Darker towards the bottom, a highlight up on the left lobe.
+				int c = row == 1 && col == 1 ? 0xFF8A80 : row >= 4 ? 0x9A0C10 : 0xE0141A;
+				g.fill(left + col * px, top + row * px, left + (col + 1) * px, top + (row + 1) * px, (alpha << 24) | c);
+			}
+		}
+		// The beat going out in rings.
+		float phase = ClientUpsideDown.beatPhase(partial);
+		int ringAlpha = (int) (alpha * (1f - phase));
+		if (ringAlpha > 8) {
+			ring(g, p.x(), p.y(), bw * (0.7f + 1.8f * phase), 2, 0f, 1f, (ringAlpha << 24) | 0xFF2A1A);
 		}
 	}
 
