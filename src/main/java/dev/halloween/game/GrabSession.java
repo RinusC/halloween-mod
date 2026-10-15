@@ -78,6 +78,9 @@ public final class GrabSession {
 		return lost > 0 ? Math.min(lost, this.cfg().victimRoundTicks) : this.cfg().victimRoundTicks;
 	}
 
+	/** Which way the Demogorgon faces over the one he holds (fixed when he throws them down). */
+	private float pinYaw;
+
 	GrabSession(ServerPlayer shape, ShapeState state, LivingEntity victim, VictimState victimState) {
 		this.shape = shape;
 		this.state = state;
@@ -88,6 +91,8 @@ public final class GrabSession {
 		this.level().playSound(null, victim.getX(), victim.getY(), victim.getZ(), HwSounds.GRAB, SoundSource.HOSTILE, 1.2f, 1f);
 		Voices.play(victim, Voices.Kind.SCREAM);
 		this.nextChoke = this.level().getGameTime() + 14;
+		// The Demogorgon stays over them, turned the way he threw them down.
+		this.pinYaw = shape.getYRot();
 		if (Demogorgon.active()) {
 			// The Demogorgon throws them down on their back and goes for them with his mouth.
 			anim(shape, HwNet.Anim.DEVOUR);
@@ -472,13 +477,17 @@ public final class GrabSession {
 	}
 
 	private void pinVictim() {
-		float yaw = this.shape.getYRot() * Mth.DEG_TO_RAD;
+		float yaw = (Demogorgon.active() ? this.pinYaw : this.shape.getYRot()) * Mth.DEG_TO_RAD;
+		if (Demogorgon.active()) {
+			// Over them on all fours his body faces them, whichever way he looks.
+			this.shape.setYBodyRot(this.pinYaw);
+		}
 		// Held up in front of him; under the Demogorgon, lying, their feet by his.
 		double reach = Demogorgon.active() ? 0.95 : 0.9;
 		double x = this.shape.getX() - Mth.sin(yaw) * reach;
 		double z = this.shape.getZ() + Mth.cos(yaw) * reach;
 		// Face the Shape.
-		float victimYaw = this.shape.getYRot() + 180f;
+		float victimYaw = (Demogorgon.active() ? this.pinYaw : this.shape.getYRot()) + 180f;
 		if (this.victim.distanceToSqr(x, this.shape.getY(), z) > 0.04) {
 			// He drags the victim along in front of him, but not through walls: there he can't go on.
 			Vec3 move = new Vec3(x, this.shape.getY(), z).subtract(this.victim.position());

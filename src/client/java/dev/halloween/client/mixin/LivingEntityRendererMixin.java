@@ -41,6 +41,18 @@ public abstract class LivingEntityRendererMixin {
 	private void halloween$tall(net.minecraft.world.entity.LivingEntity entity, LivingEntityRenderState state, float partialTicks, CallbackInfo ci) {
 		if (dev.halloween.client.MichaelRenderer.isMichael(entity)) {
 			state.scale *= dev.halloween.client.MichaelRenderer.TALL;
+			if (dev.halloween.client.MichaelRenderer.demogorgon()
+				&& ClientAnims.hold(entity.getId()) == dev.halloween.net.HwNet.Anim.DEVOUR) {
+				// Eating: his body faces the one under him, whichever way the player looks.
+				for (net.minecraft.world.entity.Entity e : entity.level().getEntities(entity, entity.getBoundingBox().inflate(2.5))) {
+					if (ClientAnims.hold(e.getId()) == dev.halloween.net.HwNet.Anim.PINNED) {
+						double dx = e.getX() - entity.getX();
+						double dz = e.getZ() - entity.getZ();
+						state.bodyRot = (float) (Math.toDegrees(Math.atan2(dz, dx)) - 90.0);
+						break;
+					}
+				}
+			}
 		}
 	}
 

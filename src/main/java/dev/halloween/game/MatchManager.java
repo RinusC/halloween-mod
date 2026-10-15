@@ -438,7 +438,8 @@ public final class MatchManager {
 		double speed = cfg.shapeSpeedModifier;
 		if (state.grab != null && state.grab.struggling() && state.stunnedTicks == 0 && !Match.frozen()) {
 			// Holding someone: he can still shuffle along, very slowly, dragging them.
-			speed = cfg.grabSpeedModifier;
+			// (The Demogorgon, eating, stays put over them.)
+			speed = Demogorgon.active() ? -1 : cfg.grabSpeedModifier;
 		} else if (state.busy() || Match.frozen() || state.trappedTicks > 0 && state.shadowTicks == 0) {
 			speed = -1;
 		} else if (state.shadowTicks > 0) {
