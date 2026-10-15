@@ -401,7 +401,7 @@ public class HwConfig {
 	public double bagMinDistance = 25;
 	public int bagSearchTicks = 80;
 	public String[] bagRare = {"med_kit", "flare_gun", "shotgun_shells", "amulet"};
-	public String[] bagUncommon = {"healing_spray", "flashlight", "firecrackers", "road_flare", "revolver_ammo", "pocket_knife", "repair_kit", "battery"};
+	public String[] bagUncommon = {"healing_spray", "flashlight", "firecrackers", "road_flare", "revolver_ammo", "pocket_knife", "battery"};
 	/** Brackett's patrol: how long, how fast (blocks a tick), how far and wide its headlights see, how often it stops, how long the officer stays. */
 	public int patrolSeconds = 120;
 	public double patrolSpeed = 0.3;
@@ -523,7 +523,6 @@ public class HwConfig {
 		w.put("shotgun_shells", 3);
 		w.put("bear_trap", 4);
 		w.put("tin_cans", 5);
-		w.put("repair_kit", 3);
 		// Rare.
 		w.put("butterfly_knife", 2);
 		w.put("ice_pick", 2);
@@ -823,7 +822,7 @@ public class HwConfig {
 
 	/** The file's version: older files get the defaults that changed since moved on (see {@link #migrate}). */
 	public int configVersion;
-	private static final int VERSION = 7;
+	private static final int VERSION = 8;
 
 	public static void load() {
 		Path path = path();
@@ -915,6 +914,15 @@ public class HwConfig {
 			}
 			if (this.shotgunAimZoom == 0.85f) {
 				this.shotgunAimZoom = 0.92f;
+			}
+		}
+		if (this.configVersion < 8) {
+			// One repair kit a match, always there (Loot): none at random any more.
+			if (this.lootWeights != null) {
+				this.lootWeights.remove("repair_kit");
+			}
+			if (this.bagUncommon != null) {
+				this.bagUncommon = java.util.Arrays.stream(this.bagUncommon).filter(k -> !k.equals("repair_kit")).toArray(String[]::new);
 			}
 		}
 		if (this.configVersion < VERSION) {

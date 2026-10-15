@@ -173,6 +173,7 @@ final class Quake {
 			d.setTransformation(new Transformation(t, new Quaternionf(turn), new Vector3f(1, 1, 1), new Quaternionf()));
 			d.setPos(lower.getX(), lower.getY() + 0.01, lower.getZ());
 			d.addTag(TAG);
+			d.addTag(Leftovers.stamp());
 			level.addFreshEntity(d);
 		}
 		AiStats.add("*total", "quake.door");

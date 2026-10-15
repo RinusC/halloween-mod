@@ -144,12 +144,12 @@ public final class Loot {
 		// What the exits need comes first: if a map has few containers, the extras are what gets left out.
 		List<HwItems.Kind> items = new ArrayList<>(List.of(
 			HwItems.Kind.BOLT_CUTTERS, HwItems.Kind.PADLOCK_KEY, HwItems.Kind.FUSE, HwItems.Kind.GATE_KEY,
-			HwItems.Kind.SEDAN_KEYS, HwItems.Kind.GAS_CAN, HwItems.Kind.REPAIR_KIT, HwItems.Kind.REPAIR_KIT));
+			HwItems.Kind.SEDAN_KEYS, HwItems.Kind.GAS_CAN, HwItems.Kind.REPAIR_KIT));
 		HwConfig cfg = HwConfig.get();
 		java.util.Random rng = new java.util.Random(random.nextLong());
 		// And one more of them, any, to make getting out a little easier.
 		List<HwItems.Kind> escape = List.of(HwItems.Kind.BOLT_CUTTERS, HwItems.Kind.PADLOCK_KEY, HwItems.Kind.FUSE, HwItems.Kind.GATE_KEY,
-			HwItems.Kind.SEDAN_KEYS, HwItems.Kind.GAS_CAN, HwItems.Kind.REPAIR_KIT);
+			HwItems.Kind.SEDAN_KEYS, HwItems.Kind.GAS_CAN);
 		for (int i = 0; i < cfg.extraEscapeItems; i++) {
 			items.add(escape.get(rng.nextInt(escape.size())));
 		}

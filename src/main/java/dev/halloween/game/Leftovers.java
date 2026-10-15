@@ -42,7 +42,7 @@ public final class Leftovers {
 			return true;
 		}
 		var tags = e.entityTags();
-		return tags.contains(MatchManager.CORPSE_TAG) || tags.contains(Townsfolk.TAG) || tags.contains(Police.TAG)
+		return tags.contains(MatchManager.CORPSE_TAG) || tags.contains(Townsfolk.TAG) || tags.contains(Police.TAG) || tags.contains(Quake.TAG)
 			|| tags.contains(Fight.DART_TAG) || tags.contains(Gear.THROW_TAG) || tags.contains(StreetWeapons.TAG);
 	}
 
