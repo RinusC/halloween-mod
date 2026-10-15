@@ -474,7 +474,7 @@ public final class GrabSession {
 	private void pinVictim() {
 		float yaw = this.shape.getYRot() * Mth.DEG_TO_RAD;
 		// Held up in front of him; under the Demogorgon, lying, their feet by his.
-		double reach = Demogorgon.active() ? 0.55 : 0.9;
+		double reach = Demogorgon.active() ? 0.95 : 0.9;
 		double x = this.shape.getX() - Mth.sin(yaw) * reach;
 		double z = this.shape.getZ() + Mth.cos(yaw) * reach;
 		// Face the Shape.

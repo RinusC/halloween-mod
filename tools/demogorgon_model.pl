@@ -941,7 +941,7 @@ sub on_fours {
 			$plunge = max($plunge, $d < 0.1 ? $d / 0.1 : $d < 0.3 ? 1 : $d < 0.45 ? 1 - ($d - 0.3) / 0.15 : 0);
 		}
 		my $shake = $plunge > 0.9 ? sin($u * 2 * $PI * 7) : 0;
-		my $p = fours(drop => -6.2 + 0.3 * sin(2 * $PI * $u), back => -9, hips => -74, waist => -8, chest => -12 + 5 * $plunge,
+		my $p = fours(drop => -6.2 + 0.3 * sin(2 * $PI * $u), back => -15, hips => -74, waist => -8, chest => -12 + 5 * $plunge,
 			neck => 20 - 26 * $plunge, head => -40 - 18 * $plunge);
 		setr($p, "head", 0, 14 * $shake, 10 * $shake);
 		setr($p, "neck", 0, -6 * $shake, 0);

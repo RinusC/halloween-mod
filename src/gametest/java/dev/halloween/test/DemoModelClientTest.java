@@ -118,15 +118,22 @@ public class DemoModelClientTest implements FabricClientGameTest {
 			ctx.runOnClient(mc -> DemogorgonModel.forcedPose = HwNet.DemoPose.UPRIGHT);
 			ctx.waitTicks(25);
 			server.runOnServer(s -> ShapeBrain.body().swing(InteractionHand.MAIN_HAND, true));
-			ctx.waitTicks(2);
+			ctx.waitTicks(3);
 			ctx.takeScreenshot("demo_strike_1");
-			ctx.waitTicks(2);
+			ctx.waitTicks(3);
 			ctx.takeScreenshot("demo_strike_2");
+			ctx.waitTicks(3);
+			ctx.takeScreenshot("demo_strike_3");
 			ctx.runOnClient(mc -> DemogorgonModel.forcedPose = HwNet.DemoPose.HUNTING);
 			ctx.waitTicks(20);
 			server.runOnServer(s -> ShapeBrain.body().swing(InteractionHand.MAIN_HAND, true));
-			ctx.waitTicks(2);
-			ctx.takeScreenshot("demo_strike_fours");
+			ctx.waitTicks(5);
+			ctx.takeScreenshot("demo_bite");
+			ctx.waitTicks(15);
+			// Going for a grab from all fours: a spring at them.
+			server.runOnServer(s -> dev.halloween.game.GrabSession.anim(ShapeBrain.body(), HwNet.Anim.REACH));
+			ctx.waitTicks(5);
+			ctx.takeScreenshot("demo_pounce");
 
 			// Devouring: the person thrown down on their back in front of him, him over them, mouth open; a bite.
 			int victim = server.computeOnServer(s -> {

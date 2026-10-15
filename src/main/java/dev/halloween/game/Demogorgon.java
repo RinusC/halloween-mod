@@ -340,6 +340,14 @@ public final class Demogorgon {
 			}
 			seen.add(b.key);
 			int[] box = b.bounds();
+			if (box[3] - box[0] > 26 || box[5] - box[2] > 26) {
+				// Not one house (a run of them under one roof, a covered yard): the room they are in.
+				Houses.Room room = b.roomAt(s.blockPosition());
+				if (room == null) {
+					continue;
+				}
+				box = Houses.bounds(room.cells);
+			}
 			Vec3 lo = UpsideDown.below(new Vec3(box[0], box[1], box[2]));
 			Vec3 hi = UpsideDown.below(new Vec3(box[3], box[4], box[5]));
 			out.add(BlockPos.containing(lo));

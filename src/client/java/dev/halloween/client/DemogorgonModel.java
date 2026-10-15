@@ -53,6 +53,9 @@ public final class DemogorgonModel extends Model<AvatarRenderState> {
 		float sinkStart;
 		float emergeStart;
 		int lastPose = -1;
+		/** A blow: when it began (a swing seen starting), so it plays over its own time, not the swing's few ticks. */
+		float strikeStart = -100;
+		float lastAttack;
 	}
 
 	private static final Map<Integer, Carriage> CARRIAGE = new HashMap<>();
@@ -142,10 +145,14 @@ public final class DemogorgonModel extends Model<AvatarRenderState> {
 		float t = s.ageInTicks;
 		// Over someone thrown down, tearing at them (the kill's bites too): on all fours, a stance of its own.
 		boolean devour = ClientAnims.hold(id) == HwNet.Anim.DEVOUR;
-		boolean busy = ClientAnims.busy(id) && !devour;
-		float four = busy ? 0f : devour ? 1f : c.four.at(now, 7f, 16f);
-		float charge = busy || devour ? 0f : c.charge.at(now, 5f, 4f);
-		float lunge = busy || devour ? 0f : c.lunge.at(now, 1.5f, 7f);
+		// Going for a grab: no standing up and reaching like a man; he springs at them on all fours.
+		boolean reach = ClientAnims.once(id) == HwNet.Anim.REACH;
+		float pounceT = reach ? Mth.clamp(ClientAnims.onceTime(id) / 12f, 0f, 1f) : 0f;
+		float pounce = reach ? Mth.sin(pounceT * Mth.PI) : 0f;
+		boolean busy = ClientAnims.busy(id) && !devour && !reach;
+		float four = busy ? 0f : devour ? 1f : Math.max(pounce, c.four.at(now, 7f, 16f));
+		float charge = busy || devour ? 0f : c.charge.at(now, 5f, 4f) * (1f - pounce);
+		float lunge = busy || devour ? 0f : Math.max(pounce, c.lunge.at(now, 1.5f, 7f));
 		float speed = Mth.clamp(s.walkAnimationSpeed * 1.6f, 0f, 1f);
 		// One loop of a gait per stride of the player's walk (cos(pos * 0.6662)); on all fours a quicker step.
 		float stride = s.walkAnimationPos * 0.6662f / Mth.TWO_PI;
@@ -162,7 +169,7 @@ public final class DemogorgonModel extends Model<AvatarRenderState> {
 		this.bb.apply("fours_idle", t / 20f, wFours * (1f - speed));
 		this.bb.apply("crawl", stride * crawl.length(), wFours * speed);
 		this.bb.apply("charge", t / 20f, wCharge);
-		this.bb.apply("lunge", (now - c.lungeStart) / 20f, wLunge);
+		this.bb.apply("lunge", pounce > 0f ? pounceT * 0.4f : (now - c.lungeStart) / 20f, wLunge);
 
 		// A blow: both claws raking down (rearing up on all fours), the petals flung open.
 		float open = 0.04f + 0.03f * Mth.sin(t * 0.09f);
@@ -175,23 +182,16 @@ public final class DemogorgonModel extends Model<AvatarRenderState> {
 				open = 1f;
 			}
 		}
-		if (s.attackTime > 0f && !devour) {
-			float a = Mth.clamp(s.attackTime, 0f, 1f);
-			// The arms leave the gait for the blow (laid over a stride they'd be thrown anywhere), and go back to it.
-			float take = Mth.clamp(Mth.sin(a * Mth.PI) * 1.6f, 0f, 1f) * (1f - four);
-			for (String side : new String[]{"right", "left"}) {
-				for (String bone : new String[]{"_shoulder", "_upper_arm", "_forearm", "_hand"}) {
-					ModelPart p = this.bb.part(side + bone);
-					if (p != null) {
-						p.xRot = Mth.lerp(take, p.xRot, p.getInitialPose().xRot());
-						p.yRot = Mth.lerp(take, p.yRot, p.getInitialPose().yRot());
-						p.zRot = Mth.lerp(take, p.zRot, p.getInitialPose().zRot());
-					}
-				}
-			}
-			this.bb.apply("strike", a * 0.5f, 1f - four);
-			this.bb.apply("strike_fours", a * 0.5f, four);
-			open = Math.max(open, Mth.sin(Math.min(1f, a * 1.5f) * Mth.PI));
+		if (s.attackTime > 0f && c.lastAttack <= 0f) {
+			c.strikeStart = now;
+		}
+		c.lastAttack = s.attackTime;
+		float a = (now - c.strikeStart) / 11f;
+		if (a >= 0f && a < 1f && !devour && !busy) {
+			open = Math.max(open, four > 0.5f ? this.bite(a, four) : this.swipe(a, 1f - four));
+		}
+		if (pounce > 0f) {
+			open = Math.max(open, pounce);
 		}
 		// Charging: the bud parting wider and wider, quivering; the lunge: wide open.
 		if (wCharge > 0f) {
@@ -229,6 +229,65 @@ public final class DemogorgonModel extends Model<AvatarRenderState> {
 		}
 		open = Math.max(open, this.crossing(c, now, t));
 		this.bb.apply("mouth", Mth.clamp(open, 0f, 1f), 1f);
+	}
+
+	/**
+	 * Standing, a blow: the right claw drawn up and back over the shoulder, the body twisting away, then swept down
+	 * and across, the body turning into it, the left arm thrown back for balance; the arms leave the gait for it.
+	 * Returns how far the mouth opens.
+	 */
+	private float swipe(float a, float w) {
+		float take = Mth.clamp(Mth.sin(a * Mth.PI) * 2f, 0f, 1f) * w;
+		for (String side : new String[]{"right", "left"}) {
+			for (String bone : new String[]{"_shoulder", "_upper_arm", "_forearm", "_hand"}) {
+				ModelPart p = this.bb.part(side + bone);
+				if (p != null) {
+					p.xRot = Mth.lerp(take, p.xRot, p.getInitialPose().xRot());
+					p.yRot = Mth.lerp(take, p.yRot, p.getInitialPose().yRot());
+					p.zRot = Mth.lerp(take, p.zRot, p.getInitialPose().zRot());
+				}
+			}
+		}
+		// Wind-up (to 0.4), the sweep (to 0.6), the follow-through settling back.
+		float up = a < 0.4f ? smooth(a / 0.4f) : 1f;
+		float sweep = a < 0.4f ? 0f : smooth(Math.min(1f, (a - 0.4f) / 0.2f));
+		float back = a < 0.65f ? 0f : smooth((a - 0.65f) / 0.35f);
+		float arm = (1f - back) * w;
+		// Blockbench degrees: x swings a hanging arm forwards (up), z out to its side (+ his right).
+		this.bb.turn("right_upper_arm", (150f * up - 110f * sweep) * arm, 0f, (35f * up - 75f * sweep) * arm);
+		this.bb.turn("right_forearm", (40f * up - 30f * sweep) * arm, 0f, 0f);
+		this.bb.turn("right_hand", -20f * sweep * arm, 0f, 0f);
+		this.bb.turn("left_upper_arm", (-25f * up + 15f * sweep) * arm, 0f, -15f * arm);
+		this.bb.turn("chest", (6f * up - 14f * sweep) * arm, (-22f * up + 45f * sweep) * arm, 0f);
+		this.bb.turn("waist", 0f, (-10f * up + 18f * sweep) * arm, 0f);
+		this.bb.turn("head", -18f * sweep * arm, (12f * up - 20f * sweep) * arm, 0f);
+		for (int k = 0; k < 3; k++) {
+			this.bb.turn("right_finger" + k, (-20f * up + 45f * sweep) * arm, 0f, (k - 1) * 14f * up * arm);
+			this.bb.turn("right_finger" + k + "_tip", 30f * sweep * arm, 0f, 0f);
+		}
+		return Mth.sin(Math.min(1f, a * 1.4f) * Mth.PI) * 0.8f * w;
+	}
+
+	/**
+	 * On all fours, a blow is a bite: the body thrown forwards, the neck stretched out, the head snapping forward
+	 * with the petals flung wide, then shut on what is there. Returns how far the mouth opens.
+	 */
+	private float bite(float a, float w) {
+		float k = Mth.sin(a * Mth.PI) * w;
+		this.bb.move("hips", 0f, 0f, -3.5f * k);
+		this.bb.turn("chest", -8f * k, 0f, 0f);
+		this.bb.turn("neck", -22f * k, 0f, 0f);
+		this.bb.turn("head", -16f * k + (a > 0.55f ? 10f * Mth.sin((a - 0.55f) / 0.45f * Mth.PI) * w : 0f), 0f, 0f);
+		for (String side : new String[]{"right", "left"}) {
+			this.bb.turn(side + "_upper_arm", 10f * k, 0f, 0f);
+		}
+		// Wide on the way in, snapped shut at the end.
+		return a < 0.5f ? smooth(a / 0.5f) * w : (1f - smooth((a - 0.5f) / 0.25f)) * w;
+	}
+
+	private static float smooth(float x) {
+		x = Mth.clamp(x, 0f, 1f);
+		return x * x * (3 - 2 * x);
 	}
 
 	/**

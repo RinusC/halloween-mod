@@ -142,18 +142,12 @@ public final class Houses {
 
 		/** Its box: min x, y, z and max x, y, z (the walls a block out, the ceiling three over the highest floor). */
 		public int[] bounds() {
-			int[] b = {Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE};
+			List<BlockPos> all = new ArrayList<>();
 			LongIterator it = this.cells.iterator();
 			while (it.hasNext()) {
-				long c = it.nextLong();
-				b[0] = Math.min(b[0], BlockPos.getX(c));
-				b[1] = Math.min(b[1], BlockPos.getY(c));
-				b[2] = Math.min(b[2], BlockPos.getZ(c));
-				b[3] = Math.max(b[3], BlockPos.getX(c));
-				b[4] = Math.max(b[4], BlockPos.getY(c));
-				b[5] = Math.max(b[5], BlockPos.getZ(c));
+				all.add(BlockPos.of(it.nextLong()));
 			}
-			return new int[]{b[0] - 1, b[1] - 1, b[2] - 1, b[3] + 2, b[4] + 3, b[5] + 2};
+			return Houses.bounds(all);
 		}
 
 		/** Is this point on its floor (feet, or a block above or below)? */
@@ -202,6 +196,20 @@ public final class Houses {
 			}
 			return best;
 		}
+	}
+
+	/** The box round these floor cells: min x, y, z and max x, y, z (walls a block out, the ceiling three over). */
+	public static int[] bounds(List<BlockPos> cells) {
+		int[] b = {Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE};
+		for (BlockPos c : cells) {
+			b[0] = Math.min(b[0], c.getX());
+			b[1] = Math.min(b[1], c.getY());
+			b[2] = Math.min(b[2], c.getZ());
+			b[3] = Math.max(b[3], c.getX());
+			b[4] = Math.max(b[4], c.getY());
+			b[5] = Math.max(b[5], c.getZ());
+		}
+		return new int[]{b[0] - 1, b[1] - 1, b[2] - 1, b[3] + 2, b[4] + 3, b[5] + 2};
 	}
 
 	/** Forgets every scan (a new match, a new map). */
