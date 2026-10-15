@@ -463,11 +463,18 @@ public final class Demogorgon {
 	 */
 	private static boolean smash(ServerPlayer d) {
 		ServerLevel level = d.level();
+		// Right ahead; and for a window a little more (0.2 of a block further and to either side): a leap at one
+		// that is nearly in line still finds it.
+		Vec3 side = new Vec3(-shredDir.z, 0, shredDir.x).scale(0.2);
 		Vec3 ahead = d.position().add(shredDir.scale(0.9));
-		for (int dy = 0; dy <= 1; dy++) {
-			BlockPos at = BlockPos.containing(ahead.x, d.getY() + 0.2 + dy, ahead.z);
+		Vec3 further = d.position().add(shredDir.scale(1.1));
+		Vec3[] samples = {ahead, further, ahead.add(side), ahead.subtract(side), further.add(side), further.subtract(side)};
+		for (int k = 0; k < samples.length * 2; k++) {
+			Vec3 s = samples[k / 2];
+			int dy = k % 2;
+			BlockPos at = BlockPos.containing(s.x, d.getY() + 0.2 + dy, s.z);
 			BlockState state = level.getBlockState(at);
-			if (state.getBlock() instanceof net.minecraft.world.level.block.DoorBlock) {
+			if (k < 2 && state.getBlock() instanceof net.minecraft.world.level.block.DoorBlock) {
 				BlockPos lower = state.getValue(net.minecraft.world.level.block.state.properties.BlockStateProperties.DOUBLE_BLOCK_HALF)
 					== net.minecraft.world.level.block.state.properties.DoubleBlockHalf.LOWER ? at : at.below();
 				Quake.knockOut(level, lower);
