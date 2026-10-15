@@ -386,15 +386,15 @@
 	"halloween.hud.progress.seal_portal": "Sealing the portal",
 	"halloween.score.portal_sealed": "Portal sealed",
 	"halloween.msg.demo.no_portal_below": "Up only where a portal is",
-	"halloween.msg.demo.cooldown": "The portals are resting",
+	"halloween.msg.demo.cooldown": "The Upside Down won't let you in yet",
 	"halloween.msg.demo.not_ready": "The Upside Down is still forming",
 	"halloween.msg.demo.max": "No more than %s portals",
 	"halloween.msg.demo.too_close": "Too close to another portal",
-	"halloween.msg.demo.bad_ground": "No portal here",
+	"halloween.msg.demo.bad_ground": "You need solid ground under you",
 	"halloween.msg.demo.abyss_portal": "Of the Abyss: stand on a portal (or be in the Upside Down)",
 	"halloween.msg.demo.sealed": "A portal has been sealed",
 	"halloween.hud.demo.building": "Upside Down forming",
-	"halloween.hud.demo.below": "Upside Down: out at a portal",
+	"halloween.hud.demo.below": "Upside Down: V to come up here",
 	"halloween.hud.demo.portals": "portals %s/%s",
 	"halloween.hud.shred": "Shred",
 	"halloween.hud.shred.charging": "Shred…",
@@ -747,5 +747,8 @@
 	"halloween.lobby.stall2": "trick or treat",
 	"halloween.chronicle.arrested": "The police put Michael in cuffs",
 	"halloween.hint.police_on_way": "The police are already on their way: call again once they are here",
-	"halloween.match.arrested": "Michael has been arrested! The survivors win"
+	"halloween.match.arrested": "Michael has been arrested! The survivors win",
+	"halloween.hud.demo.emerging": "Climbing out… %s",
+	"halloween.hud.demo.ready": "V: into the Upside Down",
+	"halloween.hud.demo.sinking": "Sinking into the Upside Down…"
 }

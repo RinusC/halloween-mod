@@ -140,6 +140,22 @@ public final class Houses {
 			this.center = new Vec3(x / n, BlockPos.getY(low), z / n);
 		}
 
+		/** Its box: min x, y, z and max x, y, z (the walls a block out, the ceiling three over the highest floor). */
+		public int[] bounds() {
+			int[] b = {Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE};
+			LongIterator it = this.cells.iterator();
+			while (it.hasNext()) {
+				long c = it.nextLong();
+				b[0] = Math.min(b[0], BlockPos.getX(c));
+				b[1] = Math.min(b[1], BlockPos.getY(c));
+				b[2] = Math.min(b[2], BlockPos.getZ(c));
+				b[3] = Math.max(b[3], BlockPos.getX(c));
+				b[4] = Math.max(b[4], BlockPos.getY(c));
+				b[5] = Math.max(b[5], BlockPos.getZ(c));
+			}
+			return new int[]{b[0] - 1, b[1] - 1, b[2] - 1, b[3] + 2, b[4] + 3, b[5] + 2};
+		}
+
 		/** Is this point on its floor (feet, or a block above or below)? */
 		public boolean contains(BlockPos p) {
 			return this.cells.contains(p.asLong()) || this.cells.contains(p.below().asLong()) || this.cells.contains(p.above().asLong());

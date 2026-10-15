@@ -386,15 +386,15 @@
 	"halloween.hud.progress.seal_portal": "Запечатываю портал",
 	"halloween.score.portal_sealed": "Портал запечатан",
 	"halloween.msg.demo.no_portal_below": "Выйти можно только там, где портал",
-	"halloween.msg.demo.cooldown": "Порталы ещё не готовы",
+	"halloween.msg.demo.cooldown": "Изнанка ещё не пускает",
 	"halloween.msg.demo.not_ready": "Изнанка ещё не сложилась",
 	"halloween.msg.demo.max": "Порталов не больше %s",
 	"halloween.msg.demo.too_close": "Слишком близко к другому порталу",
-	"halloween.msg.demo.bad_ground": "Здесь портал не открыть",
+	"halloween.msg.demo.bad_ground": "Нужно стоять на земле",
 	"halloween.msg.demo.abyss_portal": "Дар Бездны: встаньте на портал (или будьте в Изнанке)",
 	"halloween.msg.demo.sealed": "Один из порталов запечатан",
 	"halloween.hud.demo.building": "Изнанка складывается",
-	"halloween.hud.demo.below": "Изнанка: выход у портала",
+	"halloween.hud.demo.below": "Изнанка: V — вылезти здесь",
 	"halloween.hud.demo.portals": "порталы %s/%s",
 	"halloween.hud.shred": "Разрыв",
 	"halloween.hud.shred.charging": "Разрыв…",
@@ -747,5 +747,8 @@
 	"halloween.lobby.stall2": "кошелёк или жизнь",
 	"halloween.chronicle.arrested": "Полиция надела на Майкла наручники",
 	"halloween.hint.police_on_way": "Полиция уже едет — новый вызов, когда приедут",
-	"halloween.match.arrested": "Майкла арестовали! Выжившие победили"
+	"halloween.match.arrested": "Майкла арестовали! Выжившие победили",
+	"halloween.hud.demo.emerging": "Вылезает… %s",
+	"halloween.hud.demo.ready": "V — в Изнанку",
+	"halloween.hud.demo.sinking": "Уходит в Изнанку…"
 }

@@ -49,6 +49,10 @@ public final class DemogorgonModel extends Model<AvatarRenderState> {
 		final Ease lunge = new Ease();
 		float chargeStart;
 		float lungeStart;
+		/** Sinking into the Upside Down, climbing out of it: since when; the pose seen last. */
+		float sinkStart;
+		float emergeStart;
+		int lastPose = -1;
 	}
 
 	private static final Map<Integer, Carriage> CARRIAGE = new HashMap<>();
@@ -100,8 +104,17 @@ public final class DemogorgonModel extends Model<AvatarRenderState> {
 		if (lunging && c.lunge.target == 0f) {
 			c.lungeStart = now;
 		}
-		// Down quickly when he spots someone, back up slowly.
-		c.four.set(pose >= HwNet.DemoPose.HUNTING ? 1f : 0f, now, 7f, 16f);
+		if (pose != c.lastPose) {
+			if (pose == HwNet.DemoPose.SINKING) {
+				c.sinkStart = now;
+			} else if (pose == HwNet.DemoPose.EMERGING) {
+				c.emergeStart = now;
+			}
+			c.lastPose = pose;
+		}
+		boolean crossing = pose == HwNet.DemoPose.SINKING || pose == HwNet.DemoPose.EMERGING;
+		// Down quickly when he spots someone, back up slowly (sinking and climbing out he stands).
+		c.four.set(pose >= HwNet.DemoPose.HUNTING && !crossing ? 1f : 0f, now, crossing ? 1f : 7f, crossing ? 1f : 16f);
 		c.charge.set(charging ? 1f : 0f, now, 5f, 4f);
 		c.lunge.set(lunging ? 1f : 0f, now, 1.5f, 7f);
 		return c;
@@ -202,7 +215,54 @@ public final class DemogorgonModel extends Model<AvatarRenderState> {
 		} else if (!devour) {
 			this.look(s, four, lunge);
 		}
+		open = Math.max(open, this.crossing(c, now, t));
 		this.bb.apply("mouth", Mth.clamp(open, 0f, 1f), 1f);
+	}
+
+	/**
+	 * Into the ground and out of it: sinking, he goes down to the shoulders and under, claws up, the head thrown
+	 * back; climbing out (five seconds) the claws come first, tearing at the air, then the head and the rest, the
+	 * mouth wide all the while. Returns how far the mouth is open.
+	 */
+	private float crossing(Carriage c, float now, float t) {
+		int pose = forcedPose >= 0 ? forcedPose : c.pose;
+		float depth;
+		float claw;
+		if (pose == HwNet.DemoPose.SINKING) {
+			float k = Mth.clamp((now - c.sinkStart) / 30f, 0f, 1f);
+			depth = k * k * 46f;
+			claw = Math.min(1f, k * 2f);
+		} else if (pose == HwNet.DemoPose.EMERGING) {
+			float k = Mth.clamp((now - c.emergeStart) / 100f, 0f, 1f);
+			float up = Mth.clamp((k - 0.1f) / 0.75f, 0f, 1f);
+			depth = (1f - up * up * (3 - 2 * up)) * 46f;
+			claw = k < 0.9f ? 1f : (1f - k) * 10f;
+		} else {
+			return 0f;
+		}
+		ModelPart hips = this.bb.part("hips");
+		if (hips != null) {
+			hips.y += depth;
+		}
+		// Claws up, raking at the air in turn; the head back, shaking.
+		for (String side : new String[]{"right", "left"}) {
+			ModelPart arm = this.bb.part(side + "_upper_arm");
+			ModelPart fore = this.bb.part(side + "_forearm");
+			float ph = side.equals("right") ? 0f : Mth.PI;
+			if (arm != null) {
+				arm.xRot += claw * (-2.7f + 0.35f * Mth.sin(t * 0.7f + ph));
+				arm.zRot += claw * (side.equals("right") ? -0.3f : 0.3f);
+			}
+			if (fore != null) {
+				fore.xRot += claw * (-0.4f + 0.4f * Mth.sin(t * 0.7f + ph + 1f));
+			}
+		}
+		ModelPart head = this.bb.part("head");
+		if (head != null) {
+			head.xRot += -0.5f * claw;
+			head.zRot += 0.2f * Mth.sin(t * 1.9f) * claw;
+		}
+		return 0.6f + 0.35f * Mth.sin(t * 0.5f) * 0.5f + 0.3f * claw;
 	}
 
 	/**

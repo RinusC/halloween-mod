@@ -76,6 +76,8 @@ public final class ClientState {
 	/** This match's killer: 0 Michael, 1 the Demogorgon (WorldSync); and the Demogorgon's own screen. */
 	public static int killer;
 	public static HwNet.DemoHud demo = HwNet.DemoHud.NONE;
+	/** Down in the Upside Down: the houses with a survivor in them (box corners in pairs). */
+	public static List<net.minecraft.core.BlockPos> demoHouses = List.of();
 
 	/** Talking a townsperson round right now (the server shows it as a progress bar). */
 	public static boolean talking() {
@@ -266,6 +268,7 @@ public final class ClientState {
 		ALERTS.clear();
 		skill = HwNet.SkillCheck.INACTIVE;
 		demo = HwNet.DemoHud.NONE;
+		demoHouses = List.of();
 		NOTICES.clear();
 		FEED.clear();
 		LOCKED_DOORS.clear();

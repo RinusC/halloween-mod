@@ -105,6 +105,7 @@ public final class HwHud {
 				return;
 			}
 			beams(g, hud, w, h);
+			upsideDown(g, mc, w, h, partial);
 			impulseSpots(g, mc, w, h, partial);
 			runtForMichael(g, mc, w, h, partial);
 			noises(g, mc, w, h, partial);
@@ -505,6 +506,72 @@ public final class HwHud {
 			double angle = Math.toRadians(Mth.wrapDegrees(Math.toDegrees(Math.atan2(to.z, to.x)) - 90 - mc.player.getYRot()));
 			int r = 36;
 			arrow(g, w / 2 + (int) Math.round(Math.sin(angle) * r), h / 2 - (int) Math.round(Math.cos(angle) * r), angle, color);
+		}
+	}
+
+	/**
+	 * The Demogorgon down in the Upside Down: every house with a survivor in it outlined in red through the walls
+	 * (the box of it, not where in it), and the murk of the place: a red vignette, lightning now and then.
+	 */
+	private static void upsideDown(GuiGraphicsExtractor g, Minecraft mc, int w, int h, float partial) {
+		if (!MichaelRenderer.demogorgon() || !ClientState.demo.below()) {
+			return;
+		}
+		float flash = ClientUpsideDown.flash(partial);
+		// The vignette, pulsing slowly; a flash of lightning over everything.
+		int pulse = (int) (70 + 30 * Mth.sin((mc.level.getGameTime() + partial) * 0.05f));
+		for (int i = 0; i < 6; i++) {
+			int a = Math.max(0, pulse - i * 12);
+			int edge = (i + 1) * Math.max(w, h) / 36;
+			int c = (a << 24) | 0x3A0006;
+			g.fill(0, 0, w, edge, c);
+			g.fill(0, h - edge, w, h, c);
+			g.fill(0, 0, edge, h, c);
+			g.fill(w - edge, 0, w, h, c);
+		}
+		if (flash > 0.01f) {
+			g.fill(0, 0, w, h, ((int) (flash * 120) << 24) | 0xFF4030);
+		}
+		java.util.List<net.minecraft.core.BlockPos> corners = ClientState.demoHouses;
+		for (int i = 0; i + 1 < corners.size(); i += 2) {
+			box(g, corners.get(i), corners.get(i + 1), w, h, 0xE0FF2A1A);
+		}
+	}
+
+	/** A box's twelve edges drawn on screen (each edge in short steps, the part behind the eye left out). */
+	private static void box(GuiGraphicsExtractor g, net.minecraft.core.BlockPos lo, net.minecraft.core.BlockPos hi, int w, int h, int color) {
+		double[] xs = {lo.getX(), hi.getX()};
+		double[] ys = {lo.getY(), hi.getY()};
+		double[] zs = {lo.getZ(), hi.getZ()};
+		int[][] edges = {{0, 1}, {2, 3}, {4, 5}, {6, 7}, {0, 2}, {1, 3}, {4, 6}, {5, 7}, {0, 4}, {1, 5}, {2, 6}, {3, 7}};
+		Vec3[] c = new Vec3[8];
+		for (int i = 0; i < 8; i++) {
+			c[i] = new Vec3(xs[i & 1], ys[(i >> 1) & 1], zs[(i >> 2) & 1]);
+		}
+		for (int[] e : edges) {
+			Vec3 a = c[e[0]];
+			Vec3 b = c[e[1]];
+			int steps = (int) Math.max(4, a.distanceTo(b) * 2);
+			Projection.Point prev = null;
+			for (int s = 0; s <= steps; s++) {
+				Projection.Point p = Projection.toScreen(a.lerp(b, s / (double) steps), w, h);
+				if (p != null && prev != null) {
+					segment(g, prev.x(), prev.y(), p.x(), p.y(), color);
+				}
+				prev = p;
+			}
+		}
+	}
+
+	private static void segment(GuiGraphicsExtractor g, float x0, float y0, float x1, float y1, int color) {
+		int n = (int) Math.max(1, Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)));
+		if (n > 2000) {
+			return;
+		}
+		for (int i = 0; i <= n; i++) {
+			int x = Math.round(Mth.lerp(i / (float) n, x0, x1));
+			int y = Math.round(Mth.lerp(i / (float) n, y0, y1));
+			g.fill(x, y, x + 2, y + 2, color);
 		}
 	}
 
@@ -1108,11 +1175,13 @@ public final class HwHud {
 		abilityDiamond(g, font, jumpX, baseY, demo ? "◈" : "»", HalloweenClient.KEY_SHAPE_JUMP,
 			demo && dh.below() ? 0xE08A2A2A : inShadow ? (jumpReady ? 0xE07A5CC8 : 0xE0602A6A) : jumpReady ? DARK_FILL : RED_FILL, jumpProgress, 0xFF606060, TEXT);
 		if (demo) {
-			// His portals: how many, or (down below) how to get out.
+			// The Upside Down: going down, down there (how to get out), climbing out, resting, ready.
 			Component line = !dh.ready() ? Component.translatable("halloween.hud.demo.building")
+				: dh.phase() == 1 ? Component.translatable("halloween.hud.demo.sinking")
+				: dh.phase() == 3 ? Component.translatable("halloween.hud.demo.emerging", seconds(dh.phaseTicks()))
 				: dh.below() ? Component.translatable("halloween.hud.demo.below")
 				: hud.jumpBlock() == 3 ? Component.literal(seconds(hud.jumpCooldown()))
-				: Component.translatable("halloween.hud.demo.portals", dh.portals(), dh.max());
+				: Component.translatable("halloween.hud.demo.ready");
 			g.centeredText(font, line, jumpX, baseY - 26, dh.below() ? 0xFFE07070 : DIM);
 		} else if (inShadow && hud.jumpBlock() != 0) {
 			// Leaving the shadow is refused here: say why.

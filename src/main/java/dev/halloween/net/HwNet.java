@@ -66,13 +66,16 @@ public final class HwNet {
 	public record RoleEntry(UUID player, Role role) {
 	}
 
-	/** The Demogorgon's own screen: his portals (of how many), down in the Upside Down or not, whether it is built, charging a Shred. */
-	public record DemoHud(int portals, int max, boolean below, boolean ready, boolean charging) implements CustomPacketPayload {
+	/**
+	 * The Demogorgon's own screen: where he is in a crossing (game.Demogorgon: up, sinking, below, emerging) and the
+	 * ticks left of it, down in the Upside Down or not, whether it is built, charging a Shred.
+	 */
+	public record DemoHud(int phase, int phaseTicks, boolean below, boolean ready, boolean charging) implements CustomPacketPayload {
 		public static final Type<DemoHud> TYPE = payloadType("demo_hud");
 		public static final DemoHud NONE = new DemoHud(0, 0, false, false, false);
 		public static final StreamCodec<RegistryFriendlyByteBuf, DemoHud> CODEC = StreamCodec.of((buf, v) -> {
-			buf.writeVarInt(v.portals);
-			buf.writeVarInt(v.max);
+			buf.writeVarInt(v.phase);
+			buf.writeVarInt(v.phaseTicks);
 			buf.writeBoolean(v.below);
 			buf.writeBoolean(v.ready);
 			buf.writeBoolean(v.charging);
@@ -88,11 +91,27 @@ public final class HwNet {
 	 * How the Demogorgon carries himself, for everyone (client.DemogorgonModel): upright, on all fours (he sees or
 	 * saw a survivor in the last ten seconds), coiled for a Shred, or in its lunge.
 	 */
+	/** Down in the Upside Down: the houses with a survivor in them, as boxes (min and max corner in turn). */
+	public record DemoHouses(List<BlockPos> corners) implements CustomPacketPayload {
+		public static final Type<DemoHouses> TYPE = payloadType("demo_houses");
+		public static final StreamCodec<RegistryFriendlyByteBuf, DemoHouses> CODEC = StreamCodec.of(
+			(buf, v) -> buf.writeCollection(v.corners, (b, p) -> b.writeBlockPos(p)),
+			buf -> new DemoHouses(buf.readList(b -> b.readBlockPos())));
+
+		@Override
+		public Type<DemoHouses> type() {
+			return TYPE;
+		}
+	}
+
 	public record DemoPose(int entityId, int pose) implements CustomPacketPayload {
 		public static final int UPRIGHT = 0;
 		public static final int HUNTING = 1;
 		public static final int CHARGING = 2;
 		public static final int LUNGING = 3;
+		/** Sinking into the Upside Down, and clawing his way out of it. */
+		public static final int SINKING = 4;
+		public static final int EMERGING = 5;
 		public static final Type<DemoPose> TYPE = payloadType("demo_pose");
 		public static final StreamCodec<RegistryFriendlyByteBuf, DemoPose> CODEC = StreamCodec.of((buf, v) -> {
 			buf.writeVarInt(v.entityId);
@@ -1222,6 +1241,7 @@ public final class HwNet {
 		PayloadTypeRegistry.clientboundPlay().register(WorldSync.TYPE, WorldSync.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(DemoHud.TYPE, DemoHud.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(DemoPose.TYPE, DemoPose.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(DemoHouses.TYPE, DemoHouses.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(GunPose.TYPE, GunPose.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(ShapeHud.TYPE, ShapeHud.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(RuntHud.TYPE, RuntHud.CODEC);

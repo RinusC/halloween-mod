@@ -72,6 +72,7 @@ public class HalloweenClient implements ClientModInitializer {
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.DemoHud.TYPE, (payload, ctx) -> ClientState.demo = payload);
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.DemoPose.TYPE, (payload, ctx) -> DemogorgonModel.receive(payload));
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.GunPose.TYPE, (payload, ctx) -> GunPoses.receive(payload));
+		ClientPlayNetworking.registerGlobalReceiver(HwNet.DemoHouses.TYPE, (payload, ctx) -> ClientState.demoHouses = payload.corners());
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.RuntHud.TYPE, (payload, ctx) -> ClientState.runtHud = payload);
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.EventSync.TYPE, (payload, ctx) -> ClientEvents.state = payload);
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.Quake.TYPE, (payload, ctx) -> ClientEvents.quake(payload.ticks(), payload.strength()));
@@ -289,6 +290,7 @@ public class HalloweenClient implements ClientModInitializer {
 			}
 			// R and the right mouse button work the gun, if there is one in hand.
 			ClientGuns.tick(mc);
+			ClientUpsideDown.tick(mc);
 			for (KeyMapping key : new KeyMapping[]{KEY_SHAPE_JUMP, KEY_IMPULSE, KEY_RUNT_ORDER}) {
 				while (key.consumeClick()) {
 					// Shape-only keys do nothing for other roles.

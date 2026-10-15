@@ -91,7 +91,7 @@ public final class Fight {
 	/** Adds to the Shape's stun meter on behalf of {@code by}. */
 	public static void stun(ServerPlayer shape, float amount, ServerPlayer by) {
 		ShapeState state = MatchManager.shapeState(shape);
-		if (state == null || state.stunnedTicks > 0 || amount <= 0) {
+		if (state == null || state.stunnedTicks > 0 || amount <= 0 || Demogorgon.crossing()) {
 			return;
 		}
 		HwConfig cfg = HwConfig.get();

@@ -106,11 +106,38 @@ public final class UpsideDown {
 
 	/** What a block of the town is in the Upside Down. */
 	private static BlockState rot(BlockState state, ServerLevel at, BlockPos pos) {
+		int h = Math.floorMod(pos.getX() * 73856093 ^ pos.getY() * 19349663 ^ pos.getZ() * 83492791, 997);
 		if (state.isAir()) {
-			// Now and then a vine hanging from a ceiling.
 			BlockState over = at.getBlockState(pos.above());
-			return !over.isAir() && over.isSolidRender() && Math.floorMod(pos.getX() * 31 + pos.getZ() * 17 + pos.getY() * 7, 23) == 0
-				? Blocks.WEEPING_VINES.defaultBlockState() : state;
+			BlockState under = at.getBlockState(pos.below());
+			if (!over.isAir() && over.isSolidRender()) {
+				// Under every ceiling: vines hanging thick, cobwebs in the corners.
+				if (h % 6 == 0) {
+					return Blocks.WEEPING_VINES.defaultBlockState();
+				}
+				if (h % 29 == 1) {
+					return Blocks.COBWEB.defaultBlockState();
+				}
+			}
+			String below = BuiltInRegistries.BLOCK.getKey(under.getBlock()).getPath();
+			if ((below.equals("grass_block") || below.equals("moss_block")) && h % 7 == 2) {
+				// Out in the streets: dead roots growing out of the fungus.
+				return h % 2 == 0 ? Blocks.CRIMSON_ROOTS.defaultBlockState() : Blocks.WITHER_ROSE.defaultBlockState();
+			}
+			return state;
+		}
+		if (state.isSolidRender() && !state.hasBlockEntity()) {
+			// The rot creeping over everything: flesh on the walls, sculk over the floors.
+			boolean floor = at.getBlockState(pos.above()).isAir();
+			if (floor && h % 6 == 0) {
+				return Blocks.SCULK.defaultBlockState();
+			}
+			if (!floor && h % 13 == 0) {
+				return Blocks.NETHER_WART_BLOCK.defaultBlockState();
+			}
+			if (h % 41 == 3) {
+				return Blocks.CRYING_OBSIDIAN.defaultBlockState();
+			}
 		}
 		if (state.is(dev.halloween.HwBlocks.PHONE) || state.getBlock() instanceof TrapBlock || state.is(Blocks.LEVER)) {
 			return Blocks.AIR.defaultBlockState();

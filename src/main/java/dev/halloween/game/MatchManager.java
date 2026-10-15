@@ -718,8 +718,8 @@ public final class MatchManager {
 	 */
 	static int jumpBlockReason(ServerPlayer player, ShapeState state) {
 		if (Demogorgon.active()) {
-			// His portals: only being busy or the rest after a crossing hold him back.
-			return state.busy() ? 4 : state.jumpCooldown > 0 ? 3 : 0;
+			// The Upside Down: only being busy or the rest after a crossing hold him back.
+			return Demogorgon.crossing() ? 0 : state.busy() ? 4 : state.jumpCooldown > 0 ? 3 : 0;
 		}
 		if (state.shadowTicks > 0) {
 			return insideDoor(player) ? 5 : tooCloseToVictim(player) ? 6 : exposure(player);
@@ -739,8 +739,8 @@ public final class MatchManager {
 			return;
 		}
 		if (Demogorgon.active()) {
-			// The Demogorgon has portals in place of Shape Jump.
-			Demogorgon.portalKey(player, state);
+			// The Demogorgon goes down into the Upside Down in place of Shape Jump.
+			Demogorgon.riftKey(player, state);
 			return;
 		}
 		if (Windows.isVaulting(player)) {
@@ -818,11 +818,6 @@ public final class MatchManager {
 	public static void onImpulse(ServerPlayer player) {
 		ShapeState state = SHAPES.get(player.getUUID());
 		if (role(player) != Role.SHAPE || state == null || state.busy() || state.impulseCooldown > 0) {
-			return;
-		}
-		if (Demogorgon.active()) {
-			// The Demogorgon's Of the Abyss in place of the Impulse.
-			Demogorgon.abyss(player, state);
 			return;
 		}
 		HwConfig cfg = HwConfig.get();

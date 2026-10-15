@@ -1,5 +1,6 @@
 package dev.halloween.game;
 
+import dev.halloween.Halloween;
 import dev.halloween.HwConfig;
 import dev.halloween.net.HwNet;
 import java.util.ArrayList;
@@ -7,9 +8,10 @@ import java.util.List;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
+import net.minecraft.core.particles.BlockParticleOption;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -18,52 +20,52 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.entity.ai.attributes.AttributeInstance;
+import net.minecraft.world.entity.ai.attributes.AttributeModifier;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 /**
  * The Demogorgon (Stranger Things), the other killer (/hw killer demogorgon): played by a person (a bot always plays
- * Michael). Everything a killer does (Sense, stalking, the grab and the kill) is as Michael's; his own powers take the
- * place of Michael's on the same keys.
+ * Michael). Everything a killer does (Sense, stalking, the grab and the kill) is as Michael's, the Impulse too; his
+ * own powers take the place of Michael's on the same keys.
  * <ul>
- * <li>Portals (the Shape Jump key): a portal where he stands (up to six, apart from each other: the ground turns to
- * flesh, spores rise from it); standing on one, down into the Upside Down (a dark copy of the town, see
- * {@link UpsideDown}); down there, at the same place as any portal, up through it, quietly for a few seconds.</li>
- * <li>Of the Abyss (the Impulse key): on a portal or in the Upside Down, everyone near any portal shows to him.
- * Down there those right by a portal show by themselves.</li>
+ * <li>The Upside Down (the Shape Jump key): anywhere, he sinks through the ground (a second and a half, seen going)
+ * into the Upside Down (a dark, rotten copy of the town, see {@link UpsideDown}). Down there he runs five times as
+ * fast and nothing stops him (there are no doors), nobody up above sees or hears him, and every house with a
+ * survivor in it glows red through the walls (which house, not where in it). The key again: he comes up at the very
+ * same spot (x, y, z: the same floor of the same house), clawing his way out of the ground for five seconds, seen and
+ * heard, nothing stopping it; out, he senses every survivor within 30 blocks (rings, a few seconds). Then 30 s before
+ * he can go down again. No time limit below.</li>
  * <li>Shred (the dash key): a second's charge, then a lunge forwards that strikes the first one in his way and
  * breaks a door or a window it runs into.</li>
  * </ul>
- * Survivors seal a portal holding use on it (twelve seconds, with reaction checks): it is gone.
  */
 public final class Demogorgon {
-	public static final int MAX_PORTALS = 6;
-	/** How far apart two portals must be. */
-	private static final double PORTAL_GAP = 8;
-	private static final int SEAL_TICKS = 240;
-	private static final int TRAVERSE_COOLDOWN = 200;
-	private static final int EMERGE_QUIET = 100;
+	private static final int SINK_TICKS = 30;
+	private static final int EMERGE_TICKS = 100;
+	private static final int RIFT_COOLDOWN = 600;
+	private static final double SENSE_RANGE = 30;
+	private static final int SENSE_TICKS = 100;
+	/** Below: five times his speed. */
+	private static final double BELOW_SPEED = 4.0;
+	private static final Identifier BELOW_SPEED_ID = Halloween.id("upside_down_speed");
+	/** Sinking and climbing out: rooted to the spot. */
+	private static final Identifier ROOTED_ID = Halloween.id("upside_down_rooted");
 	private static final int SHRED_CHARGE = 20;
 	private static final int SHRED_TICKS = 7;
-	/** Of the Abyss: how near a portal one shows, and for how long. */
-	private static final double ABYSS_RANGE = 16;
-	private static final double PASSIVE_RANGE = 8;
+
+	/** Where he is in a crossing (HwNet.DemoHud's phase). */
+	public static final int UP = 0;
+	public static final int SINKING = 1;
+	public static final int BELOW = 2;
+	public static final int EMERGING = 3;
 
 	private static boolean chosen;
-
-	/** A portal: the floor block turned to flesh, and what was there before. */
-	private record Portal(BlockPos floor, BlockState before) {
-		Vec3 top() {
-			return Vec3.atBottomCenterOf(this.floor.above());
-		}
-	}
-
-	private static final List<Portal> PORTALS = new ArrayList<>();
-	private static int placeAt;
-	private static int quietUntil;
-	private static int abyssUntil;
+	private static int phase = UP;
+	private static int phaseLeft;
 	/** Shred: ticks charged (-1: not charging), ticks of lunge left, its way. */
 	private static int shredCharge = -1;
 	private static int shredTicks;
@@ -97,166 +99,147 @@ public final class Demogorgon {
 		return active() && shredCharge >= 0;
 	}
 
-	public static int portals() {
-		return PORTALS.size();
+	/** Climbing out of the Upside Down: nothing stops it (no stun, no grab). */
+	public static boolean emerging() {
+		return active() && phase == EMERGING;
+	}
+
+	/** Sinking or climbing out: rooted, nothing else to be done. */
+	public static boolean rooted() {
+		return active() && (phase == SINKING || phase == EMERGING);
+	}
+
+	/** Sinking, down below or climbing out: busy with a crossing. */
+	public static boolean crossing() {
+		return active() && phase != UP;
 	}
 
 	// ---------------------------------------------------------------- the keys
 
-	/** The Shape Jump key: up through a portal from below, down through the one he stands on, or a new portal here. */
-	static void portalKey(ServerPlayer p, ShapeState st) {
-		if (st.busy() || shredCharge >= 0 || shredTicks > 0) {
+	/** The Shape Jump key: down into the Upside Down here, or (down there) up again at this very spot. */
+	static void riftKey(ServerPlayer p, ShapeState st) {
+		if (shredCharge >= 0 || shredTicks > 0) {
 			return;
 		}
-		int now = p.level().getServer().getTickCount();
-		if (UpsideDown.isBelow(p)) {
-			Portal at = nearest(UpsideDown.above(p.position()), 2.5);
-			if (at == null) {
-				p.sendOverlayMessage(Component.translatable("halloween.msg.demo.no_portal_below").withStyle(ChatFormatting.GRAY));
-				return;
-			}
-			emerge(p, st, at, now);
+		if (phase == BELOW) {
+			emerge(p);
 			return;
 		}
-		Portal at = nearest(p.position(), 2);
-		if (at != null) {
-			if (st.jumpCooldown > 0) {
-				p.sendOverlayMessage(Component.translatable("halloween.msg.demo.cooldown").withStyle(ChatFormatting.GRAY));
-			} else if (!UpsideDown.ready()) {
-				p.sendOverlayMessage(Component.translatable("halloween.msg.demo.not_ready").withStyle(ChatFormatting.GRAY));
-			} else {
-				enter(p, at);
-			}
+		if (phase != UP || st.busy()) {
 			return;
 		}
-		place(p, now);
-	}
-
-	private static void place(ServerPlayer p, int now) {
-		ServerLevel level = p.level();
-		if (now < placeAt) {
-			return;
-		}
-		if (PORTALS.size() >= MAX_PORTALS) {
-			p.sendOverlayMessage(Component.translatable("halloween.msg.demo.max", MAX_PORTALS).withStyle(ChatFormatting.GRAY));
-			return;
-		}
-		if (nearest(p.position(), PORTAL_GAP) != null) {
-			p.sendOverlayMessage(Component.translatable("halloween.msg.demo.too_close").withStyle(ChatFormatting.GRAY));
-			return;
-		}
-		BlockPos floor = p.blockPosition().below();
-		BlockState before = level.getBlockState(floor);
-		if (!p.onGround() || !before.isFaceSturdy(level, floor, Direction.UP) || before.hasBlockEntity() || Exits.isProp(floor)) {
+		if (st.jumpCooldown > 0) {
+			p.sendOverlayMessage(Component.translatable("halloween.msg.demo.cooldown").withStyle(ChatFormatting.GRAY));
+		} else if (!UpsideDown.ready()) {
+			p.sendOverlayMessage(Component.translatable("halloween.msg.demo.not_ready").withStyle(ChatFormatting.GRAY));
+		} else if (!p.onGround()) {
 			p.sendOverlayMessage(Component.translatable("halloween.msg.demo.bad_ground").withStyle(ChatFormatting.GRAY));
-			return;
+		} else {
+			phase = SINKING;
+			phaseLeft = SINK_TICKS;
+			root(p, true);
+			ServerLevel level = p.level();
+			level.playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.WARDEN_DIG, SoundSource.HOSTILE, 2f, 0.8f);
+			level.playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.SCULK_SHRIEKER_SHRIEK, SoundSource.HOSTILE, 1f, 0.5f);
+			AiStats.add(p, "demo.down");
 		}
-		placeAt = now + 60;
-		PORTALS.add(new Portal(floor.immutable(), before));
-		level.setBlock(floor, Blocks.CRIMSON_NYLIUM.defaultBlockState(), Block.UPDATE_ALL);
-		level.playSound(null, floor, SoundEvents.SCULK_BLOCK_SPREAD, SoundSource.HOSTILE, 1.4f, 0.6f);
-		level.sendParticles(ParticleTypes.CRIMSON_SPORE, floor.getX() + 0.5, floor.getY() + 1.2, floor.getZ() + 0.5, 40, 0.6, 0.4, 0.6, 0.02);
-		AiStats.add(p, "demo.portal");
-		Match.markDirty();
 	}
 
-	/** Down through this portal: the same place in the Upside Down, his eyes made for the dark. */
-	private static void enter(ServerPlayer p, Portal at) {
+	/** Down: the same place in the Upside Down, his eyes made for the dark, his legs for its streets. */
+	private static void goDown(ServerPlayer p) {
 		ServerLevel level = p.level();
-		Vec3 to = UpsideDown.below(at.top());
-		level.playSound(null, at.floor().above(), SoundEvents.SCULK_SHRIEKER_SHRIEK, SoundSource.HOSTILE, 0.8f, 0.5f);
-		level.sendParticles(ParticleTypes.CRIMSON_SPORE, at.top().x, at.top().y + 0.5, at.top().z, 60, 0.4, 0.8, 0.4, 0.05);
+		Vec3 to = UpsideDown.below(p.position());
 		p.teleportTo(level, to.x, to.y, to.z, java.util.Set.of(), p.getYRot(), p.getXRot(), false);
 		p.addEffect(new MobEffectInstance(MobEffects.NIGHT_VISION, 20 * 60 * 30, 0, true, false));
-		AiStats.add(p, "demo.down");
+		root(p, false);
+		AttributeInstance speed = p.getAttribute(Attributes.MOVEMENT_SPEED);
+		if (speed != null) {
+			speed.addOrUpdateTransientModifier(new AttributeModifier(BELOW_SPEED_ID, BELOW_SPEED, AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
+		}
+		p.setSilent(true);
+		phase = BELOW;
 	}
 
-	/** Up through this portal, quiet for a few seconds; the portals rest a while before he goes down again. */
-	private static void emerge(ServerPlayer p, ShapeState st, Portal at, int now) {
+	/** Up again at this very spot (a free one beside it if the town is solid there): five seconds clawing out. */
+	private static void emerge(ServerPlayer p) {
 		ServerLevel level = p.level();
-		Vec3 to = at.top();
-		p.teleportTo(level, to.x, to.y, to.z, java.util.Set.of(), p.getYRot(), p.getXRot(), false);
+		Vec3 at = free(level, p, UpsideDown.above(p.position()));
+		AttributeInstance speed = p.getAttribute(Attributes.MOVEMENT_SPEED);
+		if (speed != null) {
+			speed.removeModifier(BELOW_SPEED_ID);
+		}
+		p.teleportTo(level, at.x, at.y, at.z, java.util.Set.of(), p.getYRot(), p.getXRot(), false);
 		p.removeEffect(MobEffects.NIGHT_VISION);
-		p.setSilent(true);
-		quietUntil = now + EMERGE_QUIET;
-		st.jumpCooldownMax = TRAVERSE_COOLDOWN;
-		st.jumpCooldown = TRAVERSE_COOLDOWN;
-		level.sendParticles(ParticleTypes.CRIMSON_SPORE, to.x, to.y + 0.5, to.z, 30, 0.4, 0.8, 0.4, 0.03);
+		p.setSilent(false);
+		root(p, true);
+		phase = EMERGING;
+		phaseLeft = EMERGE_TICKS;
+		level.playSound(null, at.x, at.y, at.z, SoundEvents.WARDEN_DIG, SoundSource.HOSTILE, 2.5f, 0.6f);
 		AiStats.add(p, "demo.up");
+	}
+
+	/** Out: a roar, every survivor within 30 blocks felt; the crossing rests. */
+	private static void out(ServerPlayer p, ShapeState st) {
+		ServerLevel level = p.level();
+		root(p, false);
+		phase = UP;
+		st.jumpCooldownMax = RIFT_COOLDOWN;
+		st.jumpCooldown = RIFT_COOLDOWN;
+		level.playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.WARDEN_EMERGE, SoundSource.HOSTILE, 2.5f, 0.8f);
+		level.playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.RAVAGER_ROAR, SoundSource.HOSTILE, 2f, 0.6f);
+		List<Vec3> spots = new ArrayList<>();
+		for (ServerPlayer s : level.players()) {
+			if (s != p && MatchManager.role(s).survivor() && !s.isSpectator() && s.isAlive() && s.distanceTo(p) <= SENSE_RANGE) {
+				spots.add(s.position());
+			}
+		}
+		ServerPlayNetworking.send(p, new HwNet.Impulse(List.of(), spots, SENSE_TICKS));
 		Match.markDirty();
 	}
 
-	/** The Impulse key: Of the Abyss, on a portal or down below: everyone near any portal shows to him a while. */
-	static void abyss(ServerPlayer p, ShapeState st) {
-		if (st.busy() || st.impulseCooldown > 0) {
+	/** This spot if he fits there, else the nearest one that he does (a step or two off, up to a floor up). */
+	private static Vec3 free(ServerLevel level, ServerPlayer p, Vec3 want) {
+		AABB box = p.getBoundingBox();
+		for (int r = 0; r <= 3; r++) {
+			for (int dy = 0; dy <= 2; dy++) {
+				for (int dx = -r; dx <= r; dx++) {
+					for (int dz = -r; dz <= r; dz++) {
+						if (Math.max(Math.abs(dx), Math.abs(dz)) != r) {
+							continue;
+						}
+						Vec3 at = new Vec3(Math.floor(want.x) + 0.5 + dx, Math.floor(want.y) + dy, Math.floor(want.z) + 0.5 + dz);
+						AABB moved = box.move(at.subtract(p.position()).add(0, 0.01, 0));
+						if (level.noCollision(p, moved) && !level.getBlockState(BlockPos.containing(at).below()).isAir()) {
+							return at;
+						}
+					}
+				}
+			}
+		}
+		return want;
+	}
+
+	private static void root(ServerPlayer p, boolean on) {
+		AttributeInstance speed = p.getAttribute(Attributes.MOVEMENT_SPEED);
+		if (speed == null) {
 			return;
 		}
-		boolean below = UpsideDown.isBelow(p);
-		if (!below && nearest(p.position(), 2.5) == null) {
-			p.sendOverlayMessage(Component.translatable("halloween.msg.demo.abyss_portal").withStyle(ChatFormatting.GRAY));
-			return;
+		if (on) {
+			speed.addOrUpdateTransientModifier(new AttributeModifier(ROOTED_ID, -1.0, AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
+			p.setDeltaMovement(Vec3.ZERO);
+			p.hurtMarked = true;
+		} else {
+			speed.removeModifier(ROOTED_ID);
 		}
-		HwConfig cfg = HwConfig.get();
-		int now = p.level().getServer().getTickCount();
-		List<Integer> ids = nearPortals(p.level(), ABYSS_RANGE);
-		st.impulseCooldownMax = HwConfig.at(cfg.impulseCooldownByTier, st.tier());
-		st.impulseCooldown = st.impulseCooldownMax;
-		abyssUntil = now + 100;
-		p.level().playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.WARDEN_HEARTBEAT, SoundSource.HOSTILE, 1.5f, 0.7f);
-		ServerPlayNetworking.send(p, new HwNet.Impulse(ids, List.of(), 100));
-		AiStats.add(p, "demo.abyss");
 	}
 
 	/** The dash key: Shred, a second's charge then a lunge. */
 	static void shredKey(ServerPlayer p, ShapeState st) {
-		if (st.busy() || st.dashCooldown > 0 || shredCharge >= 0 || shredTicks > 0 || UpsideDown.isBelow(p)) {
+		if (st.busy() || st.dashCooldown > 0 || shredCharge >= 0 || shredTicks > 0 || phase != UP) {
 			return;
 		}
 		shredCharge = 0;
 		p.level().playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.RAVAGER_STUNNED, SoundSource.HOSTILE, 1f, 1.4f);
-	}
-
-	// ---------------------------------------------------------------- survivors
-
-	/** A survivor holding use on a portal: sealing it, twelve seconds (reaction checks on the way). */
-	static Holds.Hold resolve(ServerPlayer player, BlockPos pos) {
-		if (!MatchManager.role(player).survivor()) {
-			return null;
-		}
-		Portal at = portalAt(pos);
-		if (at == null) {
-			return null;
-		}
-		BlockPos floor = at.floor();
-		return new Holds.Hold(floor, "halloween.hud.progress.seal_portal", false, SEAL_TICKS, p -> portalAt(floor) != null, p -> {
-			Portal still = portalAt(floor);
-			if (still != null) {
-				remove(p.level(), still);
-				p.level().playSound(null, floor, SoundEvents.SCULK_SHRIEKER_BREAK, SoundSource.BLOCKS, 1.2f, 0.8f);
-				Match.score(p, HwConfig.get().scoreExitProgress, Component.translatable("halloween.score.portal_sealed"));
-				ServerPlayer shape = Senses.shape(p.level());
-				if (shape != null) {
-					shape.sendOverlayMessage(Component.translatable("halloween.msg.demo.sealed").withStyle(ChatFormatting.DARK_RED));
-				}
-			}
-		}, true);
-	}
-
-	private static Portal portalAt(BlockPos floor) {
-		for (Portal p : PORTALS) {
-			if (p.floor().equals(floor)) {
-				return p;
-			}
-		}
-		return null;
-	}
-
-	private static void remove(ServerLevel level, Portal p) {
-		PORTALS.remove(p);
-		if (level.getBlockState(p.floor()).is(Blocks.CRIMSON_NYLIUM)) {
-			level.setBlock(p.floor(), p.before(), Block.UPDATE_ALL);
-		}
-		Match.markDirty();
 	}
 
 	// ---------------------------------------------------------------- every tick
@@ -268,16 +251,6 @@ public final class Demogorgon {
 		UpsideDown.tick();
 		ServerLevel level = server.overworld();
 		int now = server.getTickCount();
-		// The portals breathe: spores rising, a low sound now and then (survivors find them so).
-		if (now % 10 == 0) {
-			for (Portal p : PORTALS) {
-				Vec3 t = p.top();
-				level.sendParticles(ParticleTypes.CRIMSON_SPORE, t.x, t.y + 0.3, t.z, 4, 0.4, 0.2, 0.4, 0.01);
-				if (now % 80 == 0) {
-					level.playSound(null, p.floor().above(), SoundEvents.SCULK_BLOCK_SPREAD, SoundSource.BLOCKS, 0.6f, 0.5f);
-				}
-			}
-		}
 		ServerPlayer d = Senses.shape(level);
 		if (d == null) {
 			return;
@@ -286,35 +259,102 @@ public final class Demogorgon {
 		if (st == null) {
 			return;
 		}
-		if (quietUntil > 0 && now >= quietUntil) {
-			quietUntil = 0;
-			d.setSilent(false);
-		}
-		boolean below = UpsideDown.isBelow(d);
-		if (below && now % 5 == 0) {
-			// Ash drifting in the dark (for his eyes).
-			level.sendParticles(d, ParticleTypes.WHITE_ASH, true, false, d.getX(), d.getY() + 1.5, d.getZ(), 30, 8, 3, 8, 0.01);
-		}
-		if (below && now % 20 == 0 && now > abyssUntil) {
-			// From below he feels whoever stands right by a portal.
-			ServerPlayNetworking.send(d, new HwNet.Impulse(nearPortals(level, PASSIVE_RANGE), List.of(), 30));
-		}
-		if (!below && d.hasEffect(MobEffects.NIGHT_VISION)) {
-			d.removeEffect(MobEffects.NIGHT_VISION);
-		}
+		tickCrossing(level, d, st, now);
 		tickShred(d, st);
 		tickPose(level, d, st, now);
-		if (now % 10 == 0) {
-			ServerPlayNetworking.send(d, new HwNet.DemoHud(PORTALS.size(), MAX_PORTALS, below, UpsideDown.ready(), shredCharge >= 0));
+		if (now % 5 == 0) {
+			ServerPlayNetworking.send(d, new HwNet.DemoHud(phase, phaseLeft, phase == BELOW, UpsideDown.ready(), shredCharge >= 0));
 		}
+	}
+
+	private static void tickCrossing(ServerLevel level, ServerPlayer d, ShapeState st, int now) {
+		switch (phase) {
+			case SINKING -> {
+				d.setDeltaMovement(0, d.getDeltaMovement().y, 0);
+				BlockState ground = level.getBlockState(d.blockPosition().below());
+				if (now % 2 == 0 && !ground.isAir()) {
+					level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, ground), d.getX(), d.getY() + 0.1, d.getZ(), 14, 0.6, 0.1, 0.6, 0.1);
+				}
+				level.sendParticles(ParticleTypes.CRIMSON_SPORE, d.getX(), d.getY() + 0.5, d.getZ(), 6, 0.5, 0.5, 0.5, 0.02);
+				if (--phaseLeft <= 0) {
+					level.sendParticles(ParticleTypes.LARGE_SMOKE, d.getX(), d.getY() + 0.2, d.getZ(), 20, 0.4, 0.2, 0.4, 0.02);
+					goDown(d);
+				}
+			}
+			case BELOW -> {
+				if (!UpsideDown.isBelow(d)) {
+					// Somehow out of it (a command, a test): up he is.
+					AttributeInstance speed = d.getAttribute(Attributes.MOVEMENT_SPEED);
+					if (speed != null) {
+						speed.removeModifier(BELOW_SPEED_ID);
+					}
+					d.removeEffect(MobEffects.NIGHT_VISION);
+					d.setSilent(false);
+					phase = UP;
+					return;
+				}
+				if (now % 5 == 0) {
+					// Ash and spores drifting in the dark (for his eyes only).
+					level.sendParticles(d, ParticleTypes.WHITE_ASH, true, false, d.getX(), d.getY() + 1.5, d.getZ(), 40, 10, 4, 10, 0.01);
+					level.sendParticles(d, ParticleTypes.CRIMSON_SPORE, true, false, d.getX(), d.getY() + 1.5, d.getZ(), 12, 8, 3, 8, 0.01);
+				}
+				if (now % 10 == 0) {
+					ServerPlayNetworking.send(d, new HwNet.DemoHouses(occupied(level)));
+				}
+			}
+			case EMERGING -> {
+				d.setDeltaMovement(0, d.getDeltaMovement().y, 0);
+				int done = EMERGE_TICKS - phaseLeft;
+				BlockState ground = level.getBlockState(d.blockPosition().below());
+				if (!ground.isAir() && now % 2 == 0) {
+					level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, ground), d.getX(), d.getY() + 0.1, d.getZ(), 10 + done / 6, 0.7, 0.1, 0.7, 0.15);
+				}
+				level.sendParticles(ParticleTypes.CRIMSON_SPORE, d.getX(), d.getY() + 0.3, d.getZ(), 8, 0.8, 0.3, 0.8, 0.02);
+				if (done % 20 == 10) {
+					level.playSound(null, d.getX(), d.getY(), d.getZ(), SoundEvents.WARDEN_DIG, SoundSource.HOSTILE, 1.5f + done / 50f, 0.6f + done / 200f);
+					level.playSound(null, d.getX(), d.getY(), d.getZ(), SoundEvents.SCULK_BLOCK_SPREAD, SoundSource.HOSTILE, 1.5f, 0.5f);
+				}
+				if (--phaseLeft <= 0) {
+					out(d, st);
+				}
+			}
+			default -> {
+				if (d.hasEffect(MobEffects.NIGHT_VISION) && !UpsideDown.isBelow(d)) {
+					d.removeEffect(MobEffects.NIGHT_VISION);
+				}
+			}
+		}
+	}
+
+	/** The houses (their boxes, as they stand down below) with a survivor in them. */
+	private static List<BlockPos> occupied(ServerLevel level) {
+		List<BlockPos> out = new ArrayList<>();
+		List<Long> seen = new ArrayList<>();
+		for (ServerPlayer s : level.players()) {
+			if (!MatchManager.role(s).survivor() || s.isSpectator() || !s.isAlive() || UpsideDown.isBelow(s)) {
+				continue;
+			}
+			Houses.Building b = Houses.at(level, s.blockPosition());
+			if (b == null || seen.contains(b.key)) {
+				continue;
+			}
+			seen.add(b.key);
+			int[] box = b.bounds();
+			Vec3 lo = UpsideDown.below(new Vec3(box[0], box[1], box[2]));
+			Vec3 hi = UpsideDown.below(new Vec3(box[3], box[4], box[5]));
+			out.add(BlockPos.containing(lo));
+			out.add(BlockPos.containing(hi));
+		}
+		return out;
 	}
 
 	/**
 	 * Upright while nobody is about; on all fours while he sees a survivor, or saw one in the last ten seconds, or
-	 * holds one; coiled and lunging for a Shred. Told to everyone when it changes, and every two seconds.
+	 * holds one; coiled and lunging for a Shred; sinking and climbing out. Told to everyone when it changes, and every
+	 * two seconds.
 	 */
 	private static void tickPose(ServerLevel level, ServerPlayer d, ShapeState st, int now) {
-		if (now % 4 == 0) {
+		if (now % 4 == 0 && phase == UP) {
 			Vec3 eye = d.getEyePosition();
 			Vec3 look = d.getViewVector(1f);
 			for (ServerPlayer p : level.players()) {
@@ -332,8 +372,9 @@ public final class Demogorgon {
 		if (st.grab != null) {
 			sawSurvivorAt = now;
 		}
-		int pose = shredTicks > 0 ? HwNet.DemoPose.LUNGING : shredCharge >= 0 ? HwNet.DemoPose.CHARGING
-			: now - sawSurvivorAt <= HUNT_TICKS ? HwNet.DemoPose.HUNTING : HwNet.DemoPose.UPRIGHT;
+		int pose = phase == SINKING ? HwNet.DemoPose.SINKING : phase == EMERGING ? HwNet.DemoPose.EMERGING
+			: shredTicks > 0 ? HwNet.DemoPose.LUNGING : shredCharge >= 0 ? HwNet.DemoPose.CHARGING
+			: now - sawSurvivorAt <= HUNT_TICKS || phase == BELOW ? HwNet.DemoPose.HUNTING : HwNet.DemoPose.UPRIGHT;
 		if (pose != toldPose || now % 40 == 0) {
 			toldPose = pose;
 			HwNet.DemoPose msg = new HwNet.DemoPose(d.getId(), pose);
@@ -389,45 +430,33 @@ public final class Demogorgon {
 		}
 	}
 
-	/** Survivors (not in a wardrobe) within {@code r} of any portal. */
-	private static List<Integer> nearPortals(ServerLevel level, double r) {
-		List<Integer> ids = new ArrayList<>();
-		for (ServerPlayer s : level.players()) {
-			if (!MatchManager.role(s).survivor() || !MatchManager.exposed(s)) {
-				continue;
-			}
-			if (nearest(s.position(), r) != null) {
-				ids.add(s.getId());
-			}
+	/** Back to school: nothing of the Upside Down left on him (its speed, rooted, silent). */
+	public static void reset(ServerPlayer p) {
+		AttributeInstance speed = p.getAttribute(Attributes.MOVEMENT_SPEED);
+		if (speed != null) {
+			speed.removeModifier(BELOW_SPEED_ID);
+			speed.removeModifier(ROOTED_ID);
 		}
-		return ids;
+		if (p.isSilent()) {
+			p.setSilent(false);
+		}
 	}
 
-	/** The portal within {@code r} of this point (up in the town), the nearest, or null. */
-	private static Portal nearest(Vec3 at, double r) {
-		Portal best = null;
-		double bestD = r;
-		for (Portal p : PORTALS) {
-			double d = p.top().distanceTo(at);
-			if (d <= bestD) {
-				bestD = d;
-				best = p;
-			}
-		}
-		return best;
-	}
-
-	/** A match over: the portals gone, the ground as it was, the Upside Down left as it is. */
+	/** A match over: no crossing under way, the Upside Down left as it is. */
 	public static void clear(ServerLevel level) {
-		for (Portal p : new ArrayList<>(PORTALS)) {
-			remove(level, p);
+		ServerPlayer d = Senses.shape(level);
+		if (d != null) {
+			AttributeInstance speed = d.getAttribute(Attributes.MOVEMENT_SPEED);
+			if (speed != null) {
+				speed.removeModifier(BELOW_SPEED_ID);
+				speed.removeModifier(ROOTED_ID);
+			}
+			d.setSilent(false);
 		}
-		PORTALS.clear();
+		phase = UP;
+		phaseLeft = 0;
 		shredCharge = -1;
 		shredTicks = 0;
-		quietUntil = 0;
-		abyssUntil = 0;
-		placeAt = 0;
 		sawSurvivorAt = -100000;
 		toldPose = -1;
 		UpsideDown.clear();

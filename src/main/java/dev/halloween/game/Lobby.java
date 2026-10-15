@@ -189,6 +189,7 @@ public final class Lobby extends SavedData {
 		p.setHealth(p.getMaxHealth());
 		p.getFoodData().setFoodLevel(20);
 		ShootingRange.stripGuns(p);
+		Demogorgon.reset(p);
 		RUNS.remove(p.getUUID());
 	}
 

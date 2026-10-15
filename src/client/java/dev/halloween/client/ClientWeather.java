@@ -21,6 +21,19 @@ public final class ClientWeather {
 	}
 
 	public static void apply(FogData data) {
+		if (ClientUpsideDown.active()) {
+			// The Upside Down: a thick red murk, lit from inside by the lightning.
+			float flash = ClientUpsideDown.flash(0f);
+			data.color.set(0.16f + 0.4f * flash, 0.015f + 0.05f * flash, 0.02f + 0.04f * flash, data.color.w);
+			float end = 20f + 14f * flash;
+			data.environmentalStart = 1.5f;
+			data.environmentalEnd = end;
+			data.renderDistanceStart = 1.5f;
+			data.renderDistanceEnd = end;
+			data.skyEnd = end;
+			data.cloudEnd = end;
+			return;
+		}
 		float red = ClientEvents.redness();
 		if (red > 0.001f) {
 			// Samhain night: the haze over town goes blood red.
