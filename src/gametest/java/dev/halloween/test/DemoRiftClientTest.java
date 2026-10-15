@@ -50,8 +50,17 @@ public class DemoRiftClientTest implements FabricClientGameTest {
 			}
 			check(server.computeOnServer(s -> UpsideDown.ready()), "the Upside Down is built");
 			Vec3 start = server.computeOnServer(s -> player(s).position());
+			ctx.runOnClient(mc -> mc.options.setCameraType(CameraType.THIRD_PERSON_FRONT));
 			server.runOnServer(s -> MatchManager.onShapeJump(player(s)));
-			ctx.waitTicks(40);
+			ctx.waitTicks(16);
+			int serverRifts = server.computeOnServer(s -> s.overworld().getEntitiesOfClass(net.minecraft.world.entity.Display.ItemDisplay.class,
+				player(s).getBoundingBox().inflate(6), e -> e.entityTags().contains("hw_rift")).size());
+			int clientRifts = ctx.computeOnClient(mc -> mc.level.getEntitiesOfClass(net.minecraft.world.entity.Display.ItemDisplay.class,
+				mc.player.getBoundingBox().inflate(6), e -> true).size());
+			LOG.info("rifts: server {}, client {}", serverRifts, clientRifts);
+			ctx.takeScreenshot("demo_rift_sinking");
+			ctx.runOnClient(mc -> mc.options.setCameraType(CameraType.FIRST_PERSON));
+			ctx.waitTicks(24);
 			check(server.computeOnServer(s -> UpsideDown.isBelow(player(s))), "down in the Upside Down after sinking");
 			double speed = server.computeOnServer(s -> player(s).getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED));
 			LOG.info("speed below: {}", speed);
@@ -65,7 +74,7 @@ public class DemoRiftClientTest implements FabricClientGameTest {
 			Vec3 below = server.computeOnServer(s -> UpsideDown.above(player(s).position()));
 			LOG.info("moved below: {}", below.distanceTo(start));
 			server.runOnServer(s -> MatchManager.onShapeJump(player(s)));
-			ctx.runOnClient(mc -> mc.options.setCameraType(CameraType.THIRD_PERSON_BACK));
+			ctx.runOnClient(mc -> mc.options.setCameraType(CameraType.THIRD_PERSON_FRONT));
 			ctx.waitTicks(40);
 			check(server.computeOnServer(s -> !UpsideDown.isBelow(player(s)) && player(s).position().distanceTo(below) < 4), "up again at the same spot");
 			ctx.takeScreenshot("demo_rift_emerging");

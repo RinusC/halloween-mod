@@ -19,6 +19,12 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.util.Brightness;
+import net.minecraft.world.entity.Display;
+import net.minecraft.world.item.ItemDisplayContext;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
@@ -77,7 +83,102 @@ public final class Demogorgon {
 	private static final int HUNT_TICKS = 200;
 	private static final double SIGHT_RANGE = 40;
 
+	/** The rift (as in Stranger Things): a glowing tear in the air where he goes down and where he comes up. */
+	static final String RIFT_TAG = "hw_rift";
+	private static final int RIFT_OPEN = 8;
+	private static final int RIFT_CLOSE = 12;
+
+	private static final class Rift {
+		final Display.ItemDisplay display;
+		final int born;
+		/** When it starts closing (-1: not yet). */
+		int closeAt = -1;
+
+		Rift(Display.ItemDisplay display, int born) {
+			this.display = display;
+			this.born = born;
+		}
+	}
+
+	private static final List<Rift> RIFTS = new ArrayList<>();
+	/** The rift he is going down or coming up through now. */
+	private static Rift current;
+
 	private Demogorgon() {
+	}
+
+	/** A rift opening here: a sliver at first, torn wide over a few ticks; it faces whoever looks, it glows. */
+	private static Rift openRift(ServerLevel level, Vec3 at, int now) {
+		ItemStack stack = new ItemStack(Items.PAPER);
+		stack.set(DataComponents.ITEM_MODEL, Halloween.id("rift"));
+		Display.ItemDisplay d = new Display.ItemDisplay(net.minecraft.world.entity.EntityTypes.ITEM_DISPLAY, level);
+		d.setItemStack(stack);
+		d.setItemTransform(ItemDisplayContext.FIXED);
+		d.setBillboardConstraints(Display.BillboardConstraints.VERTICAL);
+		d.setBrightnessOverride(new Brightness(15, 15));
+		d.setViewRange(2f);
+		d.setTransformation(riftShape(0.05f, 0.6f));
+		d.setPos(at.x, at.y + 1.5, at.z);
+		d.addTag(RIFT_TAG);
+		d.addTag(Leftovers.stamp());
+		level.addFreshEntity(d);
+		level.playSound(null, at.x, at.y, at.z, SoundEvents.SCULK_SHRIEKER_SHRIEK, SoundSource.HOSTILE, 1.4f, 0.4f);
+		level.playSound(null, at.x, at.y, at.z, SoundEvents.PORTAL_TRIGGER, SoundSource.HOSTILE, 0.8f, 0.5f);
+		Rift r = new Rift(d, now);
+		RIFTS.add(r);
+		return r;
+	}
+
+	private static com.mojang.math.Transformation riftShape(float width, float height) {
+		return new com.mojang.math.Transformation(new org.joml.Vector3f(), new org.joml.Quaternionf(), new org.joml.Vector3f(width, height, 1f),
+			new org.joml.Quaternionf());
+	}
+
+	/** Torn wide, breathing a little; closing to a seam and gone; sparks and spores drifting out of it. */
+	private static void tickRifts(ServerLevel level, int now) {
+		java.util.Iterator<Rift> it = RIFTS.iterator();
+		while (it.hasNext()) {
+			Rift r = it.next();
+			Display.ItemDisplay d = r.display;
+			if (d.isRemoved()) {
+				it.remove();
+				continue;
+			}
+			int age = now - r.born;
+			if (age == 1) {
+				d.setTransformationInterpolationDelay(0);
+				d.setTransformationInterpolationDuration(RIFT_OPEN);
+				d.setTransformation(riftShape(1.9f, 3.3f));
+			} else if (r.closeAt < 0 && age > RIFT_OPEN && age % 20 == 0) {
+				// Breathing.
+				d.setTransformationInterpolationDelay(0);
+				d.setTransformationInterpolationDuration(20);
+				d.setTransformation(riftShape(age % 40 == 0 ? 1.9f : 2.15f, age % 40 == 0 ? 3.3f : 3.45f));
+			}
+			if (now == r.closeAt) {
+				d.setTransformationInterpolationDelay(0);
+				d.setTransformationInterpolationDuration(RIFT_CLOSE);
+				d.setTransformation(riftShape(0.03f, 3.6f));
+				level.playSound(null, d.getX(), d.getY(), d.getZ(), SoundEvents.SCULK_BLOCK_SPREAD, SoundSource.HOSTILE, 1.4f, 0.4f);
+			}
+			if (r.closeAt >= 0 && now >= r.closeAt + RIFT_CLOSE + 2) {
+				d.discard();
+				it.remove();
+				continue;
+			}
+			if (now % 2 == 0) {
+				level.sendParticles(ParticleTypes.CRIMSON_SPORE, d.getX(), d.getY(), d.getZ(), 6, 0.5, 1.2, 0.5, 0.02);
+				level.sendParticles(new net.minecraft.core.particles.DustParticleOptions(0xFF3020, 1.2f), d.getX(), d.getY(), d.getZ(), 3, 0.3, 1.1, 0.3, 0.0);
+			}
+		}
+	}
+
+	/** The rift he went through closes behind him in a moment. */
+	private static void closeRift(int now, int delay) {
+		if (current != null) {
+			current.closeAt = now + delay;
+			current = null;
+		}
 	}
 
 	/** The next matches' killer: the Demogorgon (true) or Michael. */
@@ -139,6 +240,7 @@ public final class Demogorgon {
 			phaseLeft = SINK_TICKS;
 			root(p, true);
 			ServerLevel level = p.level();
+			current = openRift(level, p.position(), level.getServer().getTickCount());
 			level.playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.WARDEN_DIG, SoundSource.HOSTILE, 2f, 0.8f);
 			level.playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.SCULK_SHRIEKER_SHRIEK, SoundSource.HOSTILE, 1f, 0.5f);
 			AiStats.add(p, "demo.down");
@@ -174,6 +276,7 @@ public final class Demogorgon {
 		root(p, true);
 		phase = EMERGING;
 		phaseLeft = EMERGE_TICKS;
+		current = openRift(level, at, level.getServer().getTickCount());
 		level.playSound(null, at.x, at.y, at.z, SoundEvents.WARDEN_DIG, SoundSource.HOSTILE, 2.5f, 0.6f);
 		AiStats.add(p, "demo.up");
 	}
@@ -183,6 +286,7 @@ public final class Demogorgon {
 		ServerLevel level = p.level();
 		root(p, false);
 		phase = UP;
+		closeRift(level.getServer().getTickCount(), 15);
 		st.jumpCooldownMax = RIFT_COOLDOWN;
 		st.jumpCooldown = RIFT_COOLDOWN;
 		level.playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.WARDEN_EMERGE, SoundSource.HOSTILE, 2.5f, 0.8f);
@@ -259,6 +363,7 @@ public final class Demogorgon {
 		if (st == null) {
 			return;
 		}
+		tickRifts(level, now);
 		tickCrossing(level, d, st, now);
 		tickShred(d, st);
 		tickPose(level, d, st, now);
@@ -279,6 +384,7 @@ public final class Demogorgon {
 				if (--phaseLeft <= 0) {
 					level.sendParticles(ParticleTypes.LARGE_SMOKE, d.getX(), d.getY() + 0.2, d.getZ(), 20, 0.4, 0.2, 0.4, 0.02);
 					goDown(d);
+					closeRift(now, 10);
 				}
 			}
 			case BELOW -> {
@@ -538,6 +644,13 @@ public final class Demogorgon {
 			}
 			d.setSilent(false);
 		}
+		for (Rift r : RIFTS) {
+			r.display.discard();
+		}
+		RIFTS.clear();
+		current = null;
+		level.getServer().getCommands().performPrefixedCommand(level.getServer().createCommandSourceStack().withSuppressedOutput(),
+			"kill @e[tag=" + RIFT_TAG + "]");
 		phase = UP;
 		phaseLeft = 0;
 		shredCharge = -1;
