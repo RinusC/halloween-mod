@@ -744,5 +744,8 @@
 	"halloween.lobby.range_take": "take",
 	"halloween.lobby.st.range": "Range records",
 	"halloween.lobby.stall": "CANDY",
-	"halloween.lobby.stall2": "trick or treat"
+	"halloween.lobby.stall2": "trick or treat",
+	"halloween.chronicle.arrested": "The police put Michael in cuffs",
+	"halloween.hint.police_on_way": "The police are already on their way: call again once they are here",
+	"halloween.match.arrested": "Michael has been arrested! The survivors win"
 }

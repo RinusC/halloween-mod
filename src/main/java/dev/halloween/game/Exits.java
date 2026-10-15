@@ -594,8 +594,8 @@ public final class Exits {
 				}, true);
 		}
 		if (!Police.callable()) {
-			// Nothing to tell them yet: somebody has to find a body first.
-			hint(player, "halloween.hint.police_no_body");
+			// Already on their way; or nothing to tell them yet: somebody has to find a body first.
+			hint(player, Police.onTheWay() ? "halloween.hint.police_on_way" : "halloween.hint.police_no_body");
 			return null;
 		}
 		int callTicks = Perks.has(player, Perks.Perk.SMOOTH_TALKER) ? Math.round(cfg.callPoliceTicks * cfg.perkTalkerFactor) : cfg.callPoliceTicks;

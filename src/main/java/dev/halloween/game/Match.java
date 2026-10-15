@@ -67,6 +67,8 @@ public final class Match {
 	private static Component best;
 	private static int bestPoints;
 	private static int kills;
+	/** Michael was arrested: the survivors win whatever the points. */
+	private static boolean arrested;
 
 	private Match() {
 	}
@@ -227,6 +229,7 @@ public final class Match {
 		best = null;
 		bestPoints = 0;
 		kills = 0;
+		arrested = false;
 		Skins.clear();
 		Music.clear();
 		deputiesUsed = 0;
@@ -556,6 +559,17 @@ public final class Match {
 
 	// ---------------------------------------------------------------- end
 
+	/** The police have Michael in cuffs: the match ends at once, the survivors' win. */
+	public static void arrest(MinecraftServer server) {
+		if (state != State.RUNNING) {
+			return;
+		}
+		arrested = true;
+		chronicle(server, Component.translatable("halloween.chronicle.arrested").withStyle(ChatFormatting.BLUE));
+		announce(server, Component.translatable("halloween.match.arrested").withStyle(ChatFormatting.BLUE));
+		end(server);
+	}
+
 	private static void end(MinecraftServer server) {
 		Townsfolk.payHidden(server);
 		if (!Tutorial.active()) {
@@ -588,7 +602,10 @@ public final class Match {
 		ShapeState shapeState = shape == null ? null : MatchManager.shapeState(shape);
 		int shapeScore = shapeState == null ? 0 : shapeState.score;
 		// Michael's side: his points and his Runt's.
-		boolean shapeWon = shapeId != null && shapeScore + Runt.totalScore() > civilians;
+		boolean shapeWon = !arrested && shapeId != null && shapeScore + Runt.totalScore() > civilians;
+		if (arrested) {
+			lines.add(Component.translatable("halloween.match.arrested").withStyle(ChatFormatting.BLUE));
+		}
 		lines.add(Component.translatable(shapeWon ? "halloween.match.shape_wins" : "halloween.match.civilians_win")
 			.withStyle(shapeWon ? ChatFormatting.DARK_RED : ChatFormatting.GREEN));
 		if (shapeId != null) {

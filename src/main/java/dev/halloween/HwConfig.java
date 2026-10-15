@@ -213,6 +213,10 @@ public class HwConfig {
 	public int revolverRoundTicks = 16;
 	public int rifleReloadTicks = 80;
 	/** Muzzle rise per shot in degrees (the camera kicks up). */
+	/** Arrest: knocked down this many times within this many ticks with an officer this close, and the survivors win. */
+	public int arrestKnockdowns = 5;
+	public int arrestWindowTicks = 1200;
+	public double arrestRange = 10;
 	public float revolverRecoil = 5f;
 	public float rifleRecoil = 11f;
 	/** Walking with the gun raised. */

@@ -103,6 +103,16 @@ public final class Fight {
 		if (state.stun >= 1f) {
 			state.stun = 0f;
 			state.stunnedTicks = cfg.stunnedTicks;
+			// Down again and again with the police by: they cuff him, and it is over.
+			int now = level.getServer().getTickCount();
+			state.knockdowns.addLast(now);
+			while (!state.knockdowns.isEmpty() && now - state.knockdowns.peekFirst() > cfg.arrestWindowTicks) {
+				state.knockdowns.removeFirst();
+			}
+			if (state.knockdowns.size() >= cfg.arrestKnockdowns && Police.officerNear(shape.position(), cfg.arrestRange)) {
+				Match.arrest(level.getServer());
+				return;
+			}
 			// Down he goes, flat on his back (and up again at the end, see tick).
 			GrabSession.anim(shape, HwNet.Anim.FALL);
 			state.senseHeld = false;

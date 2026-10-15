@@ -744,5 +744,8 @@
 	"halloween.lobby.range_take": "взять",
 	"halloween.lobby.st.range": "Рекорды тира",
 	"halloween.lobby.stall": "СЛАДОСТИ",
-	"halloween.lobby.stall2": "кошелёк или жизнь"
+	"halloween.lobby.stall2": "кошелёк или жизнь",
+	"halloween.chronicle.arrested": "Полиция надела на Майкла наручники",
+	"halloween.hint.police_on_way": "Полиция уже едет — новый вызов, когда приедут",
+	"halloween.match.arrested": "Майкла арестовали! Выжившие победили"
 }

@@ -32,6 +32,8 @@ public final class ShapeState {
 
 	/** Stun meter 0..1 filled by survivors' weapons; stunnedTicks counts down while he is knocked down. */
 	public float stun;
+	/** When he was knocked down lately (server ticks): five in a minute with an officer by is an arrest. */
+	public final java.util.ArrayDeque<Integer> knockdowns = new java.util.ArrayDeque<>();
 	public int stunnedTicks;
 	/** Slowed after a survivor shoved him. */
 	public int pushedTicks;

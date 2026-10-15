@@ -162,7 +162,22 @@ public final class Police {
 
 	/** Someone could call now: a found body nobody reported and calls left. */
 	public static boolean callable() {
-		return calls < HwConfig.get().policeMaxCalls && reportable() > 0;
+		return calls < HwConfig.get().policeMaxCalls && reportable() > 0 && ARRIVALS.isEmpty();
+	}
+
+	/** Police already on their way: no new call until they are here. */
+	public static boolean onTheWay() {
+		return !ARRIVALS.isEmpty();
+	}
+
+	/** Is an officer (alive) within {@code range} of this spot? */
+	public static boolean officerNear(Vec3 at, double range) {
+		for (Officer o : OFFICERS.values()) {
+			if (!o.body.isRemoved() && o.body.isAlive() && o.body.position().distanceTo(at) <= range) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/** Ticks until the next police arrive, or -1 if nobody is on the way. */
