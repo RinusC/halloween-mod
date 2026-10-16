@@ -70,14 +70,15 @@ public class HwConfig {
 	public float passiveStalkCap = 1f;
 	public double passiveStalkRange = 25;
 	public float passiveStalkAngleDeg = 25f;
-	public float passiveStalkPerSecond = 0.056f;
+	public float passiveStalkPerSecond = 0.0504f;
 	public double senseRange = 37;
 	public double senseSpeedModifier = -0.45;
-	public float senseStalkPerSecond = 0.154f;
-	/** Reticle on a focus point counts fully; anywhere else on the body only partly. */
+	public float senseStalkPerSecond = 0.1386f;
+	/** Reticle on a focus point (the blue rings): stalking this many times as fast; anywhere else on the body, this share. */
 	public float reticleFocusAngleDeg = 5f;
 	public float reticleBodyAngleDeg = 18f;
-	public float bodyAimMultiplier = 0.3f;
+	public float focusPointMultiplier = 1.8f;
+	public float bodyAimMultiplier = 0.6f;
 	public float stillnessMultiplier = 1.5f;
 	public float movingMultiplier = 0.8f;
 	public double proximityNear = 4;
@@ -824,7 +825,7 @@ public class HwConfig {
 
 	/** The file's version: older files get the defaults that changed since moved on (see {@link #migrate}). */
 	public int configVersion;
-	private static final int VERSION = 8;
+	private static final int VERSION = 9;
 
 	public static void load() {
 		Path path = path();
@@ -925,6 +926,18 @@ public class HwConfig {
 			}
 			if (this.bagUncommon != null) {
 				this.bagUncommon = java.util.Arrays.stream(this.bagUncommon).filter(k -> !k.equals("repair_kit")).toArray(String[]::new);
+			}
+		}
+		if (this.configVersion < 9) {
+			// The focus points speed stalking up; stalking otherwise 10% slower.
+			if (this.passiveStalkPerSecond == 0.056f) {
+				this.passiveStalkPerSecond = 0.0504f;
+			}
+			if (this.senseStalkPerSecond == 0.154f) {
+				this.senseStalkPerSecond = 0.1386f;
+			}
+			if (this.bodyAimMultiplier == 0.3f) {
+				this.bodyAimMultiplier = 0.6f;
 			}
 		}
 		if (this.configVersion < VERSION) {

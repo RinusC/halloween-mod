@@ -498,25 +498,23 @@ public final class MatchManager {
 			double bodyAngle = Sight.angleTo(aimFrom, look, body);
 			float aim;
 			Vec3 seen = body;
-			if (sense) {
-				double best = Double.MAX_VALUE;
-				for (int i = 0; i < FocusPoints.COUNT; i++) {
-					Vec3 p = FocusPoints.get(target, i, 1f);
-					double a = Sight.angleTo(aimFrom, look, p);
-					if (a < best) {
-						best = a;
-						seen = p;
-					}
+			// The blue rings (focus points) on head, chest, hands, legs: the reticle on one stalks much faster.
+			double best = Double.MAX_VALUE;
+			Vec3 point = body;
+			for (int i = 0; i < FocusPoints.COUNT; i++) {
+				Vec3 p = FocusPoints.get(target, i, 1f);
+				double a = Sight.angleTo(aimFrom, look, p);
+				if (a < best) {
+					best = a;
+					point = p;
 				}
-				if (best <= cfg.reticleFocusAngleDeg) {
-					aim = 1f;
-				} else if (bodyAngle <= cfg.reticleBodyAngleDeg) {
-					aim = cfg.bodyAimMultiplier;
-					seen = body;
-				} else {
-					continue;
-				}
-			} else if (bodyAngle <= cfg.passiveStalkAngleDeg) {
+			}
+			if (sense && best <= cfg.reticleFocusAngleDeg && Sight.canSee(level, eye, point, player)) {
+				aim = cfg.focusPointMultiplier;
+				seen = point;
+			} else if (sense && bodyAngle <= cfg.reticleBodyAngleDeg) {
+				aim = cfg.bodyAimMultiplier;
+			} else if (!sense && bodyAngle <= cfg.passiveStalkAngleDeg) {
 				aim = 1f;
 			} else {
 				continue;
