@@ -174,25 +174,27 @@ for my $k (0 .. 5) {
 	hot($F->{all}, 0);
 }
 
-# The membrane: four layers, each torn into strips standing side by side, of ragged heights (tallest in the
-# middle, shorter towards the edges, like a flame), each strip leaning and turned a little; the layers fanned.
+# The membrane: torn into broad strips that grow out of the slit and spread every way like tentacles: 14 of them
+# round the split, each leaning out its own way (more along the slit than across it), in two bending halves,
+# 3 blocks long, see-through dark red with fibres.
 bone("membrane", "rift", [0, 0, 0]);
-for my $l (0 .. 3) {
-	my $zl = -1.8 + $l * 1.2;
-	bone("membrane$l", "membrane", [0, 0, $zl], [0, ($l - 1.5) * 9, 0]);
-	my $strips = 8;
-	my $span = 30 - abs($l - 1.5) * 4;
-	for my $s (0 .. $strips - 1) {
-		my $c = ($s + 0.5) / $strips - 0.5;
-		my $x = $c * $span;
-		my $w = $span / $strips + 0.6;
-		my $h = int(46 * (1 - $c * $c * 3.2) * (0.8 + rand() * 0.25)) + 4;
-		my $y0 = int(rand(3));
-		my $name = "membrane${l}_$s";
-		bone($name, "membrane$l", [$x, $y0, $zl], [(rand() - 0.5) * 8, (rand() - 0.5) * 20, -$c * 14]);
-		$F = cube($name, "${name}_strip", [$x - $w / 2, $y0, $zl - 0.2], [$x + $w / 2, $y0 + $h, $zl + 0.2]);
-		membrane($F->{all});
-	}
+my @PETALS;
+for my $k (0 .. 13) {
+	my $yaw = $k / 14 * 360 + (rand() - 0.5) * 16;
+	my $along = abs(cos($yaw * $PI / 180));
+	my $tilt = 8 + 18 * $along + rand(8);
+	my $x = sin($yaw * $PI / 180) * 1.5;
+	my $z = -cos($yaw * $PI / 180) * 0.6;
+	my $len = 22 + int(rand(6));
+	my $w = 4 + rand(2.5);
+	my $name = "petal$k";
+	bone($name, "membrane", [$x, 0, $z], [$tilt, $yaw, 0]);
+	$F = cube($name, "${name}_low", [$x - $w / 2, 0, $z - 0.2], [$x + $w / 2, $len, $z + 0.2]);
+	membrane($F->{all});
+	bone("${name}_tip", $name, [$x, $len, $z], [6 + rand(8), 0, 0]);
+	$F = cube("${name}_tip", "${name}_high", [$x - $w * 0.35, $len, $z - 0.2], [$x + $w * 0.35, $len + 20 + rand(6), $z + 0.2]);
+	membrane($F->{all});
+	push @PETALS, $k;
 }
 # The split down the middle: white-hot, a second jag beside it.
 bone("seam", "membrane", [0, 0, 0]);
@@ -260,7 +262,13 @@ sub pose {
 	}
 	my $rise = smooth($o{rise} // $open);
 	my $breath = 1 + 0.05 * sin($t * 2 * $PI / 2.4) * $writhe;
-	$p{"membrane:scale"} = [(0.15 + 0.85 * $rise) * $breath, 0.02 + 0.98 * $rise, 1];
+	$p{"membrane:scale"} = [(0.1 + 0.9 * $rise) * $breath, 0.02 + 0.98 * $rise, (0.1 + 0.9 * $rise) * $breath];
+	for my $k (@PETALS) {
+		my $ph = $k * 1.37;
+		my $sw = 9 * sin(2 * $PI * $t / 2.4 + $ph) * $writhe;
+		$p{"petal$k:rotation"} = [$sw - 25 * (1 - $rise), 0, 6 * sin(2 * $PI * $t / 2.4 * 1.5 + $ph) * $writhe];
+		$p{"petal${k}_tip:rotation"} = [14 * sin(2 * $PI * $t / 2.4 + $ph + 1.2) * $writhe + 20 * (1 - $rise), 0, 0];
+	}
 	$p{"hole:scale"} = [0.3 + 0.7 * smooth($open * 1.5), 1, 0.3 + 0.7 * smooth($open * 1.5)];
 	my $reach = smooth($o{tentacles} // $open);
 	for my $k (0 .. 7) {
