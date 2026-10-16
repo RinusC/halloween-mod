@@ -488,9 +488,9 @@ public final class Demogorgon {
 		if (now % 4 == 0 && phase == UP) {
 			Vec3 eye = d.getEyePosition();
 			Vec3 look = d.getViewVector(1f);
-			for (ServerPlayer p : level.players()) {
-				if (p == d || p.isSpectator() || !p.isAlive() || !MatchManager.role(p).survivor() || Lockers.isInside(p)
-					|| p.distanceTo(d) > SIGHT_RANGE) {
+			// Survivors and townsfolk alike (anyone he could go for), out in the open.
+			for (LivingEntity p : level.getEntitiesOfClass(LivingEntity.class, d.getBoundingBox().inflate(SIGHT_RANGE), MatchManager::exposed)) {
+				if (p == d || !p.isAlive() || p.distanceTo(d) > SIGHT_RANGE) {
 					continue;
 				}
 				Vec3 body = FocusPoints.bodyCenter(p);
