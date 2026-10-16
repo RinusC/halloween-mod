@@ -1136,6 +1136,8 @@ public final class HwNet {
 		implements CustomPacketPayload {
 		public static final int SAMHAIN = 1;
 		public static final int MIDNIGHT = 2;
+		/** The masks: every survivor drawn as the killer. */
+		public static final int MASKS = 4;
 		public static final Type<EventSync> TYPE = payloadType("event_sync");
 		public static final EventSync NONE = new EventSync("", 0, 0, 1, List.of(), List.of(), List.of(), 0);
 		public static final StreamCodec<RegistryFriendlyByteBuf, EventSync> CODEC = StreamCodec.of((buf, v) -> {

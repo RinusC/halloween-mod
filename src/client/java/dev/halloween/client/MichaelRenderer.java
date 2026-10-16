@@ -98,7 +98,12 @@ public final class MichaelRenderer {
 
 	/** Is this entity Michael (in a match)? */
 	public static boolean isMichael(Entity e) {
-		return enabled && e != null && ClientState.ROLES.get(e.getUUID()) == Role.SHAPE;
+		if (!enabled || e == null) {
+			return false;
+		}
+		Role role = ClientState.ROLES.get(e.getUUID());
+		// The masks event: every survivor wears his face.
+		return role == Role.SHAPE || role != null && role.survivor() && ClientEvents.masks() && e.isAlive();
 	}
 
 	public static boolean isMichael(EntityRenderState state) {

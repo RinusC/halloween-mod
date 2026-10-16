@@ -54,6 +54,10 @@ public final class ClientEvents {
 	private ClientEvents() {
 	}
 
+	public static boolean masks() {
+		return (state.flags() & HwNet.EventSync.MASKS) != 0 && ClientState.match.state() == 2;
+	}
+
 	public static boolean samhain() {
 		return (state.flags() & HwNet.EventSync.SAMHAIN) != 0 && ClientState.match.state() == 2;
 	}

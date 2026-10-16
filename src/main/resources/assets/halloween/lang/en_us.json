@@ -750,5 +750,11 @@
 	"halloween.match.arrested": "Michael has been arrested! The survivors win",
 	"halloween.hud.demo.emerging": "Climbing out… %s",
 	"halloween.hud.demo.ready": "V: into the Upside Down",
-	"halloween.hud.demo.sinking": "Sinking into the Upside Down…"
+	"halloween.hud.demo.sinking": "Sinking into the Upside Down…",
+	"halloween.event.bell.shape": "Thirteen strokes: at each one you see one of them",
+	"halloween.event.bell.survivors": "The bell tolls thirteen times. Each stroke gives one of you away to him",
+	"halloween.event.bell.title": "The Cemetery Bell",
+	"halloween.event.masks.shape": "For a minute they all wear your face. Lose yourself among them",
+	"halloween.event.masks.survivors": "For a minute you all look like him. Which one is real?",
+	"halloween.event.masks.title": "Masks"
 }

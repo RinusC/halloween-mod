@@ -750,5 +750,11 @@
 	"halloween.match.arrested": "Майкла арестовали! Выжившие победили",
 	"halloween.hud.demo.emerging": "Вылезает… %s",
 	"halloween.hud.demo.ready": "V — в Изнанку",
-	"halloween.hud.demo.sinking": "Уходит в Изнанку…"
+	"halloween.hud.demo.sinking": "Уходит в Изнанку…",
+	"halloween.event.bell.shape": "Тринадцать ударов: на каждый ты видишь одного из них",
+	"halloween.event.bell.survivors": "Колокол бьёт тринадцать раз. С каждым ударом кого-то из вас видно ему",
+	"halloween.event.bell.title": "Кладбищенский колокол",
+	"halloween.event.masks.shape": "Минуту все они носят твоё лицо. Затеряйся среди них",
+	"halloween.event.masks.survivors": "Минуту все вы выглядите как он. Кто из них настоящий?",
+	"halloween.event.masks.title": "Маски"
 }

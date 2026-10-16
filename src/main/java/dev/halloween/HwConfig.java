@@ -449,6 +449,8 @@ public class HwConfig {
 		w.put("samhain", 2);
 		w.put("party", 3);
 		w.put("fire", 1);
+		w.put("bell", 2);
+		w.put("masks", 2);
 		return w;
 	}
 
@@ -826,7 +828,7 @@ public class HwConfig {
 
 	/** The file's version: older files get the defaults that changed since moved on (see {@link #migrate}). */
 	public int configVersion;
-	private static final int VERSION = 8;
+	private static final int VERSION = 9;
 
 	public static void load() {
 		Path path = path();
@@ -928,6 +930,11 @@ public class HwConfig {
 			if (this.bagUncommon != null) {
 				this.bagUncommon = java.util.Arrays.stream(this.bagUncommon).filter(k -> !k.equals("repair_kit")).toArray(String[]::new);
 			}
+		}
+		if (this.configVersion < 9 && this.eventWeights != null) {
+			// Two new events on Michael's side.
+			this.eventWeights.putIfAbsent("bell", 2);
+			this.eventWeights.putIfAbsent("masks", 2);
 		}
 		if (this.configVersion < VERSION) {
 			Halloween.LOGGER.info("Config moved on to version {}", VERSION);

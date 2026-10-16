@@ -171,6 +171,8 @@ public final class Events {
 		EVENTS.add(new Samhain());
 		EVENTS.add(new Party());
 		EVENTS.add(new Fire());
+		EVENTS.add(new Bell());
+		EVENTS.add(new Masks());
 		nextAt = (cfg.eventFirstMinSeconds + level.getRandom().nextInt(Math.max(1, cfg.eventFirstMaxSeconds - cfg.eventFirstMinSeconds + 1))) * 20;
 	}
 
@@ -368,7 +370,7 @@ public final class Events {
 	}
 
 	public static List<String> ids() {
-		return List.of("loomis", "bag", "patrol", "blackout", "samhain", "party", "fire");
+		return List.of("loomis", "bag", "patrol", "blackout", "samhain", "party", "fire", "bell", "masks");
 	}
 
 	/** What runs now (tests): the event's id, or null. */
@@ -474,6 +476,11 @@ public final class Events {
 		return current instanceof Blackout;
 	}
 
+	/** The masks: every survivor looks like Michael. */
+	public static boolean masks() {
+		return current instanceof Masks;
+	}
+
 	/** The transformer's lower panel while the blackout is unmended (everyone's screen marks it), or null. */
 	public static BlockPos transformer() {
 		return current instanceof Blackout b && !b.fixed ? b.box : null;
@@ -499,7 +506,7 @@ public final class Events {
 		int phase = pending != null ? 1 : current != null ? 2 : 0;
 		int left = pending != null ? startAt - now : current != null ? endAt - now : 0;
 		int total = pending != null ? HwConfig.get().eventAnnounceSeconds * 20 : current != null ? endAt - beganAt : 0;
-		int flags = (samhain() ? HwNet.EventSync.SAMHAIN : 0) | (midnight ? HwNet.EventSync.MIDNIGHT : 0);
+		int flags = (samhain() ? HwNet.EventSync.SAMHAIN : 0) | (midnight ? HwNet.EventSync.MIDNIGHT : 0) | (masks() ? HwNet.EventSync.MASKS : 0);
 		for (ServerPlayer p : server.getPlayerList().getPlayers()) {
 			Role role = MatchManager.role(p);
 			int me = role.survivor() ? FOR_SURVIVORS : role == Role.SHAPE || role == Role.RUNT ? FOR_SHAPE : 0;
@@ -1214,6 +1221,109 @@ public final class Events {
 		void start(ServerLevel level, int now) {
 			for (ServerPlayer p : level.players()) {
 				p.connection.send(sound(p, SoundEvents.WITHER_AMBIENT, 0.5f, 0.5f));
+			}
+		}
+	}
+
+	/**
+	 * The cemetery bell: thirteen strokes, one every three seconds, heard all over town; at each one Michael sees one
+	 * survivor (picked at random among the living, the same one can come up again) through walls for two seconds.
+	 * The survivors hear the strokes and never know whom it gave away.
+	 */
+	static final class Bell extends Event {
+		private static final int STROKES = 13;
+		private static final int EVERY = 60;
+		private int began;
+		private int struck;
+
+		Bell() {
+			super("bell", Side.SHAPE);
+		}
+
+		@Override
+		int seconds() {
+			return STROKES * EVERY / 20 + 2;
+		}
+
+		@Override
+		void start(ServerLevel level, int now) {
+			this.began = now;
+			this.struck = 0;
+		}
+
+		@Override
+		void tick(ServerLevel level, int now) {
+			if (this.struck >= STROKES || now - this.began < this.struck * EVERY + 20) {
+				return;
+			}
+			this.struck++;
+			for (ServerPlayer p : level.players()) {
+				p.connection.send(sound(p, SoundEvents.BELL_BLOCK, 1.6f, 0.55f));
+			}
+			List<ServerPlayer> living = new ArrayList<>();
+			for (ServerPlayer p : level.players()) {
+				if (MatchManager.role(p).survivor() && !p.isSpectator() && p.isAlive()) {
+					living.add(p);
+				}
+			}
+			if (!living.isEmpty()) {
+				ServerPlayer one = living.get(level.getRandom().nextInt(living.size()));
+				GLOWS.add(new Glow(one.getId(), FOR_SHAPE, now + 40));
+				AiStats.add("*total", "event.bell.reveal");
+			}
+		}
+	}
+
+	/**
+	 * The masks: for a minute every survivor wears Michael's face. Everyone (the survivors, the townsfolk, Michael)
+	 * sees a crowd of Michaels: the townsfolk run from any of them, the survivors start at one another, and the real
+	 * one is lost among them.
+	 */
+	static final class Masks extends Event {
+		Masks() {
+			super("masks", Side.SHAPE);
+		}
+
+		@Override
+		int seconds() {
+			return 60;
+		}
+
+		@Override
+		void start(ServerLevel level, int now) {
+			for (ServerPlayer p : level.players()) {
+				p.connection.send(sound(p, SoundEvents.WITCH_CELEBRATE, 0.8f, 0.5f));
+			}
+		}
+
+		@Override
+		void tick(ServerLevel level, int now) {
+			if (now % 10 != 0) {
+				return;
+			}
+			HwConfig cfg = HwConfig.get();
+			List<ServerPlayer> masked = new ArrayList<>();
+			for (ServerPlayer p : level.players()) {
+				if (MatchManager.role(p).survivor() && !p.isSpectator() && p.isAlive() && !Lockers.isInside(p)) {
+					masked.add(p);
+				}
+			}
+			for (ServerPlayer p : masked) {
+				// The townsfolk near one run as from him.
+				if (now % 20 == 0) {
+					Townsfolk.flee(p.position(), 6, now);
+				}
+				// Another one in view, close: a start of fright.
+				for (ServerPlayer q : masked) {
+					if (q == p || q.distanceTo(p) > 14) {
+						continue;
+					}
+					Vec3 body = FocusPoints.bodyCenter(q);
+					if (Sight.angleTo(p.getEyePosition(), p.getViewVector(1f), body) <= cfg.panicSeeFovDeg && Sight.canSee(level, p.getEyePosition(), body, p)) {
+						Panic.add(p, 0.02f);
+						break;
+					}
+				}
 			}
 		}
 	}
