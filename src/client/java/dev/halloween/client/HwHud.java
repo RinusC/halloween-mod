@@ -632,6 +632,9 @@ public final class HwHud {
 			}
 			if (info.stalk() < 3f) {
 				for (int i = 0; i < FocusPoints.COUNT; i++) {
+					if ((info.popped() & 1 << i) != 0) {
+						continue;
+					}
 					Projection.Point p = Projection.toScreen(FocusPoints.get(living, i, partial), w, h);
 					if (p != null) {
 						focusIcon(g, i, p.x(), p.y());
@@ -695,6 +698,9 @@ public final class HwHud {
 		for (HwNet.VictimInfo info : ClientState.VICTIMS.values()) {
 			if (mc.level.getEntity(info.entityId()) instanceof LivingEntity living && info.stalk() < 3f && ClientState.VISIBLE.contains(info.entityId())) {
 				for (int i = 0; i < FocusPoints.COUNT && !onPoint; i++) {
+					if ((info.popped() & 1 << i) != 0) {
+						continue;
+					}
 					Vec3 dir = FocusPoints.get(living, i, partial).subtract(eye).normalize();
 					onPoint = Math.toDegrees(Math.acos(Mth.clamp(look.dot(dir), -1, 1))) <= limit;
 				}

@@ -78,6 +78,8 @@ public class HwConfig {
 	public float reticleFocusAngleDeg = 5f;
 	public float reticleBodyAngleDeg = 18f;
 	public float bodyAimMultiplier = 0.3f;
+	/** Stalked on this long, a focus point bursts (all burst: they grow back). */
+	public int focusPointBurstTicks = 60;
 	public float stillnessMultiplier = 1.5f;
 	public float movingMultiplier = 0.8f;
 	public double proximityNear = 4;

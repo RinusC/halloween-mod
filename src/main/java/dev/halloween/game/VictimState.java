@@ -13,6 +13,9 @@ public final class VictimState {
 	public boolean grabbed;
 	/** Passive stalking already paid out its one-time score. */
 	public boolean passiveScored;
+	/** The focus points (bit per point) burst after 3 s of stalking on them, and ticks stalked on each so far. */
+	public int popped;
+	public final int[] focusTicks = new int[FocusPoints.COUNT];
 
 	public VictimState(LivingEntity entity) {
 		this.entity = entity;
