@@ -83,6 +83,28 @@ public class DemoRiftClientTest implements FabricClientGameTest {
 			server.runOnServer(s -> MatchManager.onShapeJump(player(s)));
 			ctx.waitTicks(10);
 			check(server.computeOnServer(s -> !UpsideDown.isBelow(player(s)) && ctx != null), "not down again before the rest is over");
+			// The rift on its own, six blocks off: opening, open, breathing, closing.
+			ctx.runOnClient(mc -> mc.options.setCameraType(CameraType.FIRST_PERSON));
+			server.runOnServer(s -> {
+				ServerPlayer p = player(s);
+				p.teleportTo(s.overworld(), p.getX(), p.getY(), p.getZ(), java.util.Set.of(), p.getYRot(), 12f, false);
+				Vec3 look = Vec3.directionFromRotation(0, p.getYRot());
+				Vec3 at = p.position().add(look.scale(5.5));
+				Vec3 side = new Vec3(-look.z, 0, look.x);
+				s.getCommands().performPrefixedCommand(s.createCommandSourceStack().withSuppressedOutput(), "time set noon");
+				dev.halloween.game.Demogorgon.testRift(s.overworld(), new Vec3(at.x - side.x * 2.5, p.getY(), at.z - side.z * 2.5), p.getYRot() + 180f);
+				dev.halloween.game.Demogorgon.testRift(s.overworld(), new Vec3(at.x + side.x * 2.5, p.getY(), at.z + side.z * 2.5), p.getYRot() + 90f);
+			});
+			ctx.waitTicks(6);
+			ctx.takeScreenshot("demo_rift_opening");
+			ctx.waitTicks(20);
+			ctx.takeScreenshot("demo_rift_open");
+			ctx.waitTicks(25);
+			ctx.takeScreenshot("demo_rift_writhing");
+			server.runOnServer(s -> dev.halloween.game.Demogorgon.testCloseRifts(s.getTickCount()));
+			ctx.waitTicks(7);
+			ctx.takeScreenshot("demo_rift_closing");
+			ctx.waitTicks(20);
 			ctx.runOnClient(mc -> {
 				mc.options.setCameraType(CameraType.FIRST_PERSON);
 				ClientDarkness.enabled = true;
