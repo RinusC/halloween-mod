@@ -208,7 +208,7 @@ final class BotBrain {
 				return;
 			}
 		}
-		this.perceive(now);
+		TickTimer.step("Bots.perceive", () -> this.perceive(now));
 		HwConfig cfg = this.cfg();
 		ServerPlayer shape = Senses.shape(this.level());
 		ShapeState shapeState = shape == null ? null : MatchManager.shapeState(shape);
@@ -234,10 +234,10 @@ final class BotBrain {
 		}
 
 		switch (this.mode) {
-			case FIGHT -> this.tickFight(now, shape, shapeState);
-			case FLEE -> this.tickFlee(now);
-			case HIDE -> this.tickHide(now);
-			case ROAM -> this.tickRoam(now);
+			case FIGHT -> TickTimer.step("Bots.fight", () -> this.tickFight(now, shape, shapeState));
+			case FLEE -> TickTimer.step("Bots.flee", () -> this.tickFlee(now));
+			case HIDE -> TickTimer.step("Bots.hide", () -> this.tickHide(now));
+			case ROAM -> TickTimer.step("Bots.roam", () -> this.tickRoam(now));
 		}
 	}
 
@@ -1061,7 +1061,9 @@ final class BotBrain {
 		this.replanAt = now + 100;
 		Task best = null;
 		double bestScore = -Double.MAX_VALUE;
+		long cand0 = System.nanoTime();
 		Map<Task, Double> candidates = this.candidates(now);
+		TickTimer.add("Bots.candidates", System.nanoTime() - cand0);
 		long openExits = candidates.keySet().stream().filter(t -> t.key.equals("exit")).count();
 		for (Map.Entry<Task, Double> e : candidates.entrySet()) {
 			Task t = e.getKey();
@@ -1257,7 +1259,7 @@ final class BotBrain {
 				}
 			}
 		}
-		List<BlockPos> searched = Loot.searched();
+		java.util.Set<BlockPos> searched = Loot.searched();
 		// Pockets full of things for getting away: nothing a search could turn up is worth carrying any more.
 		boolean roomToFind = Inventory.hasRoomForEscape(this.bot);
 		for (BlockPos container : roomToFind ? Loot.containers() : List.<BlockPos>of()) {

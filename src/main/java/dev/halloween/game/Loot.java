@@ -342,7 +342,11 @@ public final class Loot {
 		return CONTAINERS;
 	}
 
-	public static List<BlockPos> searched() {
-		return new ArrayList<>(SEARCHED);
+	public static Set<BlockPos> searched() {
+		return new HashSet<>(SEARCHED);
+	}
+
+	public static boolean isSearched(BlockPos pos) {
+		return SEARCHED.contains(pos);
 	}
 }

@@ -147,6 +147,41 @@ public final class Nav {
 
 	/** Snaps a position to a standable node nearby (an entity half inside a slab, on a ledge...). */
 	/** Standing at {@code stand}, is {@code target} in plain view at arm's length (nothing in between: no searching through walls)? */
+	/**
+	 * A budget for the path searches of bots and townsfolk, shared by all of them each tick: when many of them plan
+	 * at once (everyone running from the same scream, all heading home) the searches past it stop short (a path
+	 * towards the goal as far as it got; they plan again from there), so a tick never stalls the game. Michael's
+	 * searches are rationed on their own and don't count.
+	 */
+	private static final int CROWD_NODES = 12000;
+	private static boolean crowd;
+	private static int left = CROWD_NODES;
+
+	/** Runs the crowd's tick under the shared budget (a new budget each tick). */
+	public static void crowd(int tick, Runnable r) {
+		if (tick != budgetTick) {
+			budgetTick = tick;
+			left = CROWD_NODES;
+		}
+		crowd = true;
+		try {
+			r.run();
+		} finally {
+			crowd = false;
+		}
+	}
+
+	private static int budgetTick = -1;
+
+	/** One node expanded (a node scored in a search, with its sight lines, costs more): false once the crowd's budget for this tick is spent. */
+	private static boolean spend(int cost) {
+		if (!crowd) {
+			return true;
+		}
+		left -= cost;
+		return left > 0;
+	}
+
 	public static boolean reaches(Level level, BlockPos stand, BlockPos target) {
 		net.minecraft.world.phys.Vec3 eye = net.minecraft.world.phys.Vec3.atBottomCenterOf(stand).add(0, 1.55, 0);
 		net.minecraft.world.phys.Vec3 to = net.minecraft.world.phys.Vec3.atCenterOf(target);
@@ -317,7 +352,7 @@ public final class Nav {
 		long best = s;
 		double bestH = octile(start, target);
 		int expanded = 0;
-		while (!open.isEmpty() && expanded < opt.maxNodes) {
+		while (!open.isEmpty() && expanded < opt.maxNodes && spend(1)) {
 			Entry e = open.poll();
 			BlockPos cur = BlockPos.of(e.pos);
 			double gc = g.get(e.pos);
@@ -378,7 +413,7 @@ public final class Nav {
 		long best = s;
 		double bestScore = scorer.score(start, 0);
 		int expanded = 0;
-		while (!open.isEmpty() && expanded < opt.maxNodes) {
+		while (!open.isEmpty() && expanded < opt.maxNodes && spend(4)) {
 			Entry e = open.poll();
 			double gc = g.get(e.pos);
 			if (e.f > gc + 1.0E-6) {
@@ -424,7 +459,7 @@ public final class Nav {
 			BlockPos s = snap(level, start).immutable();
 			seen.add(s.asLong());
 			queue.add(s);
-			while (!queue.isEmpty() && seen.size() < opt.maxNodes) {
+			while (!queue.isEmpty() && seen.size() < opt.maxNodes && spend(1)) {
 				BlockPos cur = queue.poll();
 				neighbours(level, cur, opt, (n, step, glass, cost) -> {
 					if (seen.contains(n.asLong())) {

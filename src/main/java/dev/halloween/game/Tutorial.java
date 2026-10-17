@@ -219,7 +219,7 @@ public final class Tutorial {
 		ServerLevel level = (ServerLevel) player.level();
 		BlockPos at = player.blockPosition();
 		return switch (step) {
-			case SEARCH -> nearest(at, Loot.containers().stream().filter(p -> !Loot.searched().contains(p)).toList());
+			case SEARCH -> nearest(at, Loot.containers().stream().filter(p -> !Loot.isSearched(p)).toList());
 			case HIDE -> Lockers.nearestFree(level, at, 24);
 			case WINDOW -> scan(level, at, 14, st -> Windows.isWindow(st));
 			case LOCK -> scan(level, at, 14, st -> st.getBlock() instanceof DoorBlock && st.getValue(DoorBlock.HALF) == DoubleBlockHalf.LOWER && !st.getValue(DoorBlock.OPEN));

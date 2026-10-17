@@ -365,7 +365,7 @@ public final class Townsfolk {
 		for (Npc npc : new ArrayList<>(NPCS.values())) {
 			// Out in an unloaded chunk: it waits there until somebody comes by.
 			if (!npc.body.isRemoved()) {
-				tickNpc(npc, now);
+				TickTimer.step("Townsfolk." + npc.state, () -> tickNpc(npc, now));
 			}
 		}
 	}

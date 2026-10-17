@@ -674,7 +674,7 @@ public final class Match {
 		HwNet.Roster roster = new HwNet.Roster(names, states, Math.max(0, Townsfolk.spawned() - rescued - dead), rescued, dead);
 		List<HwNet.ExitInfo> exits = Exits.infos();
 		List<BlockPos> containers = Loot.containers();
-		List<BlockPos> searched = Loot.searched();
+		List<BlockPos> searched = new java.util.ArrayList<>(Loot.searched());
 		List<BlockPos> phones = MapPoints.get(server.overworld()).list(MapPoints.Type.PHONE);
 		List<BlockPos> cut = Exits.cutPhones();
 		List<Integer> npcs = Townsfolk.ids();

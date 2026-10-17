@@ -3099,7 +3099,7 @@ public final class ShapeBrain {
 				spots.add(new Spot(phone, calls ? 1.2 : 0.4));
 			}
 		}
-		List<BlockPos> searched = Loot.searched();
+		java.util.Set<BlockPos> searched = Loot.searched();
 		for (BlockPos c : Loot.containers()) {
 			if (!searched.contains(c)) {
 				spots.add(new Spot(c, 0.5));
