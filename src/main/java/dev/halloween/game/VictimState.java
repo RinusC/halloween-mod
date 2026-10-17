@@ -17,6 +17,16 @@ public final class VictimState {
 	public int popped;
 	public final int[] focusTicks = new int[FocusPoints.COUNT];
 
+	/** How near each focus point is to bursting, packed for the screen: 6 bits a point, 0..63. */
+	public int cracks(int burstTicks) {
+		int packed = 0;
+		for (int i = 0; i < FocusPoints.COUNT; i++) {
+			int k = Math.min(63, this.focusTicks[i] * 63 / Math.max(1, burstTicks));
+			packed |= k << (i * 6);
+		}
+		return packed;
+	}
+
 	public VictimState(LivingEntity entity) {
 		this.entity = entity;
 	}

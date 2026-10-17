@@ -538,9 +538,9 @@ public final class MatchManager {
 					vs.focusTicks[onPoint] = 0;
 					Vec3 at = FocusPoints.get(target, onPoint, 1f);
 					player.connection.send(new net.minecraft.network.protocol.game.ClientboundSoundPacket(
-						net.minecraft.core.registries.BuiltInRegistries.SOUND_EVENT.wrapAsHolder(net.minecraft.sounds.SoundEvents.BUBBLE_POP),
-						net.minecraft.sounds.SoundSource.PLAYERS, at.x, at.y, at.z, 1f, 0.7f, player.getRandom().nextLong()));
-					level.sendParticles(player, net.minecraft.core.particles.ParticleTypes.BUBBLE_POP, true, false, at.x, at.y, at.z, 8, 0.08, 0.08, 0.08, 0.02);
+						net.minecraft.core.registries.BuiltInRegistries.SOUND_EVENT.wrapAsHolder(net.minecraft.sounds.SoundEvents.GLASS_BREAK),
+						net.minecraft.sounds.SoundSource.PLAYERS, at.x, at.y, at.z, 0.6f, 1.5f + player.getRandom().nextFloat() * 0.3f, player.getRandom().nextLong()));
+					level.sendParticles(player, new net.minecraft.core.particles.BlockParticleOption(net.minecraft.core.particles.ParticleTypes.BLOCK, net.minecraft.world.level.block.Blocks.STAINED_GLASS.lightBlue().defaultBlockState()), true, false, at.x, at.y, at.z, 10, 0.06, 0.06, 0.06, 0.05);
 					if (vs.popped == (1 << FocusPoints.COUNT) - 1) {
 						vs.popped = 0;
 					}
@@ -1274,7 +1274,7 @@ public final class MatchManager {
 				beams.add(target.position());
 			}
 			if (stalk > 0 || player.distanceTo(target) <= cfg.senseRange) {
-				infos.put(target.getId(), new HwNet.VictimInfo(target.getId(), stalk, vs != null && vs.marked(), vs == null ? 0 : vs.popped, target.getDisplayName()));
+				infos.put(target.getId(), new HwNet.VictimInfo(target.getId(), stalk, vs != null && vs.marked(), vs == null ? 0 : vs.popped, vs == null ? 0 : vs.cracks(cfg.focusPointBurstTicks), target.getDisplayName()));
 			}
 		}
 		List<Component> objectives = new ArrayList<>();

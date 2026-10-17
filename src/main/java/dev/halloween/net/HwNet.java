@@ -163,6 +163,7 @@ public final class HwNet {
 				buf.writeFloat(e.stalk());
 				buf.writeBoolean(e.marked());
 				buf.writeVarInt(e.popped());
+				buf.writeVarInt(e.cracks());
 				ComponentSerialization.TRUSTED_STREAM_CODEC.encode(buf, e.name());
 			}
 			buf.writeVarInt(v.beams.size());
@@ -197,7 +198,7 @@ public final class HwNet {
 			int n = buf.readVarInt();
 			List<VictimInfo> victims = new ArrayList<>(n);
 			for (int i = 0; i < n; i++) {
-				victims.add(new VictimInfo(buf.readVarInt(), buf.readFloat(), buf.readBoolean(), buf.readVarInt(), ComponentSerialization.TRUSTED_STREAM_CODEC.decode(buf)));
+				victims.add(new VictimInfo(buf.readVarInt(), buf.readFloat(), buf.readBoolean(), buf.readVarInt(), buf.readVarInt(), ComponentSerialization.TRUSTED_STREAM_CODEC.decode(buf)));
 			}
 			int nb = buf.readVarInt();
 			List<Vec3> beams = new ArrayList<>(nb);
@@ -225,7 +226,7 @@ public final class HwNet {
 
 	/** stalk is 0..3 (level = integer part); marked victims get a red outline. */
 	/** popped: the focus points burst already (a bit each). */
-	public record VictimInfo(int entityId, float stalk, boolean marked, int popped, Component name) {
+	public record VictimInfo(int entityId, float stalk, boolean marked, int popped, int cracks, Component name) {
 	}
 
 	/**

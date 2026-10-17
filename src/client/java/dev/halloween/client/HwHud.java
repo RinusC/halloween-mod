@@ -637,7 +637,8 @@ public final class HwHud {
 					}
 					Projection.Point p = Projection.toScreen(FocusPoints.get(living, i, partial), w, h);
 					if (p != null) {
-						focusIcon(g, i, p.x(), p.y());
+						float crack = ((info.cracks() >> (i * 6)) & 63) / 63f;
+						crackedIcon(g, mc, i, p.x(), p.y(), crack, partial);
 					}
 				}
 			}
@@ -659,6 +660,53 @@ public final class HwHud {
 					diamond(g, cx, y - 2, Math.max(1, (int) (3 * partialLevel)), 0xFFB0B0B0);
 				}
 			}
+		}
+	}
+
+	/**
+	 * A focus point that is being stalked on: as it nears bursting it trembles harder and harder, whitens, and
+	 * cracks spread out of it (it bursts at 1, see MatchManager).
+	 */
+	private static void crackedIcon(GuiGraphicsExtractor g, Minecraft mc, int index, float fx, float fy, float k, float partial) {
+		if (k <= 0.01f) {
+			focusIcon(g, index, fx, fy);
+			return;
+		}
+		float t = mc.level.getGameTime() + partial;
+		float shake = k * k * 2.2f;
+		float x = fx + Mth.sin(t * 2.9f + index) * shake;
+		float y = fy + Mth.cos(t * 3.7f + index * 2) * shake;
+		focusIcon(g, index, x, y);
+		// A pale glow swelling round it.
+		int glow = (int) (90 * k);
+		ring(g, x, y, 5f + 2f * k, 1, 0f, 1f, (glow << 24) | 0xDDEEFF);
+		// The cracks: up to six short jagged lines out from the middle, longer as it goes.
+		int lines = 1 + (int) (k * 5.99f);
+		float len = 2f + 7f * k;
+		int col = ((int) (150 + 100 * k) << 24) | 0xF4FAFF;
+		for (int l = 0; l < lines; l++) {
+			float a = l * 1.047f + index * 0.7f;
+			float px = x;
+			float py = y;
+			for (int s = 1; s <= 3; s++) {
+				float r = len * s / 3f;
+				float jag = (s % 2 == 0 ? 0.35f : -0.25f);
+				float nx = x + Mth.cos(a + jag) * r;
+				float ny = y + Mth.sin(a + jag) * r;
+				line(g, px, py, nx, ny, col);
+				px = nx;
+				py = ny;
+			}
+		}
+	}
+
+	/** A thin line as a row of single pixels. */
+	private static void line(GuiGraphicsExtractor g, float x0, float y0, float x1, float y1, int color) {
+		int n = (int) Math.max(1, Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)));
+		for (int i = 0; i <= n; i++) {
+			int x = Math.round(Mth.lerp(i / (float) n, x0, x1));
+			int y = Math.round(Mth.lerp(i / (float) n, y0, y1));
+			g.fill(x, y, x + 1, y + 1, color);
 		}
 	}
 
