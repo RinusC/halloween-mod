@@ -215,6 +215,8 @@ public class HwConfig {
 	public int revolverRoundTicks = 16;
 	public int rifleReloadTicks = 80;
 	/** Muzzle rise per shot in degrees (the camera kicks up). */
+	/** Each search that turns up no escape item adds this to the chance that the next one does (an escape item still hidden moves there). */
+	public float escapeFindStep = 0.04f;
 	/** The Demogorgon moves this many times as fast as Michael. */
 	public float demoSpeedFactor = 1.2f;
 	/** Arrest: knocked down this many times within this many ticks with an officer this close, and the survivors win. */

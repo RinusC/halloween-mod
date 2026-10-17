@@ -230,7 +230,16 @@ public final class Loot {
 		return new HashMap<>(HIDDEN);
 	}
 
+	/** Searches since an escape item last turned up (see the search). */
+	private static int misses;
+
+	private static boolean isEscape(HwItems.Kind k) {
+		return k == HwItems.Kind.BOLT_CUTTERS || k == HwItems.Kind.PADLOCK_KEY || k == HwItems.Kind.FUSE || k == HwItems.Kind.GATE_KEY
+			|| k == HwItems.Kind.SEDAN_KEYS || k == HwItems.Kind.GAS_CAN || k == HwItems.Kind.REPAIR_KIT;
+	}
+
 	public static void clear() {
+		misses = 0;
 		CONTAINERS.clear();
 		SEARCHED.clear();
 		HIDDEN.clear();
@@ -253,7 +262,34 @@ public final class Loot {
 			: HwConfig.get().searchTicks;
 		return new Holds.Hold(at, "halloween.hud.progress.search", false, ticks, p -> !SEARCHED.contains(at), p -> {
 			SEARCHED.add(at);
-			HwItems.Kind kind = HIDDEN.remove(at);
+			HwItems.Kind kind = HIDDEN.get(at);
+			if (!isEscape(kind)) {
+				// The longer the town goes without one, the likelier the next search turns one up: an escape item
+				// still hidden somewhere swaps places with what is here (how many there are stays the same).
+				misses++;
+				if (p.level().getRandom().nextFloat() < misses * HwConfig.get().escapeFindStep) {
+					List<BlockPos> holding = new ArrayList<>();
+					HIDDEN.forEach((pos2, k) -> {
+						if (isEscape(k) && !SEARCHED.contains(pos2)) {
+							holding.add(pos2);
+						}
+					});
+					if (!holding.isEmpty()) {
+						BlockPos from = holding.get(p.level().getRandom().nextInt(holding.size()));
+						HwItems.Kind escape = HIDDEN.remove(from);
+						if (kind != null) {
+							HIDDEN.put(from, kind);
+						}
+						HIDDEN.put(at, escape);
+						kind = escape;
+						AiStats.add(p, "found.escape_pulled");
+					}
+				}
+			}
+			if (isEscape(kind)) {
+				misses = 0;
+			}
+			HIDDEN.remove(at);
 			// Now and then somebody kept an old revolver in there.
 			if (p.level().getRandom().nextFloat() < HwConfig.get().revolverFindChance) {
 				Component gun = Component.translatable("halloween.item.revolver");
