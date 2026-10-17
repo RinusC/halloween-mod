@@ -217,7 +217,7 @@ public class HwConfig {
 	/** Muzzle rise per shot in degrees (the camera kicks up). */
 	/** Each search that turns up no escape item adds this to the chance that the next one does (an escape item still hidden moves there). */
 	public float escapeFindStep = 0.04f;
-	/** Gulls about town (see Birds): how many flocks, how often a new one settles, how near one scares them (running, walking, crouching). */
+	/** Crows about town (see Birds): how many flocks, how often a new one settles, how near one scares them (running, walking, crouching). */
 	public int birdFlocks = 10;
 	public int birdFlockEveryTicks = 600;
 	public double birdScareRun = 7;

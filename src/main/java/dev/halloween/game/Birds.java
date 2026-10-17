@@ -23,8 +23,8 @@ import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * Gulls about the town, as the crows in Dead by Daylight: little flocks on the ground in the open, pecking and
- * looking about. Anyone who comes too near (a survivor, a townsperson, an officer, the killer himself, even unseen
+ * Crows about the town, as in Dead by Daylight: little flocks up on roofs, posts, fences and lamps (now and then
+ * on the ground), pecking and looking about. Anyone who comes too near (a survivor, a townsperson, an officer, the killer himself, even unseen
  * in Shape Jump) puts them up: they take off with a clatter of wings (heard some 8 blocks off, nothing more: no
  * marker, no message) and fly off away from whoever it was, climbing, and are gone. Running scares them from
  * further than walking; crouching, one gets right up to them. A while later a new flock settles somewhere else.
@@ -35,7 +35,6 @@ public final class Birds {
 
 	private static final class Bird {
 		final Display.ItemDisplay body;
-		final boolean young;
 		Vec3 pos;
 		float yaw;
 		/** Flying: which way, and ticks in the air (-1: on the ground). */
@@ -43,9 +42,8 @@ public final class Birds {
 		int flying = -1;
 		int nextTurn;
 
-		Bird(Display.ItemDisplay body, boolean young, Vec3 pos, float yaw) {
+		Bird(Display.ItemDisplay body, Vec3 pos, float yaw) {
 			this.body = body;
-			this.young = young;
 			this.pos = pos;
 			this.yaw = yaw;
 		}
@@ -161,7 +159,7 @@ public final class Birds {
 		b.away = away;
 		b.flying = 0;
 		b.yaw = (float) (Mth.atan2(-away.x, away.z) * Mth.RAD_TO_DEG);
-		b.body.setItemStack(stack(b.young ? "gull_young_flying" : "gull_flying"));
+		b.body.setItemStack(stack("crow_flying"));
 		flap(level, b.pos, r);
 		AiStats.add("*total", "bird.flushed");
 	}
@@ -172,20 +170,24 @@ public final class Birds {
 		level.playSound(null, at.x, at.y, at.z, SoundEvents.PHANTOM_FLAP, SoundSource.AMBIENT, 0.35f, 1.6f + r.nextFloat() * 0.3f);
 	}
 
-	/** A new flock of one to four on open ground, away from everyone. */
+	/**
+	 * A new flock, away from everyone: mostly up somewhere (a roof's ridge, a post, a fence, a lamp, a wall top: a
+	 * top higher than the ground round it), now and then down on open ground. One to three birds, along the same
+	 * perch (a ridge, a fence) where there is room for them.
+	 */
 	private static void settle(ServerLevel level, RandomSource r, int now) {
 		BoundingBox area = Nav.area();
 		if (area == null) {
 			return;
 		}
-		for (int tries = 0; tries < 30; tries++) {
+		boolean ground = r.nextFloat() < 0.15f;
+		for (int tries = 0; tries < 60; tries++) {
 			int x = area.minX() + r.nextInt(Math.max(1, area.getXSpan()));
 			int z = area.minZ() + r.nextInt(Math.max(1, area.getZSpan()));
-			BlockPos top = level.getHeightmapPos(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, new BlockPos(x, 0, z));
-			if (!Nav.standable(level, top) || !level.canSeeSky(top) || !level.getFluidState(top.below()).isEmpty()) {
+			Vec3 at = perch(level, x, z, ground);
+			if (at == null) {
 				continue;
 			}
-			Vec3 at = Vec3.atBottomCenterOf(top);
 			boolean near = false;
 			for (ServerPlayer p : level.players()) {
 				near |= p.position().distanceTo(at) < 14;
@@ -196,22 +198,47 @@ public final class Birds {
 			if (near) {
 				continue;
 			}
-			int n = 1 + r.nextInt(4);
-			for (int k = 0; k < n; k++) {
-				Vec3 p = at.add((r.nextFloat() - 0.5) * 2.5, 0, (r.nextFloat() - 0.5) * 2.5);
-				BlockPos feet = Nav.snap(level, BlockPos.containing(p));
-				if (!Nav.standable(level, feet)) {
-					continue;
+			float yaw = r.nextFloat() * 360f;
+			spawn(level, at, yaw, now, r);
+			int more = r.nextInt(3);
+			for (int k = 0; k < 12 && more > 0; k++) {
+				Vec3 o = perch(level, x + r.nextInt(5) - 2, z + r.nextInt(5) - 2, ground);
+				if (o != null && Math.abs(o.y - at.y) < 0.6 && o.distanceTo(at) > 0.7) {
+					spawn(level, o, yaw + (r.nextFloat() - 0.5f) * 60f, now, r);
+					more--;
 				}
-				spawn(level, new Vec3(p.x, feet.getY(), p.z), r.nextFloat() < 0.3f, r.nextFloat() * 360f, now, r);
 			}
 			return;
 		}
 	}
 
-	private static void spawn(ServerLevel level, Vec3 at, boolean young, float yaw, int now, RandomSource r) {
+	/** Where a bird can sit at this column: the top of what stands there, high up (or on the ground), open to the sky. */
+	private static Vec3 perch(ServerLevel level, int x, int z, boolean ground) {
+		BlockPos top = level.getHeightmapPos(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, new BlockPos(x, 0, z)).below();
+		net.minecraft.world.level.block.state.BlockState state = level.getBlockState(top);
+		if (state.isAir() || !level.getFluidState(top).isEmpty() || !level.getBlockState(top.above()).isAir()) {
+			return null;
+		}
+		net.minecraft.world.phys.shapes.VoxelShape shape = state.getCollisionShape(level, top);
+		if (shape.isEmpty()) {
+			return null;
+		}
+		double y = top.getY() + shape.max(net.minecraft.core.Direction.Axis.Y);
+		// How high it stands over the ground round it.
+		int low = Integer.MAX_VALUE;
+		for (int[] d : new int[][]{{2, 0}, {-2, 0}, {0, 2}, {0, -2}, {3, 3}, {-3, -3}}) {
+			low = Math.min(low, level.getHeightmapPos(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, new BlockPos(x + d[0], 0, z + d[1])).getY());
+		}
+		double over = y - low;
+		if (ground ? over > 0.6 || !Nav.standable(level, top.above()) : over < 1.4) {
+			return null;
+		}
+		return new Vec3(x + 0.5, y, z + 0.5);
+	}
+
+	private static void spawn(ServerLevel level, Vec3 at, float yaw, int now, RandomSource r) {
 		Display.ItemDisplay d = new Display.ItemDisplay(net.minecraft.world.entity.EntityTypes.ITEM_DISPLAY, level);
-		d.setItemStack(stack(young ? "gull_young" : "gull"));
+		d.setItemStack(stack("crow"));
 		d.setItemTransform(ItemDisplayContext.FIXED);
 		d.setViewRange(1f);
 		d.setPos(at.x, at.y, at.z);
@@ -219,7 +246,7 @@ public final class Birds {
 		d.addTag(TAG);
 		d.addTag(Leftovers.stamp());
 		level.addFreshEntity(d);
-		Bird b = new Bird(d, young, at, yaw);
+		Bird b = new Bird(d, at, yaw);
 		b.nextTurn = now + r.nextInt(100);
 		BIRDS.add(b);
 	}

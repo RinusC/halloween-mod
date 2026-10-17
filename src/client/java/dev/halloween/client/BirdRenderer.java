@@ -29,12 +29,12 @@ import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
 /**
- * The gulls (game.Birds) on their item displays: the user's polygon model (models/entity/gull.json, made by
- * tools/gull_convert.pl), the adult or the juvenile. On the ground it bobs and pecks now and then; flying, its body
+ * The crows (game.Birds) on their item displays: our own model (models/entity/crow.json, made by
+ * tools/crow_model.pl). Perched it bobs and pecks now and then; flying, its body
  * tips forward and its wings beat about their inner edge.
  */
 public final class BirdRenderer {
-	private static final Identifier TEXTURE = Halloween.id("textures/entity/gull.png");
+	private static final Identifier TEXTURE = Halloween.id("textures/entity/crow.png");
 
 	private record Quad(int part, float[] v) {
 	}
@@ -53,7 +53,7 @@ public final class BirdRenderer {
 		if (meshes != null || missing) {
 			return meshes;
 		}
-		try (InputStream in = BirdRenderer.class.getResourceAsStream("/assets/halloween/models/entity/gull.json")) {
+		try (InputStream in = BirdRenderer.class.getResourceAsStream("/assets/halloween/models/entity/crow.json")) {
 			if (in == null) {
 				missing = true;
 				return null;
@@ -82,7 +82,7 @@ public final class BirdRenderer {
 			}
 			meshes = out;
 		} catch (Exception e) {
-			Halloween.LOGGER.warn("No gull model: {}", e.toString());
+			Halloween.LOGGER.warn("No crow model: {}", e.toString());
 			missing = true;
 		}
 		return meshes;
@@ -97,13 +97,12 @@ public final class BirdRenderer {
 		Display.ItemDisplay.ItemRenderState item = entity.itemRenderState();
 		ItemStack stack = item == null ? ItemStack.EMPTY : item.itemStack();
 		Identifier id = stack.get(DataComponents.ITEM_MODEL);
-		if (id == null || !id.getNamespace().equals(Halloween.MOD_ID) || !id.getPath().startsWith("gull")) {
+		if (id == null || !id.getNamespace().equals(Halloween.MOD_ID) || !id.getPath().startsWith("crow")) {
 			SEEN.remove(entity.getId());
 			return;
 		}
-		boolean young = id.getPath().contains("young");
 		boolean flying = id.getPath().endsWith("flying");
-		SEEN.put(entity.getId(), new float[]{young ? 1 : 0, flying ? 1 : 0, entity.tickCount + partialTicks, entity.getId()});
+		SEEN.put(entity.getId(), new float[]{0, flying ? 1 : 0, entity.tickCount + partialTicks, entity.getId()});
 	}
 
 	public static boolean submit(ItemDisplayEntityRenderState state, PoseStack pose, SubmitNodeCollector collector, int light) {
@@ -112,7 +111,7 @@ public final class BirdRenderer {
 			return false;
 		}
 		Map<String, Mesh> all = meshes();
-		Mesh mesh = all == null ? null : all.get(s[0] > 0 ? "juvenile" : "adult");
+		Mesh mesh = all == null ? null : all.get("crow");
 		if (mesh == null) {
 			return true;
 		}

@@ -15,7 +15,7 @@ import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Gulls (short, on the arena): flocks settle; seen up close; walking up to them puts them up and they fly off. */
+/** Crows (short, on the arena): flocks settle up on roofs and posts; seen up close; walking up to them puts them up and they fly off. */
 public class BirdsClientTest implements FabricClientGameTest {
 	private static final Logger LOG = LoggerFactory.getLogger("halloween-birds");
 
@@ -44,10 +44,12 @@ public class BirdsClientTest implements FabricClientGameTest {
 			ctx.runOnClient(mc -> ClientDarkness.enabled = false);
 			ctx.waitTicks(260);
 			int settled = server.computeOnServer(s -> Birds.grounded());
-			LOG.info("gulls on the ground: {}", settled);
-			check(settled > 0, "gulls settle");
+			LOG.info("crows perched: {}", settled);
+			check(settled > 0, "crows settle");
 			// Stand 5 blocks off, crouched (they stay), and look.
-			Vec3 bird = server.computeOnServer(s -> Birds.positions().getFirst());
+			List<Vec3> all = server.computeOnServer(s -> Birds.positions());
+			LOG.info("perches: {}", all.stream().map(v -> String.format("%.0f/%.1f/%.0f", v.x, v.y, v.z)).toList());
+			Vec3 bird = all.getFirst();
 			server.runOnServer(s -> {
 				ServerPlayer p = player(s);
 				p.setShiftKeyDown(true);
