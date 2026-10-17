@@ -77,15 +77,16 @@ sub box {
 # Body: a little over half a block long, leaning slightly forward; feet at y 0.
 box('body', 'body', [-1.6, 2.2, -2.4], [1.6, 5.2, 3.0]);
 box('body', 'body', [-1.4, 2.6, -3.4], [1.4, 5.0, -2.4]);
-box('body', 'head', [-1.3, 4.6, -5.4], [1.3, 7.2, -2.6]);
-box('body', 'beak', [-0.5, 5.2, -7.6], [0.5, 6.1, -5.4]);
-box('body', 'beak', [-0.4, 4.8, -7.0], [0.4, 5.2, -5.4]);
-box('body', 'eye', [-1.32, 6.0, -4.9], [-1.2, 6.6, -4.3]);
-box('body', 'eye', [1.2, 6.0, -4.9], [1.32, 6.6, -4.3]);
-box('body', 'tail', [-1.2, 2.8, 3.0], [1.2, 3.4, 7.2]);
+box('head', 'head', [-1.3, 4.6, -5.4], [1.3, 7.2, -2.6]);
+box('head', 'beak', [-0.5, 5.2, -7.6], [0.5, 6.1, -5.4]);
+box('head', 'beak', [-0.4, 4.8, -7.0], [0.4, 5.2, -5.4]);
+box('head', 'eye', [-1.32, 6.0, -4.9], [-1.2, 6.6, -4.3]);
+box('head', 'eye', [1.2, 6.0, -4.9], [1.32, 6.6, -4.3]);
+box('tail', 'tail', [-1.2, 2.8, 3.0], [1.2, 3.4, 7.2]);
 for my $s (-1, 1) {
-	box('body', 'leg', [$s * 0.8 - 0.25, 0.4, -0.4], [$s * 0.8 + 0.25, 2.4, 0.1]);
-	box('body', 'leg', [$s * 0.8 - 0.35, 0, -1.4], [$s * 0.8 + 0.35, 0.4, 0.6]);
+	my $part = $s < 0 ? 'leg_left' : 'leg_right';
+	box($part, 'leg', [$s * 0.8 - 0.25, 0.4, -0.4], [$s * 0.8 + 0.25, 2.4, 0.1]);
+	box($part, 'leg', [$s * 0.8 - 0.35, 0, -1.4], [$s * 0.8 + 0.35, 0.4, 0.6]);
 }
 # Wings: folded along the sides, the primaries reaching back over the tail.
 for my $s (-1, 1) {
@@ -95,7 +96,9 @@ for my $s (-1, 1) {
 	box($part, 'wing', [$a, 2.9, 3.2], [$b, 4.2, 6.4]);
 }
 
-my %hinge = (wing_left => [-1.4 / 16, 4.6 / 16, 0.6 / 16], wing_right => [1.4 / 16, 4.6 / 16, 0.6 / 16]);
+# Where each moving part turns: the wings at the shoulder, the head at the neck, the legs at the hip, the tail at its root.
+my %hinge = (wing_left => [-1.4 / 16, 4.6 / 16, -1.0 / 16], wing_right => [1.4 / 16, 4.6 / 16, -1.0 / 16], head => [0, 5.2 / 16, -2.8 / 16],
+	leg_left => [-0.8 / 16, 2.4 / 16, -0.15 / 16], leg_right => [0.8 / 16, 2.4 / 16, -0.15 / 16], tail => [0, 3.1 / 16, 3.0 / 16]);
 open my $o, '>', $outJson or die "$outJson: $!";
 print $o JSON::PP->new->canonical->encode({atlas => [$T, $T], birds => {crow => {quads => \@quads, hinge => \%hinge}}});
 close $o;

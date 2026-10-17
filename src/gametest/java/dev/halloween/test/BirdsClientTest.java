@@ -53,12 +53,15 @@ public class BirdsClientTest implements FabricClientGameTest {
 			server.runOnServer(s -> {
 				ServerPlayer p = player(s);
 				p.setShiftKeyDown(true);
-				Vec3 at = bird.add(3.2, 0, 3.2);
+				Vec3 at = bird.add(1.3, -0.9, 1.3);
 				float yaw = (float) Math.toDegrees(Math.atan2(-(bird.x - at.x), bird.z - at.z));
-				p.teleportTo(s.overworld(), at.x, at.y, at.z, java.util.Set.of(), yaw, 25f, false);
+				p.teleportTo(s.overworld(), at.x, at.y, at.z, java.util.Set.of(), yaw, 30f, false);
+				p.setNoGravity(true);
 			});
 			ctx.waitTicks(10);
 			ctx.takeScreenshot("birds_ground");
+			ctx.waitTicks(17);
+			ctx.takeScreenshot("birds_ground2");
 			int before = server.computeOnServer(s -> Birds.flying());
 			// Up to them on foot.
 			server.runOnServer(s -> {
@@ -67,7 +70,7 @@ public class BirdsClientTest implements FabricClientGameTest {
 				Vec3 at = bird.add(1.5, 0, 1.5);
 				p.teleportTo(s.overworld(), at.x, at.y, at.z, java.util.Set.of(), p.getYRot(), -20f, false);
 			});
-			ctx.waitTicks(8);
+			ctx.waitTicks(4);
 			ctx.takeScreenshot("birds_takeoff");
 			int after = server.computeOnServer(s -> Birds.flying());
 			LOG.info("flying before {}, after {}", before, after);
