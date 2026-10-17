@@ -47,6 +47,7 @@ public class BirdsClientTest implements FabricClientGameTest {
 			LOG.info("crows perched: {}", settled);
 			check(settled > 0, "crows settle");
 			// Stand 5 blocks off, crouched (they stay), and look.
+			int before = server.computeOnServer(s -> Birds.flying());
 			List<Vec3> all = server.computeOnServer(s -> Birds.positions());
 			LOG.info("perches: {}", all.stream().map(v -> String.format("%.0f/%.1f/%.0f", v.x, v.y, v.z)).toList());
 			Vec3 bird = all.getFirst();
@@ -62,7 +63,6 @@ public class BirdsClientTest implements FabricClientGameTest {
 			ctx.takeScreenshot("birds_ground");
 			ctx.waitTicks(17);
 			ctx.takeScreenshot("birds_ground2");
-			int before = server.computeOnServer(s -> Birds.flying());
 			// Up to them on foot.
 			server.runOnServer(s -> {
 				ServerPlayer p = player(s);

@@ -181,9 +181,26 @@ public final class Birds {
 			return;
 		}
 		boolean ground = r.nextFloat() < 0.15f;
+		// Round someone (where the town is loaded: a column far from everyone has no blocks to sit on yet), 16 to 70
+		// blocks off, inside the town.
+		List<ServerPlayer> people = new ArrayList<>();
+		for (ServerPlayer p : level.players()) {
+			if (!p.isSpectator()) {
+				people.add(p);
+			}
+		}
+		if (people.isEmpty()) {
+			return;
+		}
 		for (int tries = 0; tries < 60; tries++) {
-			int x = area.minX() + r.nextInt(Math.max(1, area.getXSpan()));
-			int z = area.minZ() + r.nextInt(Math.max(1, area.getZSpan()));
+			ServerPlayer round = people.get(r.nextInt(people.size()));
+			double a = r.nextDouble() * Math.PI * 2;
+			double d = 16 + r.nextDouble() * 54;
+			int x = (int) Math.floor(round.getX() + Math.cos(a) * d);
+			int z = (int) Math.floor(round.getZ() + Math.sin(a) * d);
+			if (!area.isInside(x, area.minY(), z) || !level.hasChunkAt(new BlockPos(x, round.getBlockY(), z))) {
+				continue;
+			}
 			Vec3 at = perch(level, x, z, ground);
 			if (at == null) {
 				continue;
