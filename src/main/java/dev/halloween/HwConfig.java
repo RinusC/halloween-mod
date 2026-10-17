@@ -70,10 +70,10 @@ public class HwConfig {
 	public float passiveStalkCap = 1f;
 	public double passiveStalkRange = 25;
 	public float passiveStalkAngleDeg = 25f;
-	public float passiveStalkPerSecond = 0.056f;
+	public float passiveStalkPerSecond = 0.0487f;
 	public double senseRange = 37;
 	public double senseSpeedModifier = -0.45;
-	public float senseStalkPerSecond = 0.154f;
+	public float senseStalkPerSecond = 0.1339f;
 	/** Reticle on a focus point counts fully; anywhere else on the body only partly. */
 	public float reticleFocusAngleDeg = 5f;
 	public float reticleBodyAngleDeg = 18f;
@@ -836,7 +836,7 @@ public class HwConfig {
 
 	/** The file's version: older files get the defaults that changed since moved on (see {@link #migrate}). */
 	public int configVersion;
-	private static final int VERSION = 9;
+	private static final int VERSION = 10;
 
 	public static void load() {
 		Path path = path();
@@ -943,6 +943,15 @@ public class HwConfig {
 			// Two new events on Michael's side.
 			this.eventWeights.putIfAbsent("bell", 2);
 			this.eventWeights.putIfAbsent("masks", 2);
+		}
+		if (this.configVersion < 10) {
+			// Stalking takes 15% longer.
+			if (this.passiveStalkPerSecond == 0.056f) {
+				this.passiveStalkPerSecond = 0.0487f;
+			}
+			if (this.senseStalkPerSecond == 0.154f) {
+				this.senseStalkPerSecond = 0.1339f;
+			}
 		}
 		if (this.configVersion < VERSION) {
 			Halloween.LOGGER.info("Config moved on to version {}", VERSION);
