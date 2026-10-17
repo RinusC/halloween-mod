@@ -18,12 +18,13 @@ public class ItemDisplayRendererMixin {
 		at = @At("TAIL"))
 	private void halloween$rift(Display.ItemDisplay entity, ItemDisplayEntityRenderState state, float partialTicks, CallbackInfo ci) {
 		RiftRenderer.extract(entity, state, partialTicks);
+		dev.halloween.client.BirdRenderer.extract(entity, partialTicks);
 	}
 
 	@Inject(method = "submitInner(Lnet/minecraft/client/renderer/entity/state/ItemDisplayEntityRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;IF)V",
 		at = @At("HEAD"), cancellable = true)
 	private void halloween$riftModel(ItemDisplayEntityRenderState state, PoseStack pose, SubmitNodeCollector collector, int light, float progress, CallbackInfo ci) {
-		if (RiftRenderer.submit(state, pose, collector, light)) {
+		if (RiftRenderer.submit(state, pose, collector, light) || dev.halloween.client.BirdRenderer.submit(state, pose, collector, light)) {
 			ci.cancel();
 		}
 	}

@@ -291,6 +291,7 @@ public final class MatchManager {
 		Runt.tick(server);
 		ShapeBrain.tick(server);
 		Demogorgon.tick(server);
+		Birds.tick(server);
 		Panic.tick(server);
 		Stamina.tick(server);
 		Holds.tick(server);
