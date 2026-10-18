@@ -403,6 +403,12 @@ public final class HwNet {
 		public static final int DEMO_ROAR = 21;
 		/** The Demogorgon searching a wardrobe: his claw driven in through the door, feeling about, drawn out again. */
 		public static final int DEMO_SEARCH = 22;
+		/** Limp: dead or dying, carried (by the throat, in his jaws), arms and legs hanging. */
+		public static final int LIMP = 23;
+		/** Michael lifting someone by the throat in one hand and hurling them through a window. */
+		public static final int WINDOW_THROW = 24;
+		/** The Demogorgon taking someone up in his jaws and flinging them away with a toss of his head. */
+		public static final int DEMO_TOSS = 25;
 
 		public static final Type<Anim> TYPE = payloadType("anim");
 		public static final StreamCodec<RegistryFriendlyByteBuf, Anim> CODEC = StreamCodec.of((buf, v) -> {

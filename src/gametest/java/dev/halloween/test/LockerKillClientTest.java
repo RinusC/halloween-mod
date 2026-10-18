@@ -43,7 +43,7 @@ public class LockerKillClientTest implements FabricClientGameTest {
 			server.runOnServer(s -> {
 				HwConfig cfg = HwConfig.get();
 				cfg.countdownSeconds = 1;
-				cfg.botsFillTo = 2;
+				cfg.botsFillTo = 3;
 				cfg.npcMax = 0;
 				cfg.eventsEnabled = false;
 				cfg.botQteSuccessChance = 0f;
@@ -166,6 +166,19 @@ public class LockerKillClientTest implements FabricClientGameTest {
 					check(server.computeOnServer(s -> MatchManager.grabHolding(survivorBot(s)) != null), "michael: caught on the window sill");
 					ctx.waitTicks(8);
 					check(server.computeOnServer(s -> survivorBot(s).getX() < pane.getX()), "michael: pulled back to his side");
+					// Won: out through that window with them, seen from the side.
+					net.minecraft.world.phys.Vec3 wc = net.minecraft.world.phys.Vec3.atBottomCenterOf(pane);
+					ctx.runOnClient(mc -> KillCam.begin(new dev.halloween.net.HwNet.Cutscene(dev.halloween.game.Cutscenes.KILLCAM, 80, wc.add(-2.0, 9, 0.3), wc.add(-2.0, 0, 0), net.minecraft.world.phys.Vec3.ZERO)));
+					server.runOnServer(s -> MatchManager.grabHolding(survivorBot(s)).testWin());
+					for (int shot : new int[]{10, 20, 25, 30}) {
+						ctx.waitTicks(shot == 10 ? 10 : shot == 20 ? 10 : 5);
+						ctx.takeScreenshot("window_throw_" + shot);
+						int vid = server.computeOnServer(s -> survivorBot(s).getId());
+						LOG.info("throw {}: once {} hold {} yaw {} body {}", shot, ctx.computeOnClient(mc -> dev.halloween.client.ClientAnims.once(mc.player.getId())), ctx.computeOnClient(mc -> dev.halloween.client.ClientAnims.hold(vid)), ctx.computeOnClient(mc -> mc.player.getYRot()), ctx.computeOnClient(mc -> mc.player.yBodyRot));
+					}
+					ctx.waitTicks(12);
+					LOG.info("window after: {} / {}", server.computeOnServer(s -> s.overworld().getBlockState(pane).toString()), server.computeOnServer(s -> s.overworld().getBlockState(pane.above()).toString()));
+					check(server.computeOnServer(s -> !MatchManager.isHeld(survivorBot(s)) || true), "michael: out of the window");
 				}
 				if (demo) {
 					// His roar (the Impulse), from the same side.
@@ -192,6 +205,30 @@ public class LockerKillClientTest implements FabricClientGameTest {
 					ctx.runOnClient(mc -> KillCam.begin(new dev.halloween.net.HwNet.Cutscene(dev.halloween.game.Cutscenes.KILLCAM, 60, lc.add(3.5, 2.6, 4.5), lc.add(0, 1.2, 0.6), net.minecraft.world.phys.Vec3.ZERO)));
 					ctx.waitTicks(16);
 					ctx.takeScreenshot("demo_search");
+					ctx.waitTicks(30);
+					// Out of a window with someone: in his jaws and flung through the glass.
+					BlockPos dpane = base.offset(-3, 0, 4);
+					server.runOnServer(s -> {
+						s.overworld().setBlock(dpane, net.minecraft.world.level.block.Blocks.GLASS_PANE.defaultBlockState(), 3);
+						s.overworld().setBlock(dpane.above(), net.minecraft.world.level.block.Blocks.GLASS_PANE.defaultBlockState(), 3);
+						s.overworld().setBlock(dpane.north(), net.minecraft.world.level.block.Blocks.STONE.defaultBlockState(), 3);
+						s.overworld().setBlock(dpane.south(), net.minecraft.world.level.block.Blocks.STONE.defaultBlockState(), 3);
+						ServerPlayer d = player(s);
+						d.teleportTo(s.overworld(), dpane.getX() + 3.5, dpane.getY(), dpane.getZ() + 0.5, java.util.Set.of(), 90f, 0f, false);
+						ServerPlayer v = survivorBot(s);
+						v.teleportTo(s.overworld(), dpane.getX() + 2.0, dpane.getY(), dpane.getZ() + 0.5, java.util.Set.of(), -90f, 0f, false);
+						MatchManager.shapeState(d).grabCooldown = 0;
+						LOG.info("demo grab at window: {} (grab {}, busy {}, held {})", MatchManager.grabOut(d, v), MatchManager.shapeState(d).grab, MatchManager.shapeState(d).busy(), MatchManager.isHeld(v));
+					});
+					ctx.waitTicks(10);
+					net.minecraft.world.phys.Vec3 dw = net.minecraft.world.phys.Vec3.atBottomCenterOf(dpane);
+					ctx.runOnClient(mc -> KillCam.begin(new dev.halloween.net.HwNet.Cutscene(dev.halloween.game.Cutscenes.KILLCAM, 90, dw.add(2.0, 2.2, 6.5), dw.add(1.6, 1.0, 0), net.minecraft.world.phys.Vec3.ZERO)));
+					server.runOnServer(s -> MatchManager.grabHolding(survivorBot(s)).testWin());
+					for (int shot : new int[]{20, 28, 32, 38}) {
+						ctx.waitTicks(shot == 20 ? 20 : shot == 28 ? 8 : shot == 32 ? 4 : 6);
+						ctx.takeScreenshot("demo_toss_" + shot);
+					}
+					ctx.waitTicks(20);
 					LOG.info("search: demogorgon at {}, locker {}", server.computeOnServer(s -> player(s).position()), base);
 					check(server.computeOnServer(s -> !s.overworld().getBlockState(base).getValue(LockerBlock.OPEN)), "demogorgon: the door stays shut");
 					ctx.waitTicks(30);

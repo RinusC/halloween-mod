@@ -42,7 +42,10 @@ public abstract class LivingEntityRendererMixin {
 		if (dev.halloween.client.MichaelRenderer.isMichael(entity)) {
 			state.scale *= dev.halloween.client.MichaelRenderer.TALL;
 			int once = ClientAnims.once(entity.getId());
-			if (once == dev.halloween.net.HwNet.Anim.DEMO_SEARCH || once == dev.halloween.net.HwNet.Anim.DEMO_LOCKER) {
+			if (once == dev.halloween.net.HwNet.Anim.WINDOW_THROW || once == dev.halloween.net.HwNet.Anim.DEMO_TOSS) {
+				// Throwing someone out of a window: turned to it (the server keeps him so), whatever the player does.
+				state.bodyRot = entity.getYRot();
+			} else if (once == dev.halloween.net.HwNet.Anim.DEMO_SEARCH || once == dev.halloween.net.HwNet.Anim.DEMO_LOCKER) {
 				// At a wardrobe his body stays turned to it (as the server set him), wherever the player looks meanwhile.
 				state.bodyRot = halloween$FIXED.computeIfAbsent(entity.getId(), k -> entity.getYRot());
 			} else {

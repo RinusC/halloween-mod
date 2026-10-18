@@ -720,16 +720,7 @@ public final class GrabSession {
 			return;
 		}
 		if (this.windowPos != null) {
-			if (this.finisherTick == 10) {
-				this.stabEffects();
-			} else if (this.finisherTick == 18) {
-				this.smashWindow();
-			} else if (this.finisherTick >= 26) {
-				this.done = true;
-				anim(this.shape, HwNet.Anim.NONE);
-				anim(this.victim, HwNet.Anim.NONE);
-				MatchManager.kill(this.shape, this.state, this.victim, MatchManager.KillKind.WINDOW, this.bloody);
-			}
+			this.tickWindowThrow();
 			return;
 		}
 		int[] stabs = this.bloody ? new int[]{6, 12, 18, 24, 30, 36} : new int[]{10, 20, 30};
@@ -743,6 +734,105 @@ public final class GrabSession {
 			anim(this.shape, HwNet.Anim.NONE);
 			anim(this.victim, HwNet.Anim.NONE);
 			MatchManager.kill(this.shape, this.state, this.victim, MatchManager.KillKind.EXECUTION, this.bloody);
+		}
+	}
+
+	// ---------------------------------------------------------------- out through a window
+
+	/** Where they were when the throw began (held up, or in his jaws), and which way out the window is. */
+	private Vec3 throwFrom;
+	private Vec3 throwDir;
+
+	/** Michael: the knife in at 8, lifted by the throat from 16, flung at 26, outside by 34. The Demogorgon: bites, jaws at 24, flung at 32. */
+	private int liftAt() {
+		return Demogorgon.active() ? 24 : 16;
+	}
+
+	private int flingAt() {
+		return Demogorgon.active() ? 32 : 26;
+	}
+
+	private static final int THROW_TICKS = 8;
+
+	/**
+	 * Out through a window. Michael drives the knife in, then lifts the limp body by the throat in one hand and hurls it
+	 * through the glass. The Demogorgon tears at them a few times, takes the body up in his jaws, and flings it out with
+	 * a toss of his head.
+	 */
+	private void tickWindowThrow() {
+		ServerLevel level = this.level();
+		int t = this.finisherTick;
+		boolean demo = Demogorgon.active();
+		Vec3 window = Vec3.atBottomCenterOf(this.windowPos);
+		if (t == 1) {
+			Vec3 d = window.subtract(this.shape.position()).multiply(1, 0, 1);
+			this.throwDir = d.lengthSqr() < 1e-4 ? this.shape.getLookAngle().multiply(1, 0, 1).normalize() : d.normalize();
+			// Turned to the window, the one he holds before him.
+			float yaw = (float) Math.toDegrees(Math.atan2(-this.throwDir.x, this.throwDir.z));
+			this.shape.teleportTo(level, this.shape.getX(), this.shape.getY(), this.shape.getZ(), Set.of(Relative.X_ROT), yaw, 0f, false);
+		}
+		if (t > 1 && t <= this.flingAt() && t % 2 == 0 && this.throwDir != null) {
+			// Kept turned to the window through it all (whatever the player does with the mouse meanwhile).
+			float yaw = (float) Math.toDegrees(Math.atan2(-this.throwDir.x, this.throwDir.z));
+			this.shape.teleportTo(level, this.shape.getX(), this.shape.getY(), this.shape.getZ(), Set.of(Relative.X_ROT), yaw, 0f, false);
+		}
+		if (demo ? t == 6 || t == 12 || t == 18 : t == 8) {
+			this.stabEffects();
+			if (!demo) {
+				anim(this.victim, HwNet.Anim.LIMP);
+			}
+		}
+		int lift = this.liftAt();
+		int fling = this.flingAt();
+		if (t < lift) {
+			this.pinVictim();
+			return;
+		}
+		if (t == lift) {
+			anim(this.shape, demo ? HwNet.Anim.DEMO_TOSS : HwNet.Anim.WINDOW_THROW);
+			anim(this.victim, HwNet.Anim.LIMP);
+			this.throwFrom = this.victim.position();
+			if (demo) {
+				level.playSound(null, this.shape.getX(), this.shape.getY(), this.shape.getZ(), SoundEvents.RAVAGER_ROAR, SoundSource.HOSTILE, 1.3f, 0.6f);
+			}
+		}
+		if (t < fling) {
+			// Up off the floor: by the throat at arm's length (Michael), or in his jaws (the Demogorgon).
+			float k = (t - lift) / (float) (fling - lift);
+			k = k * k * (3 - 2 * k);
+			Vec3 held = demo
+				? this.shape.position().add(this.throwDir.scale(DEMO_MOUTH)).add(0, 0.55, 0)
+				: this.shape.position().add(this.throwDir.scale(0.85)).add(0, 0.55, 0);
+			Vec3 at = this.throwFrom.lerp(held, k);
+			this.placeVictim(at.x, at.y, at.z, this.victim.getYRot());
+			this.victim.setDeltaMovement(Vec3.ZERO);
+			return;
+		}
+		if (t == fling) {
+			// Through the glass (shards stay in the frame, see Windows).
+			Windows.breakColumn(level, this.windowPos);
+			this.throwFrom = this.victim.position();
+			level.playSound(null, window.x, window.y + 1, window.z, SoundEvents.PLAYER_ATTACK_STRONG, SoundSource.HOSTILE, 1.4f, 0.6f);
+			MatchManager.bleed(level, this.victim, this.bloody ? 20 : 10);
+		}
+		if (t <= fling + THROW_TICKS) {
+			// An arc out over the sill and down on the far side.
+			float k = (t - fling) / (float) THROW_TICKS;
+			Vec3 land = window.add(this.throwDir.scale(1.7));
+			land = new Vec3(land.x, Math.min(window.y, this.shape.getY()), land.z);
+			Vec3 at = this.throwFrom.lerp(land, k).add(0, Math.sin(k * Math.PI) * 0.7, 0);
+			this.placeVictim(at.x, at.y, at.z, this.victim.getYRot());
+			this.victim.setDeltaMovement(Vec3.ZERO);
+			if (t == fling + THROW_TICKS) {
+				level.playSound(null, at.x, at.y, at.z, SoundEvents.PLAYER_BIG_FALL, SoundSource.PLAYERS, 1.4f, 0.8f);
+			}
+			return;
+		}
+		if (t >= fling + THROW_TICKS + 3) {
+			this.done = true;
+			anim(this.shape, HwNet.Anim.NONE);
+			anim(this.victim, HwNet.Anim.NONE);
+			MatchManager.kill(this.shape, this.state, this.victim, MatchManager.KillKind.WINDOW, this.bloody);
 		}
 	}
 
@@ -786,7 +876,7 @@ public final class GrabSession {
 			this.tickScene();
 			return;
 		}
-		if (!(this.finishing && this.windowPos != null && this.finisherTick >= 18)) {
+		if (!(this.finishing && this.windowPos != null)) {
 			this.pinVictim();
 		}
 		if (Demogorgon.active() && this.level().getGameTime() % 2 == 0) {

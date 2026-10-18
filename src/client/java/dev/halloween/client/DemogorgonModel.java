@@ -164,6 +164,8 @@ public final class DemogorgonModel extends Model<AvatarRenderState> {
 		atLocker |= roaring;
 		boolean searching = ClientAnims.once(id) == HwNet.Anim.DEMO_SEARCH;
 		atLocker |= searching;
+		// Out of a window with someone (still down on all fours over them, see the devour stance).
+		boolean tossing = ClientAnims.once(id) == HwNet.Anim.DEMO_TOSS;
 		boolean busy = ClientAnims.busy(id) && !devour && !reach && !atLocker;
 		float four = busy || atLocker ? 0f : devour ? 1f : Math.max(pounce, c.four.at(now, 7f, 16f));
 		float charge = busy || devour ? 0f : c.charge.at(now, 5f, 4f) * (1f - pounce);
@@ -195,6 +197,9 @@ public final class DemogorgonModel extends Model<AvatarRenderState> {
 			if (ClientAnims.once(id) == HwNet.Anim.KNIFE_DOWN) {
 				this.bb.apply("bite", ClientAnims.onceTime(id) / 20f, 1f);
 				open = 1f;
+			}
+			if (tossing) {
+				open = this.toss(ClientAnims.onceTime(id), t);
 			}
 		}
 		if (s.attackTime > 0f && c.lastAttack <= 0f) {
@@ -328,6 +333,21 @@ public final class DemogorgonModel extends Model<AvatarRenderState> {
 			this.bb.turn("right_finger" + k, -30f * in, 0f, 0f);
 		}
 		return Math.max(0.15f * in, growl * (0.75f + 0.1f * Mth.sin(t * 2.3f)));
+	}
+
+	/**
+	 * Out through a window with them: the head down, the jaws shut on the body, reared up with it (eight ticks), then a
+	 * toss of the head and the whole chest towards the window, the jaws flung open to let go. Returns how far the mouth is open.
+	 */
+	private float toss(float s, float t) {
+		// On all fours over them: the head down, the jaws shut on the body, reared up with it (eight ticks); then the head
+		// and chest flung at the window and the jaws thrown open.
+		float lift = smooth(s / 8f);
+		float toss = smooth((s - 8f) / 3f) * (1f - smooth((s - 14f) / 12f));
+		this.bb.turn("chest", -14f * lift + 20f * toss, 0f, 0f);
+		this.bb.turn("neck", -30f * lift + 45f * toss, 0f, 0f);
+		this.bb.turn("head", -10f * lift + 25f * toss, 0f, 0f);
+		return s < 8f ? 0.2f + 0.2f * (1f - lift) : 0.2f + 0.8f * toss;
 	}
 
 	/** The roar of his Impulse (three seconds): rearing, the neck thrust out, the petals flung wide, all of him shaking. */
