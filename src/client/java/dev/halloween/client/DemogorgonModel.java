@@ -309,20 +309,25 @@ public final class DemogorgonModel extends Model<AvatarRenderState> {
 	 * straight through it, raised with what it caught on it, swung down to fling them off, and drawn back. Returns how
 	 * far the mouth is open.
 	 */
-	/** Searching a wardrobe: the claw drawn back bent, driven in straight through the door, feeling about in there, drawn out. */
+	/**
+	 * Searching a wardrobe: the claw drawn back bent, driven in straight through the door and held there, still, while he
+	 * growls at it, the head thrust at the door and the petals open; then torn out. Returns how far the mouth is open.
+	 */
 	private float searchLocker(float s, float t) {
 		float cock = smooth(s / 6f) * (1f - smooth((s - 7f) / 2.5f));
-		float in = smooth((s - 7f) / 3f) * (1f - smooth((s - 27f) / 7f));
-		float feel = Mth.sin(t * 1.3f) * in;
-		this.bb.turn("right_upper_arm", 55f * cock + 58f * in, 6f * feel, 20f * cock + 4f * feel);
-		this.bb.turn("right_forearm", 110f * cock - 12f * in + 10f * feel, 0f, 0f);
+		float in = smooth((s - 7f) / 3f) * (1f - smooth((s - 30f) / 5f));
+		float growl = smooth((s - 9f) / 4f) * (1f - smooth((s - 28f) / 6f));
+		float shake = Mth.sin(t * 3.1f) * growl;
+		this.bb.turn("right_upper_arm", 55f * cock + 58f * in, 0f, 20f * cock);
+		this.bb.turn("right_forearm", 110f * cock - 12f * in, 0f, 0f);
 		this.bb.turn("right_hand", 30f * cock - 15f * in, 0f, 0f);
-		this.bb.turn("chest", -8f * cock + 12f * in, -14f * cock, 0f);
-		this.bb.turn("head", 10f * in, 8f * feel, 0f);
+		this.bb.turn("chest", -8f * cock + 12f * in, -14f * cock, 2f * shake);
+		this.bb.turn("neck", -20f * growl, 0f, 0f);
+		this.bb.turn("head", -12f * growl + 4f * shake, 0f, 0f);
 		for (int k = 0; k < 3; k++) {
-			this.bb.turn("right_finger" + k, (-30f + 25f * Mth.sin(t * 2.1f + k)) * in, 0f, 0f);
+			this.bb.turn("right_finger" + k, -30f * in, 0f, 0f);
 		}
-		return 0.15f * in;
+		return Math.max(0.15f * in, growl * (0.75f + 0.1f * Mth.sin(t * 2.3f)));
 	}
 
 	/** The roar of his Impulse (three seconds): rearing, the neck thrust out, the petals flung wide, all of him shaking. */

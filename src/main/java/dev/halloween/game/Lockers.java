@@ -336,11 +336,17 @@ public final class Lockers {
 			if (Demogorgon.active()) {
 				// Not the door: his claw straight through it, feeling about inside.
 				// Squarely in front of it first, an arm's length off, so the claw goes in through the middle of the door.
-				Vec3 stand = center(base).add(facing.getStepX() * 1.45, 0, facing.getStepZ() * 1.45);
-				stand = new Vec3(stand.x, shape.getY(), stand.z);
-				if (level.noCollision(shape, shape.getBoundingBox().move(stand.subtract(shape.position())))) {
-					shape.teleportTo(level, stand.x, stand.y, stand.z, Set.of(Relative.X_ROT), facing.getOpposite().toYRot(), 0f, false);
+				// (However he came at it, from the side too: nearer if something stands there, right before it at worst.)
+				for (double off : new double[]{1.45, 1.25, 1.0}) {
+					Vec3 stand = center(base).add(facing.getStepX() * off, 0, facing.getStepZ() * off);
+					if (off == 1.0 || level.noCollision(shape, shape.getBoundingBox().move(stand.subtract(shape.position())))) {
+						shape.teleportTo(level, stand.x, stand.y, stand.z, Set.of(Relative.X_ROT), facing.getOpposite().toYRot(), 0f, false);
+						break;
+					}
 				}
+				// A growl at it as the claw goes in.
+				level.playSound(null, c.x, c.y + 1, c.z, net.minecraft.sounds.SoundEvents.WARDEN_ANGRY, SoundSource.HOSTILE, 1.6f, 0.6f);
+				level.playSound(null, c.x, c.y + 1, c.z, net.minecraft.sounds.SoundEvents.RAVAGER_ROAR, SoundSource.HOSTILE, 0.9f, 0.55f);
 				GrabSession.anim(shape, HwNet.Anim.DEMO_SEARCH);
 				level.playSound(null, c.x, c.y + 0.5, c.z, net.minecraft.sounds.SoundEvents.ZOMBIE_ATTACK_WOODEN_DOOR, SoundSource.HOSTILE, 1.4f, 0.8f);
 			} else {

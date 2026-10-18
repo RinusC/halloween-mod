@@ -63,7 +63,7 @@ public class HwConfig {
 	public double dashSpeedModifier = 0.9;
 	public int[] dashCooldownByTier = {180, 160, 140};
 	/** The Demogorgon's Shred: its cooldown by Bloodthirst tier (longer than Michael's dash at first, shorter as he gets going). */
-	public int[] demoShredCooldownByTier = {260, 190, 130};
+	public int[] demoShredCooldownByTier = {260, 190, 160};
 	/** After Shape Jump ends, he can't speed up for this long. */
 	public int dashAfterShadowTicks = 40;
 
