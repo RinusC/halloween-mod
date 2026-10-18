@@ -98,7 +98,7 @@ public class LockerKillClientTest implements FabricClientGameTest {
 					net.minecraft.world.phys.Vec3[] ends = server.computeOnServer(s -> new net.minecraft.world.phys.Vec3[]{player(s).position(), survivorBot(s).position()});
 					net.minecraft.world.phys.Vec3 mid = ends[0].lerp(ends[1], 0.5);
 					net.minecraft.world.phys.Vec3 along = ends[1].subtract(ends[0]).normalize();
-					net.minecraft.world.phys.Vec3 cam = mid.add(-along.z * 4, 1.6, along.x * 4);
+					net.minecraft.world.phys.Vec3 cam = mid.add(-along.z * 6, 2.2, along.x * 6);
 					LOG.info("demo at {}, victim at {}", ends[0], ends[1]);
 					ctx.runOnClient(mc -> KillCam.begin(new dev.halloween.net.HwNet.Cutscene(dev.halloween.game.Cutscenes.KILLCAM, 30, cam, mid.add(0, 0.6, 0), net.minecraft.world.phys.Vec3.ZERO)));
 					ctx.waitTicks(3);

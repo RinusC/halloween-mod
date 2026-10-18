@@ -46,9 +46,8 @@ public abstract class LivingEntityRendererMixin {
 				// Eating: his body faces the one under him, whichever way the player looks.
 				for (net.minecraft.world.entity.Entity e : entity.level().getEntities(entity, entity.getBoundingBox().inflate(2.5))) {
 					if (ClientAnims.hold(e.getId()) == dev.halloween.net.HwNet.Anim.PINNED) {
-						double dx = e.getX() - entity.getX();
-						double dz = e.getZ() - entity.getZ();
-						state.bodyRot = (float) (Math.toDegrees(Math.atan2(dz, dx)) - 90.0);
+						// He faces the way they lie (they face him): turned to them.
+						state.bodyRot = e.getYRot() + 180f;
 						break;
 					}
 				}

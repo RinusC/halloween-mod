@@ -254,7 +254,7 @@ public final class GrabSession {
 			for (Vec3[] way : ways) {
 				Vec3 d = way[0];
 				Vec3 stand = way[1];
-				Vec3 v = stand.add(d.scale(0.95));
+				Vec3 v = stand.add(d.scale(DEMO_FEET));
 				Vec3 head = v.add(d.scale(1.8));
 				net.minecraft.world.phys.AABB body = new net.minecraft.world.phys.AABB(Math.min(v.x, head.x) - 0.3, v.y + 0.05, Math.min(v.z, head.z) - 0.3,
 					Math.max(v.x, head.x) + 0.3, v.y + 0.6, Math.max(v.z, head.z) + 0.3);
@@ -269,7 +269,7 @@ public final class GrabSession {
 			if (feet == null) {
 				// No room anywhere: where he is, as he stands.
 				float yaw = this.pinYaw * Mth.DEG_TO_RAD;
-				feet = this.shape.position().add(-Mth.sin(yaw) * 0.95, 0, Mth.cos(yaw) * 0.95);
+				feet = this.shape.position().add(-Mth.sin(yaw) * DEMO_FEET, 0, Mth.cos(yaw) * DEMO_FEET);
 			}
 			Vec3 floor = feet;
 			this.placeVictim(floor.x, floor.y, floor.z, this.pinYaw + 180f);
@@ -350,6 +350,9 @@ public final class GrabSession {
 			ServerPlayNetworking.send(p, new HwNet.Quake(ticks, strength));
 		}
 	}
+
+	/** How far ahead of the Demogorgon the feet of the one under him are (they lie on away from him). */
+	private static final double DEMO_FEET = 1.4;
 
 	private static final int LOCKER_KILL_TICKS = 52;
 
@@ -827,7 +830,8 @@ public final class GrabSession {
 			this.shape.setYBodyRot(this.pinYaw);
 		}
 		// Held up in front of him; under the Demogorgon, lying, their feet by his.
-		double reach = Demogorgon.active() ? 0.95 : 0.9;
+		// Under the Demogorgon: their feet towards him, lying out ahead with the chest under his mouth.
+		double reach = Demogorgon.active() ? DEMO_FEET : 0.9;
 		double x = this.shape.getX() - Mth.sin(yaw) * reach;
 		double z = this.shape.getZ() + Mth.cos(yaw) * reach;
 		// Face the Shape.
