@@ -762,6 +762,11 @@ public class HwConfig {
 	public double botWarnRange = 16;
 	/** On the way to an exit, bots take a neighbour this close along. */
 	public double botEscortRange = 14;
+	/** Bots fetch a neighbour at home this far away to lead out (with a way out open; without one, only this near), and wait
+	 * at the way out this long for them to go first. */
+	public double botRescueRange = 50;
+	public double botRescueRangeNoExit = 20;
+	public int botEscortWaitTicks = 300;
 	/** The Shape this close (by the proximity music): bots start nothing long (gates, calls, repairs). */
 	public double botCautionDistance = 12;
 	/** While the music plays, bots look all around about this often (ticks). */

@@ -91,6 +91,15 @@ final class BotBrain {
 	private Vec3 seenFrom;
 	/** The townsperson this bot asked to follow it (to take along out of an exit). */
 	private int escorting = -1;
+	/** When we got to the way out with a neighbour in tow and began waiting for them (-1: not waiting). */
+	private int escortWaitAt = -1;
+
+	private int escortWaitStart(int now) {
+		if (this.escortWaitAt < 0) {
+			this.escortWaitAt = now;
+		}
+		return this.escortWaitAt;
+	}
 	private int nextLookAround;
 	private int enteredLockerSeenUntil;
 	private final java.util.Set<Integer> warned = new java.util.HashSet<>();
@@ -980,6 +989,16 @@ final class BotBrain {
 			AiStats.add(this.bot, status == Walker.Status.STUCK ? "stuck" : "task.unreachable." + this.task.key);
 			this.task = null;
 		} else if (status != Walker.Status.MOVING || there && this.walker.idle()) {
+			if (this.task.key.equals("exit") && this.escortingSomeone() && now - this.escortWaitStart(now) < this.cfg().botEscortWaitTicks) {
+				// At the way out with a neighbour in tow: let them go out first (they use it up, perhaps: we find another).
+				this.walker.halt();
+				net.minecraft.world.entity.Entity npc = this.level().getEntity(this.escorting);
+				if (npc != null) {
+					this.walker.face(npc.getEyePosition());
+				}
+				return;
+			}
+			this.escortWaitAt = -1;
 			if (this.task.hold) {
 				this.walker.halt();
 				this.holdPos = this.task.target;
@@ -1084,20 +1103,30 @@ final class BotBrain {
 				best = t;
 			}
 		}
+		// Townsfolk come first: with a way out open, the nearest one at home within reach is fetched and led out
+		// (even if it uses that way out up: another one will do for us); with none open yet, one close by comes
+		// along while we look for what opens one.
+		if (!this.escortingSomeone()) {
+			HwConfig cfg = this.cfg();
+			double range = openExits > 0 ? cfg.botRescueRange : cfg.botRescueRangeNoExit;
+			net.minecraft.world.entity.decoration.Mannequin pick = null;
+			double pickDist = Double.MAX_VALUE;
+			for (net.minecraft.world.entity.decoration.Mannequin npc : Townsfolk.idleNear(this.bot.position(), range)) {
+				Integer until = this.failed.get(npc.blockPosition());
+				double d = npc.distanceTo(this.bot);
+				if (!this.warned.contains(npc.getId()) && (until == null || now >= until) && d < pickDist
+					&& (this.threat == null || now - this.threatTick >= 600 || this.threat.distanceTo(npc.position()) >= 12)) {
+					pick = npc;
+					pickDist = d;
+				}
+			}
+			if (pick != null) {
+				best = new Task(pick.blockPosition(), 2.2, false, "escort", pick.getId());
+			}
+		}
 		if (best == null) {
 			this.task = null;
 			return;
-		}
-		// On the way out: take a neighbour along if one is at home nearby (a rescue on top of the escape).
-		// (Only with a second way out: the neighbour uses up the exit it leaves by.)
-		if (best.key.equals("exit") && openExits >= 2 && !this.escortingSomeone()) {
-			for (net.minecraft.world.entity.decoration.Mannequin npc : Townsfolk.idleNear(this.bot.position(), this.cfg().botEscortRange)) {
-				if (!this.warned.contains(npc.getId())) {
-					this.warned.add(npc.getId());
-					best = new Task(npc.blockPosition(), 2.2, false, "escort", npc.getId());
-					break;
-				}
-			}
 		}
 		if (this.task == null || !this.task.equals(best) || this.walker.idle()) {
 			this.task = best;
