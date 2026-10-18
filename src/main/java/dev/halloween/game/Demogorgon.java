@@ -418,6 +418,10 @@ public final class Demogorgon {
 					level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, ground), d.getX(), d.getY() + 0.1, d.getZ(), 10 + done / 6, 0.7, 0.1, 0.7, 0.15);
 				}
 				level.sendParticles(ParticleTypes.CRIMSON_SPORE, d.getX(), d.getY() + 0.3, d.getZ(), 8, 0.8, 0.3, 0.8, 0.02);
+				if (done % 20 == 0) {
+					// The ground splitting open: townsfolk near by run the other way.
+					Townsfolk.flee(d.position(), 16, now);
+				}
 				if (done % 20 == 10) {
 					level.playSound(null, d.getX(), d.getY(), d.getZ(), SoundEvents.WARDEN_DIG, SoundSource.HOSTILE, 1.5f + done / 50f, 0.6f + done / 200f);
 					level.playSound(null, d.getX(), d.getY(), d.getZ(), SoundEvents.SCULK_BLOCK_SPREAD, SoundSource.HOSTILE, 1.5f, 0.5f);
