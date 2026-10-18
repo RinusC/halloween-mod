@@ -36,6 +36,11 @@ public final class Cutscene {
 			KillCam.begin(payload);
 			return;
 		}
+		if (payload.kind() >= Cutscenes.SHAPE_HERO) {
+			// One of the survivors at what they do, through his mask: his walk up, their pose.
+			HeroScene.watch(payload.kind() - Cutscenes.SHAPE_HERO, payload.c());
+			payload = new HwNet.Cutscene(Cutscenes.SHAPE, payload.ticks(), payload.a(), payload.b(), payload.c());
+		}
 		Minecraft mc = Minecraft.getInstance();
 		// A countdown too short for a scene (tests, a quick restart) plays none.
 		if (mc.level == null || mc.player == null || payload.ticks() < 60) {
@@ -44,6 +49,11 @@ public final class Cutscene {
 		}
 		scene = payload;
 		start = mc.level.getGameTime();
+		if (payload.kind() >= Cutscenes.HERO) {
+			// Their own scene, by who they are.
+			HeroScene.begin(payload);
+			return;
+		}
 		if (payload.kind() == Cutscenes.SURVIVOR) {
 			planFlight(mc, payload.a());
 		} else {
@@ -76,7 +86,7 @@ public final class Cutscene {
 
 	/** Survivors see themselves from outside; Michael looks out of his own eyes (the knife in hand). */
 	public static boolean showsBody() {
-		return scene != null && scene.kind() == Cutscenes.SURVIVOR;
+		return scene != null && (scene.kind() == Cutscenes.SURVIVOR || scene.kind() >= Cutscenes.HERO);
 	}
 
 	/** Michael's scene ends on black and fades in on his own camera: the scene's camera lets go a little early. */
@@ -90,6 +100,9 @@ public final class Cutscene {
 		float f = progress(partial);
 		if (f < 0) {
 			return null;
+		}
+		if (scene.kind() >= Cutscenes.HERO) {
+			return HeroScene.camera(f, partial);
 		}
 		Minecraft mc = Minecraft.getInstance();
 		if (scene.kind() == Cutscenes.SHAPE) {
@@ -185,6 +198,10 @@ public final class Cutscene {
 			return false;
 		}
 		Minecraft mc = Minecraft.getInstance();
+		if (scene.kind() >= Cutscenes.HERO) {
+			HeroScene.overlay(g, mc, f);
+			return true;
+		}
 		int w = g.guiWidth();
 		int h = g.guiHeight();
 		if (scene.kind() == Cutscenes.SHAPE) {
@@ -235,7 +252,7 @@ public final class Cutscene {
 		}
 	}
 
-	private static void bigText(GuiGraphicsExtractor g, Minecraft mc, Component text, int x, int y, float scale, int color) {
+	static void bigText(GuiGraphicsExtractor g, Minecraft mc, Component text, int x, int y, float scale, int color) {
 		g.pose().pushMatrix();
 		g.pose().translate(x, y);
 		g.pose().scale(scale, scale);
@@ -244,14 +261,14 @@ public final class Cutscene {
 	}
 
 	/** 0..1: fading in from {@code from}, out by {@code to}, over {@code edge}. */
-	private static float fade(float f, float from, float to, float edge) {
+	static float fade(float f, float from, float to, float edge) {
 		if (f < from || f > to) {
 			return 0;
 		}
 		return Mth.clamp(Math.min((f - from) / edge, (to - f) / edge), 0f, 1f);
 	}
 
-	private static int alpha(float a, int rgb) {
+	static int alpha(float a, int rgb) {
 		return ((int) (Mth.clamp(a, 0f, 1f) * 255) << 24) | rgb;
 	}
 }

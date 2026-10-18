@@ -36,12 +36,12 @@ public class CutsceneClientTest implements FabricClientGameTest {
 			ctx.waitTicks(10);
 			check(ctx.computeOnClient(mc -> Cutscene.active()), "the survivor's scene plays");
 			int[] at = {20, 70, 100, 70, 40};
-			String[] names = {"s_title", "s_flight", "s_low", "s_drop", "s_eyes"};
+			String[] names = {"s_title", "s_hero", "s_ghost", "s_drop", "s_eyes"};
 			for (int i = 0; i < at.length; i++) {
 				ctx.waitTicks(at[i]);
 				if (i == 1) {
 					double far = ctx.computeOnClient(mc -> mc.gameRenderer.mainCamera().position().distanceTo(mc.player.getEyePosition()));
-					check(far > 10, "the camera is out over the town (" + Math.round(far) + " blocks off)");
+					check(far > 1.5 && far < 6, "the camera stands a few steps off them, watching them at what they do (" + Math.round(far) + " blocks off)");
 				}
 				ctx.takeScreenshot("cut_" + names[i]);
 			}

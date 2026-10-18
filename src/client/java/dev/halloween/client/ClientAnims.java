@@ -192,6 +192,10 @@ public final class ClientAnims {
 
 	/** Lays the entity's grab pose over the model's ordinary one. */
 	public static void apply(HumanoidModel<?> m, int entityId) {
+		if (HeroScene.pose(m, entityId)) {
+			// In their opening scene, at what they do.
+			return;
+		}
 		State s = STATES.get(entityId);
 		if (s != null && s.hold == HwNet.Anim.PINNED) {
 			// On their back under him (the body laid over by fallAngle): arms up pushing at him, legs kicking,

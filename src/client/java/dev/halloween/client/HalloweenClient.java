@@ -261,6 +261,7 @@ public class HalloweenClient implements ClientModInitializer {
 		if (mc.player == null || mc.level == null) {
 			return;
 		}
+		HeroScene.tick(mc);
 		ClientInteractions.tick(mc);
 		ShapeJumpAudio.tick(mc);
 		BloodParticles.tick(mc);

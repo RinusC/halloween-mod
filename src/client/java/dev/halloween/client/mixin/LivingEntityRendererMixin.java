@@ -31,6 +31,8 @@ public abstract class LivingEntityRendererMixin {
 	private void halloween$michael(net.minecraft.client.renderer.SubmitNodeCollector collector, net.minecraft.client.model.Model model, Object state, PoseStack pose,
 		net.minecraft.client.renderer.rendertype.RenderType renderType, int light, int overlay, int tint, net.minecraft.client.renderer.texture.TextureAtlasSprite sprite,
 		int outline, net.minecraft.client.renderer.feature.ModelFeatureRenderer.CrumblingOverlay crumbling) {
+		// In an opening scene the one it is about (and him, behind them) catch a little light, made out in the night.
+		light = dev.halloween.client.HeroScene.light(state, light);
 		if (!dev.halloween.client.MichaelRenderer.submit(collector, model, state, pose, light, overlay, tint, outline)) {
 			collector.submitModel(model, state, pose, renderType, light, overlay, tint, sprite, outline, crumbling);
 		}

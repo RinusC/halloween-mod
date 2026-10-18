@@ -82,6 +82,7 @@ public class Halloween implements ModInitializer {
 
 		ServerTickEvents.START_SERVER_TICK.register(dev.halloween.game.TickTimer::start);
 		ServerTickEvents.END_SERVER_TICK.register(MatchManager::tick);
+		ServerTickEvents.END_SERVER_TICK.register(dev.halloween.game.Cutscenes::tick);
 		ServerTickEvents.END_SERVER_TICK.register(dev.halloween.game.TickTimer::end);
 		net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents.ENTITY_LOAD.register(dev.halloween.game.Leftovers::onLoad);
 		// Townsfolk and officers whose chunk loads again come back in a new body object.
