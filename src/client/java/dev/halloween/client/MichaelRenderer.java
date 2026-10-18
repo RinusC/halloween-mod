@@ -101,6 +101,10 @@ public final class MichaelRenderer {
 		if (!enabled || e == null) {
 			return false;
 		}
+		if (HeroScene.isGhost(e)) {
+			// Him, standing behind a survivor in their opening scene.
+			return true;
+		}
 		Role role = ClientState.ROLES.get(e.getUUID());
 		// The masks event: every survivor wears his face.
 		return role == Role.SHAPE || role != null && role.survivor() && ClientEvents.masks() && e.isAlive();

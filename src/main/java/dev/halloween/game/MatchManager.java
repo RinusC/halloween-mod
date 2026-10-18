@@ -426,7 +426,8 @@ public final class MatchManager {
 		} else {
 			state.fatigue = Math.max(0f, state.fatigue - 1f / (cfg.senseRecoverySeconds * 20f));
 		}
-		if (state.grab == null && state.shadowTicks == 0) {
+		if (state.grab == null && state.shadowTicks == 0 && !Match.frozen()) {
+			// (Not while the countdown runs: his opening scene may stand him right by one of them.)
 			if (Demogorgon.active()) {
 				tickScent(player, state);
 			} else {

@@ -106,6 +106,11 @@ public final class HeroScene {
 		return mc.level == null ? 0 : mc.level.getGameTime() - start + partial;
 	}
 
+	/** Is this the mannequin that stands in for him behind them in their scene? */
+	public static boolean isGhost(Entity e) {
+		return ghost != null && hero >= 0 && e instanceof net.minecraft.world.entity.decoration.Mannequin && e.position().distanceToSqr(ghost) < 1.0;
+	}
+
 	/** The light a body in the scene is drawn with: a little more for the one it is about and for him behind them. */
 	public static int light(Object state, int light) {
 		if (hero < 0 || !Cutscene.active() || !(state instanceof net.minecraft.client.renderer.entity.state.EntityRenderState s)) {
@@ -267,8 +272,8 @@ public final class HeroScene {
 		Vec3 eye = mc.player.getEyePosition(partial);
 		Vec3 look = eye.add(0, -0.15, 0);
 		Vec3 side = new Vec3(-front.z, 0, front.x);
-		float orbit = Mth.lerp(Math.min(1f, f / 0.82f), 0.9f, -0.5f);
-		float dist = Mth.lerp(Math.min(1f, f / 0.82f), 3.6f, 2.8f);
+		float orbit = Mth.lerp(Math.min(1f, f / 0.82f), 0.6f, -0.4f);
+		float dist = Mth.lerp(Math.min(1f, f / 0.82f), 3.2f, 2.4f);
 		Vec3 want = eye.add(front.scale(dist)).add(side.scale(orbit)).add(0, 0.15, 0);
 		// Never inside a wall.
 		HitResult hit = mc.level.clip(new ClipContext(look, want, ClipContext.Block.VISUAL, ClipContext.Fluid.NONE, mc.player));

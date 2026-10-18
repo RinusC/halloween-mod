@@ -46,6 +46,153 @@ public final class Cutscenes {
 
 	private static final java.util.List<Pending> PENDING = new java.util.ArrayList<>();
 
+	/** How far from their spawn a survivor's place for their scene may be. */
+	private static final int STAGE_REACH = 28;
+
+	/**
+	 * Before their scene: a survivor put where what they do belongs (near where they would start, never near him):
+	 * the student at a table indoors, the girl on the phone at a telephone, the reader at a bookcase, the babysitter at a
+	 * window, the pumpkin carver by a pumpkin, the boys at a car, on a porch, in a yard. Where there is none, they stay.
+	 */
+	public static void stage(ServerLevel level, ServerPlayer p, BlockPos lair) {
+		int hero = heroOf(p);
+		if (hero < 0) {
+			return;
+		}
+		String name = Skins.SURVIVORS.get(hero);
+		java.util.function.Predicate<net.minecraft.world.level.block.state.BlockState> what;
+		// Where they stand: indoors (1), outdoors (2), either (0); and whether they face the thing or turn their back on it.
+		int side;
+		boolean away = false;
+		switch (name) {
+			case "laurie" -> {
+				// A table (with a candle on it, where the family eats): her books open on it.
+				what = s -> s.is(net.minecraft.world.level.block.Blocks.DARK_OAK_FENCE);
+				side = 1;
+			}
+			case "annie" -> {
+				what = s -> s.is(dev.halloween.HwBlocks.PHONE);
+				side = 1;
+			}
+			case "jennifer" -> {
+				what = s -> s.is(net.minecraft.world.level.block.Blocks.BOOKSHELF);
+				side = 1;
+			}
+			case "alexis" -> {
+				what = Windows::isWindow;
+				side = 1;
+			}
+			case "rachel" -> {
+				what = s -> s.is(net.minecraft.world.level.block.Blocks.CARVED_PUMPKIN) || s.is(net.minecraft.world.level.block.Blocks.JACK_O_LANTERN);
+				side = 2;
+			}
+			case "lynda", "richard" -> {
+				// On the porch by a front door, looking out at the street.
+				what = s -> s.getBlock() instanceof net.minecraft.world.level.block.DoorBlock;
+				side = 2;
+				away = true;
+			}
+			case "tanya" -> {
+				// At somebody's front door, trick or treating.
+				what = s -> s.getBlock() instanceof net.minecraft.world.level.block.DoorBlock;
+				side = 2;
+			}
+			case "marcus", "thomas" -> {
+				// Out in a yard.
+				what = s -> s.is(net.minecraft.world.level.block.Blocks.GRASS_BLOCK);
+				side = 2;
+			}
+			case "bob", "eric" -> {
+				stageAtCar(level, p, lair, name.equals("eric"));
+				return;
+			}
+			default -> {
+				return;
+			}
+		}
+		BlockPos from = p.blockPosition();
+		BlockPos bestStand = null;
+		BlockPos bestThing = null;
+		double best = Double.MAX_VALUE;
+		double far = dev.halloween.HwConfig.get().spawnAwayFromKiller;
+		for (BlockPos t : BlockPos.betweenClosed(from.offset(-STAGE_REACH, -3, -STAGE_REACH), from.offset(STAGE_REACH, 6, STAGE_REACH))) {
+			if (!what.test(level.getBlockState(t))) {
+				continue;
+			}
+			for (Direction d : Direction.Plane.HORIZONTAL) {
+				// A grass block is stood on, not beside.
+				BlockPos stand = name.equals("marcus") || name.equals("thomas") ? t.above() : t.relative(d);
+				if (!Nav.standable(level, stand) || level.getBlockState(stand.below()).getBlock() instanceof net.minecraft.world.level.block.DoorBlock) {
+					if (!Nav.standable(level, stand.below())) {
+						continue;
+					}
+					stand = stand.below();
+				}
+				boolean open = level.canSeeSky(stand.above());
+				if (side == 1 && open || side == 2 && !open || lair != null && stand.distSqr(lair) < far * far) {
+					continue;
+				}
+				double dist = stand.distSqr(from);
+				if (dist < best) {
+					best = dist;
+					bestStand = stand.immutable();
+					bestThing = t.immutable();
+				}
+			}
+		}
+		if (bestStand == null) {
+			return;
+		}
+		Vec3 at = Vec3.atBottomCenterOf(bestStand);
+		Vec3 to = Vec3.atBottomCenterOf(bestThing).subtract(at);
+		if (name.equals("marcus") || name.equals("thomas")) {
+			to = new Vec3(level.getRandom().nextDouble() - 0.5, 0, level.getRandom().nextDouble() - 0.5);
+		}
+		if (away) {
+			to = to.scale(-1);
+		}
+		float yaw = (float) Math.toDegrees(Math.atan2(-to.x, to.z));
+		p.teleportTo(level, at.x, at.y, at.z, java.util.Set.of(), yaw, 0f, false);
+	}
+
+	/** Bob and Eric: by a car (one of the cars on the map), Eric at its front, Bob leaning by its side. */
+	private static void stageAtCar(ServerLevel level, ServerPlayer p, BlockPos lair, boolean front) {
+		BlockPos best = null;
+		double bestDist = 60 * 60;
+		double far = dev.halloween.HwConfig.get().spawnAwayFromKiller;
+		for (BlockPos car : MapPoints.get(level).list(MapPoints.Type.CAR)) {
+			double d = car.distSqr(p.blockPosition());
+			if (d < bestDist && (lair == null || car.distSqr(lair) >= far * far)) {
+				bestDist = d;
+				best = car;
+			}
+		}
+		if (best == null) {
+			return;
+		}
+		// The free spot nearest the car (its front is along X, see Exits), a step off its body.
+		BlockPos stand = null;
+		double bestScore = Double.MAX_VALUE;
+		for (BlockPos s : BlockPos.betweenClosed(best.offset(-5, -1, -3), best.offset(5, 2, 3))) {
+			if (!Nav.standable(level, s)) {
+				continue;
+			}
+			double along = s.getX() - best.getX();
+			double score = s.distSqr(best) + (front ? Math.abs(along - 4.5) * 3 : Math.abs(along) * 3);
+			if (score < bestScore) {
+				bestScore = score;
+				stand = s.immutable();
+			}
+		}
+		if (stand == null) {
+			return;
+		}
+		Vec3 at = Vec3.atBottomCenterOf(stand);
+		Vec3 to = Vec3.atBottomCenterOf(best).subtract(at);
+		float yaw = (float) Math.toDegrees(Math.atan2(-to.x, to.z));
+		p.teleportTo(level, at.x, at.y, at.z, java.util.Set.of(), yaw, 0f, false);
+	}
+
 	/** Which of the survivors' scenes this player gets (their look), or -1. */
 	private static int heroOf(ServerPlayer p) {
 		String skin = Skins.skinOf(p);
@@ -61,14 +208,21 @@ public final class Cutscenes {
 		Vec3 eye = p.getEyePosition();
 		Vec3 front = p.getLookAngle().multiply(1, 0, 1);
 		front = front.lengthSqr() < 1e-4 ? new Vec3(0, 0, 1) : front.normalize();
-		// Turned round if the camera would sit in a wall that way.
-		for (int turn = 0; turn < 4; turn++) {
-			Vec3 cam = eye.add(front.scale(3.2)).add(0, 0.2, 0);
-			if (level.clip(new net.minecraft.world.level.ClipContext(eye, cam, net.minecraft.world.level.ClipContext.Block.COLLIDER,
-				net.minecraft.world.level.ClipContext.Fluid.NONE, p)).getType() == net.minecraft.world.phys.HitResult.Type.MISS) {
-				break;
+		// The camera before their face if there is room (a little to one side, nearer in a small room), else off to a
+		// side, behind them only at worst.
+		Vec3 face = front;
+		search:
+		for (double dist : new double[]{3.2, 2.2}) {
+			for (double deg : new double[]{0, 30, -30, 60, -60, 95, -95, 140, -140, 180}) {
+				double a = Math.toRadians(deg);
+				Vec3 dir = new Vec3(face.x * Math.cos(a) - face.z * Math.sin(a), 0, face.x * Math.sin(a) + face.z * Math.cos(a));
+				Vec3 cam = eye.add(dir.scale(dist)).add(0, 0.2, 0);
+				if (level.clip(new net.minecraft.world.level.ClipContext(eye, cam, net.minecraft.world.level.ClipContext.Block.COLLIDER,
+					net.minecraft.world.level.ClipContext.Fluid.NONE, p)).getType() == net.minecraft.world.phys.HitResult.Type.MISS) {
+					front = dir;
+					break search;
+				}
 			}
-			front = new Vec3(-front.z, 0, front.x);
 		}
 		// Him: behind them, as far off as he can be seen (in the open, not inside a wall).
 		Vec3 ghost = null;
@@ -77,8 +231,8 @@ public final class Cutscenes {
 			Vec3 at = feet.subtract(front.scale(d)).add(new Vec3(-front.z, 0, front.x).scale(-d * 0.3));
 			BlockPos b = BlockPos.containing(at);
 			for (int dy : new int[]{0, 1, -1}) {
-				if (Nav.standable(level, b.above(dy)) && level.clip(new net.minecraft.world.level.ClipContext(eye, Vec3.atBottomCenterOf(b.above(dy)).add(0, 1.5, 0),
-					net.minecraft.world.level.ClipContext.Block.COLLIDER, net.minecraft.world.level.ClipContext.Fluid.NONE, p)).getType() == net.minecraft.world.phys.HitResult.Type.MISS) {
+				// (Through a window will do: him outside, looking in.)
+				if (Nav.standable(level, b.above(dy)) && Sight.canSee(level, eye, Vec3.atBottomCenterOf(b.above(dy)).add(0, 1.5, 0), p)) {
 					ghost = Vec3.atBottomCenterOf(b.above(dy));
 					break;
 				}
@@ -119,8 +273,9 @@ public final class Cutscenes {
 			Vec3 dir = new Vec3(front.x * Math.cos(a) - front.z * Math.sin(a), 0, front.x * Math.sin(a) + front.z * Math.cos(a));
 			Vec3 start = eye.add(dir.scale(11)).add(0, 0.1, 0);
 			Vec3 end = eye.add(dir.scale(6)).add(0, 0.1, 0);
-			if (level.clip(new net.minecraft.world.level.ClipContext(eye, start, net.minecraft.world.level.ClipContext.Block.COLLIDER,
-				net.minecraft.world.level.ClipContext.Fluid.NONE, t)).getType() == net.minecraft.world.phys.HitResult.Type.MISS) {
+			// (Through a window will do, from out in the dark.)
+			if (Sight.canSee(level, eye, start, t) && Sight.canSee(level, eye, end, t)
+				&& (level.canSeeSky(BlockPos.containing(start)) || turn >= angles.length - 1 || level.canSeeSky(BlockPos.containing(eye)))) {
 				if (shape.distanceTo(t) > 64) {
 					// Too far for his screen to have that part of town: he waits out the countdown there himself, unseen, and is
 					// back in his lair when it starts.

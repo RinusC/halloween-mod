@@ -270,6 +270,9 @@ public final class Match {
 				MatchManager.applyRole(player, Role.CIVILIAN);
 				PEOPLE.put(player.getUUID(), new Participant(player.getScoreboardName()));
 				teleport(player, spawns.get(i++ % spawns.size()));
+				// Where what they do in their opening scene belongs, near there.
+				BlockPos lair = points.first(MapPoints.Type.SPAWN_SHAPE);
+				Cutscenes.stage(level, player, lair != null ? lair : center);
 			}
 		}
 		if (runt == null) {
