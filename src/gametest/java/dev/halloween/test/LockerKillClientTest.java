@@ -128,10 +128,16 @@ public class LockerKillClientTest implements FabricClientGameTest {
 					ctx.waitTicks(14);
 					ctx.takeScreenshot("locker_search");
 					check(server.computeOnServer(s -> MatchManager.shapeState(player(s)).busy()), "michael: searching an empty wardrobe holds him");
+					check(server.computeOnServer(s -> s.overworld().getBlockState(base).getValue(LockerBlock.OPEN) && s.overworld().getBlockState(base.above()).getValue(LockerBlock.OPEN)), "michael: its door swung open");
 					ctx.waitTicks(30);
 					check(server.computeOnServer(s -> !MatchManager.shapeState(player(s)).busy()), "michael: free again after two seconds");
+					check(server.computeOnServer(s -> !s.overworld().getBlockState(base).getValue(LockerBlock.OPEN)), "michael: and shut again");
 					// Someone climbing through a window: caught on the sill and pulled back.
 					BlockPos pane = base.offset(3, 0, 2);
+					// (Not while the bot is climbing through some other window on its own: that carries it off.)
+					for (int i = 0; i < 60 && server.computeOnServer(s -> dev.halloween.game.Windows.isVaulting(survivorBot(s))); i++) {
+						ctx.waitTicks(1);
+					}
 					server.runOnServer(s -> {
 						s.overworld().setBlock(pane, Blocks.GLASS_PANE.defaultBlockState(), 3);
 						s.overworld().setBlock(pane.above(), Blocks.GLASS_PANE.defaultBlockState(), 3);
@@ -147,6 +153,7 @@ public class LockerKillClientTest implements FabricClientGameTest {
 					check(server.computeOnServer(s -> dev.halloween.game.Windows.isVaulting(survivorBot(s))), "a survivor climbs through the window");
 					server.runOnServer(s -> {
 						MatchManager.shapeState(player(s)).grabCooldown = 0;
+						LOG.info("grab at window: player {} bot {} pane {} vaulting {} d {} busy {} shadow {} grabbed {}", player(s).position(), survivorBot(s).position(), pane, dev.halloween.game.Windows.isVaulting(survivorBot(s)), player(s).distanceTo(survivorBot(s)), MatchManager.shapeState(player(s)).busy(), MatchManager.shapeState(player(s)).shadowTicks, MatchManager.isHeld(survivorBot(s)));
 						MatchManager.onGrab(player(s), survivorBot(s).getId());
 					});
 					ctx.waitTicks(4);

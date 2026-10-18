@@ -25,6 +25,8 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 public class LockerBlock extends HorizontalDirectionalBlock {
 	public static final MapCodec<LockerBlock> CODEC = simpleCodec(LockerBlock::new);
 	public static final EnumProperty<DoubleBlockHalf> HALF = BlockStateProperties.DOUBLE_BLOCK_HALF;
+	/** The door swung open (the killer searching it). */
+	public static final net.minecraft.world.level.block.state.properties.BooleanProperty OPEN = BlockStateProperties.OPEN;
 	private static final Map<Direction, VoxelShape> LOWER = new EnumMap<>(Direction.class);
 	private static final Map<Direction, VoxelShape> UPPER = new EnumMap<>(Direction.class);
 
@@ -42,7 +44,7 @@ public class LockerBlock extends HorizontalDirectionalBlock {
 
 	public LockerBlock(Properties properties) {
 		super(properties);
-		this.registerDefaultState(this.stateDefinition.any().setValue(FACING, Direction.NORTH).setValue(HALF, DoubleBlockHalf.LOWER));
+		this.registerDefaultState(this.stateDefinition.any().setValue(FACING, Direction.NORTH).setValue(HALF, DoubleBlockHalf.LOWER).setValue(OPEN, false));
 	}
 
 	/** A box given for a locker facing north (front at z=0), turned to face {@code facing}. */
@@ -62,7 +64,7 @@ public class LockerBlock extends HorizontalDirectionalBlock {
 
 	@Override
 	protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
-		builder.add(FACING, HALF);
+		builder.add(FACING, HALF, OPEN);
 	}
 
 	@Override
@@ -83,6 +85,16 @@ public class LockerBlock extends HorizontalDirectionalBlock {
 
 	public static boolean is(BlockState state) {
 		return state.getBlock() instanceof LockerBlock;
+	}
+
+	/** Swings the door of the locker at {@code base} open or shut (both halves). */
+	public static void setOpen(Level level, BlockPos base, boolean open) {
+		for (BlockPos p : new BlockPos[]{base, base.above()}) {
+			BlockState state = level.getBlockState(p);
+			if (is(state) && state.getValue(OPEN) != open) {
+				level.setBlock(p, state.setValue(OPEN, open), Block.UPDATE_CLIENTS);
+			}
+		}
 	}
 
 	/** Places a whole locker with its door facing {@code facing}. */

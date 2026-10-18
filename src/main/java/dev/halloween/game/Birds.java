@@ -142,11 +142,11 @@ public final class Birds {
 
 	/** Who is too near this bird: running further off, crouching hardly at all. */
 	private static LivingEntity scarer(ServerLevel level, Vec3 at, HwConfig cfg) {
-		for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, new net.minecraft.world.phys.AABB(BlockPos.containing(at)).inflate(cfg.birdScareRun + 1, 10, cfg.birdScareRun + 1),
+		for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, new net.minecraft.world.phys.AABB(BlockPos.containing(at)).inflate(cfg.birdScareRun + 1, 17, cfg.birdScareRun + 1),
 			e -> e.isAlive() && !e.isSpectator())) {
 			// Along the ground: someone passing under the roof or the lamp it sits on puts it up too.
 			double d = Math.hypot(e.getX() - at.x, e.getZ() - at.z);
-			if (Math.abs(e.getY() - at.y) > 9) {
+			if (Math.abs(e.getY() - at.y) > 16) {
 				continue;
 			}
 			double moving = e.getDeltaMovement().horizontalDistance();

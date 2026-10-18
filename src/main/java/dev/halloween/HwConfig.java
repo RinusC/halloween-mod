@@ -848,6 +848,8 @@ public class HwConfig {
 	public double musicSightRange = 32;
 	/** Closer than this but not after you: Being Stalked. */
 	public double musicStalkedRange = 24;
+	/** The killer of the next matches (/hw killer): the Demogorgon, or Michael. Kept across restarts. */
+	public boolean killerDemogorgon = false;
 
 	public static HwConfig get() {
 		return instance;
@@ -877,6 +879,12 @@ public class HwConfig {
 			instance.configVersion = VERSION;
 		}
 		// Rewrite so newly added fields show up in the file.
+		save();
+	}
+
+	/** Writes the settings as they are now (what the commands change too). */
+	public static void save() {
+		Path path = path();
 		try (Writer writer = Files.newBufferedWriter(path)) {
 			GSON.toJson(instance, writer);
 		} catch (IOException e) {

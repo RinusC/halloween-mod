@@ -334,6 +334,7 @@ public final class Lockers {
 			Direction facing = level.getBlockState(base).getValue(LockerBlock.FACING);
 			shape.teleportTo(level, shape.getX(), shape.getY(), shape.getZ(), Set.of(Relative.X_ROT), facing.getOpposite().toYRot(), 0f, false);
 			GrabSession.anim(shape, HwNet.Anim.LOCKER_SEARCH);
+			LockerBlock.setOpen(level, base, true);
 			SEARCHED.put(base.immutable(), level.getServer().getTickCount() + cfg.lockerSearchTicks - 6);
 			shape.sendOverlayMessage(Component.translatable("halloween.locker.empty").withStyle(ChatFormatting.GRAY));
 			return;
@@ -417,6 +418,7 @@ public final class Lockers {
 					return false;
 				}
 				Vec3 c = center(e.getKey());
+				LockerBlock.setOpen(server.overworld(), e.getKey(), false);
 				server.overworld().playSound(null, c.x, c.y + 1, c.z, HwSounds.LOCKER_CLOSE, SoundSource.HOSTILE, 1.0f, 0.8f);
 				return true;
 			});

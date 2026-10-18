@@ -853,6 +853,17 @@ public final class GrabSession {
 			float k = ++this.yankTick / (float) YANK_TICKS;
 			k = k * k * (3 - 2 * k);
 			Vec3 to = new Vec3(x, this.shape.getY(), z);
+			if (!this.level().noCollision(this.victim, this.victim.getBoundingBox().move(to.subtract(this.victim.position())))) {
+				// In front of him is the wall the window is in: to his side, or behind him, wherever there is room.
+				for (float turn : new float[]{45f, -45f, 90f, -90f, 135f, -135f, 180f}) {
+					float a = (this.shape.getYRot() + turn) * Mth.DEG_TO_RAD;
+					Vec3 o = new Vec3(this.shape.getX() - Mth.sin(a) * 0.9, this.shape.getY(), this.shape.getZ() + Mth.cos(a) * 0.9);
+					if (this.level().noCollision(this.victim, this.victim.getBoundingBox().move(o.subtract(this.victim.position())))) {
+						to = o;
+						break;
+					}
+				}
+			}
 			Vec3 at = this.yankFrom.lerp(to, k).add(0, Mth.sin(k * Mth.PI) * 0.25, 0);
 			this.placeVictim(at.x, at.y, at.z, victimYaw);
 			this.victim.setDeltaMovement(Vec3.ZERO);

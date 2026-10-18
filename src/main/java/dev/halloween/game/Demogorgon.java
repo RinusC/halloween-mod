@@ -69,7 +69,8 @@ public final class Demogorgon {
 	public static final int BELOW = 2;
 	public static final int EMERGING = 3;
 
-	private static boolean chosen;
+	/** The Demogorgon is this match's killer (see begin). */
+	private static boolean thisMatch;
 	private static int phase = UP;
 	private static int phaseLeft;
 	/** Shred: ticks charged (-1: not charging), ticks of lunge left, its way. */
@@ -192,16 +193,22 @@ public final class Demogorgon {
 
 	/** The next matches' killer: the Demogorgon (true) or Michael. */
 	public static void choose(boolean demogorgon) {
-		chosen = demogorgon;
+		HwConfig.get().killerDemogorgon = demogorgon;
+		HwConfig.save();
 	}
 
 	public static boolean chosen() {
-		return chosen;
+		return HwConfig.get().killerDemogorgon;
+	}
+
+	/** At a match's start: the Demogorgon this match if he is chosen and a person plays the killer (a bot plays Michael). */
+	public static void begin(boolean personKiller) {
+		thisMatch = chosen() && personKiller;
 	}
 
 	/** Is the killer the Demogorgon (chosen, and a person plays him: a bot plays Michael)? */
 	public static boolean active() {
-		return chosen && !ShapeBrain.chosen();
+		return thisMatch;
 	}
 
 	/** Charging a Shred (he goes slowly meanwhile). */

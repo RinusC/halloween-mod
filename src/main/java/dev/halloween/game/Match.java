@@ -201,6 +201,8 @@ public final class Match {
 		Guns.clear();
 		GunCase.clear(server.overworld());
 		Nav.setArea(area(points));
+		// (Who plays the killer decides it, not whether a bot was ever asked for: /hw start @p with the Demogorgon chosen is him.)
+		Demogorgon.begin(shapeBot == null && shape != null);
 		Demogorgon.clear(level);
 		if (Demogorgon.active()) {
 			// The Upside Down under the town, built while the match runs.
