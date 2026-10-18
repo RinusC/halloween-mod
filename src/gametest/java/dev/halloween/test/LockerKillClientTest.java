@@ -93,6 +93,19 @@ public class LockerKillClientTest implements FabricClientGameTest {
 				ctx.waitTicks(demo ? 10 : 8);
 				check(server.computeOnServer(s -> MatchManager.grabHolding(survivorBot(s)).sceneTick()) == -1, killer + ": the struggle is on after the scene");
 				ctx.takeScreenshot("locker_" + killer + "_struggle");
+				if (demo) {
+					// From the side: is the one on the floor under his mouth?
+					net.minecraft.world.phys.Vec3[] ends = server.computeOnServer(s -> new net.minecraft.world.phys.Vec3[]{player(s).position(), survivorBot(s).position()});
+					net.minecraft.world.phys.Vec3 mid = ends[0].lerp(ends[1], 0.5);
+					net.minecraft.world.phys.Vec3 along = ends[1].subtract(ends[0]).normalize();
+					net.minecraft.world.phys.Vec3 cam = mid.add(-along.z * 4, 1.6, along.x * 4);
+					LOG.info("demo at {}, victim at {}", ends[0], ends[1]);
+					ctx.runOnClient(mc -> KillCam.begin(new dev.halloween.net.HwNet.Cutscene(dev.halloween.game.Cutscenes.KILLCAM, 30, cam, mid.add(0, 0.6, 0), net.minecraft.world.phys.Vec3.ZERO)));
+					ctx.waitTicks(3);
+					ctx.takeScreenshot("locker_demogorgon_side");
+					ctx.waitTicks(10);
+					ctx.takeScreenshot("locker_demogorgon_side2");
+				}
 				server.runOnServer(s -> MatchManager.grabHolding(survivorBot(s)).testWin());
 				ctx.runOnClient(mc -> mc.options.setCameraType(CameraType.FIRST_PERSON));
 				ctx.waitTicks(9);

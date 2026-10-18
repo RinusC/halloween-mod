@@ -123,15 +123,26 @@ public final class DemogorgonModel extends Model<AvatarRenderState> {
 		return c;
 	}
 
+	/** How far down on all fours his eyes are (0 standing, 1 down): standing at a wardrobe, down over someone he eats. */
+	private static float eyesDown(int id) {
+		if (ClientAnims.once(id) == HwNet.Anim.DEMO_LOCKER) {
+			return 0f;
+		}
+		if (ClientAnims.hold(id) == HwNet.Anim.DEVOUR) {
+			return 1f;
+		}
+		return update(id, now()).four.at(now(), 7f, 16f);
+	}
+
 	/** How much lower (negative) or higher his eyes are than a player's: on all fours lower. */
 	public static float cameraLift(int id) {
-		float four = update(id, now()).four.at(now(), 7f, 16f);
+		float four = eyesDown(id);
 		return Mth.lerp(four, LIFT_UP, LIFT_DOWN);
 	}
 
 	/** In first person only the drop on all fours. */
 	public static float firstPersonDrop(int id) {
-		float four = update(id, now()).four.at(now(), 7f, 16f);
+		float four = eyesDown(id);
 		return four * LIFT_DOWN;
 	}
 

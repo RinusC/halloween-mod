@@ -835,7 +835,8 @@ public final class GrabSession {
 		if (this.victim.distanceToSqr(x, this.shape.getY(), z) > 0.04) {
 			// He drags the victim along in front of him, but not through walls: there he can't go on.
 			Vec3 move = new Vec3(x, this.shape.getY(), z).subtract(this.victim.position());
-			boolean room = this.level().noCollision(this.victim, this.victim.getBoundingBox().move(move));
+			// (Lying under the Demogorgon they fit wherever he stands over them: they stay under his mouth.)
+			boolean room = Demogorgon.active() || this.level().noCollision(this.victim, this.victim.getBoundingBox().move(move));
 			if (room) {
 				this.placeVictim(x, this.shape.getY(), z, victimYaw);
 				this.lastGood = this.shape.position();
