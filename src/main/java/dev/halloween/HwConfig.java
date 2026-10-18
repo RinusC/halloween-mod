@@ -598,6 +598,14 @@ public class HwConfig {
 	public int bloodTrailSeconds = 30;
 	/** Stamina a survivor gets back at once when the killer hits them. */
 	public float staminaOnHit = 0.2f;
+	/** The Demogorgon after a Shred that caught nobody (no door, no window either): this slow (speed modifier), this long. */
+	public float demoMissSlowSpeed = -0.7f;
+	public int demoMissSlowTicks = 20;
+	/** Torn by a Shred: this much faster (share) for this long. */
+	public float demoHitBurst = 0.5f;
+	public int demoHitBurstTicks = 40;
+	/** Survivors and townsfolk don't start within this many blocks of where the killer starts. */
+	public int spawnAwayFromKiller = 40;
 	/** The Demogorgon on a blood trail: drips this near him give him the scent of whoever bled them (stalk levels a second). */
 	public double demoScentRange = 2.5;
 	public float demoScentPerSecond = 0.3f;

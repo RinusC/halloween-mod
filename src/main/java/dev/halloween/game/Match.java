@@ -236,6 +236,7 @@ public final class Match {
 		shapeId = shape == null ? null : shape.getUUID();
 		List<BlockPos> spawns = new ArrayList<>(points.list(MapPoints.Type.SPAWN_CIVILIAN));
 		Collections.shuffle(spawns, new java.util.Random(level.getRandom().nextLong()));
+		spawns = awayFromKiller(level, spawns);
 		// Bots make up the civilians' side when people are missing (a lone civilian gets company too).
 		// The Runt: a person if one was picked (/hw runt), else a bot (spawned once the civilians are made up).
 		ServerPlayer runt = Runt.humanFor(players, shape);
@@ -288,6 +289,25 @@ public final class Match {
 		ticksLeft = cfg.matchSeconds * 20;
 		dirty = true;
 		return Component.translatable("halloween.cmd.started", players.size());
+	}
+
+	/**
+	 * The spots of {@code spots} not within {@link HwConfig#spawnAwayFromKiller} of where the killer starts (his lair, or
+	 * the centre); all of them if none is that far.
+	 */
+	public static List<BlockPos> awayFromKiller(ServerLevel level, List<BlockPos> spots) {
+		MapPoints points = MapPoints.get(level);
+		BlockPos lair = points.first(MapPoints.Type.SPAWN_SHAPE);
+		if (lair == null) {
+			lair = points.first(MapPoints.Type.CENTER);
+		}
+		if (lair == null) {
+			return spots;
+		}
+		double min = HwConfig.get().spawnAwayFromKiller;
+		BlockPos from = lair;
+		List<BlockPos> far = new ArrayList<>(spots.stream().filter(p -> p.distSqr(from) >= min * min).toList());
+		return far.isEmpty() ? spots : far;
 	}
 
 	/** The match area: every map point, plus a block of slack. Bots never path or stay outside it. */

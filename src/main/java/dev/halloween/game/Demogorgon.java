@@ -76,6 +76,13 @@ public final class Demogorgon {
 	private static int shredCharge = -1;
 	private static int shredTicks;
 	private static Vec3 shredDir = Vec3.ZERO;
+	/** A Shred under way, and whether it caught anyone or went through a door or a window (a miss leaves him slow, see slowed). */
+	private static boolean shredOn;
+	private static boolean shredLanded;
+	private static int slowUntil = -1;
+	/** Hit by a Shred: a burst of speed until then (the fright), per survivor or townsperson. */
+	private static final java.util.Map<LivingEntity, Integer> BURST = new java.util.HashMap<>();
+	private static final Identifier BURST_ID = Halloween.id("shred_fright");
 	/** When he last had a survivor in sight (or in his hands), and the pose last told to everyone (HwNet.DemoPose). */
 	private static int sawSurvivorAt = -100000;
 	private static int toldPose = -1;
@@ -357,6 +364,10 @@ public final class Demogorgon {
 		UpsideDown.tick();
 		ServerLevel level = server.overworld();
 		int now = server.getTickCount();
+		tickBursts(now);
+		if (slowUntil >= 0 && now >= slowUntil) {
+			slowUntil = -1;
+		}
 		ServerPlayer d = Senses.shape(level);
 		if (d == null) {
 			return;
@@ -538,6 +549,8 @@ public final class Demogorgon {
 				Vec3 look = d.getLookAngle().multiply(1, 0, 1);
 				shredDir = look.lengthSqr() < 1e-4 ? new Vec3(0, 0, 1) : look.normalize();
 				shredTicks = SHRED_TICKS;
+				shredOn = true;
+				shredLanded = false;
 				HwConfig cfg = HwConfig.get();
 				st.dashCooldownMax = HwConfig.at(cfg.dashCooldownByTier, st.tier());
 				st.dashCooldown = st.dashCooldownMax;
@@ -547,6 +560,12 @@ public final class Demogorgon {
 			return;
 		}
 		if (shredTicks <= 0) {
+			if (shredOn && !shredLanded) {
+				// Missed (nobody caught, no door, no window): slow for a second after it.
+				slowUntil = d.level().getServer().getTickCount() + HwConfig.get().demoMissSlowTicks;
+				AiStats.add(d, "demo.shred_miss");
+			}
+			shredOn = false;
 			return;
 		}
 		shredTicks--;
@@ -564,6 +583,8 @@ public final class Demogorgon {
 				// The first in his way takes it.
 				MatchManager.onAim(d, eye, FocusPoints.bodyCenter(v).subtract(eye).normalize());
 				MatchManager.onShapeAttack(d, v.getId(), true);
+				shredLanded = true;
+				burst(v);
 				shredTicks = 0;
 				AiStats.add(d, "demo.shred_hit");
 				return;
@@ -603,6 +624,7 @@ public final class Demogorgon {
 				Bots.alert(Vec3.atCenterOf(at), level.getServer().getTickCount());
 				Townsfolk.hearNoise(level, Vec3.atCenterOf(at), level.getServer().getTickCount());
 				AiStats.add(d, "demo.shred_door");
+				shredLanded = true;
 				return false;
 			}
 			if (Windows.isWindow(state)) {
@@ -630,6 +652,7 @@ public final class Demogorgon {
 				Bots.alert(c, level.getServer().getTickCount());
 				Townsfolk.hearNoise(level, c, level.getServer().getTickCount());
 				AiStats.add(d, "demo.shred_window");
+				shredLanded = true;
 				return true;
 			}
 		}
@@ -649,7 +672,43 @@ public final class Demogorgon {
 	}
 
 	/** A match over: no crossing under way, the Upside Down left as it is. */
+	/** Slow after a Shred that missed. */
+	public static boolean slowed() {
+		return active() && slowUntil >= 0;
+	}
+
+	/** Torn by a Shred and still on their feet: a burst of speed (the fright) for a moment. */
+	private static void burst(LivingEntity v) {
+		if (!v.isAlive()) {
+			return;
+		}
+		HwConfig cfg = HwConfig.get();
+		AttributeInstance speed = v.getAttribute(Attributes.MOVEMENT_SPEED);
+		if (speed != null) {
+			speed.removeModifier(BURST_ID);
+			speed.addTransientModifier(new net.minecraft.world.entity.ai.attributes.AttributeModifier(BURST_ID, cfg.demoHitBurst,
+				net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
+		}
+		BURST.put(v, v.level().getServer().getTickCount() + cfg.demoHitBurstTicks);
+	}
+
+	private static void tickBursts(int now) {
+		BURST.entrySet().removeIf(e -> {
+			if (now < e.getValue() && e.getKey().isAlive() && !e.getKey().isRemoved()) {
+				return false;
+			}
+			AttributeInstance speed = e.getKey().getAttribute(Attributes.MOVEMENT_SPEED);
+			if (speed != null) {
+				speed.removeModifier(BURST_ID);
+			}
+			return true;
+		});
+	}
+
 	public static void clear(ServerLevel level) {
+		tickBursts(Integer.MAX_VALUE);
+		slowUntil = -1;
+		shredOn = false;
 		ServerPlayer d = Senses.shape(level);
 		if (d != null) {
 			AttributeInstance speed = d.getAttribute(Attributes.MOVEMENT_SPEED);

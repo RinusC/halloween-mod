@@ -196,6 +196,8 @@ public final class Townsfolk {
 		HwConfig cfg = HwConfig.get();
 		List<BlockPos> points = new ArrayList<>(MapPoints.get(level).list(MapPoints.Type.NPC));
 		Collections.shuffle(points, new java.util.Random(random.nextLong()));
+		// Nobody right by where the killer starts.
+		points = Match.awayFromKiller(level, points);
 		List<String> names = new ArrayList<>(List.of(cfg.npcNames));
 		Collections.shuffle(names, new java.util.Random(random.nextLong()));
 		CommandSourceStack console = level.getServer().createCommandSourceStack().withLevel(level).withSuppressedOutput();

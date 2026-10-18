@@ -168,6 +168,8 @@ public final class GrabSession {
 		this.pinYaw = this.lockerFacing.getOpposite().toYRot();
 		this.shape.teleportTo(level, this.shapeSpot.x, this.shapeSpot.y, this.shapeSpot.z, Set.of(), this.pinYaw, 10f, false);
 		this.sceneTick = 0;
+		// Caught hiding: as good as stalked to the second level (harder to tear free).
+		this.victimState.stalk = Math.max(this.victimState.stalk, 2f);
 		Vec3 c = Vec3.atCenterOf(locker);
 		if (Demogorgon.active()) {
 			// Rearing up at it: a roar the whole street hears.

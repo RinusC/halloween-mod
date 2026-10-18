@@ -464,6 +464,10 @@ public final class MatchManager {
 			// The Demogorgon is faster than Michael.
 			speed = (1 + speed) * cfg.demoSpeedFactor - 1;
 		}
+		if (Demogorgon.slowed() && speed > -1) {
+			// A Shred that missed: heavy for a second.
+			speed = Math.min(speed, cfg.demoMissSlowSpeed);
+		}
 		if (state.trappedTicks > 0) {
 			state.trappedTicks--;
 		}
