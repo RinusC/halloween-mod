@@ -898,7 +898,7 @@ public final class ShapeBrain {
 		} else if (this.target != null && (this.mode == Mode.CHASE || this.mode == Mode.STALK)) {
 			if (gone(this.target)) {
 				this.afterDeath(this.target, now);
-			} else if (now - this.lastSeenAt > 50 || !MatchManager.exposed(this.target)) {
+			} else if (now - this.lastSeenAt > 70 || !MatchManager.exposed(this.target)) {
 				// Out of sight: on to where they were going.
 				this.mode = Mode.SEARCH;
 				this.lookAroundUntil = 0;
@@ -986,9 +986,10 @@ public final class ShapeBrain {
 		if (forceReaction != null) {
 			return Reaction.valueOf(forceReaction);
 		}
-		List<Reaction> options = new ArrayList<>(List.of(Reaction.FOLLOW, Reaction.RETREAT, Reaction.ATTACK));
-		if (this.retreats >= 2) {
-			// Backed off twice already.
+		// Going for them is the likeliest; backing off at most once for each of them.
+		List<Reaction> options = new ArrayList<>(List.of(Reaction.FOLLOW, Reaction.RETREAT, Reaction.ATTACK, Reaction.ATTACK));
+		if (this.retreats >= 1) {
+			// Backed off once already.
 			options.remove(Reaction.RETREAT);
 		}
 		return options.get(this.random.nextInt(options.size()));
@@ -1281,7 +1282,7 @@ public final class ShapeBrain {
 			return;
 		}
 		this.corpse = at;
-		this.leaveUntil = now + 20 * 11;
+		this.leaveUntil = now + 20 * 5;
 		this.repathAt = now;
 		this.mode = Mode.LEAVE;
 		stat("kill");
@@ -2903,7 +2904,8 @@ public final class ShapeBrain {
 			this.leads.remove(best);
 			this.mode = Mode.LISTEN;
 			this.goal = BlockPos.containing(best.pos);
-			this.goalUntil = now + 20 * 25;
+			// Time enough to get there, however far (a far one from the Impulse too).
+			this.goalUntil = now + Math.max(20 * 25, (int) (best.pos.distanceTo(this.body.position()) / 3.5 * 20));
 			this.lastSeen = best.pos;
 			this.lastVelocity = Vec3.ZERO;
 			this.repathAt = now;
@@ -2922,6 +2924,13 @@ public final class ShapeBrain {
 		// A job on the way: a breaker on, a phone that works, the car's fuel, an opened cellar.
 		if (st.shadowTicks == 0 && now % 10 == 0) {
 			this.lightsOff();
+		}
+		// Nobody seen for a long while (they keep to the far end of town): the Impulse before any job.
+		if (now - this.lastSeenAt > 20 * 45 && st.impulseCooldown == 0 && !st.busy() && now >= this.impulseAt) {
+			this.impulseAt = now + 40;
+			MatchManager.onImpulse(this.body);
+			stat("impulse.long");
+			return;
 		}
 		if (this.mode == Mode.WORK && this.workAt != null) {
 			this.work(st, now);
