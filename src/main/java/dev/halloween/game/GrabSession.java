@@ -778,6 +778,11 @@ public final class GrabSession {
 		}
 		if (demo ? t == 6 || t == 12 || t == 18 : t == 8) {
 			this.stabEffects();
+			if (demo && t == 18) {
+				// The last bite: dead, lying as they are.
+				anim(this.victim, HwNet.Anim.DEAD);
+				this.stopChoking();
+			}
 			if (!demo) {
 				anim(this.victim, HwNet.Anim.LIMP);
 			}
@@ -790,7 +795,9 @@ public final class GrabSession {
 		}
 		if (t == lift) {
 			anim(this.shape, demo ? HwNet.Anim.DEMO_TOSS : HwNet.Anim.WINDOW_THROW);
-			anim(this.victim, HwNet.Anim.LIMP);
+			if (!demo) {
+				anim(this.victim, HwNet.Anim.LIMP);
+			}
 			this.throwFrom = this.victim.position();
 			if (demo) {
 				level.playSound(null, this.shape.getX(), this.shape.getY(), this.shape.getZ(), SoundEvents.RAVAGER_ROAR, SoundSource.HOSTILE, 1.3f, 0.6f);

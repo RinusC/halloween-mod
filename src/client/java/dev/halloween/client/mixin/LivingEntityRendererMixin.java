@@ -55,14 +55,14 @@ public abstract class LivingEntityRendererMixin {
 				&& ClientAnims.hold(entity.getId()) == dev.halloween.net.HwNet.Anim.DEVOUR) {
 				// Eating: his body faces the one under him, whichever way the player looks.
 				for (net.minecraft.world.entity.Entity e : entity.level().getEntities(entity, entity.getBoundingBox().inflate(2.5))) {
-					if (ClientAnims.hold(e.getId()) == dev.halloween.net.HwNet.Anim.PINNED) {
+					if (ClientAnims.hold(e.getId()) == dev.halloween.net.HwNet.Anim.PINNED || ClientAnims.hold(e.getId()) == dev.halloween.net.HwNet.Anim.DEAD) {
 						// Squarely at them (their feet to his, see below): the same line both ways.
 						state.bodyRot = halloween$yawTo(entity.getPosition(partialTicks), e.getPosition(partialTicks));
 						break;
 					}
 				}
 			}
-		} else if (ClientAnims.hold(entity.getId()) == dev.halloween.net.HwNet.Anim.PINNED && dev.halloween.client.MichaelRenderer.demogorgon()) {
+		} else if ((ClientAnims.hold(entity.getId()) == dev.halloween.net.HwNet.Anim.PINNED || ClientAnims.hold(entity.getId()) == dev.halloween.net.HwNet.Anim.DEAD) && dev.halloween.client.MichaelRenderer.demogorgon()) {
 			// Down under the Demogorgon: lying straight out from him, feet to his, whichever way they look.
 			for (net.minecraft.world.entity.Entity e : entity.level().getEntities(entity, entity.getBoundingBox().inflate(2.5))) {
 				if (ClientAnims.hold(e.getId()) == dev.halloween.net.HwNet.Anim.DEVOUR) {

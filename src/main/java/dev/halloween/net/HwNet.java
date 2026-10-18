@@ -409,6 +409,8 @@ public final class HwNet {
 		public static final int WINDOW_THROW = 24;
 		/** The Demogorgon taking someone up in his jaws and flinging them away with a toss of his head. */
 		public static final int DEMO_TOSS = 25;
+		/** Dead, lying as they fell, every limb slack (carried like that too). */
+		public static final int DEAD = 26;
 
 		public static final Type<Anim> TYPE = payloadType("anim");
 		public static final StreamCodec<RegistryFriendlyByteBuf, Anim> CODEC = StreamCodec.of((buf, v) -> {

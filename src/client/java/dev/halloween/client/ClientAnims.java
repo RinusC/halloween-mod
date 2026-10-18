@@ -54,6 +54,14 @@ public final class ClientAnims {
 				}
 			}
 			case HwNet.Anim.HOLD, HwNet.Anim.STRUGGLE, HwNet.Anim.STRANGLE, HwNet.Anim.DEVOUR, HwNet.Anim.LOCKER_HOLD, HwNet.Anim.IMPALED -> s.hold = payload.kind();
+			case HwNet.Anim.DEAD -> {
+				// Stays down (flat at once if they were not), slack.
+				s.hold = payload.kind();
+				if (s.fallStart < 0) {
+					s.fallStart = now() - 10;
+				}
+				s.riseStart = -1;
+			}
 			case HwNet.Anim.LIMP -> {
 				// Carried, dead or dying: up off the floor, no longer lying.
 				s.hold = payload.kind();
