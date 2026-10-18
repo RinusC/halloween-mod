@@ -123,13 +123,10 @@ public final class DemogorgonModel extends Model<AvatarRenderState> {
 		return c;
 	}
 
-	/** How far down on all fours his eyes are (0 standing, 1 down): standing at a wardrobe, down over someone he eats. */
+	/** How far down on all fours his eyes are (0 standing, 1 down): standing at a wardrobe. */
 	private static float eyesDown(int id) {
 		if (ClientAnims.once(id) == HwNet.Anim.DEMO_LOCKER) {
 			return 0f;
-		}
-		if (ClientAnims.hold(id) == HwNet.Anim.DEVOUR) {
-			return 1f;
 		}
 		return update(id, now()).four.at(now(), 7f, 16f);
 	}
