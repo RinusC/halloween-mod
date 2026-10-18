@@ -28,7 +28,7 @@ public class MichaelRaidClientTest implements FabricClientGameTest {
 		try (TestSingleplayerContext sp = ctx.worldBuilder().create()) {
 			TestServerContext server = sp.getServer();
 			ctx.waitTicks(40);
-			server.runCommand("execute as @p at @p run hw map town");
+			server.runCommand("execute as @p at @p run hw map " + System.getenv().getOrDefault("HW_RAID_MAP", "town"));
 			ctx.waitTicks(2);
 			boolean busy = true;
 			for (int i = 0; i < 3000 && busy; i++) {

@@ -583,7 +583,8 @@ public final class ShapeBrain {
 			kind = "shot";
 		} else if (id.equals("locker.close")) {
 			BlockPos locker = this.nearestLocker(BlockPos.containing(at), 2, false);
-			if (locker != null) {
+			// (Not one he has just been through himself: that was him pushing its door to.)
+			if (locker != null && !this.done.containsKey(locker)) {
 				this.suspects.put(locker, now + 600);
 			}
 			weight = 4;
