@@ -41,6 +41,8 @@ public final class Birds {
 		Vec3 away;
 		int flying = -1;
 		int nextTurn;
+		/** When it next caws (now and then, sitting). */
+		int nextCaw;
 
 		Bird(Display.ItemDisplay body, Vec3 pos, float yaw) {
 			this.body = body;
@@ -88,6 +90,11 @@ public final class Birds {
 							takeOff(level, o, scare.position(), r);
 						}
 					}
+				} else if (now >= b.nextCaw) {
+					// A caw now and then, heard down the street (about twelve blocks).
+					b.nextCaw = now + 400 + r.nextInt(900);
+					level.playSound(null, b.pos.x, b.pos.y, b.pos.z, SoundEvents.PARROT_AMBIENT, SoundSource.AMBIENT, 0.75f, 0.42f + r.nextFloat() * 0.1f);
+					AiStats.add("*total", "bird.caw");
 				} else if (now >= b.nextTurn) {
 					// Hopping round to look another way now and then.
 					b.yaw += (r.nextFloat() - 0.5f) * 120f;
@@ -135,9 +142,13 @@ public final class Birds {
 
 	/** Who is too near this bird: running further off, crouching hardly at all. */
 	private static LivingEntity scarer(ServerLevel level, Vec3 at, HwConfig cfg) {
-		for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, new net.minecraft.world.phys.AABB(BlockPos.containing(at)).inflate(cfg.birdScareRun + 1),
+		for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, new net.minecraft.world.phys.AABB(BlockPos.containing(at)).inflate(cfg.birdScareRun + 1, 10, cfg.birdScareRun + 1),
 			e -> e.isAlive() && !e.isSpectator())) {
-			double d = e.position().distanceTo(at);
+			// Along the ground: someone passing under the roof or the lamp it sits on puts it up too.
+			double d = Math.hypot(e.getX() - at.x, e.getZ() - at.z);
+			if (Math.abs(e.getY() - at.y) > 9) {
+				continue;
+			}
 			double moving = e.getDeltaMovement().horizontalDistance();
 			if (e instanceof ServerPlayer p) {
 				moving = p.isSprinting() ? 0.3 : moving;
@@ -180,7 +191,7 @@ public final class Birds {
 		if (area == null) {
 			return;
 		}
-		boolean ground = r.nextFloat() < 0.15f;
+		boolean ground = r.nextFloat() < 0.3f;
 		// Round someone (where the town is loaded: a column far from everyone has no blocks to sit on yet), 16 to 70
 		// blocks off, inside the town.
 		List<ServerPlayer> people = new ArrayList<>();
@@ -195,19 +206,20 @@ public final class Birds {
 		for (int tries = 0; tries < 60; tries++) {
 			ServerPlayer round = people.get(r.nextInt(people.size()));
 			double a = r.nextDouble() * Math.PI * 2;
-			double d = 16 + r.nextDouble() * 54;
+			double d = 8 + r.nextDouble() * 32;
 			int x = (int) Math.floor(round.getX() + Math.cos(a) * d);
 			int z = (int) Math.floor(round.getZ() + Math.sin(a) * d);
 			if (!area.isInside(x, area.minY(), z) || !level.hasChunkAt(new BlockPos(x, round.getBlockY(), z))) {
 				continue;
 			}
 			Vec3 at = perch(level, x, z, ground);
-			if (at == null) {
+			if (at == null || !ground && tries < 40 && at.y - round.getY() > 5) {
+				// (Low ones first: fences, lamps, porches, sheds; a high ridge only if nothing lower turns up.)
 				continue;
 			}
 			boolean near = false;
 			for (ServerPlayer p : level.players()) {
-				near |= p.position().distanceTo(at) < 14;
+				near |= p.position().distanceTo(at) < 9;
 			}
 			for (Bird b : BIRDS) {
 				near |= b.pos.distanceTo(at) < 10;
@@ -265,6 +277,7 @@ public final class Birds {
 		level.addFreshEntity(d);
 		Bird b = new Bird(d, at, yaw);
 		b.nextTurn = now + r.nextInt(100);
+		b.nextCaw = now + 100 + r.nextInt(900);
 		BIRDS.add(b);
 	}
 

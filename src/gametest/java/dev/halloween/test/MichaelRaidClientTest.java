@@ -65,6 +65,7 @@ public class MichaelRaidClientTest implements FabricClientGameTest {
 				}
 			}
 			LOG.info("michael stats: {}", AiStats.snapshot().get("~michael"));
+			LOG.info("crows: {}", AiStats.snapshot().get("*total"));
 			LOG.info("kills {}", (Object) server.computeOnServer(s -> s.getPlayerList().getPlayers().stream().filter(p -> p instanceof BotPlayer && p.isSpectator()).count()));
 			server.runCommand("hw stop");
 			server.runCommand("hw shape off");
@@ -80,6 +81,7 @@ public class MichaelRaidClientTest implements FabricClientGameTest {
 		}
 		StringBuilder b = new StringBuilder(ShapeBrain.debug());
 		b.append(m.level().canSeeSky(m.blockPosition().above()) ? " OUT" : " IN");
+		b.append(" crows ").append(dev.halloween.game.Birds.grounded()).append("/").append(dev.halloween.game.Birds.flying());
 		for (ServerPlayer p : s.getPlayerList().getPlayers()) {
 			if (p instanceof BotPlayer && p != m && MatchManager.role(p).survivor() && !p.isSpectator()) {
 				b.append(String.format(" | %s %.0f %s%s", p.getScoreboardName(), p.distanceTo(m), p.level().canSeeSky(p.blockPosition().above()) ? "out" : "in",
