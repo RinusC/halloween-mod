@@ -731,7 +731,7 @@ public final class Townsfolk {
 			Nav.Options opt = Nav.Options.walker();
 			opt.maxNodes = 2000;
 			npc.walker.speed = 1f;
-			npc.walker.follow(Nav.search(level, npc.body.blockPosition(), 24, opt, (p, cost) -> BotBrain.fleeScore(level, p, cost, from, npc.body) + refuge(level, p)));
+			npc.walker.follow(Nav.urgent(() -> Nav.search(level, npc.body.blockPosition(), 24, opt, (p, cost) -> BotBrain.fleeScore(level, p, cost, from, npc.body) + refuge(level, p))));
 		}
 		if (npc.walker.tick() == Walker.Status.STUCK) {
 			npc.repathAt = now;

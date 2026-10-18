@@ -519,7 +519,8 @@ final class BotBrain {
 		Nav.Options opt = Nav.Options.climber();
 		opt.maxNodes = 2500;
 		opt.windowCost = this.bot.getHealth() > this.bot.getMaxHealth() * cfg.vaultDamageFraction + 1 ? 3 : 6;
-		this.walker.follow(Nav.search(this.level(), this.bot.blockPosition(), 28, opt, (p, cost) -> fleeScore(this.level(), p, cost, from, this.bot)));
+		// (Running from him: not held up by the crowd's budget, or we would stand there waiting for a path.)
+		this.walker.follow(Nav.urgent(() -> Nav.search(this.level(), this.bot.blockPosition(), 28, opt, (p, cost) -> fleeScore(this.level(), p, cost, from, this.bot))));
 	}
 
 	/** Straight away from him, at least a few blocks further than now: the fallback when no good spot is found. */
@@ -532,8 +533,8 @@ final class BotBrain {
 		BlockPos target = BlockPos.containing(this.bot.position().add(away.scale(10)));
 		Vec3 from = this.threat;
 		double need = this.bot.position().distanceTo(from) + 5;
-		return Nav.find(this.level(), this.bot.blockPosition(), target, p -> Vec3.atBottomCenterOf(p).distanceTo(from) >= need,
-			Nav.Options.climber().nodes(1500));
+		return Nav.urgent(() -> Nav.find(this.level(), this.bot.blockPosition(), target, p -> Vec3.atBottomCenterOf(p).distanceTo(from) >= need,
+			Nav.Options.climber().nodes(1500)));
 	}
 
 	/** A window within a few steps that puts a wall between us and the Shape: the path to it and over it. */

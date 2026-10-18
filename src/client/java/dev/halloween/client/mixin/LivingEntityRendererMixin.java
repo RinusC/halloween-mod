@@ -41,6 +41,13 @@ public abstract class LivingEntityRendererMixin {
 	private void halloween$tall(net.minecraft.world.entity.LivingEntity entity, LivingEntityRenderState state, float partialTicks, CallbackInfo ci) {
 		if (dev.halloween.client.MichaelRenderer.isMichael(entity)) {
 			state.scale *= dev.halloween.client.MichaelRenderer.TALL;
+			int once = ClientAnims.once(entity.getId());
+			if (once == dev.halloween.net.HwNet.Anim.DEMO_SEARCH || once == dev.halloween.net.HwNet.Anim.DEMO_LOCKER) {
+				// At a wardrobe his body stays turned to it (as the server set him), wherever the player looks meanwhile.
+				state.bodyRot = halloween$FIXED.computeIfAbsent(entity.getId(), k -> entity.getYRot());
+			} else {
+				halloween$FIXED.remove(entity.getId());
+			}
 			if (dev.halloween.client.MichaelRenderer.demogorgon()
 				&& ClientAnims.hold(entity.getId()) == dev.halloween.net.HwNet.Anim.DEVOUR) {
 				// Eating: his body faces the one under him, whichever way the player looks.
@@ -62,6 +69,9 @@ public abstract class LivingEntityRendererMixin {
 			}
 		}
 	}
+
+	@org.spongepowered.asm.mixin.Unique
+	private static final java.util.Map<Integer, Float> halloween$FIXED = new java.util.HashMap<>();
 
 	@org.spongepowered.asm.mixin.Unique
 	private static float halloween$yawTo(net.minecraft.world.phys.Vec3 from, net.minecraft.world.phys.Vec3 to) {

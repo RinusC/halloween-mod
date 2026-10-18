@@ -173,6 +173,17 @@ public final class Nav {
 
 	private static int budgetTick = -1;
 
+	/** A search that can't wait (running from him): outside the crowd's budget, whatever is left of it this tick. */
+	public static <T> T urgent(java.util.function.Supplier<T> search) {
+		boolean was = crowd;
+		crowd = false;
+		try {
+			return search.get();
+		} finally {
+			crowd = was;
+		}
+	}
+
 	/** One node expanded (a node scored in a search, with its sight lines, costs more): false once the crowd's budget for this tick is spent. */
 	private static boolean spend(int cost) {
 		if (!crowd) {

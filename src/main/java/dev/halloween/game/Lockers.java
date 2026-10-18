@@ -52,6 +52,8 @@ public final class Lockers {
 	private static final Map<BlockPos, UUID> OCCUPIED = new HashMap<>();
 	/** When the Shape last threw each locker open: bots and townsfolk keep away from those for a while. */
 	private static final Map<BlockPos, Integer> OPENED = new HashMap<>();
+	/** How far the Demogorgon's right shoulder is from his middle (his claw goes in through the door's middle). */
+	private static final double SHOULDER = 0.25;
 	/** Wardrobes the killer is searching, empty: when he pushes the door to again. */
 	private static final Map<BlockPos, Integer> SEARCHED = new HashMap<>();
 	/** Bots and townsfolk getting in quietly: how far along {count, last tick}, and into which locker. */
@@ -337,9 +339,11 @@ public final class Lockers {
 				// Not the door: his claw straight through it, feeling about inside.
 				// Squarely in front of it first, an arm's length off, so the claw goes in through the middle of the door.
 				// (However he came at it, from the side too: nearer if something stands there, right before it at worst.)
-				for (double off : new double[]{1.45, 1.25, 1.0}) {
+				for (double off : new double[]{0.85}) {
 					Vec3 stand = center(base).add(facing.getStepX() * off, 0, facing.getStepZ() * off);
-					if (off == 1.0 || level.noCollision(shape, shape.getBoundingBox().move(stand.subtract(shape.position())))) {
+					// His right shoulder (the claw he uses), not his middle, before the door: that far to his left.
+					stand = stand.add(facing.getStepZ() * -SHOULDER, 0, -facing.getStepX() * -SHOULDER);
+					if (off == 0.85 || level.noCollision(shape, shape.getBoundingBox().move(stand.subtract(shape.position())))) {
 						shape.teleportTo(level, stand.x, stand.y, stand.z, Set.of(Relative.X_ROT), facing.getOpposite().toYRot(), 0f, false);
 						break;
 					}

@@ -189,9 +189,10 @@ public class LockerKillClientTest implements FabricClientGameTest {
 						Lockers.shapeOpen(player(s), base);
 					});
 					net.minecraft.world.phys.Vec3 lc = net.minecraft.world.phys.Vec3.atBottomCenterOf(base);
-					ctx.runOnClient(mc -> KillCam.begin(new dev.halloween.net.HwNet.Cutscene(dev.halloween.game.Cutscenes.KILLCAM, 60, lc.add(6, 2.2, 1.5), lc.add(0, 1.3, 1.3), net.minecraft.world.phys.Vec3.ZERO)));
+					ctx.runOnClient(mc -> KillCam.begin(new dev.halloween.net.HwNet.Cutscene(dev.halloween.game.Cutscenes.KILLCAM, 60, lc.add(3.5, 2.6, 4.5), lc.add(0, 1.2, 0.6), net.minecraft.world.phys.Vec3.ZERO)));
 					ctx.waitTicks(16);
 					ctx.takeScreenshot("demo_search");
+					LOG.info("search: demogorgon at {}, locker {}", server.computeOnServer(s -> player(s).position()), base);
 					check(server.computeOnServer(s -> !s.overworld().getBlockState(base).getValue(LockerBlock.OPEN)), "demogorgon: the door stays shut");
 					ctx.waitTicks(30);
 				}

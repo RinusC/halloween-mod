@@ -318,8 +318,8 @@ public final class DemogorgonModel extends Model<AvatarRenderState> {
 		float in = smooth((s - 7f) / 3f) * (1f - smooth((s - 30f) / 5f));
 		float growl = smooth((s - 9f) / 4f) * (1f - smooth((s - 28f) / 6f));
 		float shake = Mth.sin(t * 3.1f) * growl;
-		this.bb.turn("right_upper_arm", 55f * cock + 58f * in, 0f, 20f * cock);
-		this.bb.turn("right_forearm", 110f * cock - 12f * in, 0f, 0f);
+		this.bb.turn("right_upper_arm", 55f * cock + 60f * in, 0f, 20f * cock);
+		this.bb.turn("right_forearm", 110f * cock - 4f * in, 0f, 0f);
 		this.bb.turn("right_hand", 30f * cock - 15f * in, 0f, 0f);
 		this.bb.turn("chest", -8f * cock + 12f * in, -14f * cock, 2f * shake);
 		this.bb.turn("neck", -20f * growl, 0f, 0f);
