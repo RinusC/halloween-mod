@@ -6,6 +6,23 @@ import dev.halloween.net.HwNet;
 import java.util.Set;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.particles.BlockParticleOption;
+import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.Display;
+import net.minecraft.world.entity.EntityTypes;
+import net.minecraft.world.item.ItemDisplayContext;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.sounds.SoundEvents;
+import com.mojang.math.Transformation;
+import org.joml.Quaternionf;
+import org.joml.Vector3f;
+import dev.halloween.HwParticles;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -82,17 +99,26 @@ public final class GrabSession {
 	private float pinYaw;
 
 	GrabSession(ServerPlayer shape, ShapeState state, LivingEntity victim, VictimState victimState) {
+		this(shape, state, victim, victimState, null);
+	}
+
+	/** {@code locker}: pulled out of that wardrobe (a scene first, see tickScene), or null. */
+	GrabSession(ServerPlayer shape, ShapeState state, LivingEntity victim, VictimState victimState, BlockPos locker) {
 		this.shape = shape;
 		this.state = state;
 		this.victim = victim;
 		this.victimState = victimState;
 		this.random = shape.getRandom();
 		victimState.grabbed = true;
+		// The Demogorgon stays over them, turned the way he threw them down.
+		this.pinYaw = shape.getYRot();
+		if (locker != null && LockerBlock.is(this.level().getBlockState(locker))) {
+			this.startScene(locker);
+			return;
+		}
 		this.level().playSound(null, victim.getX(), victim.getY(), victim.getZ(), HwSounds.GRAB, SoundSource.HOSTILE, 1.2f, 1f);
 		Voices.play(victim, Voices.Kind.SCREAM);
 		this.nextChoke = this.level().getGameTime() + 14;
-		// The Demogorgon stays over them, turned the way he threw them down.
-		this.pinYaw = shape.getYRot();
 		if (Demogorgon.active()) {
 			// The Demogorgon throws them down on their back and goes for them with his mouth.
 			anim(shape, HwNet.Anim.DEVOUR);
@@ -104,6 +130,271 @@ public final class GrabSession {
 		this.startVictimRound(0);
 		this.startShapeRound(0);
 		this.sendState();
+	}
+
+	// ---------------------------------------------------------------- out of a wardrobe
+
+	/** The wardrobe they were pulled out of (null: an ordinary grab), and which way its door faces. */
+	private BlockPos lockerBase;
+	private Direction lockerFacing;
+	/** How far the opening scene is (no checks while it plays); -1 once the struggle is on. */
+	private int sceneTick = -1;
+	/** Where he stands at the wardrobe, and where they are held against its door. */
+	private Vec3 shapeSpot;
+	private Vec3 victimSpot;
+	/** Michael's knife while it is stuck in the wardrobe door: the one from his hand, and the one in the door. */
+	private ItemStack knife = ItemStack.EMPTY;
+	private Display.ItemDisplay stuckKnife;
+
+	/** Is this Michael's grab at a wardrobe (he stays put by it, then smashes their head against it)? */
+	boolean atLocker() {
+		return this.lockerBase != null && !Demogorgon.active();
+	}
+
+	/** Out of the wardrobe's door. */
+	private Vec3 out() {
+		return new Vec3(this.lockerFacing.getStepX(), 0, this.lockerFacing.getStepZ());
+	}
+
+	private void startScene(BlockPos locker) {
+		ServerLevel level = this.level();
+		this.lockerBase = locker.immutable();
+		this.lockerFacing = level.getBlockState(locker).getValue(LockerBlock.FACING);
+		Vec3 door = Vec3.atBottomCenterOf(locker).add(this.out().scale(0.5));
+		this.victimSpot = door.add(this.out().scale(0.32));
+		Vec3 spot = door.add(this.out().scale(Demogorgon.active() ? 1.25 : 1.1));
+		spot = new Vec3(spot.x, this.shape.getY(), spot.z);
+		this.shapeSpot = level.noCollision(this.shape, this.shape.getBoundingBox().move(spot.subtract(this.shape.position()))) ? spot : this.shape.position();
+		this.pinYaw = this.lockerFacing.getOpposite().toYRot();
+		this.shape.teleportTo(level, this.shapeSpot.x, this.shapeSpot.y, this.shapeSpot.z, Set.of(), this.pinYaw, 10f, false);
+		this.sceneTick = 0;
+		Vec3 c = Vec3.atCenterOf(locker);
+		if (Demogorgon.active()) {
+			// Rearing up at it: a roar the whole street hears.
+			anim(this.shape, HwNet.Anim.DEMO_LOCKER);
+			level.playSound(null, c.x, c.y, c.z, SoundEvents.RAVAGER_ROAR, SoundSource.HOSTILE, 2.2f, 0.55f);
+			level.playSound(null, c.x, c.y, c.z, SoundEvents.WARDEN_ROAR, SoundSource.HOSTILE, 1.6f, 0.8f);
+			this.shake(this.victim, 24, 0.5f);
+		} else {
+			anim(this.shape, HwNet.Anim.LOCKER_STAB);
+		}
+		AiStats.add(this.victim, "locker.scene");
+	}
+
+	/**
+	 * The scene at the wardrobe, before the struggle (no checks). Michael drives his knife into the door (it stays
+	 * there) and throws the door open, his hand at their throat, their back against the wardrobe. The Demogorgon
+	 * roars at it, drives a claw through it and through them, lifts them out on it and flings them down in front.
+	 */
+	private void tickScene() {
+		ServerLevel level = this.level();
+		int t = this.sceneTick++;
+		Vec3 c = Vec3.atCenterOf(this.lockerBase);
+		if (!Demogorgon.active()) {
+			this.holdShape();
+			if (t == 7) {
+				// The knife into the door, and left there.
+				this.knife = this.shape.getMainHandItem().copy();
+				this.shape.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
+				this.stickKnife();
+				level.playSound(null, c.x, c.y + 0.4, c.z, HwSounds.STAB, SoundSource.HOSTILE, 1.3f, 0.7f);
+				level.playSound(null, c.x, c.y + 0.4, c.z, SoundEvents.ZOMBIE_ATTACK_WOODEN_DOOR, SoundSource.HOSTILE, 1.2f, 1.1f);
+				Voices.play(this.victim, Voices.Kind.SCREAM);
+			} else if (t == 18) {
+				this.pullOut();
+				anim(this.shape, HwNet.Anim.LOCKER_HOLD);
+				anim(this.victim, HwNet.Anim.STRUGGLE);
+			}
+			if (t >= 18) {
+				this.placeVictim(this.victimSpot.x, this.victimSpot.y, this.victimSpot.z, this.lockerFacing.toYRot());
+				this.victim.setDeltaMovement(Vec3.ZERO);
+			}
+			if (t >= 26) {
+				this.beginStruggle();
+			}
+			return;
+		}
+		this.shape.setDeltaMovement(0, this.shape.getDeltaMovement().y, 0);
+		this.shape.setYBodyRot(this.pinYaw);
+		if (t == 30) {
+			// The claw through the door and through them.
+			BlockState wood = level.getBlockState(this.lockerBase);
+			level.playSound(null, c.x, c.y, c.z, SoundEvents.ZOMBIE_BREAK_WOODEN_DOOR, SoundSource.HOSTILE, 1.8f, 0.7f);
+			level.playSound(null, c.x, c.y, c.z, HwSounds.STAB, SoundSource.HOSTILE, 1.4f, 0.6f);
+			level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, wood),
+				this.victimSpot.x, this.victimSpot.y + 1.1, this.victimSpot.z, 40, 0.3, 0.4, 0.3, 0.15);
+			this.pullOut();
+			anim(this.victim, HwNet.Anim.IMPALED);
+			MatchManager.bleed(level, this.victim, 24);
+		}
+		if (t >= 30 && t < 54) {
+			// Up off the floor on his claw, drawn out of the wardrobe towards him.
+			float k = Mth.clamp((t - 30) / 18f, 0f, 1f);
+			k = k * k * (3 - 2 * k);
+			Vec3 lifted = this.shapeSpot.add(this.out().scale(-1.2)).add(0, 1.0, 0);
+			Vec3 at = this.victimSpot.add(0, 0.25, 0).lerp(lifted, k);
+			this.placeVictim(at.x, at.y, at.z, this.lockerFacing.toYRot());
+			this.victim.setDeltaMovement(Vec3.ZERO);
+			if (t % 6 == 0) {
+				MatchManager.bleed(level, this.victim, 4);
+			}
+		} else if (t == 54) {
+			// Flung down on the floor in front of the wardrobe; he steps back over them and starts.
+			Vec3 floor = Vec3.atBottomCenterOf(this.lockerBase.relative(this.lockerFacing));
+			floor = new Vec3(floor.x, this.shape.getY(), floor.z);
+			Vec3 over = floor.add(this.out().scale(0.95));
+			if (level.noCollision(this.shape, this.shape.getBoundingBox().move(over.subtract(this.shape.position())))) {
+				this.shape.teleportTo(level, over.x, over.y, over.z, Set.of(Relative.X_ROT), this.pinYaw, 0f, false);
+				this.shapeSpot = over;
+			}
+			this.placeVictim(floor.x, floor.y, floor.z, this.lockerFacing.toYRot());
+			level.playSound(null, floor.x, floor.y, floor.z, SoundEvents.PLAYER_BIG_FALL, SoundSource.PLAYERS, 1.4f, 0.8f);
+			this.shake(this.victim, 8, 0.6f);
+			anim(this.shape, HwNet.Anim.DEVOUR);
+			anim(this.victim, HwNet.Anim.PINNED);
+		} else if (t >= 60) {
+			this.beginStruggle();
+		}
+	}
+
+	/** Out of the wardrobe and in his hands. */
+	private void pullOut() {
+		ServerLevel level = this.level();
+		Vec3 c = Vec3.atCenterOf(this.lockerBase);
+		Lockers.leave(this.victim, false);
+		level.playSound(null, c.x, c.y + 0.5, c.z, HwSounds.LOCKER_SLAM, SoundSource.HOSTILE, 1.6f, 0.7f);
+		level.playSound(null, this.victim.getX(), this.victim.getY(), this.victim.getZ(), HwSounds.GRAB, SoundSource.HOSTILE, 1.2f, 1f);
+		Voices.play(this.victim, Voices.Kind.SCREAM);
+		this.placeVictim(this.victimSpot.x, this.victimSpot.y, this.victimSpot.z, this.lockerFacing.toYRot());
+	}
+
+	private void beginStruggle() {
+		this.sceneTick = -1;
+		this.nextChoke = this.level().getGameTime() + 4;
+		this.startVictimRound(0);
+		this.startShapeRound(0);
+		this.sendState();
+	}
+
+	/** Michael doesn't leave the wardrobe: held where he stands (he may look about). */
+	private void holdShape() {
+		if (this.shape.position().distanceToSqr(this.shapeSpot) > 0.0025) {
+			this.shape.teleportTo(this.level(), this.shapeSpot.x, this.shapeSpot.y, this.shapeSpot.z, Set.of(Relative.X_ROT, Relative.Y_ROT), 0f, 0f, false);
+		}
+		this.shape.setDeltaMovement(Vec3.ZERO);
+	}
+
+	/** His knife stuck in the door at chest height, blade in, handle out. */
+	private void stickKnife() {
+		ServerLevel level = this.level();
+		Display.ItemDisplay d = new Display.ItemDisplay(EntityTypes.ITEM_DISPLAY, level);
+		d.setItemStack(this.knife.isEmpty() ? new ItemStack(Items.IRON_SWORD) : this.knife.copy());
+		d.setItemTransform(ItemDisplayContext.FIXED);
+		Vec3 side = this.out().cross(new Vec3(0, 1, 0));
+		Vec3 at = Vec3.atBottomCenterOf(this.lockerBase).add(this.out().scale(0.62)).add(side.scale(0.12)).add(0, 1.35, 0);
+		d.setPos(at.x, at.y, at.z);
+		// The picture upright, edge on to the door, the blade (up and right in the picture) turned into it.
+		float yaw = this.lockerFacing.toYRot() + 90f;
+		d.setTransformation(new Transformation(null, new Quaternionf().rotateY(-yaw * Mth.DEG_TO_RAD).rotateZ(-45f * Mth.DEG_TO_RAD),
+			new Vector3f(0.8f, 0.8f, 0.8f), null));
+		d.addTag(Leftovers.stamp());
+		level.addFreshEntity(d);
+		this.stuckKnife = d;
+	}
+
+	/** The knife out of the door and back in his hand (after the kill, or at once if they got away). */
+	private void takeKnife() {
+		if (this.stuckKnife != null) {
+			this.stuckKnife.discard();
+			this.stuckKnife = null;
+			this.level().playSound(null, this.shape.getX(), this.shape.getY() + 1, this.shape.getZ(), HwSounds.STAB, SoundSource.HOSTILE, 0.8f, 1.6f);
+		}
+		if (!this.knife.isEmpty()) {
+			if (this.shape.getMainHandItem().isEmpty()) {
+				this.shape.setItemInHand(InteractionHand.MAIN_HAND, this.knife);
+			} else {
+				this.shape.getInventory().add(this.knife);
+			}
+			this.knife = ItemStack.EMPTY;
+		}
+	}
+
+	/** The screen jolts for them (a blow, a fall). */
+	private void shake(LivingEntity who, int ticks, float strength) {
+		if (who instanceof ServerPlayer p && !Bots.isBot(p)) {
+			ServerPlayNetworking.send(p, new HwNet.Quake(ticks, strength));
+		}
+	}
+
+	private static final int LOCKER_KILL_TICKS = 52;
+
+	/** Michael's kill at the wardrobe: their head smashed against it three times, then his knife pulled out of the door. */
+	private void startLockerFinisher() {
+		anim(this.shape, HwNet.Anim.LOCKER_SMASH);
+		anim(this.victim, HwNet.Anim.LOCKER_SMASHED);
+		// Seen from the side, letterboxed, for both of them: from whichever side has room.
+		Vec3 mid = this.shapeSpot.lerp(this.victimSpot, 0.5);
+		Vec3 look = mid.add(0, 1.45, 0);
+		Vec3 side = this.out().cross(new Vec3(0, 1, 0));
+		Vec3 best = null;
+		double bestLen = -1;
+		for (int sign : new int[]{1, -1}) {
+			Vec3 want = mid.add(side.scale(3.6 * sign)).add(this.out().scale(1.0)).add(0, 1.9, 0);
+			HitResult hit = this.level().clip(new ClipContext(look, want, ClipContext.Block.VISUAL, ClipContext.Fluid.NONE, this.shape));
+			Vec3 got = want;
+			if (hit.getType() != HitResult.Type.MISS) {
+				Vec3 back = look.subtract(hit.getLocation());
+				got = hit.getLocation().add(back.lengthSqr() < 1e-4 ? Vec3.ZERO : back.normalize().scale(0.3));
+			}
+			double len = got.distanceTo(look);
+			if (len > bestLen + 0.3) {
+				best = got;
+				bestLen = len;
+			}
+		}
+		HwNet.Cutscene cam = new HwNet.Cutscene(Cutscenes.KILLCAM, LOCKER_KILL_TICKS + 6, best, look, Vec3.ZERO);
+		for (LivingEntity who : new LivingEntity[]{this.shape, this.victim}) {
+			if (who instanceof ServerPlayer p && !Bots.isBot(p)) {
+				ServerPlayNetworking.send(p, cam);
+			}
+		}
+	}
+
+	private void tickLockerFinisher() {
+		ServerLevel level = this.level();
+		int t = this.finisherTick;
+		if (t == 8 || t == 20 || t == 32) {
+			Vec3 head = this.victimSpot.add(this.out().scale(-0.25)).add(0, 1.6, 0);
+			level.playSound(null, head.x, head.y, head.z, SoundEvents.ZOMBIE_ATTACK_WOODEN_DOOR, SoundSource.HOSTILE, 1.5f, 0.75f + this.random.nextFloat() * 0.1f);
+			level.playSound(null, head.x, head.y, head.z, SoundEvents.SKELETON_HURT, SoundSource.HOSTILE, 0.8f, 0.5f);
+			if (t < 32) {
+				Voices.play(this.victim, Voices.Kind.HURT);
+			}
+			MatchManager.bleed(level, this.victim, this.bloody ? 22 : 12);
+			level.sendParticles(HwParticles.BLOOD, head.x, head.y, head.z, this.bloody ? 30 : 16, 0.12, 0.15, 0.12, 0.18);
+			this.shake(this.shape, 6, 0.35f);
+			this.shake(this.victim, 8, 0.7f);
+		} else if (t == 40) {
+			this.takeKnife();
+		} else if (t >= LOCKER_KILL_TICKS) {
+			this.done = true;
+			anim(this.shape, HwNet.Anim.NONE);
+			anim(this.victim, HwNet.Anim.NONE);
+			MatchManager.kill(this.shape, this.state, this.victim, MatchManager.KillKind.EXECUTION, this.bloody);
+		}
+	}
+
+	/** For tests: the struggle won outright (the kill plays). */
+	public void testWin() {
+		if (this.sceneTick < 0 && !this.finishing) {
+			this.shapePoints = this.shapeNeeded();
+			this.checkEnd();
+		}
+	}
+
+	/** For tests: how far the scene at the wardrobe is (-1: the struggle is on, or there was none). */
+	public int sceneTick() {
+		return this.sceneTick;
 	}
 
 	private ServerLevel level() {
@@ -301,6 +592,11 @@ public final class GrabSession {
 		Vec3 away = this.victim.position().subtract(this.shape.position()).multiply(1, 0, 1);
 		away = away.lengthSqr() < 1.0E-4 ? this.shape.getLookAngle().multiply(1, 0, 1) : away;
 		away = away.normalize();
+		if (this.atLocker()) {
+			// Their back to the wardrobe: they tear free to one side; his knife back out of the door.
+			away = this.out().cross(new Vec3(0, 1, 0)).scale(this.random.nextBoolean() ? 1 : -1);
+			this.takeKnife();
+		}
 		this.victim.setDeltaMovement(away.x * 0.9, 0.35, away.z * 0.9);
 		this.victim.hurtMarked = true;
 		this.level().playSound(null, this.victim.getX(), this.victim.getY(), this.victim.getZ(), HwSounds.ESCAPE, SoundSource.PLAYERS, 1f, 1f);
@@ -334,7 +630,9 @@ public final class GrabSession {
 		Music.killing(this.level().getServer(), this.cfg().finisherTicks + 70);
 		this.finisherTick = 0;
 		this.bloody = this.state.level() >= this.cfg().bloodyExecutionLevel;
-		if (this.victimState.level() >= this.cfg().windowFinisherStalkLevel) {
+		if (this.atLocker()) {
+			this.startLockerFinisher();
+		} else 		if (this.victimState.level() >= this.cfg().windowFinisherStalkLevel) {
 			this.windowPos = this.findWindow();
 		}
 		HwNet.Qte off = HwNet.Qte.INACTIVE;
@@ -369,6 +667,10 @@ public final class GrabSession {
 
 	private void tickFinisher() {
 		this.finisherTick++;
+		if (this.atLocker()) {
+			this.tickLockerFinisher();
+			return;
+		}
 		if (this.windowPos != null) {
 			if (this.finisherTick == 10) {
 				this.stabEffects();
@@ -432,6 +734,10 @@ public final class GrabSession {
 			this.end();
 			return;
 		}
+		if (this.sceneTick >= 0) {
+			this.tickScene();
+			return;
+		}
 		if (!(this.finishing && this.windowPos != null && this.finisherTick >= 18)) {
 			this.pinVictim();
 		}
@@ -473,10 +779,17 @@ public final class GrabSession {
 
 	/** Is the Shape still carrying out the struggle (he may shuffle along), not finishing the kill? */
 	boolean struggling() {
-		return !this.finishing && !this.done;
+		return !this.finishing && !this.done && this.sceneTick < 0;
 	}
 
 	private void pinVictim() {
+		if (this.atLocker()) {
+			// At the wardrobe: he stays put, their back to its door.
+			this.holdShape();
+			this.placeVictim(this.victimSpot.x, this.victimSpot.y, this.victimSpot.z, this.lockerFacing.toYRot());
+			this.victim.setDeltaMovement(Vec3.ZERO);
+			return;
+		}
 		float yaw = (Demogorgon.active() ? this.pinYaw : this.shape.getYRot()) * Mth.DEG_TO_RAD;
 		if (Demogorgon.active()) {
 			// Over them on all fours his body faces them, whichever way he looks.
@@ -532,6 +845,7 @@ public final class GrabSession {
 	}
 
 	void end() {
+		this.takeKnife();
 		if (!this.animated) {
 			anim(this.shape, HwNet.Anim.NONE);
 			anim(this.victim, HwNet.Anim.NONE);

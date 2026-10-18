@@ -385,6 +385,18 @@ public final class HwNet {
 		public static final int PINNED = 12;
 		/** The Demogorgon over someone on the ground, claws pinning them, his mouth open, tearing at them. */
 		public static final int DEVOUR = 13;
+		/** Michael at a wardrobe: his knife driven into its door. */
+		public static final int LOCKER_STAB = 14;
+		/** Michael holding someone against a wardrobe by the throat, his other hand on the wardrobe. */
+		public static final int LOCKER_HOLD = 15;
+		/** Michael smashing their head against the wardrobe, then pulling his knife out of it. */
+		public static final int LOCKER_SMASH = 16;
+		/** Their head smashed against the wardrobe: thrown back at each blow, going limp. */
+		public static final int LOCKER_SMASHED = 17;
+		/** Run through on the Demogorgon's claw, lifted off the ground. */
+		public static final int IMPALED = 18;
+		/** The Demogorgon at a wardrobe: roaring at it, the claw through it, lifting what it caught, flinging it down. */
+		public static final int DEMO_LOCKER = 19;
 
 		public static final Type<Anim> TYPE = payloadType("anim");
 		public static final StreamCodec<RegistryFriendlyByteBuf, Anim> CODEC = StreamCodec.of((buf, v) -> {

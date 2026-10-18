@@ -199,6 +199,10 @@ final class BotBrain {
 			this.wasVaulting = false;
 			this.fleeRepathAt = now;
 		}
+		if (Lockers.isInside(this.bot) && MatchManager.isHeld(this.bot)) {
+			// Being pulled out of it (a scene at the wardrobe): nothing to do.
+			return;
+		}
 		if (Lockers.isInside(this.bot)) {
 			// Sitting tight: only the Shape throwing the door open ends this early.
 			if (this.mode != Mode.HIDE) {

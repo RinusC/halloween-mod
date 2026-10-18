@@ -19,6 +19,8 @@ import net.minecraft.world.phys.Vec3;
 public final class Cutscenes {
 	public static final int SURVIVOR = 0;
 	public static final int SHAPE = 1;
+	/** Not an opening scene: a kill seen from the side for a few seconds (a = the camera, b = what it looks at; see GrabSession). */
+	public static final int KILLCAM = 2;
 	/** How far from Michael a window may be (its chunks have to be loaded around him). */
 	private static final int WINDOW_REACH = 90;
 

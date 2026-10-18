@@ -32,6 +32,10 @@ public final class Cutscene {
 	}
 
 	public static void begin(HwNet.Cutscene payload) {
+		if (payload.kind() == Cutscenes.KILLCAM) {
+			KillCam.begin(payload);
+			return;
+		}
 		Minecraft mc = Minecraft.getInstance();
 		// A countdown too short for a scene (tests, a quick restart) plays none.
 		if (mc.level == null || mc.player == null || payload.ticks() < 60) {

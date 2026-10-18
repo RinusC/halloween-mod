@@ -444,7 +444,8 @@ public final class MatchManager {
 		if (state.grab != null && state.grab.struggling() && state.stunnedTicks == 0 && !Match.frozen()) {
 			// Holding someone: he can still shuffle along, very slowly, dragging them.
 			// (The Demogorgon, eating, stays put over them.)
-			speed = Demogorgon.active() ? -1 : cfg.grabSpeedModifier;
+			// (Michael at a wardrobe stays by it.)
+			speed = Demogorgon.active() || state.grab.atLocker() ? -1 : cfg.grabSpeedModifier;
 		} else if (state.busy() || Match.frozen() || state.trappedTicks > 0 && state.shadowTicks == 0) {
 			speed = -1;
 		} else if (state.shadowTicks > 0) {
@@ -1072,7 +1073,20 @@ public final class MatchManager {
 		return startGrab(player, state, victim);
 	}
 
+	/** Someone pulled out of a wardrobe ({@code locker}): a scene at the wardrobe first, then the struggle (see GrabSession). */
+	public static boolean grabFromLocker(ServerPlayer player, LivingEntity victim, BlockPos locker) {
+		ShapeState state = SHAPES.get(player.getUUID());
+		if (role(player) != Role.SHAPE || state == null || state.grab != null || state.stunnedTicks > 0 || !isVictim(victim)) {
+			return false;
+		}
+		return startGrab(player, state, victim, locker);
+	}
+
 	private static boolean startGrab(ServerPlayer player, ShapeState state, LivingEntity victim) {
+		return startGrab(player, state, victim, null);
+	}
+
+	private static boolean startGrab(ServerPlayer player, ShapeState state, LivingEntity victim, BlockPos locker) {
 		HwConfig cfg = HwConfig.get();
 		VictimState vs = victim(victim);
 		if (vs.grabbed) {
@@ -1091,7 +1105,7 @@ public final class MatchManager {
 		if (victim instanceof ServerPlayer vp) {
 			AiStats.add(victim, "grabbed.while." + Bots.modeOf(vp));
 		}
-		state.grab = new GrabSession(player, state, victim, vs);
+		state.grab = new GrabSession(player, state, victim, vs, locker);
 		return true;
 	}
 

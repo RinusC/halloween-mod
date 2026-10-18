@@ -53,7 +53,7 @@ public final class ClientAnims {
 					s.riseStart = now();
 				}
 			}
-			case HwNet.Anim.HOLD, HwNet.Anim.STRUGGLE, HwNet.Anim.STRANGLE, HwNet.Anim.DEVOUR -> s.hold = payload.kind();
+			case HwNet.Anim.HOLD, HwNet.Anim.STRUGGLE, HwNet.Anim.STRANGLE, HwNet.Anim.DEVOUR, HwNet.Anim.LOCKER_HOLD, HwNet.Anim.IMPALED -> s.hold = payload.kind();
 			case HwNet.Anim.PINNED -> {
 				// Thrown down on their back.
 				s.hold = payload.kind();
@@ -92,8 +92,17 @@ public final class ClientAnims {
 			case HwNet.Anim.STAGGER -> 16;
 			case HwNet.Anim.STABBED -> 18;
 			case HwNet.Anim.KNIFE_DOWN -> 8;
+			case HwNet.Anim.LOCKER_STAB -> 18;
+			case HwNet.Anim.LOCKER_SMASH -> 52;
+			case HwNet.Anim.LOCKER_SMASHED -> 60;
+			case HwNet.Anim.DEMO_LOCKER -> 64;
 			default -> 0;
 		};
+	}
+
+	private static float smooth(float x) {
+		x = Mth.clamp(x, 0f, 1f);
+		return x * x * (3 - 2 * x);
 	}
 
 	/** Up to full over {@code in} ticks, held for {@code hold}, back down over {@code out}. */
@@ -211,6 +220,25 @@ public final class ClientAnims {
 			m.rightArm.yRot = -0.2f;
 			m.rightArm.zRot = 0.05f;
 			m.head.xRot = 0.1f;
+		} else if (s.hold == HwNet.Anim.LOCKER_HOLD) {
+			// At a wardrobe: one hand at their throat pinning them to its door, the other braced on it above them.
+			m.leftArm.xRot = -1.55f + Mth.sin(now * 0.35f) * 0.04f;
+			m.leftArm.yRot = 0.3f;
+			m.leftArm.zRot = 0;
+			m.rightArm.xRot = -2.15f;
+			m.rightArm.yRot = -0.4f;
+			m.rightArm.zRot = 0;
+			m.head.xRot = 0.15f;
+		} else if (s.hold == HwNet.Anim.IMPALED) {
+			// Run through on his claw and lifted: arms and legs hanging, jerking now and then, the head thrown back.
+			float jerk = Mth.sin(now * 1.7f) * Mth.sin(now * 0.31f);
+			m.rightArm.xRot = -0.45f + jerk * 0.25f;
+			m.leftArm.xRot = -0.45f - jerk * 0.2f;
+			m.rightArm.zRot = 0.35f;
+			m.leftArm.zRot = -0.35f;
+			m.rightLeg.xRot = 0.25f + jerk * 0.3f;
+			m.leftLeg.xRot = -0.1f - jerk * 0.3f;
+			m.head.xRot = -0.7f + jerk * 0.1f;
 		} else if (s.hold == HwNet.Anim.STRANGLE) {
 			// The Runt on someone's back: both hands round their throat, squeezing and shaking, legs locked round them.
 			float shake = Mth.sin(now * 2.3f) * 0.07f;
@@ -264,6 +292,66 @@ public final class ClientAnims {
 				// The knife comes down and goes up again.
 				float k = t < 2 ? t / 2 : Math.max(0, 1 - (t - 2) / 6);
 				m.rightArm.xRot = Mth.lerp(k, -2.9f, -0.7f);
+			}
+			case HwNet.Anim.LOCKER_STAB -> {
+				// The knife drawn back and driven into the wardrobe door, held there a moment.
+				float back = t < 5 ? smooth(t / 5f) : 0f;
+				float in = t < 5 ? 0f : smooth((t - 5) / 2f);
+				float out = t < 13 ? 0f : smooth((t - 13) / 5f);
+				m.rightArm.xRot = Mth.lerp(out, back * 0.8f + in * -1.55f, m.rightArm.xRot);
+				m.rightArm.yRot = Mth.lerp(out, -0.15f * in, m.rightArm.yRot);
+				m.leftArm.xRot = Mth.lerp(out, -0.5f * (back + in), m.leftArm.xRot);
+				m.head.xRot = Mth.lerp(out, 0.15f * in, m.head.xRot);
+			}
+			case HwNet.Anim.LOCKER_SMASH -> {
+				// Their head pulled forward and slammed back into the door, three times; then his knife pulled out of it.
+				float x = -1.55f;
+				float nod = 0f;
+				for (int hit : new int[]{8, 20, 32}) {
+					float d = t - hit;
+					if (d >= -6 && d < 0) {
+						x = Mth.lerp(smooth((d + 6) / 6f), -1.55f, -1.0f);
+						nod = -0.15f * smooth((d + 6) / 6f);
+					} else if (d >= 0 && d < 4) {
+						x = Mth.lerp(d / 4f, -1.9f, -1.55f);
+						nod = 0.3f * (1f - d / 4f);
+					}
+				}
+				float let = t < 40 ? 0f : smooth((t - 40) / 10f);
+				m.leftArm.xRot = Mth.lerp(let, x, -0.2f);
+				m.leftArm.yRot = Mth.lerp(let, 0.3f, 0f);
+				m.leftArm.zRot = 0;
+				// The other hand on the wardrobe, then to the knife and back with it.
+				float reach = t < 35 ? 0f : smooth((t - 35) / 5f);
+				float pull = t < 40 ? 0f : smooth((t - 40) / 8f);
+				m.rightArm.xRot = Mth.lerp(pull, Mth.lerp(reach, -2.15f, -1.5f), -0.3f);
+				m.rightArm.yRot = Mth.lerp(pull, Mth.lerp(reach, -0.4f, -0.1f), 0f);
+				m.rightArm.zRot = 0;
+				m.head.xRot = 0.15f + nod;
+			}
+			case HwNet.Anim.LOCKER_SMASHED -> {
+				// Clawing at his arm, the head snapping back into the door at each blow, going limp.
+				float limp = Mth.clamp((t - 8) / 30f, 0f, 1f);
+				float a = Mth.sin(now * 0.9f) * (1f - limp);
+				m.rightArm.xRot = Mth.lerp(limp, -2.0f + a * 0.25f, -0.1f);
+				m.leftArm.xRot = Mth.lerp(limp, -2.0f - a * 0.25f, -0.1f);
+				m.rightArm.yRot = Mth.lerp(limp, -0.45f, 0f);
+				m.leftArm.yRot = Mth.lerp(limp, 0.45f, 0f);
+				m.rightArm.zRot = Mth.lerp(limp, 0.35f, 0.1f);
+				m.leftArm.zRot = Mth.lerp(limp, -0.35f, -0.1f);
+				m.rightLeg.xRot = Mth.lerp(limp, Mth.sin(now * 0.8f) * 0.5f, -0.1f);
+				m.leftLeg.xRot = Mth.lerp(limp, -Mth.sin(now * 0.8f) * 0.5f, 0.05f);
+				float head = Mth.lerp(limp, -0.35f, 0.55f);
+				for (int hit : new int[]{8, 20, 32}) {
+					float d = t - hit;
+					if (d >= -5 && d < 0) {
+						head += 0.35f * smooth((d + 5) / 5f);
+					} else if (d >= 0 && d < 5) {
+						head -= 0.8f * (1f - d / 5f);
+					}
+				}
+				m.head.xRot = head;
+				m.head.zRot = limp * 0.25f;
 			}
 			case HwNet.Anim.BREAK_FREE -> {
 				// Shoving him off with both hands.

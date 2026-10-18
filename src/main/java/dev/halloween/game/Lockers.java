@@ -330,8 +330,10 @@ public final class Lockers {
 		}
 		AiStats.add(inside.who, "locker.pulled_out");
 		LivingEntity victim = inside.who;
-		leave(victim, false);
-		MatchManager.grabOut(shape, victim);
+		// Still inside: the grab plays a scene at the wardrobe and takes them out itself.
+		if (!MatchManager.grabFromLocker(shape, victim, base)) {
+			leave(victim, false);
+		}
 	}
 
 	/** Whose breathing in a locker each Michael is hearing now (entity ids). */
@@ -423,6 +425,10 @@ public final class Lockers {
 					who.teleportTo(c.x, c.y, c.z);
 				}
 				who.setDeltaMovement(Vec3.ZERO);
+			}
+			if (MatchManager.isHeld(who)) {
+				// Being pulled out (a scene at the wardrobe): no getting out, no running out of air.
+				continue;
 			}
 			if (who instanceof ServerPlayer player) {
 				boolean shift = player.isShiftKeyDown();

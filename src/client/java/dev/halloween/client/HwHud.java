@@ -40,6 +40,10 @@ public final class HwHud {
 		if (mc.player == null || mc.level == null) {
 			return;
 		}
+		if (KillCam.overlay(g, delta)) {
+			// A kill seen from the side.
+			return;
+		}
 		if (Cutscene.overlay(g, delta)) {
 			// The opening scene: nothing else on screen.
 			return;

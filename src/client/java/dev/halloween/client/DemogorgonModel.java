@@ -149,8 +149,10 @@ public final class DemogorgonModel extends Model<AvatarRenderState> {
 		boolean reach = ClientAnims.once(id) == HwNet.Anim.REACH;
 		float pounceT = reach ? Mth.clamp(ClientAnims.onceTime(id) / 12f, 0f, 1f) : 0f;
 		float pounce = reach ? Mth.sin(pounceT * Mth.PI) : 0f;
-		boolean busy = ClientAnims.busy(id) && !devour && !reach;
-		float four = busy ? 0f : devour ? 1f : Math.max(pounce, c.four.at(now, 7f, 16f));
+		// At a wardrobe (roaring at it, a claw through it): standing, a scene of its own.
+		boolean atLocker = ClientAnims.once(id) == HwNet.Anim.DEMO_LOCKER;
+		boolean busy = ClientAnims.busy(id) && !devour && !reach && !atLocker;
+		float four = busy || atLocker ? 0f : devour ? 1f : Math.max(pounce, c.four.at(now, 7f, 16f));
 		float charge = busy || devour ? 0f : c.charge.at(now, 5f, 4f) * (1f - pounce);
 		float lunge = busy || devour ? 0f : Math.max(pounce, c.lunge.at(now, 1.5f, 7f));
 		float speed = Mth.clamp(s.walkAnimationSpeed * 1.6f, 0f, 1f);
@@ -227,6 +229,9 @@ public final class DemogorgonModel extends Model<AvatarRenderState> {
 		} else if (!devour) {
 			this.look(s, four, lunge);
 		}
+		if (atLocker) {
+			open = Math.max(open, this.atLocker(ClientAnims.onceTime(id), t));
+		}
 		open = Math.max(open, this.crossing(c, now, t));
 		this.bb.apply("mouth", Mth.clamp(open, 0f, 1f), 1f);
 	}
@@ -283,6 +288,32 @@ public final class DemogorgonModel extends Model<AvatarRenderState> {
 		}
 		// Wide on the way in, snapped shut at the end.
 		return a < 0.5f ? smooth(a / 0.5f) * w : (1f - smooth((a - 0.5f) / 0.25f)) * w;
+	}
+
+	/**
+	 * At a wardrobe: rearing up at it and roaring, arms flung wide, the body shuddering; then the right claw driven
+	 * straight through it, raised with what it caught on it, swung down to fling them off, and drawn back. Returns how
+	 * far the mouth is open.
+	 */
+	private float atLocker(float s, float t) {
+		float roar = smooth(s / 6f) * (1f - smooth((s - 23f) / 6f));
+		this.bb.turn("right_upper_arm", 40f * roar, 0f, 65f * roar);
+		this.bb.turn("left_upper_arm", 40f * roar, 0f, -65f * roar);
+		this.bb.turn("right_forearm", 35f * roar, 0f, 0f);
+		this.bb.turn("left_forearm", 35f * roar, 0f, 0f);
+		this.bb.turn("chest", -12f * roar, 0f, 3f * Mth.sin(t * 2.6f) * roar);
+		this.bb.turn("head", -25f * roar, 0f, 0f);
+		float thrust = smooth((s - 27f) / 3f) * (1f - smooth((s - 56f) / 8f));
+		float lift = smooth((s - 34f) / 14f);
+		float fling = smooth((s - 50f) / 5f);
+		this.bb.turn("right_upper_arm", thrust * (95f + 30f * lift - 105f * fling), 0f, 0f);
+		this.bb.turn("right_forearm", -10f * thrust, 0f, 0f);
+		this.bb.turn("chest", 12f * thrust * (1f - lift * 0.5f), 0f, 0f);
+		this.bb.turn("left_upper_arm", 20f * thrust, 0f, -20f * thrust);
+		for (int k = 0; k < 3; k++) {
+			this.bb.turn("right_finger" + k, -30f * thrust, 0f, 0f);
+		}
+		return Math.max(roar, 0.5f * thrust);
 	}
 
 	private static float smooth(float x) {
