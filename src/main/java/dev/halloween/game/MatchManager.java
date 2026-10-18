@@ -1021,6 +1021,7 @@ public final class MatchManager {
 			victim.hurtServer(level, player.damageSources().playerAttack(player), damage);
 			Voices.play(victim, Voices.Kind.HURT);
 			Panic.add(victim, cfg.panicOnHit);
+			Stamina.onHit(victim);
 			// Strikes don't throw victims around; only the push does.
 			victim.setDeltaMovement(Vec3.ZERO);
 			victim.hurtMarked = true;

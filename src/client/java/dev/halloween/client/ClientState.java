@@ -168,6 +168,14 @@ public final class ClientState {
 			// Shown by a match event: Michael after Loomis's call, everyone to him at midnight.
 			return event;
 		}
+		if (entity instanceof net.minecraft.world.entity.item.ItemEntity item && myRole().survivor() && Minecraft.getInstance().player != null
+			&& entity.distanceTo(Minecraft.getInstance().player) <= 32) {
+			// A way-out item lying about: shows through walls to survivors within 32 blocks.
+			dev.halloween.game.HwItems.Kind kind = dev.halloween.game.HwItems.kindOf(item.getItem());
+			if (kind != null && kind.escape()) {
+				return 0xF2C94C;
+			}
+		}
 		if (myRole().survivor() && match.state() == 2 && perkEquipped.contains("witness") && entity != Minecraft.getInstance().player
 			&& (ROLES.getOrDefault(entity.getUUID(), Role.NONE).survivor() || match.npcs().contains(entity.getId())) && !entity.isSpectator()
 			&& entity.distanceTo(Minecraft.getInstance().player) <= dev.halloween.HwConfig.get().perkWitnessRange) {

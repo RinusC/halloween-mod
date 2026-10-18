@@ -49,6 +49,12 @@ public final class Stamina {
 		return s == null ? 1f : s.value;
 	}
 
+	/** A blow from the killer: a jolt of fear gives them breath at once (staminaOnHit of the bar). */
+	public static void onHit(Entity who) {
+		State s = STATES.computeIfAbsent(who.getUUID(), k -> new State());
+		s.value = Math.min(1f, s.value + HwConfig.get().staminaOnHit);
+	}
+
 	/** For tests: sets someone's stamina. */
 	public static void set(ServerPlayer player, float value) {
 		State s = STATES.computeIfAbsent(player.getUUID(), k -> new State());

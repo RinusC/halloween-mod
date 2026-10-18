@@ -596,6 +596,8 @@ public class HwConfig {
 	public int bloodTrailStillTicks = 60;
 	/** How long a drip stays on the ground before it dries up. */
 	public int bloodTrailSeconds = 30;
+	/** Stamina a survivor gets back at once when the killer hits them. */
+	public float staminaOnHit = 0.2f;
 	/** The Demogorgon on a blood trail: drips this near him give him the scent of whoever bled them (stalk levels a second). */
 	public double demoScentRange = 2.5;
 	public float demoScentPerSecond = 0.3f;

@@ -438,8 +438,15 @@ public final class Demogorgon {
 	private static List<BlockPos> occupied(ServerLevel level) {
 		List<BlockPos> out = new ArrayList<>();
 		List<Long> seen = new ArrayList<>();
-		for (ServerPlayer s : level.players()) {
-			if (!MatchManager.role(s).survivor() || s.isSpectator() || !s.isAlive() || UpsideDown.isBelow(s)) {
+		// Survivors and townsfolk alike.
+		List<net.minecraft.world.entity.LivingEntity> who = new ArrayList<>(Townsfolk.bodies());
+		for (ServerPlayer p : level.players()) {
+			if (MatchManager.role(p).survivor() && !p.isSpectator()) {
+				who.add(p);
+			}
+		}
+		for (net.minecraft.world.entity.LivingEntity s : who) {
+			if (!s.isAlive() || s.level() != level || UpsideDown.isBelow(s)) {
 				continue;
 			}
 			// The house they are in; one whose door they are at (on the stairs, in a wardrobe the scan misses).
@@ -571,18 +578,20 @@ public final class Demogorgon {
 	 */
 	private static boolean smash(ServerPlayer d) {
 		ServerLevel level = d.level();
-		// Right ahead; and for a window a little more (0.2 of a block further and to either side): a leap at one
+		// Right ahead; and for a door or a window a little more (0.2 of a block further and to either side): a leap at one
 		// that is nearly in line still finds it.
 		Vec3 side = new Vec3(-shredDir.z, 0, shredDir.x).scale(0.2);
+		// (Near too: pressed right up against it, or standing in a doorway, the block 0.9 ahead is already past it.)
+		Vec3 near = d.position().add(shredDir.scale(0.45));
 		Vec3 ahead = d.position().add(shredDir.scale(0.9));
 		Vec3 further = d.position().add(shredDir.scale(1.1));
-		Vec3[] samples = {ahead, further, ahead.add(side), ahead.subtract(side), further.add(side), further.subtract(side)};
+		Vec3[] samples = {near, ahead, further, near.add(side), near.subtract(side), ahead.add(side), ahead.subtract(side), further.add(side), further.subtract(side)};
 		for (int k = 0; k < samples.length * 2; k++) {
 			Vec3 s = samples[k / 2];
 			int dy = k % 2;
 			BlockPos at = BlockPos.containing(s.x, d.getY() + 0.2 + dy, s.z);
 			BlockState state = level.getBlockState(at);
-			if (k < 2 && state.getBlock() instanceof net.minecraft.world.level.block.DoorBlock) {
+			if (state.getBlock() instanceof net.minecraft.world.level.block.DoorBlock) {
 				BlockPos lower = state.getValue(net.minecraft.world.level.block.state.properties.BlockStateProperties.DOUBLE_BLOCK_HALF)
 					== net.minecraft.world.level.block.state.properties.DoubleBlockHalf.LOWER ? at : at.below();
 				Quake.knockOut(level, lower);
