@@ -167,6 +167,21 @@ public class LockerKillClientTest implements FabricClientGameTest {
 					ctx.waitTicks(8);
 					check(server.computeOnServer(s -> survivorBot(s).getX() < pane.getX()), "michael: pulled back to his side");
 				}
+				if (demo) {
+					// His roar (the Impulse), from the same side.
+					server.runOnServer(s -> {
+						MatchManager.shapeState(player(s)).impulseCooldown = 0;
+						MatchManager.shapeState(player(s)).recoverTicks = 0;
+						MatchManager.onImpulse(player(s));
+					});
+					net.minecraft.world.phys.Vec3 me = server.computeOnServer(s -> player(s).position());
+					ctx.runOnClient(mc -> KillCam.begin(new dev.halloween.net.HwNet.Cutscene(dev.halloween.game.Cutscenes.KILLCAM, 80, me.add(5, 2, 1), me.add(0, 1.6, 0), net.minecraft.world.phys.Vec3.ZERO)));
+					ctx.waitTicks(20);
+					ctx.takeScreenshot("demo_roar");
+					check(server.computeOnServer(s -> MatchManager.shapeState(player(s)).busy()), "demogorgon: rooted while he roars");
+					ctx.waitTicks(50);
+					check(server.computeOnServer(s -> !MatchManager.shapeState(player(s)).busy()), "demogorgon: free after three seconds");
+				}
 				server.runCommand("hw stop");
 				ctx.waitTicks(20);
 			}

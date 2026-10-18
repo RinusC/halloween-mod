@@ -463,6 +463,10 @@ public final class MatchManager {
 		if (Demogorgon.active() && speed > -1) {
 			// The Demogorgon is faster than Michael.
 			speed = (1 + speed) * cfg.demoSpeedFactor - 1;
+			if (inLight(player)) {
+				// Slower in the light.
+				speed = (1 + speed) * (1 - cfg.demoLightSlow) - 1;
+			}
 		}
 		if (Demogorgon.slowed() && speed > -1) {
 			// A Shred that missed: heavy for a second.
@@ -908,6 +912,14 @@ public final class MatchManager {
 		state.impulseCooldownMax = HwConfig.at(cfg.impulseCooldownByTier, state.tier());
 		state.impulseCooldown = state.impulseCooldownMax;
 		level.playSound(null, player.getX(), player.getY(), player.getZ(), HwSounds.IMPULSE, SoundSource.HOSTILE, 1f, 1f);
+		if (Demogorgon.active()) {
+			// His Impulse is a roar heard over most of the town; three seconds rooted, roaring.
+			state.recoverTicks = Math.max(state.recoverTicks, cfg.demoRoarTicks);
+			GrabSession.anim(player, dev.halloween.net.HwNet.Anim.DEMO_ROAR);
+			level.playSound(null, player.getX(), player.getY(), player.getZ(), net.minecraft.sounds.SoundEvents.RAVAGER_ROAR, SoundSource.HOSTILE, cfg.demoRoarRange / 16f, 0.5f);
+			level.playSound(null, player.getX(), player.getY(), player.getZ(), net.minecraft.sounds.SoundEvents.WARDEN_ROAR, SoundSource.HOSTILE, cfg.demoRoarRange / 16f, 0.7f);
+			Bots.alert(player.position(), level.getServer().getTickCount());
+		}
 		ServerPlayNetworking.send(player, new HwNet.Impulse(outdoor, indoor, cfg.impulseDurationTicks));
 	}
 

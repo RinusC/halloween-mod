@@ -365,6 +365,8 @@ public final class GrabSession {
 
 	/** How far ahead of the Demogorgon the feet of the one under him are (they lie on away from him). */
 	private static final double DEMO_FEET = 1.4;
+	/** Where his mouth is over them, ahead of him. */
+	private static final double DEMO_MOUTH = 1.9;
 
 	private static final int LOCKER_KILL_TICKS = 52;
 
@@ -786,6 +788,12 @@ public final class GrabSession {
 		}
 		if (!(this.finishing && this.windowPos != null && this.finisherTick >= 18)) {
 			this.pinVictim();
+		}
+		if (Demogorgon.active() && this.level().getGameTime() % 2 == 0) {
+			// Slaver running from his mouth over them.
+			float yaw = this.pinYaw * Mth.DEG_TO_RAD;
+			Vec3 mouth = this.shape.position().add(-Mth.sin(yaw) * DEMO_MOUTH, 0.95, Mth.cos(yaw) * DEMO_MOUTH);
+			this.level().sendParticles(HwParticles.DROOL, mouth.x, mouth.y, mouth.z, 1, 0.08, 0.04, 0.08, 0);
 		}
 		if (this.finishing) {
 			this.tickFinisher();

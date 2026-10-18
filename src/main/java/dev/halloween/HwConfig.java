@@ -850,6 +850,12 @@ public class HwConfig {
 	public double musicStalkedRange = 24;
 	/** The killer of the next matches (/hw killer): the Demogorgon, or Michael. Kept across restarts. */
 	public boolean killerDemogorgon = false;
+	/** The Demogorgon's roar (his Impulse): heard this far, rooting him this long. In the light he is this much slower. */
+	public float demoRoarRange = 200;
+	public int demoRoarTicks = 60;
+	public float demoLightSlow = 0.1f;
+	/** How much light the killer always catches for survivors' eyes (0..15): made out in the dark close by. */
+	public int killerMinLight = 5;
 
 	public static HwConfig get() {
 		return instance;

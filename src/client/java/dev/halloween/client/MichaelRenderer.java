@@ -184,7 +184,10 @@ public final class MichaelRenderer {
 		Identifier texture = demogorgon() ? DEMO_TEXTURE : TEXTURE;
 		net.minecraft.client.renderer.rendertype.RenderType type = tint != -1 ? RenderTypes.entityTranslucentCullItemTarget(texture)
 			: avatar.isInvisible ? RenderTypes.outline(texture) : RenderTypes.entityCutout(texture);
-		collector.submitModel(m, avatar, pose, type, light, overlay, tint, null, outline, null);
+		// Never lost in the dark to survivors: he always catches a little light (made out close by, a shape in the gloom).
+		int min = dev.halloween.HwConfig.get().killerMinLight << 4;
+		int lit = ClientState.myRole().survivor() ? Math.max(light & 0xFFFF, min) | Math.max(light >>> 16, min) << 16 : light;
+		collector.submitModel(m, avatar, pose, type, lit, overlay, tint, null, outline, null);
 		return true;
 	}
 }

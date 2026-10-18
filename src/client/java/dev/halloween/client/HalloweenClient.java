@@ -57,6 +57,7 @@ public class HalloweenClient implements ClientModInitializer {
 	public void onInitializeClient() {
 		net.fabricmc.fabric.api.client.particle.v1.ParticleProviderRegistry.getInstance().register(dev.halloween.HwParticles.BEAM, BeamParticle.Provider::new);
 		net.fabricmc.fabric.api.client.particle.v1.ParticleProviderRegistry.getInstance().register(dev.halloween.HwParticles.BLOOD, BloodParticles.DropProvider::new);
+		net.fabricmc.fabric.api.client.particle.v1.ParticleProviderRegistry.getInstance().register(dev.halloween.HwParticles.DROOL, DroolParticle.Provider::new);
 		net.fabricmc.fabric.api.client.particle.v1.ParticleProviderRegistry.getInstance().register(dev.halloween.HwParticles.BLOOD_SPLAT, BloodParticles.SplatProvider::new);
 		net.fabricmc.fabric.api.client.particle.v1.ParticleProviderRegistry.getInstance().register(dev.halloween.HwParticles.BLOOD_POOL, BloodParticles.PoolProvider::new);
 		net.fabricmc.fabric.api.client.particle.v1.ParticleProviderRegistry.getInstance().register(dev.halloween.HwParticles.BLOOD_DRIP, BloodParticles.DripProvider::new);

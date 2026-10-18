@@ -125,7 +125,7 @@ public final class DemogorgonModel extends Model<AvatarRenderState> {
 
 	/** How far down on all fours his eyes are (0 standing, 1 down): standing at a wardrobe. */
 	private static float eyesDown(int id) {
-		if (ClientAnims.once(id) == HwNet.Anim.DEMO_LOCKER) {
+		if (ClientAnims.once(id) == HwNet.Anim.DEMO_LOCKER || ClientAnims.once(id) == HwNet.Anim.DEMO_ROAR) {
 			return 0f;
 		}
 		return update(id, now()).four.at(now(), 7f, 16f);
@@ -159,6 +159,9 @@ public final class DemogorgonModel extends Model<AvatarRenderState> {
 		float pounce = reach ? Mth.sin(pounceT * Mth.PI) : 0f;
 		// At a wardrobe (roaring at it, a claw through it): standing, a scene of its own.
 		boolean atLocker = ClientAnims.once(id) == HwNet.Anim.DEMO_LOCKER;
+		// His roar (the Impulse): standing too.
+		boolean roaring = ClientAnims.once(id) == HwNet.Anim.DEMO_ROAR;
+		atLocker |= roaring;
 		boolean busy = ClientAnims.busy(id) && !devour && !reach && !atLocker;
 		float four = busy || atLocker ? 0f : devour ? 1f : Math.max(pounce, c.four.at(now, 7f, 16f));
 		float charge = busy || devour ? 0f : c.charge.at(now, 5f, 4f) * (1f - pounce);
@@ -238,7 +241,7 @@ public final class DemogorgonModel extends Model<AvatarRenderState> {
 			this.look(s, four, lunge);
 		}
 		if (atLocker) {
-			open = Math.max(open, this.atLocker(ClientAnims.onceTime(id), t));
+			open = Math.max(open, roaring ? this.roar(ClientAnims.onceTime(id), t) : this.atLocker(ClientAnims.onceTime(id), t));
 		}
 		open = Math.max(open, this.crossing(c, now, t));
 		this.bb.apply("mouth", Mth.clamp(open, 0f, 1f), 1f);
@@ -303,6 +306,20 @@ public final class DemogorgonModel extends Model<AvatarRenderState> {
 	 * straight through it, raised with what it caught on it, swung down to fling them off, and drawn back. Returns how
 	 * far the mouth is open.
 	 */
+	/** The roar of his Impulse (three seconds): rearing, the neck thrust out, the petals flung wide, all of him shaking. */
+	private float roar(float s, float t) {
+		float roar = smooth(s / 5f) * (1f - smooth((s - 50f) / 10f));
+		float shake = Mth.sin(t * 2.9f) * roar;
+		this.bb.turn("chest", -14f * roar, 0f, 3f * shake);
+		this.bb.turn("neck", -28f * roar, 0f, 0f);
+		this.bb.turn("head", -18f * roar + 5f * shake, 6f * Mth.sin(t * 1.7f) * roar, 0f);
+		this.bb.turn("right_upper_arm", 25f * roar, 0f, 40f * roar);
+		this.bb.turn("left_upper_arm", 25f * roar, 0f, -40f * roar);
+		this.bb.turn("right_forearm", 50f * roar, 0f, 0f);
+		this.bb.turn("left_forearm", 50f * roar, 0f, 0f);
+		return roar;
+	}
+
 	private float atLocker(float s, float t) {
 		float roar = smooth(s / 6f) * (1f - smooth((s - 23f) / 6f));
 		// The roar: the neck thrust out at the wardrobe, the petals flung wide open, the head shaking with it.

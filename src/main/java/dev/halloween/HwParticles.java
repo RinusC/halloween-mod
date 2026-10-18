@@ -14,6 +14,8 @@ public final class HwParticles {
 	public static final SimpleParticleType BLOOD_SPLAT = Registry.register(BuiltInRegistries.PARTICLE_TYPE, Halloween.id("blood_splat"), FabricParticleTypes.simple(true));
 	public static final SimpleParticleType BLOOD_POOL = Registry.register(BuiltInRegistries.PARTICLE_TYPE, Halloween.id("blood_pool"), FabricParticleTypes.simple(true));
 	public static final SimpleParticleType BLOOD_DRIP = Registry.register(BuiltInRegistries.PARTICLE_TYPE, Halloween.id("blood_drip"), FabricParticleTypes.simple(true));
+	/** Slaver running from the Demogorgon's mouth (over the one he is eating). */
+	public static final SimpleParticleType DROOL = Registry.register(BuiltInRegistries.PARTICLE_TYPE, Halloween.id("drool"), FabricParticleTypes.simple(true));
 
 	private HwParticles() {
 	}
