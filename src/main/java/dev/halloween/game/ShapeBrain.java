@@ -307,7 +307,8 @@ public final class ShapeBrain {
 	}
 
 	private int goalFor(LivingEntity e) {
-		return this.gotAway.contains(e.getUUID()) ? 3 : 2;
+		// The Demogorgon does not stalk (he follows blood): he goes straight for them.
+		return Demogorgon.active() ? 0 : this.gotAway.contains(e.getUUID()) ? 3 : 2;
 	}
 
 	/** The bot playing him, or null. */

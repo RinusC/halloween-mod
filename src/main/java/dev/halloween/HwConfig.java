@@ -596,6 +596,9 @@ public class HwConfig {
 	public int bloodTrailStillTicks = 60;
 	/** How long a drip stays on the ground before it dries up. */
 	public int bloodTrailSeconds = 90;
+	/** The Demogorgon on a blood trail: drips this near him give him the scent of whoever bled them (stalk levels a second). */
+	public double demoScentRange = 2.5;
+	public float demoScentPerSecond = 0.3f;
 	public int removePartTicks = 40;
 	public int callPoliceTicks = 400;
 	public int cutPhoneTicks = 40;

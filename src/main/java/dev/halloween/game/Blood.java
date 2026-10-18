@@ -26,7 +26,7 @@ public final class Blood {
 	/** The drips still on the ground: where, and when they fell (what Michael sees of a trail, see {@link #drips}). */
 	private static final java.util.ArrayDeque<Drip> DRIPS = new java.util.ArrayDeque<>();
 
-	public record Drip(Vec3 pos, int at) {
+	public record Drip(Vec3 pos, int at, UUID who) {
 	}
 
 	private Blood() {
@@ -85,7 +85,7 @@ public final class Blood {
 			double jz = (level.getRandom().nextDouble() - 0.5) * 0.4;
 			level.sendParticles(HwParticles.BLOOD_DRIP, true, true, player.getX() + jx, floor, player.getZ() + jz, 0,
 				0.07 + level.getRandom().nextFloat() * 0.07, cfg.bloodTrailSeconds, 0, 1);
-			DRIPS.addLast(new Drip(new Vec3(player.getX() + jx, floor, player.getZ() + jz), now));
+			DRIPS.addLast(new Drip(new Vec3(player.getX() + jx, floor, player.getZ() + jz), now, player.getUUID()));
 			AiStats.add(player, "blood.drip");
 		}
 	}

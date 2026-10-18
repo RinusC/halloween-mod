@@ -139,6 +139,11 @@ public final class BloodParticles {
 		}
 
 		@Override
+		public int getLightCoords(float partial) {
+			return ClientUpsideDown.active() ? 0xF000F0 : super.getLightCoords(partial);
+		}
+
+		@Override
 		public void tick() {
 			this.age++;
 			if (this.age >= this.lifetime) {
@@ -153,6 +158,10 @@ public final class BloodParticles {
 			float dry = Math.min(1f, this.age / 2400f);
 			float c = 1f - 0.3f * dry;
 			this.setColor(c, c, c);
+			if (ClientUpsideDown.active()) {
+				// Down in the Upside Down the Demogorgon sees blood glow.
+				this.setColor(1f, 0.25f, 0.2f);
+			}
 			if (this.age > this.fadeAt) {
 				this.setAlpha(Math.max(0, 1f - (this.age - this.fadeAt) / 100f));
 			}

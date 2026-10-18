@@ -185,6 +185,10 @@ public final class ClientState {
 		if (impulseActive() && IMPULSE_IDS.contains(entity.getId())) {
 			return 0xFF9A2E;
 		}
+		// The Demogorgon has the scent of whoever he followed by their blood: they show through walls.
+		if (info != null && info.marked() && MichaelRenderer.demogorgon()) {
+			return 0xE0261F;
+		}
 		if (info == null || !VISIBLE.contains(entity.getId())) {
 			return sharedSight(entity);
 		}

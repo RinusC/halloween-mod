@@ -427,7 +427,11 @@ public final class MatchManager {
 			state.fatigue = Math.max(0f, state.fatigue - 1f / (cfg.senseRecoverySeconds * 20f));
 		}
 		if (state.grab == null && state.shadowTicks == 0) {
-			tickStalk(player, state);
+			if (Demogorgon.active()) {
+				tickScent(player, state);
+			} else {
+				tickStalk(player, state);
+			}
 			tickCorpses(player, state);
 		}
 
@@ -563,6 +567,42 @@ public final class MatchManager {
 			multiplier *= Events.stalkFactor();
 			int before = vs.level();
 			vs.stalk = Math.min(cap, vs.stalk + rate / 20f * multiplier);
+			int after = vs.level();
+			if (after >= 1) {
+				vs.markTicks = Math.max(vs.markTicks, HwConfig.at(cfg.markTicksByStalk, after));
+			}
+			if (after > before) {
+				gainBloodthirst(player, state, cfg.bloodthirstPerStalkLevel);
+				score(player, state, policeHalf(target, cfg.scoreStalkLevel * after),
+					Component.translatable("halloween.score.stalk", target.getDisplayName(), after));
+			}
+		}
+	}
+
+	/**
+	 * The Demogorgon does not stalk: he follows blood. Fresh drips near him give him the scent of whoever bled them;
+	 * the scent counts as stalk levels (a quicker kill), and a victim he has the scent of shows through walls.
+	 */
+	private static void tickScent(ServerPlayer player, ShapeState state) {
+		HwConfig cfg = HwConfig.get();
+		double r2 = cfg.demoScentRange * cfg.demoScentRange;
+		java.util.Set<UUID> smelt = new java.util.HashSet<>();
+		for (Blood.Drip d : Blood.drips()) {
+			if (d.pos().distanceToSqr(player.position()) <= r2) {
+				smelt.add(d.who());
+			}
+		}
+		for (UUID id : smelt) {
+			if (!(player.level().getEntity(id) instanceof LivingEntity target) || !MatchManager.exposed(target)) {
+				continue;
+			}
+			VictimState vs = victim(target);
+			if (vs.grabbed || vs.stalk >= 3f) {
+				vs.markTicks = Math.max(vs.markTicks, HwConfig.at(cfg.markTicksByStalk, vs.level()));
+				continue;
+			}
+			int before = vs.level();
+			vs.stalk = Math.min(3f, vs.stalk + cfg.demoScentPerSecond / 20f * Events.stalkFactor());
 			int after = vs.level();
 			if (after >= 1) {
 				vs.markTicks = Math.max(vs.markTicks, HwConfig.at(cfg.markTicksByStalk, after));
