@@ -333,9 +333,15 @@ public final class Lockers {
 			state.attackCooldown = Math.max(state.attackCooldown, cfg.lockerSearchTicks);
 			Direction facing = level.getBlockState(base).getValue(LockerBlock.FACING);
 			shape.teleportTo(level, shape.getX(), shape.getY(), shape.getZ(), Set.of(Relative.X_ROT), facing.getOpposite().toYRot(), 0f, false);
-			GrabSession.anim(shape, HwNet.Anim.LOCKER_SEARCH);
-			LockerBlock.setOpen(level, base, true);
-			SEARCHED.put(base.immutable(), level.getServer().getTickCount() + cfg.lockerSearchTicks - 6);
+			if (Demogorgon.active()) {
+				// Not the door: his claw straight through it, feeling about inside.
+				GrabSession.anim(shape, HwNet.Anim.DEMO_SEARCH);
+				level.playSound(null, c.x, c.y + 0.5, c.z, net.minecraft.sounds.SoundEvents.ZOMBIE_ATTACK_WOODEN_DOOR, SoundSource.HOSTILE, 1.4f, 0.8f);
+			} else {
+				GrabSession.anim(shape, HwNet.Anim.LOCKER_SEARCH);
+				LockerBlock.setOpen(level, base, true);
+				SEARCHED.put(base.immutable(), level.getServer().getTickCount() + cfg.lockerSearchTicks - 6);
+			}
 			shape.sendOverlayMessage(Component.translatable("halloween.locker.empty").withStyle(ChatFormatting.GRAY));
 			return;
 		}

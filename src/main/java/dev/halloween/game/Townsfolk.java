@@ -716,7 +716,8 @@ public final class Townsfolk {
 
 	private static void tickPanic(Npc npc, int now, ServerLevel level) {
 		HwConfig cfg = HwConfig.get();
-		if (now - npc.threatTick < 40) {
+		if (now - npc.threatTick < 40 || Senses.killerNear(npc.body, cfg.fleeSafeDistance)) {
+			// Not calm while he is close behind (heard on their heels), seen or not.
 			npc.calmSince = now;
 		} else if (now - npc.calmSince > cfg.npcCalmTicks) {
 			npc.state = State.HIDE;

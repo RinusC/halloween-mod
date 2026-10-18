@@ -354,7 +354,8 @@ final class BotBrain {
 			}
 		}
 		boolean seenRecently = now - this.threatTick < 40;
-		if (seenRecently) {
+		if (seenRecently || Senses.killerNear(this.bot, cfg.fleeSafeDistance)) {
+			// (Out of sight is not safe yet: not while he is close behind, heard on our heels.)
 			this.calmSince = now;
 		} else if (now - this.calmSince > cfg.botCalmTicks) {
 			if (this.random.nextFloat() < cfg.botHideChance) {
@@ -369,6 +370,10 @@ final class BotBrain {
 		if (now >= this.fleeRepathAt || this.walker.idle() && this.shelterDoor == null && (pressed || now >= this.fleeRepathAt - 25)) {
 			this.fleeRepathAt = now + 30;
 			this.planFlee(now);
+			if (this.walker.idle() && !pressed) {
+				// Not standing about in the open until it is safe: on, away from where he was.
+				this.walker.follow(this.runAway());
+			}
 			if (this.walker.idle() && pressed) {
 				// Nowhere better found (cornered?): try again shortly rather than every tick.
 				this.fleeRepathAt = now + 8;

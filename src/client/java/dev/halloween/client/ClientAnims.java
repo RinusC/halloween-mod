@@ -98,6 +98,7 @@ public final class ClientAnims {
 			case HwNet.Anim.DEMO_LOCKER -> 64;
 			case HwNet.Anim.LOCKER_SEARCH -> 40;
 			case HwNet.Anim.DEMO_ROAR -> 60;
+			case HwNet.Anim.DEMO_SEARCH -> 40;
 			default -> 0;
 		};
 	}

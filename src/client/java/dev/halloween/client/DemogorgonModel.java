@@ -125,7 +125,7 @@ public final class DemogorgonModel extends Model<AvatarRenderState> {
 
 	/** How far down on all fours his eyes are (0 standing, 1 down): standing at a wardrobe. */
 	private static float eyesDown(int id) {
-		if (ClientAnims.once(id) == HwNet.Anim.DEMO_LOCKER || ClientAnims.once(id) == HwNet.Anim.DEMO_ROAR) {
+		if (ClientAnims.once(id) == HwNet.Anim.DEMO_LOCKER || ClientAnims.once(id) == HwNet.Anim.DEMO_ROAR || ClientAnims.once(id) == HwNet.Anim.DEMO_SEARCH) {
 			return 0f;
 		}
 		return update(id, now()).four.at(now(), 7f, 16f);
@@ -162,6 +162,8 @@ public final class DemogorgonModel extends Model<AvatarRenderState> {
 		// His roar (the Impulse): standing too.
 		boolean roaring = ClientAnims.once(id) == HwNet.Anim.DEMO_ROAR;
 		atLocker |= roaring;
+		boolean searching = ClientAnims.once(id) == HwNet.Anim.DEMO_SEARCH;
+		atLocker |= searching;
 		boolean busy = ClientAnims.busy(id) && !devour && !reach && !atLocker;
 		float four = busy || atLocker ? 0f : devour ? 1f : Math.max(pounce, c.four.at(now, 7f, 16f));
 		float charge = busy || devour ? 0f : c.charge.at(now, 5f, 4f) * (1f - pounce);
@@ -241,7 +243,8 @@ public final class DemogorgonModel extends Model<AvatarRenderState> {
 			this.look(s, four, lunge);
 		}
 		if (atLocker) {
-			open = Math.max(open, roaring ? this.roar(ClientAnims.onceTime(id), t) : this.atLocker(ClientAnims.onceTime(id), t));
+			open = Math.max(open, roaring ? this.roar(ClientAnims.onceTime(id), t) : searching ? this.searchLocker(ClientAnims.onceTime(id), t)
+				: this.atLocker(ClientAnims.onceTime(id), t));
 		}
 		open = Math.max(open, this.crossing(c, now, t));
 		this.bb.apply("mouth", Mth.clamp(open, 0f, 1f), 1f);
@@ -306,6 +309,22 @@ public final class DemogorgonModel extends Model<AvatarRenderState> {
 	 * straight through it, raised with what it caught on it, swung down to fling them off, and drawn back. Returns how
 	 * far the mouth is open.
 	 */
+	/** Searching a wardrobe: the claw drawn back bent, driven in straight through the door, feeling about in there, drawn out. */
+	private float searchLocker(float s, float t) {
+		float cock = smooth(s / 6f) * (1f - smooth((s - 7f) / 2.5f));
+		float in = smooth((s - 7f) / 3f) * (1f - smooth((s - 27f) / 7f));
+		float feel = Mth.sin(t * 1.3f) * in;
+		this.bb.turn("right_upper_arm", 55f * cock + 58f * in, 6f * feel, 20f * cock + 4f * feel);
+		this.bb.turn("right_forearm", 110f * cock - 12f * in + 10f * feel, 0f, 0f);
+		this.bb.turn("right_hand", 30f * cock - 15f * in, 0f, 0f);
+		this.bb.turn("chest", -8f * cock + 12f * in, -14f * cock, 0f);
+		this.bb.turn("head", 10f * in, 8f * feel, 0f);
+		for (int k = 0; k < 3; k++) {
+			this.bb.turn("right_finger" + k, (-30f + 25f * Mth.sin(t * 2.1f + k)) * in, 0f, 0f);
+		}
+		return 0.15f * in;
+	}
+
 	/** The roar of his Impulse (three seconds): rearing, the neck thrust out, the petals flung wide, all of him shaking. */
 	private float roar(float s, float t) {
 		float roar = smooth(s / 5f) * (1f - smooth((s - 50f) / 10f));

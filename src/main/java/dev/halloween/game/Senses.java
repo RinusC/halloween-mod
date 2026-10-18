@@ -13,6 +13,17 @@ public final class Senses {
 	}
 
 	/** The Shape this body can see right now, or null. Inside Shape Jump he can't be seen at all. */
+	/** Is the killer (in his own form) within {@code range} of them: close enough to be heard coming, seen or not? */
+	public static boolean killerNear(LivingEntity who, double range) {
+		for (ServerPlayer p : ((ServerLevel) who.level()).players()) {
+			if (MatchManager.role(p) == Role.SHAPE && !p.isSpectator() && p.distanceTo(who) < range) {
+				ShapeState st = MatchManager.shapeState(p);
+				return st == null || st.shadowTicks == 0;
+			}
+		}
+		return false;
+	}
+
 	public static ServerPlayer seenShape(LivingEntity viewer, double range, double darkRange, double fovDeg) {
 		// Fog (or rain) shortens everyone's sight.
 		range *= Weather.sight();

@@ -181,6 +181,19 @@ public class LockerKillClientTest implements FabricClientGameTest {
 					check(server.computeOnServer(s -> MatchManager.shapeState(player(s)).busy()), "demogorgon: rooted while he roars");
 					ctx.waitTicks(50);
 					check(server.computeOnServer(s -> !MatchManager.shapeState(player(s)).busy()), "demogorgon: free after three seconds");
+					// An empty wardrobe: his claw in through the door, the door shut.
+					server.runOnServer(s -> {
+						BlockPos front = base.relative(Direction.SOUTH);
+						player(s).teleportTo(s.overworld(), front.getX() + 0.5, front.getY(), front.getZ() + 0.6, java.util.Set.of(), 180f, 0f, false);
+						MatchManager.shapeState(player(s)).attackCooldown = 0;
+						Lockers.shapeOpen(player(s), base);
+					});
+					net.minecraft.world.phys.Vec3 lc = net.minecraft.world.phys.Vec3.atBottomCenterOf(base);
+					ctx.runOnClient(mc -> KillCam.begin(new dev.halloween.net.HwNet.Cutscene(dev.halloween.game.Cutscenes.KILLCAM, 60, lc.add(6, 2.2, 1.5), lc.add(0, 1.3, 1.3), net.minecraft.world.phys.Vec3.ZERO)));
+					ctx.waitTicks(16);
+					ctx.takeScreenshot("demo_search");
+					check(server.computeOnServer(s -> !s.overworld().getBlockState(base).getValue(LockerBlock.OPEN)), "demogorgon: the door stays shut");
+					ctx.waitTicks(30);
 				}
 				server.runCommand("hw stop");
 				ctx.waitTicks(20);

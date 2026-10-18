@@ -401,6 +401,8 @@ public final class HwNet {
 		public static final int LOCKER_SEARCH = 20;
 		/** The Demogorgon's roar (his Impulse): head thrust out, the petals wide, shaking with it. */
 		public static final int DEMO_ROAR = 21;
+		/** The Demogorgon searching a wardrobe: his claw driven in through the door, feeling about, drawn out again. */
+		public static final int DEMO_SEARCH = 22;
 
 		public static final Type<Anim> TYPE = payloadType("anim");
 		public static final StreamCodec<RegistryFriendlyByteBuf, Anim> CODEC = StreamCodec.of((buf, v) -> {

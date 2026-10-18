@@ -760,6 +760,16 @@ public final class Exits {
 			BlockState state = level.getBlockState(p);
 			if ((state.getBlock() instanceof TrapDoorBlock || state.getBlock() instanceof FenceGateBlock) && state.getValue(BlockStateProperties.OPEN) != open) {
 				level.setBlock(p, state.setValue(BlockStateProperties.OPEN, open), Block.UPDATE_CLIENTS);
+				if (!open && state.getBlock() instanceof TrapDoorBlock) {
+					// Anyone down in the hole as the hatch shuts is put up on top of it, not shut in under it.
+					net.minecraft.world.phys.AABB hole = new net.minecraft.world.phys.AABB(p.below()).expandTowards(0, 1, 0);
+					for (net.minecraft.world.entity.LivingEntity e : level.getEntitiesOfClass(net.minecraft.world.entity.LivingEntity.class, hole)) {
+						if (e.getY() < p.getY() + 0.9) {
+							e.teleportTo(p.getX() + 0.5, p.getY() + 1.0, p.getZ() + 0.5);
+							e.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
+						}
+					}
+				}
 			}
 		}
 	}

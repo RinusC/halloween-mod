@@ -745,6 +745,8 @@ public class HwConfig {
 	public double botFleeDistance = 18;
 	/** Out of sight this long after fleeing: hide (with {@link #botHideChance}) or carry on. */
 	public int botCalmTicks = 60;
+	/** Fleeing bots and townsfolk don't calm down while the killer is this near (heard close behind), seen or not. */
+	public double fleeSafeDistance = 24;
 	public float botHideChance = 0.6f;
 	public int botHideMinTicks = 160;
 	public int botHideMaxTicks = 360;
