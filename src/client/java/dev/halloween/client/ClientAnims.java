@@ -96,6 +96,7 @@ public final class ClientAnims {
 			case HwNet.Anim.LOCKER_SMASH -> 52;
 			case HwNet.Anim.LOCKER_SMASHED -> 60;
 			case HwNet.Anim.DEMO_LOCKER -> 64;
+			case HwNet.Anim.LOCKER_SEARCH -> 40;
 			default -> 0;
 		};
 	}
@@ -302,6 +303,20 @@ public final class ClientAnims {
 				m.rightArm.yRot = Mth.lerp(out, -0.15f * in, m.rightArm.yRot);
 				m.leftArm.xRot = Mth.lerp(out, -0.5f * (back + in), m.leftArm.xRot);
 				m.head.xRot = Mth.lerp(out, 0.15f * in, m.head.xRot);
+			}
+			case HwNet.Anim.LOCKER_SEARCH -> {
+				// The door pulled open, a hand on the frame, the other rummaging inside, head in and looking about; the door pushed to.
+				float open = smooth(t / 6f);
+				float shut = smooth((t - 32f) / 6f);
+				float in = smooth((t - 6f) / 4f) * (1f - shut);
+				float w = 1f - smooth((t - 36f) / 4f);
+				float pull = open * (1f - in) * (1f - shut);
+				m.rightArm.xRot = Mth.lerp(w, m.rightArm.xRot, -1.5f * pull + (-1.35f + Mth.sin(t * 0.9f) * 0.25f) * in + -1.55f * shut);
+				m.rightArm.yRot = Mth.lerp(w, m.rightArm.yRot, 0.35f * pull + Mth.sin(t * 0.5f) * 0.3f * in);
+				m.leftArm.xRot = Mth.lerp(w, m.leftArm.xRot, -1.9f * in + -1.2f * pull);
+				m.leftArm.yRot = Mth.lerp(w, m.leftArm.yRot, 0.55f * in);
+				m.head.xRot = Mth.lerp(w, m.head.xRot, 0.35f * in);
+				m.head.yRot = Mth.lerp(w, m.head.yRot, Mth.sin(t * 0.3f) * 0.6f * in);
 			}
 			case HwNet.Anim.LOCKER_SMASH -> {
 				// Their head pulled forward and slammed back into the door, three times; then his knife pulled out of it.

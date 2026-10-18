@@ -52,6 +52,8 @@ public final class Lockers {
 	private static final Map<BlockPos, UUID> OCCUPIED = new HashMap<>();
 	/** When the Shape last threw each locker open: bots and townsfolk keep away from those for a while. */
 	private static final Map<BlockPos, Integer> OPENED = new HashMap<>();
+	/** Wardrobes the killer is searching, empty: when he pushes the door to again. */
+	private static final Map<BlockPos, Integer> SEARCHED = new HashMap<>();
 	/** Bots and townsfolk getting in quietly: how far along {count, last tick}, and into which locker. */
 	private static final Map<UUID, int[]> CLIMBING = new HashMap<>();
 	/** Who came out for air, until when they can't get into a locker again (nobody spends a whole match inside). */
@@ -325,6 +327,14 @@ public final class Lockers {
 		UUID id = OCCUPIED.get(base);
 		Inside inside = id == null ? null : INSIDE.get(id);
 		if (inside == null) {
+			// Empty: he stands at it searching for a while, turned to it (two seconds of nothing else).
+			HwConfig cfg = HwConfig.get();
+			state.recoverTicks = Math.max(state.recoverTicks, cfg.lockerSearchTicks);
+			state.attackCooldown = Math.max(state.attackCooldown, cfg.lockerSearchTicks);
+			Direction facing = level.getBlockState(base).getValue(LockerBlock.FACING);
+			shape.teleportTo(level, shape.getX(), shape.getY(), shape.getZ(), Set.of(Relative.X_ROT), facing.getOpposite().toYRot(), 0f, false);
+			GrabSession.anim(shape, HwNet.Anim.LOCKER_SEARCH);
+			SEARCHED.put(base.immutable(), level.getServer().getTickCount() + cfg.lockerSearchTicks - 6);
 			shape.sendOverlayMessage(Component.translatable("halloween.locker.empty").withStyle(ChatFormatting.GRAY));
 			return;
 		}
@@ -400,6 +410,17 @@ public final class Lockers {
 	}
 
 	public static void tick(MinecraftServer server) {
+		if (!SEARCHED.isEmpty()) {
+			int now = server.getTickCount();
+			SEARCHED.entrySet().removeIf(e -> {
+				if (now < e.getValue()) {
+					return false;
+				}
+				Vec3 c = center(e.getKey());
+				server.overworld().playSound(null, c.x, c.y + 1, c.z, HwSounds.LOCKER_CLOSE, SoundSource.HOSTILE, 1.0f, 0.8f);
+				return true;
+			});
+		}
 		if (server.getTickCount() % 10 == 0 && (!INSIDE.isEmpty() || !HEARD.isEmpty())) {
 			breathing(server);
 		}

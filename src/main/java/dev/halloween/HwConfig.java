@@ -606,6 +606,10 @@ public class HwConfig {
 	public int demoHitBurstTicks = 40;
 	/** Survivors and townsfolk don't start within this many blocks of where the killer starts. */
 	public int spawnAwayFromKiller = 40;
+	/** The killer searching an empty wardrobe stands at it this long. */
+	public int lockerSearchTicks = 40;
+	/** He can grab someone climbing through a window this much further than his usual reach. */
+	public double grabVaultBonusRange = 1.0;
 	/** The Demogorgon on a blood trail: drips this near him give him the scent of whoever bled them (stalk levels a second). */
 	public double demoScentRange = 2.5;
 	public float demoScentPerSecond = 0.3f;

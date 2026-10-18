@@ -1061,7 +1061,15 @@ public final class MatchManager {
 		// He lunges for them, whether or not he gets hold.
 		GrabSession.anim(player, dev.halloween.net.HwNet.Anim.REACH);
 		Entity target = player.level().getEntity(targetId);
-		if (!exposed(target) || player.distanceTo(target) > cfg.grabRange
+		// Someone climbing through a window can be caught from a little further (pulled back off the sill).
+		boolean vaulting = target instanceof ServerPlayer sp && Windows.isVaulting(sp);
+		double reach = cfg.grabRange + (vaulting ? cfg.grabVaultBonusRange : 0);
+		if (!vaulting && target instanceof LivingEntity lt && player.level().clip(new net.minecraft.world.level.ClipContext(player.getEyePosition(), FocusPoints.bodyCenter(lt),
+			net.minecraft.world.level.ClipContext.Block.COLLIDER, net.minecraft.world.level.ClipContext.Fluid.NONE, player)).getType() != net.minecraft.world.phys.HitResult.Type.MISS) {
+			// Not through a shut window (or anything else): only someone on its sill.
+			return;
+		}
+		if (!exposed(target) || player.distanceTo(target) > reach
 			|| !Sight.canSee(player.level(), player.getEyePosition(), FocusPoints.bodyCenter((LivingEntity) target), player)) {
 			return;
 		}

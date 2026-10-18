@@ -239,6 +239,10 @@ public class HalloweenClient implements ClientModInitializer {
 			return true;
 		}
 		LivingEntity picked = CameraAim.pickLiving(HwConfig.get().grabRange);
+		if (picked == null) {
+			// Someone on a window sill, through the glass and a little further (the server checks they are climbing).
+			picked = CameraAim.pickLiving(HwConfig.get().grabRange + HwConfig.get().grabVaultBonusRange, true);
+		}
 		if (picked != null) {
 			ClientPlayNetworking.send(new HwNet.Grab(picked.getId()));
 			return true;

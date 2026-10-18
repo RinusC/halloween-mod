@@ -119,6 +119,42 @@ public class LockerKillClientTest implements FabricClientGameTest {
 				if (!demo) {
 					check(server.computeOnServer(s -> !player(s).getMainHandItem().isEmpty()), "michael: the knife is back in his hand");
 				}
+				if (!demo) {
+					// An empty wardrobe: two seconds of searching it.
+					server.runOnServer(s -> {
+						MatchManager.shapeState(player(s)).attackCooldown = 0;
+						Lockers.shapeOpen(player(s), base);
+					});
+					ctx.waitTicks(14);
+					ctx.takeScreenshot("locker_search");
+					check(server.computeOnServer(s -> MatchManager.shapeState(player(s)).busy()), "michael: searching an empty wardrobe holds him");
+					ctx.waitTicks(30);
+					check(server.computeOnServer(s -> !MatchManager.shapeState(player(s)).busy()), "michael: free again after two seconds");
+					// Someone climbing through a window: caught on the sill and pulled back.
+					BlockPos pane = base.offset(3, 0, 2);
+					server.runOnServer(s -> {
+						s.overworld().setBlock(pane, Blocks.GLASS_PANE.defaultBlockState(), 3);
+						s.overworld().setBlock(pane.above(), Blocks.GLASS_PANE.defaultBlockState(), 3);
+						s.overworld().setBlock(pane.north(), Blocks.STONE.defaultBlockState(), 3);
+						s.overworld().setBlock(pane.south(), Blocks.STONE.defaultBlockState(), 3);
+						ServerPlayer bot = survivorBot(s);
+						bot.teleportTo(s.overworld(), pane.getX() - 0.6, pane.getY(), pane.getZ() + 0.5, java.util.Set.of(), -90f, 0f, false);
+						player(s).teleportTo(s.overworld(), pane.getX() - 2.2, pane.getY(), pane.getZ() + 0.5, java.util.Set.of(), -90f, 10f, false);
+					});
+					ctx.waitTicks(3);
+					server.runOnServer(s -> dev.halloween.game.Windows.request(survivorBot(s), pane, false));
+					ctx.waitTicks(6);
+					check(server.computeOnServer(s -> dev.halloween.game.Windows.isVaulting(survivorBot(s))), "a survivor climbs through the window");
+					server.runOnServer(s -> {
+						MatchManager.shapeState(player(s)).grabCooldown = 0;
+						MatchManager.onGrab(player(s), survivorBot(s).getId());
+					});
+					ctx.waitTicks(4);
+					ctx.takeScreenshot("window_grab");
+					check(server.computeOnServer(s -> MatchManager.grabHolding(survivorBot(s)) != null), "michael: caught on the window sill");
+					ctx.waitTicks(8);
+					check(server.computeOnServer(s -> survivorBot(s).getX() < pane.getX()), "michael: pulled back to his side");
+				}
 				server.runCommand("hw stop");
 				ctx.waitTicks(20);
 			}

@@ -397,6 +397,8 @@ public final class HwNet {
 		public static final int IMPALED = 18;
 		/** The Demogorgon at a wardrobe: roaring at it, the claw through it, lifting what it caught, flinging it down. */
 		public static final int DEMO_LOCKER = 19;
+		/** Searching a wardrobe that turns out empty: the door pulled open, a look inside, a hand in, the door pushed to. */
+		public static final int LOCKER_SEARCH = 20;
 
 		public static final Type<Anim> TYPE = payloadType("anim");
 		public static final StreamCodec<RegistryFriendlyByteBuf, Anim> CODEC = StreamCodec.of((buf, v) -> {

@@ -53,6 +53,11 @@ public final class CameraAim {
 	 * Returns null when a block is in the way or the target is out of reach.
 	 */
 	public static LivingEntity pickLiving(double reach) {
+		return pickLiving(reach, false);
+	}
+
+	/** {@code throughGlass}: windows don't stop the ray (a grab at someone climbing through one). */
+	public static LivingEntity pickLiving(double reach, boolean throughGlass) {
 		Minecraft mc = Minecraft.getInstance();
 		if (mc.player == null || mc.level == null) {
 			return null;
@@ -66,7 +71,8 @@ public final class CameraAim {
 		double max = reach + 1;
 		Vec3 to = from.add(dir.scale(max));
 		BlockHitResult block = mc.level.clip(new ClipContext(from, to, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, mc.player));
-		if (block.getType() != HitResult.Type.MISS) {
+		// A window doesn't stop the reach: someone climbing through it can be caught.
+		if (block.getType() != HitResult.Type.MISS && !(throughGlass && dev.halloween.game.Sight.isGlass(mc.level.getBlockState(block.getBlockPos())))) {
 			to = block.getLocation();
 		}
 		AABB area = new AABB(from, to).inflate(1);

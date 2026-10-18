@@ -119,6 +119,13 @@ public final class GrabSession {
 		this.level().playSound(null, victim.getX(), victim.getY(), victim.getZ(), HwSounds.GRAB, SoundSource.HOSTILE, 1.2f, 1f);
 		Voices.play(victim, Voices.Kind.SCREAM);
 		this.nextChoke = this.level().getGameTime() + 14;
+		if (victim instanceof ServerPlayer vp && Windows.isVaulting(vp)) {
+			// Caught on the sill: dragged back off it into his hands (see pinVictim).
+			this.yankFrom = victim.position();
+			this.yankTick = 0;
+			this.level().playSound(null, victim.getX(), victim.getY() + 1, victim.getZ(), net.minecraft.sounds.SoundEvents.ZOMBIE_ATTACK_WOODEN_DOOR, SoundSource.HOSTILE, 1.0f, 1.2f);
+			AiStats.add(victim, "grabbed.vaulting");
+		}
 		if (Demogorgon.active()) {
 			// The Demogorgon throws them down on their back and goes for them with his mouth.
 			anim(shape, HwNet.Anim.DEVOUR);
@@ -350,6 +357,11 @@ public final class GrabSession {
 			ServerPlayNetworking.send(p, new HwNet.Quake(ticks, strength));
 		}
 	}
+
+	/** Caught climbing through a window: where they were on the sill, and how far the pull back is (-1: none). */
+	private Vec3 yankFrom;
+	private int yankTick = -1;
+	private static final int YANK_TICKS = 8;
 
 	/** How far ahead of the Demogorgon the feet of the one under him are (they lie on away from him). */
 	private static final double DEMO_FEET = 1.4;
@@ -836,6 +848,17 @@ public final class GrabSession {
 		double z = this.shape.getZ() + Mth.cos(yaw) * reach;
 		// Face the Shape.
 		float victimYaw = (Demogorgon.active() ? this.pinYaw : this.shape.getYRot()) + 180f;
+		if (this.yankTick >= 0 && this.yankTick < YANK_TICKS) {
+			// Pulled back off the window sill: through the air into his hands, whatever is in between.
+			float k = ++this.yankTick / (float) YANK_TICKS;
+			k = k * k * (3 - 2 * k);
+			Vec3 to = new Vec3(x, this.shape.getY(), z);
+			Vec3 at = this.yankFrom.lerp(to, k).add(0, Mth.sin(k * Mth.PI) * 0.25, 0);
+			this.placeVictim(at.x, at.y, at.z, victimYaw);
+			this.victim.setDeltaMovement(Vec3.ZERO);
+			this.lastGood = this.shape.position();
+			return;
+		}
 		if (this.victim.distanceToSqr(x, this.shape.getY(), z) > 0.04) {
 			// He drags the victim along in front of him, but not through walls: there he can't go on.
 			Vec3 move = new Vec3(x, this.shape.getY(), z).subtract(this.victim.position());
