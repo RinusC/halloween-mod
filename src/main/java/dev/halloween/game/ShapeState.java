@@ -58,7 +58,7 @@ public final class ShapeState {
 	}
 
 	public boolean senseActive() {
-		return this.senseHeld && this.grab == null && this.shadowTicks == 0 && this.blindTicks == 0 && this.stunnedTicks == 0;
+		return this.senseHeld && !Demogorgon.active() && this.grab == null && this.shadowTicks == 0 && this.blindTicks == 0 && this.stunnedTicks == 0;
 	}
 
 	public boolean focusActive() {

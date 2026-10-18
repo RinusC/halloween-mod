@@ -1212,8 +1212,10 @@ public final class HwHud {
 		// Killer Sense diamond.
 		int senseX = w - 26;
 		boolean senseTired = hud.fatigue() > 0.6f;
-		abilityDiamond(g, font, senseX, baseY, "◉", HalloweenClient.KEY_SENSE,
-			hud.sense() ? 0xE0D8D2C4 : DARK_FILL, 1f - hud.fatigue(), senseTired ? 0xFFC77B2A : 0xFF606060, hud.sense() ? 0xFF101010 : TEXT);
+		if (!MichaelRenderer.demogorgon()) {
+			abilityDiamond(g, font, senseX, baseY, "◉", HalloweenClient.KEY_SENSE,
+				hud.sense() ? 0xE0D8D2C4 : DARK_FILL, 1f - hud.fatigue(), senseTired ? 0xFFC77B2A : 0xFF606060, hud.sense() ? 0xFF101010 : TEXT);
+		}
 
 		// Shape Jump diamond: red while unavailable.
 		int jumpX = w - 62;

@@ -62,8 +62,15 @@ public final class Blood {
 		while (!DRIPS.isEmpty() && now - DRIPS.peekFirst().at() > cfg.bloodTrailSeconds * 20) {
 			DRIPS.pollFirst();
 		}
-		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-			if (!MatchManager.role(player).survivor() || player.isSpectator() || Lockers.isInside(player)
+		// Survivors and townsfolk alike.
+		java.util.List<LivingEntity> wounded = new java.util.ArrayList<>(Townsfolk.bodies());
+		for (ServerPlayer p : server.getPlayerList().getPlayers()) {
+			if (MatchManager.role(p).survivor() && !p.isSpectator()) {
+				wounded.add(p);
+			}
+		}
+		for (LivingEntity player : wounded) {
+			if (!player.isAlive() || Lockers.isInside(player)
 				|| player.getHealth() >= player.getMaxHealth() * cfg.bloodTrailBelowHealth) {
 				LAST_DRIP.remove(player.getUUID());
 				continue;
@@ -74,13 +81,13 @@ public final class Blood {
 			if (since < (moved ? cfg.bloodTrailMovingTicks : cfg.bloodTrailStillTicks)) {
 				continue;
 			}
-			double floor = floor(player.level(), player.position());
+			double floor = floor((ServerLevel) player.level(), player.position());
 			if (Double.isNaN(floor)) {
 				continue;
 			}
 			SINCE_DRIP.put(player.getUUID(), 0);
 			LAST_DRIP.put(player.getUUID(), player.position());
-			ServerLevel level = player.level();
+			ServerLevel level = (ServerLevel) player.level();
 			double jx = (level.getRandom().nextDouble() - 0.5) * 0.4;
 			double jz = (level.getRandom().nextDouble() - 0.5) * 0.4;
 			level.sendParticles(HwParticles.BLOOD_DRIP, true, true, player.getX() + jx, floor, player.getZ() + jz, 0,
@@ -92,8 +99,8 @@ public final class Blood {
 
 	/** Leaves a trail right now (what anyone sees: drops falling behind them). */
 	public static boolean bleeding(LivingEntity who) {
-		return who instanceof ServerPlayer p && MatchManager.role(p).survivor() && !p.isSpectator() && !Lockers.isInside(p)
-			&& p.getHealth() < p.getMaxHealth() * HwConfig.get().bloodTrailBelowHealth;
+		return (who instanceof ServerPlayer p ? MatchManager.role(p).survivor() && !p.isSpectator() : Townsfolk.isNpc(who)) && who.isAlive() && !Lockers.isInside(who)
+			&& who.getHealth() < who.getMaxHealth() * HwConfig.get().bloodTrailBelowHealth;
 	}
 
 	/** The drips on the ground now, oldest first. */

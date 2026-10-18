@@ -235,7 +235,7 @@ public class HalloweenClient implements ClientModInitializer {
 		if (ClientState.myRole() != Role.SHAPE) {
 			return false;
 		}
-		if (KEY_SENSE.isDown()) {
+		if (KEY_SENSE.isDown() && !MichaelRenderer.demogorgon()) {
 			return true;
 		}
 		LivingEntity picked = CameraAim.pickLiving(HwConfig.get().grabRange);
@@ -411,7 +411,8 @@ public class HalloweenClient implements ClientModInitializer {
 		mc.options.keySprint.setDown(false);
 		mc.player.setSprinting(false);
 
-		boolean sense = KEY_SENSE.isDown() && !screenOpen;
+		// (The Demogorgon has no Killer Sense: he follows blood.)
+		boolean sense = KEY_SENSE.isDown() && !screenOpen && !MichaelRenderer.demogorgon();
 		boolean focus = sense && mc.options.keyUse.isDown();
 		if (sense != sentSense || focus != sentFocus) {
 			sentSense = sense;

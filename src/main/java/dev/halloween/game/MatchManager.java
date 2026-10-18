@@ -1319,7 +1319,7 @@ public final class MatchManager {
 		}
 		List<Component> objectives = new ArrayList<>();
 		objectives.add(Component.translatable("halloween.objective.kill", alive));
-		if (anyUnderThree && alive > 0) {
+		if (anyUnderThree && alive > 0 && !Demogorgon.active()) {
 			objectives.add(Component.translatable("halloween.objective.stalk"));
 		}
 		if (townsfolk > 0) {
