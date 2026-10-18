@@ -108,7 +108,9 @@ public final class HeroScene {
 
 	/** Is this the mannequin that stands in for him behind them in their scene? */
 	public static boolean isGhost(Entity e) {
-		return ghost != null && hero >= 0 && e instanceof net.minecraft.world.entity.decoration.Mannequin && e.position().distanceToSqr(ghost) < 1.0;
+		// (Loosely: a step up or down from where it was asked for, settled on a path or a slab.)
+		return ghost != null && hero >= 0 && e instanceof net.minecraft.world.entity.decoration.Mannequin
+			&& Math.abs(e.getX() - ghost.x) < 1.5 && Math.abs(e.getZ() - ghost.z) < 1.5 && Math.abs(e.getY() - ghost.y) < 2.5;
 	}
 
 	/** The light a body in the scene is drawn with: a little more for the one it is about and for him behind them. */
