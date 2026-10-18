@@ -239,15 +239,38 @@ public final class GrabSession {
 				MatchManager.bleed(level, this.victim, 4);
 			}
 		} else if (t == 54) {
-			// Flung down on the floor in front of the wardrobe; he steps back over them and starts.
-			Vec3 floor = Vec3.atBottomCenterOf(this.lockerBase.relative(this.lockerFacing));
-			floor = new Vec3(floor.x, this.shape.getY(), floor.z);
-			Vec3 over = floor.add(this.out().scale(0.95));
-			if (level.noCollision(this.shape, this.shape.getBoundingBox().move(over.subtract(this.shape.position())))) {
-				this.shape.teleportTo(level, over.x, over.y, over.z, Set.of(Relative.X_ROT), this.pinYaw, 0f, false);
-				this.shapeSpot = over;
+			// Flung down on the floor in front of the wardrobe, lying clear of it (they go over backwards, away
+			// from him): out from the door with him between them and it, or along its front; he stands over them.
+			Vec3 door = Vec3.atBottomCenterOf(this.lockerBase).add(this.out().scale(0.5));
+			door = new Vec3(door.x, this.shape.getY(), door.z);
+			Vec3 side = this.out().cross(new Vec3(0, 1, 0));
+			Vec3[][] ways = {
+				{this.out(), door.add(this.out().scale(0.45))},
+				{side, door.add(this.out().scale(0.75)).subtract(side.scale(1.4))},
+				{side.scale(-1), door.add(this.out().scale(0.75)).add(side.scale(1.4))}};
+			Vec3 feet = null;
+			for (Vec3[] way : ways) {
+				Vec3 d = way[0];
+				Vec3 stand = way[1];
+				Vec3 v = stand.add(d.scale(0.95));
+				Vec3 head = v.add(d.scale(1.8));
+				net.minecraft.world.phys.AABB body = new net.minecraft.world.phys.AABB(Math.min(v.x, head.x) - 0.3, v.y + 0.05, Math.min(v.z, head.z) - 0.3,
+					Math.max(v.x, head.x) + 0.3, v.y + 0.6, Math.max(v.z, head.z) + 0.3);
+				if (level.noCollision(this.shape, this.shape.getBoundingBox().move(stand.subtract(this.shape.position()))) && level.noCollision(body)) {
+					this.pinYaw = (float) Math.toDegrees(Math.atan2(-d.x, d.z));
+					this.shape.teleportTo(level, stand.x, stand.y, stand.z, Set.of(Relative.X_ROT), this.pinYaw, 0f, false);
+					this.shapeSpot = stand;
+					feet = v;
+					break;
+				}
 			}
-			this.placeVictim(floor.x, floor.y, floor.z, this.lockerFacing.toYRot());
+			if (feet == null) {
+				// No room anywhere: where he is, as he stands.
+				float yaw = this.pinYaw * Mth.DEG_TO_RAD;
+				feet = this.shape.position().add(-Mth.sin(yaw) * 0.95, 0, Mth.cos(yaw) * 0.95);
+			}
+			Vec3 floor = feet;
+			this.placeVictim(floor.x, floor.y, floor.z, this.pinYaw + 180f);
 			level.playSound(null, floor.x, floor.y, floor.z, SoundEvents.PLAYER_BIG_FALL, SoundSource.PLAYERS, 1.4f, 0.8f);
 			this.shake(this.victim, 8, 0.6f);
 			anim(this.shape, HwNet.Anim.DEVOUR);
@@ -334,12 +357,12 @@ public final class GrabSession {
 		anim(this.victim, HwNet.Anim.LOCKER_SMASHED);
 		// Seen from the side, letterboxed, for both of them: from whichever side has room.
 		Vec3 mid = this.shapeSpot.lerp(this.victimSpot, 0.5);
-		Vec3 look = mid.add(0, 1.45, 0);
+		Vec3 look = mid.add(0, 1.8, 0);
 		Vec3 side = this.out().cross(new Vec3(0, 1, 0));
 		Vec3 best = null;
 		double bestLen = -1;
 		for (int sign : new int[]{1, -1}) {
-			Vec3 want = mid.add(side.scale(3.6 * sign)).add(this.out().scale(1.0)).add(0, 1.9, 0);
+			Vec3 want = mid.add(side.scale(3.4 * sign)).add(this.out().scale(1.3)).add(0, 3.0, 0);
 			HitResult hit = this.level().clip(new ClipContext(look, want, ClipContext.Block.VISUAL, ClipContext.Fluid.NONE, this.shape));
 			Vec3 got = want;
 			if (hit.getType() != HitResult.Type.MISS) {

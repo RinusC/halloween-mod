@@ -291,18 +291,18 @@ public final class DemogorgonModel extends Model<AvatarRenderState> {
 	}
 
 	/**
-	 * At a wardrobe: rearing up at it and roaring, arms flung wide, the body shuddering; then the right claw driven
+	 * At a wardrobe: roaring at it, the neck thrust out and the mouth gaping wide; then the right claw driven
 	 * straight through it, raised with what it caught on it, swung down to fling them off, and drawn back. Returns how
 	 * far the mouth is open.
 	 */
 	private float atLocker(float s, float t) {
 		float roar = smooth(s / 6f) * (1f - smooth((s - 23f) / 6f));
-		this.bb.turn("right_upper_arm", 40f * roar, 0f, 65f * roar);
-		this.bb.turn("left_upper_arm", 40f * roar, 0f, -65f * roar);
-		this.bb.turn("right_forearm", 35f * roar, 0f, 0f);
-		this.bb.turn("left_forearm", 35f * roar, 0f, 0f);
-		this.bb.turn("chest", -12f * roar, 0f, 3f * Mth.sin(t * 2.6f) * roar);
-		this.bb.turn("head", -25f * roar, 0f, 0f);
+		// The roar: the neck thrust out at the wardrobe, the petals flung wide open, the head shaking with it.
+		this.bb.turn("chest", -6f * roar, 0f, 0f);
+		this.bb.turn("neck", -24f * roar, 0f, 0f);
+		this.bb.turn("head", (-14f + 4f * Mth.sin(t * 2.9f)) * roar, 5f * Mth.sin(t * 1.7f) * roar, 0f);
+		this.bb.turn("right_upper_arm", 12f * roar, 0f, 0f);
+		this.bb.turn("left_upper_arm", 12f * roar, 0f, 0f);
 		float thrust = smooth((s - 27f) / 3f) * (1f - smooth((s - 56f) / 8f));
 		float lift = smooth((s - 34f) / 14f);
 		float fling = smooth((s - 50f) / 5f);
