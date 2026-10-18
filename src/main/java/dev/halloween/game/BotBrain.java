@@ -104,7 +104,7 @@ final class BotBrain {
 	private int enteredLockerSeenUntil;
 	private final java.util.Set<Integer> warned = new java.util.HashSet<>();
 	private static java.util.List<BlockPos> breakers;
-	private static int breakersForMatch = -1;
+	private static BlockPos breakersAt;
 
 	BotBrain(BotPlayer bot) {
 		this.bot = bot;
@@ -1218,9 +1218,10 @@ final class BotBrain {
 
 	/** Breakers of the map (they don't move during a match). */
 	private List<BlockPos> breakers() {
-		if (breakers == null || breakersForMatch != Match.startTick()) {
-			breakersForMatch = Match.startTick();
-			BlockPos center = MapPoints.get(this.level()).first(MapPoints.Type.CENTER);
+		// (A scan of the whole town: once for the map, not every match.)
+		BlockPos center = MapPoints.get(this.level()).first(MapPoints.Type.CENTER);
+		if (breakers == null || !java.util.Objects.equals(breakersAt, center)) {
+			breakersAt = center;
 			breakers = center == null ? List.of() : LightSystem.breakers(this.level(), center, Loot.radius());
 		}
 		return breakers;

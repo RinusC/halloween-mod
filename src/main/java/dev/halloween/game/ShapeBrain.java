@@ -663,12 +663,20 @@ public final class ShapeBrain {
 			Vec3 c = FocusPoints.bodyCenter(e);
 			double d = eye.distanceTo(c);
 			boolean shown = this.revealed.getOrDefault(e.getId(), 0) > now;
+			// Shown by the Impulse: where they are is known (he makes for it), but stalking or a chase needs them in plain view.
+			boolean inView = Sight.canSee(level, eye, c, this.body) || Sight.canSee(level, eye, e.getEyePosition(), this.body);
+			if (shown && !inView) {
+				if (now % 20 == 0) {
+					this.lead(e.position(), now, 6, "shown");
+				}
+				continue;
+			}
 			if (!shown) {
 				double range = MatchManager.marked(e) ? 256 : this.sightRange(e, st);
 				if (d > range || d > 2.5 && Sight.angleTo(eye, facing, c) > 75) {
 					continue;
 				}
-				if (!Sight.canSee(level, eye, c, this.body) && !Sight.canSee(level, eye, e.getEyePosition(), this.body)) {
+				if (!inView) {
 					continue;
 				}
 			}
@@ -2926,7 +2934,7 @@ public final class ShapeBrain {
 			this.lightsOff();
 		}
 		// Nobody seen for a long while (they keep to the far end of town): the Impulse before any job.
-		if (now - this.lastSeenAt > 20 * 45 && st.impulseCooldown == 0 && !st.busy() && now >= this.impulseAt) {
+		if (now - Math.max(this.lastSeenAt, Match.startTick()) > 20 * 45 && st.impulseCooldown == 0 && !st.busy() && now >= this.impulseAt) {
 			this.impulseAt = now + 40;
 			MatchManager.onImpulse(this.body);
 			stat("impulse.long");

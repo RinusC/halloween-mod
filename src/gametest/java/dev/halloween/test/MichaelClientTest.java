@@ -183,6 +183,7 @@ public class MichaelClientTest implements FabricClientGameTest {
 			});
 			this.until(ctx, server, 300, s -> MatchManager.stalkOf(player(s)) > 0.3f);
 			LOG.info("stalk {} ({} ticks stalking)", server.computeOnServer(s -> MatchManager.stalkOf(player(s))), stat("stalk"));
+			LOG.info("far: {} d {}", server.computeOnServer(s -> ShapeBrain.debug()), server.computeOnServer(s -> ShapeBrain.body().distanceTo(player(s))));
 			check(server.computeOnServer(s -> MatchManager.stalkOf(player(s)) > 0.3f), "he stalks someone far off who hasn't seen him");
 
 			// ---------------------------------------------------------------- nobody else: the townsfolk
@@ -203,7 +204,8 @@ public class MichaelClientTest implements FabricClientGameTest {
 			ctx.waitTicks(60);
 			double off = server.computeOnServer(MichaelClientTest::fromBody);
 			LOG.info("off the body: {} ({})", off, server.computeOnServer(s -> ShapeBrain.debug()));
-			check(off > 2.5, "he steps off the body");
+			// (Or he is already after the next one, near by.)
+			check(off > 2.5 || server.computeOnServer(s -> ShapeBrain.debug()).startsWith("CHASE"), "he steps off the body");
 			ctx.waitTicks(140);
 			check(server.computeOnServer(s -> !"leave".equals(ShapeBrain.mode())), "and goes on");
 

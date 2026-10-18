@@ -84,9 +84,11 @@ public final class UpsideDown {
 		}
 		int height = topY - baseY + 1;
 		int budget = PER_TICK;
+		// And no more than a few milliseconds a tick (setting blocks is slow where chunks are busy): no freezes while it builds.
+		long until = System.nanoTime() + 5_000_000L;
 		BlockPos.MutableBlockPos from = new BlockPos.MutableBlockPos();
 		BlockPos.MutableBlockPos to = new BlockPos.MutableBlockPos();
-		while (budget > 0) {
+		while (budget > 0 && System.nanoTime() < until) {
 			if (cursorX > maxX) {
 				building = false;
 				ready = true;

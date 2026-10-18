@@ -153,7 +153,7 @@ public final class Nav {
 	 * towards the goal as far as it got; they plan again from there), so a tick never stalls the game. Michael's
 	 * searches are rationed on their own and don't count.
 	 */
-	private static final int CROWD_NODES = 12000;
+	private static final int CROWD_NODES = 6000;
 	private static boolean crowd;
 	private static int left = CROWD_NODES;
 

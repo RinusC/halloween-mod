@@ -678,13 +678,14 @@ public final class Townsfolk {
 		if (indoors && random.nextInt(3) == 0) {
 			floor = UPSTAIRS - floor;
 		}
-		for (int tries = 0; tries < 8; tries++) {
+		// (A few tries, short searches: a spot that can't be got to is given up quickly, it is only a stroll.)
+		for (int tries = 0; tries < 3; tries++) {
 			BlockPos spot = npc.home.offset(random.nextInt(11) - 5, floor, random.nextInt(11) - 5);
 			spot = Nav.snap(level, spot);
 			if (!Nav.standable(level, spot) || level.canSeeSky(spot) == indoors) {
 				continue;
 			}
-			List<Nav.Node> path = Nav.to(level, npc.body.blockPosition(), spot, 0.8, Nav.Options.walker().nodes(2500));
+			List<Nav.Node> path = Nav.to(level, npc.body.blockPosition(), spot, 0.8, Nav.Options.walker().nodes(700));
 			if (!path.isEmpty() && path.getLast().pos().distSqr(spot) <= 2) {
 				npc.walker.speed = 0.6f;
 				npc.walker.follow(path);
