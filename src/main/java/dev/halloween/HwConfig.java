@@ -290,7 +290,7 @@ public class HwConfig {
 	public double policeWalkSpeed = 0.075;
 	public double policeRunSpeed = 0.12;
 	public double policeSightRange = 24;
-	public double policeDarkSightRange = 10;
+	public double policeDarkSightRange = 14;
 	public float policeFovDeg = 140f;
 	/** How close an officer keeps to the one it guards. */
 	public double policeGuardDistance = 3.5;
@@ -736,7 +736,7 @@ public class HwConfig {
 	public int botReactionMaxTicks = 24;
 	public double botSightRange = 28;
 	/** How far bots make out the Shape when he stands in the dark. */
-	public double botDarkSightRange = 9;
+	public double botDarkSightRange = 14;
 	public float botFovDeg = 140f;
 	/** Footsteps this close give the Shape away even unseen (not in Shape Jump). */
 	public double botHearRange = 4;
@@ -780,7 +780,7 @@ public class HwConfig {
 	public String[] npcNames = {"Mrs. Elrod", "Mr. Riddle", "Mrs. Blankenship", "Mr. Garrett", "Mrs. Wallace", "Mr. Doyle",
 		"Mrs. Brackett", "Mr. Sheldon"};
 	public double npcSightRange = 22;
-	public double npcDarkSightRange = 8;
+	public double npcDarkSightRange = 13;
 	public float npcFovDeg = 150f;
 	public double npcWalkSpeed = 0.07;
 	public double npcRunSpeed = 0.115;
@@ -854,8 +854,6 @@ public class HwConfig {
 	public float demoRoarRange = 200;
 	public int demoRoarTicks = 60;
 	public float demoLightSlow = 0.1f;
-	/** How much light the killer always catches for survivors' eyes (0..15): made out in the dark close by. */
-	public int killerMinLight = 5;
 
 	public static HwConfig get() {
 		return instance;
@@ -867,7 +865,7 @@ public class HwConfig {
 
 	/** The file's version: older files get the defaults that changed since moved on (see {@link #migrate}). */
 	public int configVersion;
-	private static final int VERSION = 13;
+	private static final int VERSION = 14;
 
 	public static void load() {
 		Path path = path();
@@ -1005,6 +1003,18 @@ public class HwConfig {
 			}
 			if (this.birdScareWalk == 4) {
 				this.birdScareWalk = 8;
+			}
+		}
+		if (this.configVersion < 14) {
+			// Bots and townsfolk make the killer out further off in the dark.
+			if (this.botDarkSightRange == 9) {
+				this.botDarkSightRange = 14;
+			}
+			if (this.npcDarkSightRange == 8) {
+				this.npcDarkSightRange = 13;
+			}
+			if (this.policeDarkSightRange == 10) {
+				this.policeDarkSightRange = 14;
 			}
 		}
 		if (this.configVersion < VERSION) {
