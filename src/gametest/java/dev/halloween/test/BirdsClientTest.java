@@ -77,6 +77,23 @@ public class BirdsClientTest implements FabricClientGameTest {
 			check(after > before, "walking up to them puts them up");
 			ctx.waitTicks(12);
 			ctx.takeScreenshot("birds_flying");
+			// At night, as in a match: a crow seen from about ten blocks off.
+			server.runCommand("time set midnight");
+			ctx.runOnClient(mc -> ClientDarkness.enabled = true);
+			ctx.waitTicks(200);
+			List<Vec3> night = server.computeOnServer(s -> Birds.positions());
+			if (!night.isEmpty()) {
+				Vec3 crow = night.getLast();
+				server.runOnServer(s -> {
+					ServerPlayer p = player(s);
+					p.setShiftKeyDown(true);
+					Vec3 at = crow.add(7, -1.5, 7);
+					float yaw = (float) Math.toDegrees(Math.atan2(-(crow.x - at.x), crow.z - at.z));
+					p.teleportTo(s.overworld(), at.x, at.y, at.z, java.util.Set.of(), yaw, 0f, false);
+				});
+				ctx.waitTicks(10);
+				ctx.takeScreenshot("birds_night");
+			}
 			server.runCommand("hw stop");
 			ctx.waitTicks(10);
 			dev.halloween.game.ShapeBrain.paused = false;

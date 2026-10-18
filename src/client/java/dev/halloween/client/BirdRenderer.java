@@ -152,7 +152,9 @@ public final class BirdRenderer {
 		} else {
 			perched(pose, turn, s.t, s.id);
 		}
-		collector.submitCustomGeometry(pose, RenderTypes.entityCutout(TEXTURE, false), (p, out) -> draw(p, out, m, turn, light));
+		// Never quite black: a dark bird against the dark is still made out at night (as if catching what light there is).
+		int lit = Math.max(light & 0xFFFF, 9 << 4) | Math.max(light >>> 16, 9 << 4) << 16;
+		collector.submitCustomGeometry(pose, RenderTypes.entityCutout(TEXTURE, false), (p, out) -> draw(p, out, m, turn, lit));
 		pose.popPose();
 		return true;
 	}
