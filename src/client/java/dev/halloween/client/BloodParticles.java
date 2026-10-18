@@ -19,6 +19,11 @@ import org.joml.Quaternionf;
  * match ends, drips dry up after a while.
  */
 public final class BloodParticles {
+	/** Playing the Demogorgon: blood on the ground glows bright red for him. */
+	static boolean demoSees() {
+		return MichaelRenderer.demogorgon() && ClientState.myRole() == dev.halloween.Role.SHAPE;
+	}
+
 	/** Splat sprites, for the stains drops leave (set when the sprites load). */
 	private static SpriteSet splats;
 	private static final List<Stain> STAINS = new ArrayList<>();
@@ -140,7 +145,7 @@ public final class BloodParticles {
 
 		@Override
 		public int getLightCoords(float partial) {
-			return ClientUpsideDown.active() ? 0xF000F0 : super.getLightCoords(partial);
+			return demoSees() ? 0xF000F0 : super.getLightCoords(partial);
 		}
 
 		@Override
@@ -158,9 +163,10 @@ public final class BloodParticles {
 			float dry = Math.min(1f, this.age / 2400f);
 			float c = 1f - 0.3f * dry;
 			this.setColor(c, c, c);
-			if (ClientUpsideDown.active()) {
-				// Down in the Upside Down the Demogorgon sees blood glow.
-				this.setColor(1f, 0.25f, 0.2f);
+			if (demoSees()) {
+				// The Demogorgon sees blood glow, always and everywhere.
+				this.setColor(1f, 0.15f, 0.1f);
+				this.setAlpha(1f);
 			}
 			if (this.age > this.fadeAt) {
 				this.setAlpha(Math.max(0, 1f - (this.age - this.fadeAt) / 100f));

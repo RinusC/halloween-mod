@@ -595,7 +595,7 @@ public class HwConfig {
 	public int bloodTrailMovingTicks = 12;
 	public int bloodTrailStillTicks = 60;
 	/** How long a drip stays on the ground before it dries up. */
-	public int bloodTrailSeconds = 90;
+	public int bloodTrailSeconds = 30;
 	/** The Demogorgon on a blood trail: drips this near him give him the scent of whoever bled them (stalk levels a second). */
 	public double demoScentRange = 2.5;
 	public float demoScentPerSecond = 0.3f;
@@ -839,7 +839,7 @@ public class HwConfig {
 
 	/** The file's version: older files get the defaults that changed since moved on (see {@link #migrate}). */
 	public int configVersion;
-	private static final int VERSION = 10;
+	private static final int VERSION = 11;
 
 	public static void load() {
 		Path path = path();
@@ -955,6 +955,10 @@ public class HwConfig {
 			if (this.senseStalkPerSecond == 0.154f) {
 				this.senseStalkPerSecond = 0.1339f;
 			}
+		}
+		if (this.configVersion < 11 && this.bloodTrailSeconds == 90) {
+			// A survivor's trail dries up in half a minute (the Demogorgon sees it bright).
+			this.bloodTrailSeconds = 30;
 		}
 		if (this.configVersion < VERSION) {
 			Halloween.LOGGER.info("Config moved on to version {}", VERSION);
