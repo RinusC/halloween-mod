@@ -395,8 +395,14 @@ public final class GrabSession {
 			if (t < 32) {
 				Voices.play(this.victim, Voices.Kind.HURT);
 			}
-			MatchManager.bleed(level, this.victim, this.bloody ? 22 : 12);
-			level.sendParticles(HwParticles.BLOOD, head.x, head.y, head.z, this.bloody ? 30 : 16, 0.12, 0.15, 0.12, 0.18);
+			// Sprayed out every way from the blow: off to the sides, up, out into the room (not all over the wardrobe).
+			Vec3 side = this.out().cross(new Vec3(0, 1, 0));
+			for (int i = 0, drops = this.bloody ? 50 : 28; i < drops; i++) {
+				double a = (this.random.nextDouble() - 0.5) * Math.PI;
+				Vec3 v = this.out().scale(Math.cos(a)).add(side.scale(Math.sin(a))).scale(0.15 + this.random.nextDouble() * 0.25)
+					.add(0, 0.05 + this.random.nextDouble() * 0.2, 0);
+				level.sendParticles(HwParticles.BLOOD, head.x, head.y, head.z, 0, v.x, v.y, v.z, 1);
+			}
 			this.shake(this.shape, 6, 0.35f);
 			this.shake(this.victim, 8, 0.7f);
 		} else if (t == 40) {

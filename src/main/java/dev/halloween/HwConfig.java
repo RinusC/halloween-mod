@@ -79,7 +79,7 @@ public class HwConfig {
 	public float reticleBodyAngleDeg = 18f;
 	public float bodyAimMultiplier = 0.3f;
 	/** Stalked on this long, a focus point bursts (all burst: they grow back). */
-	public int focusPointBurstTicks = 60;
+	public int focusPointBurstTicks = 30;
 	public float stillnessMultiplier = 1.5f;
 	public float movingMultiplier = 0.8f;
 	public double proximityNear = 4;
@@ -849,7 +849,7 @@ public class HwConfig {
 
 	/** The file's version: older files get the defaults that changed since moved on (see {@link #migrate}). */
 	public int configVersion;
-	private static final int VERSION = 11;
+	private static final int VERSION = 12;
 
 	public static void load() {
 		Path path = path();
@@ -969,6 +969,10 @@ public class HwConfig {
 		if (this.configVersion < 11 && this.bloodTrailSeconds == 90) {
 			// A survivor's trail dries up in half a minute (the Demogorgon sees it bright).
 			this.bloodTrailSeconds = 30;
+		}
+		if (this.configVersion < 12 && this.focusPointBurstTicks == 60) {
+			// Focus points burst twice as fast.
+			this.focusPointBurstTicks = 30;
 		}
 		if (this.configVersion < VERSION) {
 			Halloween.LOGGER.info("Config moved on to version {}", VERSION);
