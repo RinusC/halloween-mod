@@ -153,7 +153,11 @@ public final class Birds {
 			if (e instanceof ServerPlayer p) {
 				moving = p.isSprinting() ? 0.3 : moving;
 			}
-			double reach = e.isCrouching() ? cfg.birdScareCrouch : moving > 0.2 ? cfg.birdScareRun : cfg.birdScareWalk;
+			if (e.isCrouching() || e.isShiftKeyDown()) {
+				// Creeping up crouched: they let anyone by, however near.
+				continue;
+			}
+			double reach = moving > 0.2 ? cfg.birdScareRun : cfg.birdScareWalk;
 			if (d <= reach) {
 				return e;
 			}

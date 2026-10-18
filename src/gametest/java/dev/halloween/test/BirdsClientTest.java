@@ -47,7 +47,8 @@ public class BirdsClientTest implements FabricClientGameTest {
 			LOG.info("crows perched: {}", settled);
 			check(settled > 0, "crows settle");
 			// Stand 5 blocks off, crouched (they stay), and look.
-			int before = server.computeOnServer(s -> Birds.flying());
+			int before0 = server.computeOnServer(s -> Birds.flying());
+			int before = before0;
 			List<Vec3> all = server.computeOnServer(s -> Birds.positions());
 			LOG.info("perches: {}", all.stream().map(v -> String.format("%.0f/%.1f/%.0f", v.x, v.y, v.z)).toList());
 			Vec3 bird = all.getFirst();
@@ -63,6 +64,17 @@ public class BirdsClientTest implements FabricClientGameTest {
 			ctx.takeScreenshot("birds_ground");
 			ctx.waitTicks(17);
 			ctx.takeScreenshot("birds_ground2");
+			// Crouching up close (three and a half blocks): they stay.
+			server.runOnServer(s -> {
+				ServerPlayer p = player(s);
+				Vec3 at = bird.add(2.5, -0.9, 2.5);
+				p.teleportTo(s.overworld(), at.x, at.y, at.z, java.util.Set.of(), p.getYRot(), 20f, false);
+			});
+			ctx.waitTicks(6);
+			int crouched = server.computeOnServer(s -> Birds.flying());
+			LOG.info("crouched near: flying {} (crouching {}, shift {})", crouched, server.computeOnServer(s -> player(s).isCrouching()), server.computeOnServer(s -> player(s).isShiftKeyDown()));
+			check(crouched == before, "crouching up close, they stay");
+			before = crouched;
 			// Up to them on foot.
 			server.runOnServer(s -> {
 				ServerPlayer p = player(s);
