@@ -315,7 +315,14 @@ public final class DemogorgonModel extends Model<AvatarRenderState> {
 		float lift = smooth((s - 34f) / 14f);
 		float fling = smooth((s - 50f) / 5f);
 		this.bb.turn("right_upper_arm", thrust * (95f + 30f * lift - 105f * fling), 0f, 0f);
-		this.bb.turn("right_forearm", -10f * thrust, 0f, 0f);
+		// Drawn back first, bent hard at the elbow, the claw at his shoulder; then shot out straight, and once in, bent
+		// back the other way (the arm arching, the hand thrown back) as it bears the weight.
+		float cock = smooth((s - 19f) / 6f) * (1f - smooth((s - 27f) / 2.5f));
+		float arch = thrust * (1f - fling);
+		this.bb.turn("right_upper_arm", 55f * cock, 0f, 20f * cock);
+		this.bb.turn("right_forearm", 110f * cock - 28f * arch, 0f, 0f);
+		this.bb.turn("right_hand", 30f * cock - 32f * arch, 0f, 0f);
+		this.bb.turn("chest", -8f * cock, -14f * cock, 0f);
 		this.bb.turn("chest", 12f * thrust * (1f - lift * 0.5f), 0f, 0f);
 		this.bb.turn("left_upper_arm", 20f * thrust, 0f, -20f * thrust);
 		for (int k = 0; k < 3; k++) {

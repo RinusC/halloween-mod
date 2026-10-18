@@ -46,13 +46,26 @@ public abstract class LivingEntityRendererMixin {
 				// Eating: his body faces the one under him, whichever way the player looks.
 				for (net.minecraft.world.entity.Entity e : entity.level().getEntities(entity, entity.getBoundingBox().inflate(2.5))) {
 					if (ClientAnims.hold(e.getId()) == dev.halloween.net.HwNet.Anim.PINNED) {
-						// He faces the way they lie (they face him): turned to them.
-						state.bodyRot = e.getYRot() + 180f;
+						// Squarely at them (their feet to his, see below): the same line both ways.
+						state.bodyRot = halloween$yawTo(entity.getPosition(partialTicks), e.getPosition(partialTicks));
 						break;
 					}
 				}
 			}
+		} else if (ClientAnims.hold(entity.getId()) == dev.halloween.net.HwNet.Anim.PINNED && dev.halloween.client.MichaelRenderer.demogorgon()) {
+			// Down under the Demogorgon: lying straight out from him, feet to his, whichever way they look.
+			for (net.minecraft.world.entity.Entity e : entity.level().getEntities(entity, entity.getBoundingBox().inflate(2.5))) {
+				if (ClientAnims.hold(e.getId()) == dev.halloween.net.HwNet.Anim.DEVOUR) {
+					state.bodyRot = halloween$yawTo(entity.getPosition(partialTicks), e.getPosition(partialTicks));
+					break;
+				}
+			}
 		}
+	}
+
+	@org.spongepowered.asm.mixin.Unique
+	private static float halloween$yawTo(net.minecraft.world.phys.Vec3 from, net.minecraft.world.phys.Vec3 to) {
+		return (float) (Math.toDegrees(Math.atan2(to.z - from.z, to.x - from.x)) - 90.0);
 	}
 
 	@Inject(method = "setupRotations", at = @At("TAIL"))

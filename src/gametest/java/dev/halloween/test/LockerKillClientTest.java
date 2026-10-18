@@ -79,7 +79,12 @@ public class LockerKillClientTest implements FabricClientGameTest {
 					Lockers.shapeOpen(player(s), base);
 				});
 				boolean demo = killer.equals("demogorgon");
-				int[] shots = demo ? new int[]{12, 32, 44, 58} : new int[]{4, 10, 22};
+				if (demo) {
+					// From the side of the wardrobe: the claw drawn back, driven in, the one on the floor under him.
+					net.minecraft.world.phys.Vec3 c = net.minecraft.world.phys.Vec3.atBottomCenterOf(base);
+					ctx.runOnClient(mc -> KillCam.begin(new dev.halloween.net.HwNet.Cutscene(dev.halloween.game.Cutscenes.KILLCAM, 400, c.add(6.5, 2.2, 2.0), c.add(0, 1.2, 2.0), net.minecraft.world.phys.Vec3.ZERO)));
+				}
+				int[] shots = demo ? new int[]{24, 30, 36, 46, 58} : new int[]{4, 10, 22};
 				int waited = 0;
 				for (int at : shots) {
 					ctx.waitTicks(at - waited);
