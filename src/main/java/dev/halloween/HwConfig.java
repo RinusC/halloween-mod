@@ -220,9 +220,11 @@ public class HwConfig {
 	/** Crows about town (see Birds): how many flocks, how often a new one settles, how near one scares them (running, walking, crouching). */
 	public int birdFlocks = 10;
 	public int birdFlockEveryTicks = 600;
-	public double birdScareRun = 7;
-	public double birdScareWalk = 4;
-	public double birdScareCrouch = 1.6;
+	public double birdScareRun = 11;
+	public double birdScareWalk = 8;
+	public double birdScareCrouch = 5.6;
+	/** How far off the caw of a crow put up is heard. */
+	public float birdCawRange = 30;
 	/** The Demogorgon moves this many times as fast as Michael. */
 	public float demoSpeedFactor = 1.2f;
 	/** Arrest: knocked down this many times within this many ticks with an officer this close, and the survivors win. */
@@ -858,7 +860,7 @@ public class HwConfig {
 
 	/** The file's version: older files get the defaults that changed since moved on (see {@link #migrate}). */
 	public int configVersion;
-	private static final int VERSION = 12;
+	private static final int VERSION = 13;
 
 	public static void load() {
 		Path path = path();
@@ -982,6 +984,18 @@ public class HwConfig {
 		if (this.configVersion < 12 && this.focusPointBurstTicks == 60) {
 			// Focus points burst twice as fast.
 			this.focusPointBurstTicks = 30;
+		}
+		if (this.configVersion < 13) {
+			// Crows take fright 4 blocks further off.
+			if (this.birdScareRun == 7) {
+				this.birdScareRun = 11;
+			}
+			if (this.birdScareWalk == 4) {
+				this.birdScareWalk = 8;
+			}
+			if (this.birdScareCrouch == 1.6) {
+				this.birdScareCrouch = 5.6;
+			}
 		}
 		if (this.configVersion < VERSION) {
 			Halloween.LOGGER.info("Config moved on to version {}", VERSION);

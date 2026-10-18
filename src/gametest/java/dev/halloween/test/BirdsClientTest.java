@@ -54,7 +54,7 @@ public class BirdsClientTest implements FabricClientGameTest {
 			server.runOnServer(s -> {
 				ServerPlayer p = player(s);
 				p.setShiftKeyDown(true);
-				Vec3 at = bird.add(1.3, -0.9, 1.3);
+				Vec3 at = bird.add(4.7, -0.9, 4.7);
 				float yaw = (float) Math.toDegrees(Math.atan2(-(bird.x - at.x), bird.z - at.z));
 				p.teleportTo(s.overworld(), at.x, at.y, at.z, java.util.Set.of(), yaw, 30f, false);
 				p.setNoGravity(true);

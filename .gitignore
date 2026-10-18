@@ -47,3 +47,6 @@ dist/
 
 # Match music cut from the soundtrack of Halloween: The Game (not ours to share; see tools/split-music.sh)
 src/main/resources/assets/halloween/sounds/music/
+
+# The crow caw (a WAV under an .ogg name, see WavSounds), from the owner: not ours to share
+src/main/resources/assets/halloween/sounds/crow/

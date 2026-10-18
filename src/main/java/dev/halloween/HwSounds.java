@@ -83,6 +83,8 @@ public final class HwSounds {
 	}
 	public static final SoundEvent LOCKER_SLAM = register("locker.slam");
 	public static final SoundEvent LOCKER_CLOSE = register("locker.close");
+	/** A crow put up: a caw heard far down the street (see game.Birds). */
+	public static final SoundEvent CROW_CAW = register("crow.caw");
 	public static final SoundEvent GUN_REVOLVER = register("gun.revolver");
 	public static final SoundEvent GUN_RIFLE = register("gun.rifle");
 	public static final SoundEvent GUN_CRACK = register("gun.crack");

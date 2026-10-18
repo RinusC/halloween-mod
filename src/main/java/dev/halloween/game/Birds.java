@@ -93,7 +93,7 @@ public final class Birds {
 				} else if (now >= b.nextCaw) {
 					// A caw now and then, heard down the street (about twelve blocks).
 					b.nextCaw = now + 400 + r.nextInt(900);
-					level.playSound(null, b.pos.x, b.pos.y, b.pos.z, SoundEvents.PARROT_AMBIENT, SoundSource.AMBIENT, 0.75f, 0.42f + r.nextFloat() * 0.1f);
+					level.playSound(null, b.pos.x, b.pos.y, b.pos.z, dev.halloween.HwSounds.CROW_CAW, SoundSource.AMBIENT, 0.75f, 0.9f + r.nextFloat() * 0.2f);
 					AiStats.add("*total", "bird.caw");
 				} else if (now >= b.nextTurn) {
 					// Hopping round to look another way now and then.
@@ -172,6 +172,8 @@ public final class Birds {
 		b.yaw = (float) (Mth.atan2(-away.x, away.z) * Mth.RAD_TO_DEG);
 		b.body.setItemStack(stack("crow_flying"));
 		flap(level, b.pos, r);
+		// A caw as it goes up, heard some thirty blocks off.
+		level.playSound(null, b.pos.x, b.pos.y, b.pos.z, dev.halloween.HwSounds.CROW_CAW, SoundSource.AMBIENT, HwConfig.get().birdCawRange / 16f, 0.9f + r.nextFloat() * 0.2f);
 		AiStats.add("*total", "bird.flushed");
 	}
 
@@ -206,7 +208,7 @@ public final class Birds {
 		for (int tries = 0; tries < 60; tries++) {
 			ServerPlayer round = people.get(r.nextInt(people.size()));
 			double a = r.nextDouble() * Math.PI * 2;
-			double d = 8 + r.nextDouble() * 32;
+			double d = 14 + r.nextDouble() * 30;
 			int x = (int) Math.floor(round.getX() + Math.cos(a) * d);
 			int z = (int) Math.floor(round.getZ() + Math.sin(a) * d);
 			if (!area.isInside(x, area.minY(), z) || !level.hasChunkAt(new BlockPos(x, round.getBlockY(), z))) {
@@ -219,7 +221,7 @@ public final class Birds {
 			}
 			boolean near = false;
 			for (ServerPlayer p : level.players()) {
-				near |= p.position().distanceTo(at) < 9;
+				near |= p.position().distanceTo(at) < 13;
 			}
 			for (Bird b : BIRDS) {
 				near |= b.pos.distanceTo(at) < 10;
