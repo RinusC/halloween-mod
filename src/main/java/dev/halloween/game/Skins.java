@@ -33,6 +33,25 @@ public final class Skins {
 		CHOSEN.clear();
 	}
 
+	/**
+	 * A new match: the people (not the bots) each get a survivor at random, any of them; the bots are named after the
+	 * rest. Returns the ones taken.
+	 */
+	public static java.util.Set<String> deal(List<ServerPlayer> people, java.util.Random random) {
+		List<String> free = new java.util.ArrayList<>(SURVIVORS);
+		java.util.Collections.shuffle(free, random);
+		java.util.Set<String> taken = new java.util.HashSet<>();
+		for (ServerPlayer p : people) {
+			if (free.isEmpty()) {
+				break;
+			}
+			String name = free.removeFirst();
+			CHOSEN.put(p.getUUID(), name);
+			taken.add(name);
+		}
+		return taken;
+	}
+
 	/** The skin this player wears now, or null for their own. */
 	static String skinOf(ServerPlayer player) {
 		Role role = MatchManager.role(player);

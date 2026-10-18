@@ -243,8 +243,17 @@ public final class Match {
 		// The Runt: a person if one was picked (/hw runt), else a bot (spawned once the civilians are made up).
 		ServerPlayer runt = Runt.humanFor(players, shape);
 		int civilians = players.size() - (shape == null ? 0 : 1) - (runt == null ? 0 : 1);
+		// The people first: any survivor at random each; the bots get the others.
+		List<ServerPlayer> people = new ArrayList<>();
+		for (ServerPlayer p : players) {
+			if (p != shape && p != runt && !Bots.isBot(p)) {
+				people.add(p);
+			}
+		}
+		java.util.Set<String> dealt = Skins.deal(people, new java.util.Random(level.getRandom().nextLong()));
 		if (cfg.botsFillTo > civilians) {
 			List<String> names = new ArrayList<>(List.of(cfg.botNames));
+			names.removeIf(n -> dealt.contains(n.toLowerCase(java.util.Locale.ROOT)));
 			Collections.shuffle(names, new java.util.Random(level.getRandom().nextLong()));
 			for (int b = 0; b < cfg.botsFillTo - civilians && b < names.size(); b++) {
 				players.add(Bots.spawn(server, names.get(b), spawns.get((civilians + b) % spawns.size())));

@@ -224,21 +224,24 @@ public final class Cutscenes {
 				}
 			}
 		}
-		// Him: behind them, as far off as he can be seen (in the open, not inside a wall).
+		// Him: behind them in the shot, as far off as he can be seen from the camera (a little to one side of them,
+		// further round if need be, nearer if there is no room; through a window will do).
 		Vec3 ghost = null;
-		for (double d : new double[]{9, 7, 5.5, 4}) {
-			// (Off to one side of them in the shot, not hidden right behind them.)
-			Vec3 at = feet.subtract(front.scale(d)).add(new Vec3(-front.z, 0, front.x).scale(-d * 0.3));
-			BlockPos b = BlockPos.containing(at);
-			for (int dy : new int[]{0, 1, -1}) {
-				// (Through a window will do: him outside, looking in.)
-				if (Nav.standable(level, b.above(dy)) && Sight.canSee(level, eye, Vec3.atBottomCenterOf(b.above(dy)).add(0, 1.5, 0), p)) {
-					ghost = Vec3.atBottomCenterOf(b.above(dy));
-					break;
+		Vec3 camAt = eye.add(front.scale(2.8)).add(0, 0.2, 0);
+		Vec3 back = front.scale(-1);
+		search:
+		for (double d = 10; d >= 3; d -= 1) {
+			for (double deg : new double[]{14, -14, 0, 28, -28, 42, -42}) {
+				double a = Math.toRadians(deg);
+				Vec3 dir = new Vec3(back.x * Math.cos(a) - back.z * Math.sin(a), 0, back.x * Math.sin(a) + back.z * Math.cos(a));
+				BlockPos b = BlockPos.containing(feet.add(dir.scale(d)));
+				for (int dy : new int[]{0, 1, -1, 2, -2}) {
+					BlockPos at = b.above(dy);
+					if (Nav.standable(level, at) && Sight.canSee(level, camAt, Vec3.atBottomCenterOf(at).add(0, 1.5, 0), p)) {
+						ghost = Vec3.atBottomCenterOf(at);
+						break search;
+					}
 				}
-			}
-			if (ghost != null) {
-				break;
 			}
 		}
 		if (ghost != null) {
