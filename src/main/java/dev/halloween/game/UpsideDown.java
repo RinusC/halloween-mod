@@ -36,6 +36,9 @@ public final class UpsideDown {
 	private static int cursorZ;
 	private static boolean building;
 	private static boolean ready;
+	/** Up in the sky (not under the ground): hidden from below by a storm cloud. */
+	private static boolean sky;
+	private static final String CLOUD_TAG = "hw_cloud";
 
 	private UpsideDown() {
 	}
@@ -46,6 +49,7 @@ public final class UpsideDown {
 		BlockPos center = MapPoints.get(at).first(MapPoints.Type.CENTER);
 		ready = false;
 		building = false;
+		sky = false;
 		if (area == null || center == null) {
 			return;
 		}
@@ -57,8 +61,10 @@ public final class UpsideDown {
 			// Deep under the town, its floor just over the bedrock.
 			offset = baseY - (at.getMinY() + 3);
 		} else if (at.getMaxY() - topY >= height + 16) {
-			// No room under it (a thin world): up in the sky, walled and roofed in.
-			offset = -(height + 12);
+			// No room under it (a thin world): up in the sky, walled and roofed in, as high as it goes (out of sight
+			// from the streets mostly), with a storm cloud hung under it (see clouds).
+			offset = -(at.getMaxY() - 2 - topY);
+			sky = true;
 		} else {
 			return;
 		}
@@ -84,6 +90,9 @@ public final class UpsideDown {
 			if (cursorX > maxX) {
 				building = false;
 				ready = true;
+				if (sky) {
+					clouds();
+				}
 				return;
 			}
 			boolean edge = cursorX == minX || cursorX == maxX || cursorZ == minZ || cursorZ == maxZ;
@@ -97,9 +106,50 @@ public final class UpsideDown {
 			level.setBlock(to.set(cursorX, baseY - offset - 1, cursorZ), Blocks.DEEPSLATE.defaultBlockState(), Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE);
 			level.setBlock(to.set(cursorX, topY - offset + 1, cursorZ), Blocks.DEEPSLATE.defaultBlockState(), Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE);
 			budget -= height + 2;
+			if (sky) {
+				// An older copy hung low (right over the roofs, before it went up high): taken down.
+				int old = height + 12;
+				if (level.getBlockState(to.set(cursorX, baseY + old - 1, cursorZ)).is(Blocks.DEEPSLATE)) {
+					for (int y = baseY + old - 1; y <= topY + old + 1; y++) {
+						level.setBlock(to.set(cursorX, y, cursorZ), Blocks.AIR.defaultBlockState(), Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE);
+					}
+					budget -= height + 2;
+				}
+			}
 			if (++cursorZ > maxZ) {
 				cursorZ = minZ;
 				cursorX++;
+			}
+		}
+	}
+
+	/**
+	 * A storm cloud under the floor: big soft patches (item displays) in two layers a few blocks down, overlapping
+	 * and spilling past the edges, so from the streets it looks like a low heavy sky, not a rock ceiling.
+	 */
+	private static void clouds() {
+		level.getServer().getCommands().performPrefixedCommand(level.getServer().createCommandSourceStack().withSuppressedOutput(), "kill @e[type=item_display,tag=" + CLOUD_TAG + "]");
+		net.minecraft.util.RandomSource r = net.minecraft.util.RandomSource.create(minX * 31L + minZ);
+		int floor = baseY - offset - 1;
+		int margin = 40;
+		for (int layer = 0; layer < 2; layer++) {
+			float size = layer == 0 ? 64 : 80;
+			int step = layer == 0 ? 36 : 48;
+			for (int x = minX - margin; x <= maxX + margin; x += step) {
+				for (int z = minZ - margin; z <= maxZ + margin; z += step) {
+					net.minecraft.world.entity.Display.ItemDisplay d = new net.minecraft.world.entity.Display.ItemDisplay(net.minecraft.world.entity.EntityTypes.ITEM_DISPLAY, level);
+					net.minecraft.world.item.ItemStack s = new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.PAPER);
+					s.set(net.minecraft.core.component.DataComponents.ITEM_MODEL, dev.halloween.Halloween.id("storm_cloud"));
+					d.setItemStack(s);
+					d.setItemTransform(net.minecraft.world.item.ItemDisplayContext.FIXED);
+					float sz = size * (0.8f + r.nextFloat() * 0.4f);
+					d.setTransformation(new com.mojang.math.Transformation(null, new org.joml.Quaternionf().rotateY(r.nextFloat() * 6.283f), new org.joml.Vector3f(sz, 1, sz), null));
+					d.setBrightnessOverride(new net.minecraft.util.Brightness(0, layer == 0 ? 5 : 3));
+					d.setViewRange(8f);
+					d.setPos(x + r.nextInt(step / 2), floor - 2 - layer * 4 - r.nextFloat() * 2, z + r.nextInt(step / 2));
+					d.addTag(CLOUD_TAG);
+					level.addFreshEntity(d);
+				}
 			}
 		}
 	}
