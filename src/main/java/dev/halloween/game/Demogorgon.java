@@ -559,7 +559,7 @@ public final class Demogorgon {
 				shredOn = true;
 				shredLanded = false;
 				HwConfig cfg = HwConfig.get();
-				st.dashCooldownMax = HwConfig.at(cfg.dashCooldownByTier, st.tier());
+				st.dashCooldownMax = HwConfig.at(cfg.demoShredCooldownByTier, st.tier());
 				st.dashCooldown = st.dashCooldownMax;
 				d.level().playSound(null, d.getX(), d.getY(), d.getZ(), SoundEvents.RAVAGER_ROAR, SoundSource.HOSTILE, 1.4f, 1.5f);
 				AiStats.add(d, "demo.shred");

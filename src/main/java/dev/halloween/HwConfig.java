@@ -62,6 +62,8 @@ public class HwConfig {
 	public int dashTicks = 30;
 	public double dashSpeedModifier = 0.9;
 	public int[] dashCooldownByTier = {180, 160, 140};
+	/** The Demogorgon's Shred: its cooldown by Bloodthirst tier (longer than Michael's dash at first, shorter as he gets going). */
+	public int[] demoShredCooldownByTier = {260, 190, 130};
 	/** After Shape Jump ends, he can't speed up for this long. */
 	public int dashAfterShadowTicks = 40;
 
@@ -747,9 +749,9 @@ public class HwConfig {
 	public int botCalmTicks = 60;
 	/** Fleeing bots and townsfolk don't calm down while the killer is this near (heard close behind), seen or not. */
 	public double fleeSafeDistance = 24;
-	public float botHideChance = 0.6f;
-	public int botHideMinTicks = 160;
-	public int botHideMaxTicks = 360;
+	public float botHideChance = 0.35f;
+	public int botHideMinTicks = 100;
+	public int botHideMaxTicks = 220;
 	/** A callout puts the Shape this far away: hiding bots come out early. */
 	public double botHideReleaseDistance = 30;
 	/** Bots lock a door behind them only when the Shape is at least this far back. */
@@ -867,7 +869,7 @@ public class HwConfig {
 
 	/** The file's version: older files get the defaults that changed since moved on (see {@link #migrate}). */
 	public int configVersion;
-	private static final int VERSION = 14;
+	private static final int VERSION = 15;
 
 	public static void load() {
 		Path path = path();
@@ -1017,6 +1019,18 @@ public class HwConfig {
 			}
 			if (this.policeDarkSightRange == 10) {
 				this.policeDarkSightRange = 14;
+			}
+		}
+		if (this.configVersion < 15) {
+			// Bots hide less and not as long (they kept stopping).
+			if (this.botHideChance == 0.6f) {
+				this.botHideChance = 0.35f;
+			}
+			if (this.botHideMinTicks == 160) {
+				this.botHideMinTicks = 100;
+			}
+			if (this.botHideMaxTicks == 360) {
+				this.botHideMaxTicks = 220;
 			}
 		}
 		if (this.configVersion < VERSION) {

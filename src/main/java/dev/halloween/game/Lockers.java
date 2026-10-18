@@ -335,6 +335,12 @@ public final class Lockers {
 			shape.teleportTo(level, shape.getX(), shape.getY(), shape.getZ(), Set.of(Relative.X_ROT), facing.getOpposite().toYRot(), 0f, false);
 			if (Demogorgon.active()) {
 				// Not the door: his claw straight through it, feeling about inside.
+				// Squarely in front of it first, an arm's length off, so the claw goes in through the middle of the door.
+				Vec3 stand = center(base).add(facing.getStepX() * 1.45, 0, facing.getStepZ() * 1.45);
+				stand = new Vec3(stand.x, shape.getY(), stand.z);
+				if (level.noCollision(shape, shape.getBoundingBox().move(stand.subtract(shape.position())))) {
+					shape.teleportTo(level, stand.x, stand.y, stand.z, Set.of(Relative.X_ROT), facing.getOpposite().toYRot(), 0f, false);
+				}
 				GrabSession.anim(shape, HwNet.Anim.DEMO_SEARCH);
 				level.playSound(null, c.x, c.y + 0.5, c.z, net.minecraft.sounds.SoundEvents.ZOMBIE_ATTACK_WOODEN_DOOR, SoundSource.HOSTILE, 1.4f, 0.8f);
 			} else {

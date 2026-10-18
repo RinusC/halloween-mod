@@ -1014,7 +1014,7 @@ final class BotBrain {
 				this.quietUntil = now + 10;
 			} else {
 				// Only an aimless wander ends in a look around; anything else goes straight to the next job.
-				this.quietUntil = now + (this.task.key.equals("wander") ? 20 + this.random.nextInt(60) : 2);
+				this.quietUntil = now + (this.task.key.equals("wander") ? 8 + this.random.nextInt(25) : 2);
 				this.task = null;
 			}
 		}

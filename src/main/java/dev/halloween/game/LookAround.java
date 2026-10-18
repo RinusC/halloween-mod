@@ -32,9 +32,10 @@ public final class LookAround {
 		if (Float.isNaN(this.yaw) || now >= this.nextAt) {
 			if (lockerYaw != null) {
 				this.yaw = lockerYaw + (random.nextFloat() - 0.5f) * 60;
-			} else if (nervous && danger != null && random.nextFloat() < 0.5f) {
+			} else if (nervous && danger != null) {
+				// Scared: eyes on where he was, now a little to one side or the other (never turned away from it).
 				Vec3 d = danger.subtract(body.position());
-				this.yaw = (float) (Mth.atan2(d.z, d.x) * Mth.RAD_TO_DEG) - 90f + (random.nextFloat() - 0.5f) * 40;
+				this.yaw = (float) (Mth.atan2(d.z, d.x) * Mth.RAD_TO_DEG) - 90f + (random.nextFloat() - 0.5f) * (random.nextFloat() < 0.75f ? 40 : 110);
 			} else {
 				// Mostly a glance to one side; now and then a look over the shoulder.
 				this.yaw = head + (random.nextFloat() < 0.25f ? 180 : 0) + (random.nextFloat() - 0.5f) * 150;

@@ -184,7 +184,7 @@ public class LockerKillClientTest implements FabricClientGameTest {
 					// An empty wardrobe: his claw in through the door, the door shut.
 					server.runOnServer(s -> {
 						BlockPos front = base.relative(Direction.SOUTH);
-						player(s).teleportTo(s.overworld(), front.getX() + 0.5, front.getY(), front.getZ() + 0.6, java.util.Set.of(), 180f, 0f, false);
+						player(s).teleportTo(s.overworld(), front.getX() + 1.4, front.getY(), front.getZ() + 0.9, java.util.Set.of(), 140f, 0f, false);
 						MatchManager.shapeState(player(s)).attackCooldown = 0;
 						Lockers.shapeOpen(player(s), base);
 					});
