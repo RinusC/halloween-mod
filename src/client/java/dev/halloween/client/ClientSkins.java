@@ -28,6 +28,11 @@ public final class ClientSkins {
 		BY_ENTITY.clear();
 	}
 
+	/** Which skin (a survivor's name, "police") this entity wears in the match, or null. */
+	public static String keyFor(int id) {
+		return BY_ENTITY.get(id);
+	}
+
 	/** The skin this player wears in the match, or null for their own. */
 	public static PlayerSkin forEntity(int id) {
 		String key = BY_ENTITY.get(id);
