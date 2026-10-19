@@ -33,8 +33,7 @@ public abstract class LivingEntityRendererMixin {
 		int outline, net.minecraft.client.renderer.feature.ModelFeatureRenderer.CrumblingOverlay crumbling) {
 		// In an opening scene the one it is about (and him, behind them) catch a little light, made out in the night.
 		light = dev.halloween.client.HeroScene.light(state, light);
-		if (!dev.halloween.client.MichaelRenderer.submit(collector, model, state, pose, light, overlay, tint, outline)
-			&& !dev.halloween.client.SurvivorModels.submit(collector, model, state, pose, light, overlay, tint, outline)) {
+		if (!dev.halloween.client.MichaelRenderer.submit(collector, model, state, pose, light, overlay, tint, outline)) {
 			collector.submitModel(model, state, pose, renderType, light, overlay, tint, sprite, outline, crumbling);
 		}
 	}
@@ -42,8 +41,6 @@ public abstract class LivingEntityRendererMixin {
 	/** Michael towers over everyone (to look at: his hitbox is a player's). */
 	@Inject(method = "extractRenderState(Lnet/minecraft/world/entity/LivingEntity;Lnet/minecraft/client/renderer/entity/state/LivingEntityRenderState;F)V", at = @At("TAIL"))
 	private void halloween$tall(net.minecraft.world.entity.LivingEntity entity, LivingEntityRenderState state, float partialTicks, CallbackInfo ci) {
-		// Each survivor as tall as they are.
-		state.scale *= dev.halloween.client.SurvivorModels.tall(entity.getId());
 		if (dev.halloween.client.MichaelRenderer.isMichael(entity)) {
 			state.scale *= dev.halloween.client.MichaelRenderer.TALL;
 			int once = ClientAnims.once(entity.getId());

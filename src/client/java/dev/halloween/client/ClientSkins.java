@@ -28,11 +28,6 @@ public final class ClientSkins {
 		BY_ENTITY.clear();
 	}
 
-	/** Which skin (a survivor's name, "police") this entity wears in the match, or null. */
-	public static String keyFor(int id) {
-		return BY_ENTITY.get(id);
-	}
-
 	/** The skin this player wears in the match, or null for their own. */
 	public static PlayerSkin forEntity(int id) {
 		String key = BY_ENTITY.get(id);
@@ -42,7 +37,7 @@ public final class ClientSkins {
 	private static PlayerSkin load(String key) {
 		String path = key.equals("police") ? "entity/police" : "entity/skin/" + key;
 		int index = Skins.SURVIVORS.indexOf(key);
-		boolean slim = false; // all survivor skins have wide arms
+		boolean slim = index >= 0 && index < Skins.SLIM_COUNT;
 		return PlayerSkin.insecure(new ClientAsset.ResourceTexture(Identifier.fromNamespaceAndPath("halloween", path)), null, null,
 			slim ? PlayerModelType.SLIM : PlayerModelType.WIDE);
 	}
