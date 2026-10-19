@@ -499,36 +499,59 @@ fill($waist->{$_}, 'shirtD', 2, 0, $waist->{$_}[3] - 1, $waist->{$_}[2], 1) for 
 fill($hips->{$_}, 'pantsD', 2, 0, 0, $hips->{$_}[2], 2) for qw(north south east west);
 fill($hips->{north}, 'pantsD', 2, int($hips->{north}[2] / 2), 2, 1, 5) unless $f;
 if ($f && $B->{bust}) {
-	# The bust: each side rounded out of layers, each smaller and further forward than the one under it, the cloth
-	# lit on top and in shade underneath; a shadow under it on the shirt, a fold between.
+	# The bust under a fitted top: one shape across both, the cloth stretched over it (no gap at the front). From the
+	# side, a long gentle slope down from the collarbone and a fuller, rounder curve underneath; from the front, the
+	# outline narrowing forward. Light on the upper curve of each side, a soft shadow between, a deep one under.
 	my $bd = $B->{bust};
-	my $front = -$ch / 2;
-	for my $s (1, -1) {
-		my $cx = $s * 1.75;
-		my @layers = ([3.5, 3.5, 0.5, 18.75], [3.0, 3.0, 0.75, 19.0], [2.25, 2.25, 1.0, 19.25], [1.5, 1.5, 1.0, 19.5]);
-		my $z = $front;
-		my $k = 0;
-		for my $l (@layers) {
-			my ($w, $h, $share, $y0) = @$l;
-			my $dz = $bd * $share / 2.75;
-			$dz = int($dz * 4 + 0.5) / 4;
-			next if $dz <= 0;
-			my $L = cube($body, "bust_" . ($s > 0 ? 'r' : 'l') . $k++, [$cx - $w / 2, $y0, $z - $dz], [$cx + $w / 2, $y0 + $h, $z]);
-			paint($L, 'shirt', 2);
-			fill($L->{up}, 'shirtL', 2);
-			fill($L->{down}, 'shirtD', 2);
-			my $r = $L->{north};
-			fill($r, 'shirtL', 2, 0, 0, $r->[2], int($r->[3] * 0.3));
-			fill($r, 'shirtD', 2, 0, $r->[3] - int($r->[3] * 0.25), $r->[2], int($r->[3] * 0.25));
-			# The outer side in shade.
-			fill($L->{$s > 0 ? 'east' : 'west'}, 'shirtD', 2);
-			$z -= $dz;
+	my $z = -$ch / 2;
+	my $wHalf = $sh - 0.5;
+	# Layers outward: [half width, bottom, top, share of the depth].
+	my @layers = (
+		[$wHalf, 18.5, 23.0, 0.45],
+		[$wHalf - 0.25, 18.75, 22.0, 0.35],
+		[$wHalf - 0.75, 19.0, 21.0, 0.2],
+	);
+	my $k = 0;
+	for my $l (@layers) {
+		my ($hw, $y0, $y1, $share) = @$l;
+		my $dz = int($bd * $share * 4 + 0.5) / 4;
+		next if $dz <= 0 || $hw <= 0.5;
+		my $L = cube($body, "bust" . $k++, [-$hw, $y0, $z - $dz], [$hw, $y1, $z]);
+		paint($L, 'shirt', 2);
+		fill($L->{down}, 'shirtD', 2);
+		# Its top, shaded as the front is at that height (no light rim round each step).
+		my $u = $L->{up};
+		for my $i (0 .. $u->[2] - 1) {
+			my $x = -$hw + ($i + 0.5) / $S;
+			my $dx = ($x - ($x < 0 ? -1 : 1) * $wHalf * 0.5) / ($wHalf * 0.55);
+			my $dy = ($y1 - 21.0) / 2.3;
+			my $c = $dx * $dx + $dy * $dy < 0.85 ? 'shirt' : 'shirtD';
+			$c = 'shirtD' if abs($x) < 0.3 && $y1 < 20.75;
+			at($u, $i, $_, $c, 2) for 0 .. $u->[3] - 1;
 		}
+		my $r = $L->{north};
+		my ($W, $H) = ($r->[2], $r->[3]);
+		# Shaded by where each texel really is (the same for every layer, so the steps run into one round shape): light
+		# on the upper middle of each side, darker to the edges and underneath, a soft valley between the two lower down.
+		for my $j (0 .. $H - 1) {
+			for my $i (0 .. $W - 1) {
+				my $x = -$hw + ($i + 0.5) / $S;
+				my $y = $y1 - ($j + 0.5) / $S;
+				my $cx = ($x < 0 ? -1 : 1) * $wHalf * 0.5;
+				my $dx = ($x - $cx) / ($wHalf * 0.55);
+				my $dy = ($y - 21.0) / 2.3;
+				my $d = $dx * $dx + $dy * $dy;
+				my $c = $d < 0.2 ? 'shirtL' : $d < 0.85 ? 'shirt' : 'shirtD';
+				$c = 'shirtD' if abs($x) < 0.3 && $y < 20.75;
+				$c = 'shirtD' if $y < 19.0;
+				at($r, $i, $j, $c, 2);
+			}
+		}
+		$z -= $dz;
 	}
-	# Under it, on the shirt; and the fold between the two.
+	# On the shirt under it, the shadow it throws; the waist below a little in shade.
 	my $r = $chest->{north};
 	fill($r, 'shirtD', 2, 1, $r->[3] - 2, $r->[2] - 2, 2);
-	fill($r, 'shirtD', 2, int($r->[2] / 2) - 1, int($r->[3] * 0.35), 2, int($r->[3] * 0.5));
 	fill($waist->{north}, 'shirtD', 2, 2, 0, $waist->{north}[2] - 4, 2);
 } elsif (!$f && $B->{pecs}) {
 	my $Pe = cube($body, "pecs", [-$sh + 0.5, 20, -$ch / 2 - $B->{pecs}], [$sh - 0.5, 23, -$ch / 2]);

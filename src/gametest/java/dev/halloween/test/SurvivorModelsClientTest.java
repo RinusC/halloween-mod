@@ -67,10 +67,10 @@ public class SurvivorModelsClientTest implements FabricClientGameTest {
 				return new Vec3(x + 0.5, 151, z + 0.5);
 			});
 			ctx.waitTicks(10);
-			String[][] views = {{"front", "0", "6.5"}, {"side", "4.2", "0"}, {"back", "0", "-4.2"}, {"close", "0", "2.0"}, {"face", "-0.8", "1.1"}, {"face2", "0.8", "1.1"}, {"fside", "0.9", "-0.2"}, {"f34", "0.0", "0.9"}, {"bust", "-0.5", "1.6"}};
+			String[][] views = {{"front", "0", "6.5"}, {"side", "4.2", "0"}, {"back", "0", "-4.2"}, {"close", "0", "2.0"}, {"face", "-0.8", "1.1"}, {"face2", "0.8", "1.1"}, {"fside", "0.9", "-0.2"}, {"f34", "0.0", "0.9"}, {"bust", "-0.5", "1.6"}, {"bside", "-3.4", "-1.2"}, {"b34", "-2.3", "1.5"}};
 			for (String[] v : views) {
-				Vec3 cam = base.add(Double.parseDouble(v[1]), v[0].equals("close") ? 1.5 : v[0].startsWith("f") && !v[0].equals("front") ? 1.75 : v[0].equals("bust") ? 1.3 : 1.2, Double.parseDouble(v[2]));
-				Vec3 look = v[0].equals("fside") || v[0].equals("f34") ? base.add(-0.8, 1.72, 0) : v[0].equals("face2") ? base.add(0.8, 1.72, 0) : v[0].equals("face") ? base.add(-0.8, 1.72, 0) : v[0].equals("bust") ? base.add(-0.8, 1.25, 0) : base.add(0, v[0].equals("close") ? 1.5 : 0.95, 0);
+				Vec3 cam = base.add(Double.parseDouble(v[1]), v[0].equals("close") ? 1.5 : v[0].startsWith("f") && !v[0].equals("front") ? 1.75 : v[0].startsWith("b") && !v[0].equals("back") ? 1.3 : 1.2, Double.parseDouble(v[2]));
+				Vec3 look = v[0].equals("fside") || v[0].equals("f34") ? base.add(-0.8, 1.72, 0) : v[0].equals("face2") ? base.add(0.8, 1.72, 0) : v[0].equals("face") ? base.add(-0.8, 1.72, 0) : v[0].startsWith("b") && !v[0].equals("back") ? base.add(-0.8, 1.2, 0) : base.add(0, v[0].equals("close") ? 1.5 : 0.95, 0);
 				ctx.runOnClient(mc -> KillCam.begin(new dev.halloween.net.HwNet.Cutscene(dev.halloween.game.Cutscenes.KILLCAM, 40, cam, look, Vec3.ZERO)));
 				for (int k = 0; k < 8; k++) {
 					hold(server, base, show);
