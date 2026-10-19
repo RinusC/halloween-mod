@@ -115,12 +115,31 @@ sub sample {
 	return [map { int($sum{$best}[$_] / $n{$best}) } 0 .. 2];
 }
 
+# Their skin: the commonest skin-like colour over the whole face (not the brows, glasses or beard).
+sub sampleSkin {
+	my $hairOf = shift;
+	my %n;
+	my %sum;
+	for my $y (8 .. 15) {
+		for my $x (8 .. 15) {
+			my $p = $skin[$y * $SW + $x];
+			next unless $p && $p->[3] > 128 && $p->[0] > 70 && $p->[0] >= $p->[1] && $p->[1] >= $p->[2] && $p->[0] - $p->[2] > 25
+				&& abs($p->[0] - $hairOf->[0]) + abs($p->[1] - $hairOf->[1]) + abs($p->[2] - $hairOf->[2]) > 60;
+			my $k = join(",", map { int($_ / 24) } @$p[0 .. 2]);
+			$n{$k}++;
+			$sum{$k}[$_] += $p->[$_] for 0 .. 2;
+		}
+	}
+	my ($best) = sort { $n{$b} <=> $n{$a} } keys %n;
+	return $best ? [map { int($sum{$best}[$_] / $n{$best}) } 0 .. 2] : sample(9, 11, 6, 4);
+}
+
 sub darker { my ($c, $k) = @_; return [map { int($_ * $k) } @$c]; }
 sub lighter { my ($c, $k) = @_; return [map { my $v = $_ + (255 - $_) * $k; int($v) } @$c]; }
 sub near { my ($a, $b) = @_; my $d = 0; $d += abs($a->[$_] - $b->[$_]) for 0 .. 2; return $d < 60; }
 
 my $hairC = sample(8, 0, 8, 8);
-my $skinC = sample(9, 11, 6, 4);
+my $skinC = sampleSkin($hairC);
 my $shirtC = sample(20, 20, 8, 8);
 my $sleeveC = sample(44, 20, 4, 4);
 my $lowArmC = sample(44, 28, 4, 3);
@@ -140,7 +159,9 @@ my $shortSleeves = near($lowArmC, $skinC);
 my $shorts = near($shinC, $skinC);
 
 my ($UW, $UH) = (128, 128);
-my $S = 2;
+my $S = 4;
+# Texels to a unit, against the two the hair lengths below were first counted in.
+my $K = $S / 2;
 my ($TW, $TH) = ($UW * $S, $UH * $S);
 my @px = map { [0, 0, 0, 0] } 1 .. ($TW * $TH);
 srand(1978 + length($name) * 31 + ord($name));
@@ -152,8 +173,11 @@ my %C = (
 	sleeve => $sleeveC, sleeveD => darker($sleeveC, 0.8),
 	pants => $pantsC, pantsD => darker($pantsC, 0.78), pantsL => lighter($pantsC, 0.1),
 	shoe => $shoeC, shoeD => darker($shoeC, 0.6), sole => [30, 28, 26],
-	eye => $eyeC, white => [232, 230, 224], pupil => [20, 18, 18], brow => darker($hairC, 0.7),
-	lip => $B->{f} ? [176, 78, 82] : darker($skinC, 0.78), lipD => $B->{f} ? [140, 56, 60] : darker($skinC, 0.68), blush => [214, 140, 128],
+	eye => $eyeC, eyeD => darker($eyeC, 0.6), white => [222, 218, 208], pupil => [24, 20, 20], brow => darker($hairC, 0.72),
+	lid => darker($skinC, 0.74), lash => [70, 52, 46], mouth => darker($skinC, 0.45), stubble => darker($skinC, 0.72),
+	cheek => [map { int($skinC->[$_] * 0.85 + [205, 120, 110]->[$_] * 0.15) } 0 .. 2],
+	lip => $B->{f} ? [map { int($skinC->[$_] * 0.55 + [170, 90, 92]->[$_] * 0.45) } 0 .. 2] : darker($skinC, 0.82),
+	lipD => $B->{f} ? [map { int($skinC->[$_] * 0.45 + [130, 62, 66]->[$_] * 0.55) } 0 .. 2] : darker($skinC, 0.7),
 );
 
 sub clamp { my $v = shift; return $v < 0 ? 0 : $v > 255 ? 255 : int($v); }
@@ -252,45 +276,108 @@ my $Hd = cube($head, "head", [-3.5, 24, -3.5], [3.5, 31.5, 3.5]);
 paint($Hd, 'skin', 3);
 fill($Hd->{down}, 'skinD', 2);
 {
-	# The face, 14 x 15 texels: brows, eyes (white, iris, a pupil, lid shadow), the nose's shading, cheeks, mouth.
+	# The face (28 x 30 texels): light falling from above, shade under the brows, the nose and the chin; eyes set in
+	# their sockets with a lid over each, an iris with its darker rim and a glint, brows by their own hair; the nose's
+	# bridge catching the light, its wings and nostrils; the lips with the line between them; on the men a shadow of
+	# stubble. Positions are shares of the face, so it stays in proportion.
 	my $fc = $Hd->{north};
-	my $ey = 6;
+	my ($W, $H) = ($fc->[2], $fc->[3]);
+	my $X = sub { int($_[0] * $W + 0.5) };
+	my $Y = sub { int($_[0] * $H + 0.5) };
+	# Forehead a touch lighter, the cheeks below the eyes as they are, the jaw a touch darker.
+	fill($fc, 'skinL', 2, 2, 0, $W - 4, $Y->(0.28));
+	fill($fc, 'skinD', 2, 0, $Y->(0.82), $W, $H - $Y->(0.82));
+	fill($fc, 'skinD', 2, 0, 0, 2, $H);
+	fill($fc, 'skinD', 2, $W - 2, 0, 2, $H);
+	my $ey = $Y->(0.42);
 	for my $side (0, 1) {
-		my $x = $side ? 8 : 2;
-		fill($fc, 'brow', 2, $x, $ey - 2, 4, 1);
-		at($fc, $side ? $x + 4 : $x - 1, $ey - 2 + ($f ? 1 : 0), 'brow', 2) if !$f;
-		fill($fc, 'white', 2, $x, $ey, 4, 2);
-		fill($fc, 'eye', 4, $x + ($side ? 1 : 1), $ey, 2, 2);
-		at($fc, $x + ($side ? 1 : 2), $ey, 'pupil', 2);
-		fill($fc, 'skinD', 2, $x, $ey - 1, 4, 1);
-		if ($f) {
-			# Lashes.
-			at($fc, $side ? $x + 3 : $x, $ey - 1, 'pupil', 0);
-			at($fc, $side ? $x + 4 : $x - 1, $ey, 'pupil', 0);
+		# 0: the eye on the viewer's left (his right).
+		my $cx = $side ? $X->(0.69) : $X->(0.31);
+		my $ew = $X->(0.2);
+		my $x0 = $cx - int($ew / 2);
+		# The socket: shade under the brow, round the eye.
+		fill($fc, 'skinD', 2, $x0 - 1, $ey - 3, $ew + 2, 3);
+		# The brow: thin and arched on the women, heavier and straighter on the men.
+		for my $i (0 .. $ew + 1) {
+			my $arch = $f ? int(1.5 * sin(3.14159 * $i / ($ew + 1))) : 0;
+			my $x = $x0 - 1 + $i;
+			at($fc, $x, $ey - 4 - $arch, 'brow', 2);
+			at($fc, $x, $ey - 5 - $arch, 'brow', 2) if !$f || $i > 1 && $i < $ew;
+			at($fc, $x, $ey - 6 - $arch, 'brow', 2) if !$f && $i > 0 && $i < $ew;
 		}
-		fill($fc, 'skinD', 2, $x, $ey + 2, 4, 1);
+		# The white, its corners in shadow.
+		fill($fc, 'white', 2, $x0, $ey, $ew, 3);
+		at($fc, $x0, $ey + 2, 'skinD', 1);
+		at($fc, $x0 + $ew - 1, $ey + 2, 'skinD', 1);
+		at($fc, $side ? $x0 + $ew - 1 : $x0, $ey, 'skinD', 1);
+		# The iris (its rim darker), the pupil, a glint of light.
+		my $ix = $cx - 1;
+		fill($fc, 'eye', 4, $ix - 1, $ey, 4, 3);
+		at($fc, $ix - 1, $ey, 'pupil', 1) if 0;
+		fill($fc, 'pupil', 1, $ix, $ey + 1, 2, 1);
+		at($fc, $ix - 1, $ey + 2, 'eyeD', 2);
+		at($fc, $ix + 2, $ey + 2, 'eyeD', 2);
+		at($fc, $ix + 1, $ey, 'white', 0);
+		# The upper lid over it, darker (lashes on the women, a flick at the outer corner); the lower lid a faint line.
+		fill($fc, 'lid', 1, $x0, $ey - 1, $ew, 1);
+		if ($f) {
+			at($fc, $side ? $x0 + $ew : $x0 - 1, $ey - 1, 'lash', 0);
+			at($fc, $side ? $x0 + $ew : $x0 - 1, $ey - 2, 'lash', 0);
+			fill($fc, 'lash', 0, $x0, $ey - 1, $ew, 1);
+		}
+		fill($fc, 'skinD', 1, $x0, $ey + 3, $ew, 1);
+		# The cheekbone below, catching the light.
+		fill($fc, 'skinL', 2, $x0, $ey + 5, $ew, 2);
+		fill($fc, 'cheek', 2, $x0 + 1, $ey + 7, $ew - 2, 2) if $f;
 	}
-	# The nose between the eyes and down, shadowed under.
-	fill($fc, 'skinD', 2, 6, $ey + 1, 2, 3);
-	fill($fc, 'skinDD', 1, 6, $ey + 4, 2, 1);
-	if ($f) {
-		fill($fc, 'blush', 3, 2, $ey + 3, 2, 1);
-		fill($fc, 'blush', 3, 10, $ey + 3, 2, 1);
+	# The nose: the bridge lit between the eyes and down, the sides in shade, the wings and the nostrils, the shadow under.
+	my $nx = int($W / 2) - 1;
+	fill($fc, 'skinL', 2, $nx, $ey - 1, 2, $Y->(0.2));
+	fill($fc, 'skinD', 2, $nx - 1, $ey + 1, 1, $Y->(0.16));
+	fill($fc, 'skinD', 2, $nx + 2, $ey + 1, 1, $Y->(0.16));
+	my $ny = $Y->(0.64);
+	fill($fc, 'skinD', 2, $nx - 2, $ny - 1, 6, 2);
+	at($fc, $nx - 1, $ny, 'skinDD', 1);
+	at($fc, $nx + 2, $ny, 'skinDD', 1);
+	fill($fc, 'skinDD', 1, $nx - 1, $ny + 1, 4, 1);
+	# The folds from the nose to the mouth's corners, faint.
+	for my $k (0 .. 3) {
+		at($fc, $nx - 3 - int($k / 2), $ny + $k, 'skinD', 1);
+		at($fc, $nx + 4 + int($k / 2), $ny + $k, 'skinD', 1);
 	}
-	# The mouth.
-	fill($fc, 'lip', 3, 5, $ey + 6, 4, 1);
-	fill($fc, 'lipD', 2, 5, $ey + 7, 4, 1) if $f;
-	at($fc, 4, $ey + 6, 'skinDD', 1);
-	at($fc, 9, $ey + 6, 'skinDD', 1);
-	# The jaw, darker towards the neck (stubble on the men).
-	fill($fc, $f ? 'skinD' : 'skinDD', $f ? 2 : 5, 2, 13, 10, 2) ;
-	fill($fc, 'skinD', 2, 0, 0, 1, 15);
-	fill($fc, 'skinD', 2, 13, 0, 1, 15);
+	# The mouth: the upper lip in shade, the line between, the lower lip fuller and lit, the corners turning in.
+	my $my = $Y->(0.74);
+	my $mw = $X->($f ? 0.3 : 0.32);
+	my $mx = int($W / 2) - int($mw / 2);
+	fill($fc, 'lipD', 2, $mx + 1, $my, $mw - 2, 1);
+	fill($fc, 'mouth', 1, $mx, $my + 1, $mw, 1);
+	fill($fc, 'lip', 2, $mx + 1, $my + 2, $mw - 2, 1 + ($f ? 1 : 0));
+	at($fc, $mx - 1, $my + 1, 'skinDD', 1);
+	at($fc, $mx + $mw, $my + 1, 'skinDD', 1);
+	fill($fc, 'skinD', 2, $mx + 2, $my + 4, $mw - 4, 1);
+	# The chin, and under it the shadow of the jaw.
+	fill($fc, 'skinL', 2, int($W / 2) - 2, $Y->(0.88), 4, 1);
+	fill($fc, 'skinDD', 2, 0, $H - 1, $W, 1);
+	if (!$f) {
+		# Stubble over the jaw and the upper lip.
+		for my $j ($my - 2 .. $H - 2) {
+			for my $i (2 .. $W - 3) {
+				next if $j >= $my && $j <= $my + 3 && $i >= $mx && $i < $mx + $mw;
+				next if $j < $my && ($i < $mx - 1 || $i > $mx + $mw);
+				at($fc, $i, $j, 'stubble', 6) if rand() < 0.35;
+			}
+		}
+	}
 }
 for my $side (qw(east west)) {
-	# The ear.
-	fill($Hd->{$side}, 'skinD', 2, 6, 5, 3, 5);
-	fill($Hd->{$side}, 'skinDD', 1, 7, 6, 1, 3);
+	# The ear: its rim, the hollow inside, the lobe.
+	my $r = $Hd->{$side};
+	my ($ex, $ey) = (int($r->[2] * 0.42), int($r->[3] * 0.33));
+	fill($r, 'skinD', 2, $ex, $ey, 5, 10);
+	fill($r, 'skinDD', 1, $ex + 1, $ey + 2, 2, 5);
+	fill($r, 'skin', 2, $ex + 1, $ey + 8, 3, 2);
+	# The jaw's line back to the ear.
+	fill($r, 'skinD', 2, 0, $r->[3] - 3, $ex + 2, 1);
 }
 my $Ns = cube($head, "nose", [-0.5, 26.5, -4], [0.5, 28, -3.5]);
 paint($Ns, 'skin', 2);
@@ -305,24 +392,24 @@ my $Hc = cube($head, "hair", [-3.5, 24, -3.5], [3.5, 31.5, 3.5], $style eq 'buzz
 {
 	my $r;
 	$r = $Hc->{up};
-	for my $j (0 .. $r->[3] - 1) { for my $i (0 .. $r->[2] - 1) { $style eq 'receding' && $j < 6 && $i > 3 && $i < 10 ? clear($r, $i, $j) : hairpx($r, $i, $j); } }
+	for my $j (0 .. $r->[3] - 1) { for my $i (0 .. $r->[2] - 1) { $style eq 'receding' && $j < 6 * $K && $i > 3 * $K && $i < 10 * $K ? clear($r, $i, $j) : hairpx($r, $i, $j); } }
 	$r = $Hc->{north};
-	my $line = $style eq 'receding' ? 0 : $style eq 'buzz' ? 1 : $style eq 'messy' || $style eq 'curly' ? 4 : 2;
+	my $line = ($style eq 'receding' ? 0 : $style eq 'buzz' ? 1 : $style eq 'messy' || $style eq 'curly' ? 4 : 2) * $K;
 	for my $i (0 .. $r->[2] - 1) {
-		my $len = $line + (rand() < 0.4 ? 1 : 0);
+		my $len = $line + (rand() < 0.4 ? $K : 0);
 		for my $j (0 .. $r->[3] - 1) { $j < $len ? hairpx($r, $i, $j) : clear($r, $i, $j); }
 	}
 	for my $sd (qw(east west)) {
 		$r = $Hc->{$sd};
 		for my $i (0 .. $r->[2] - 1) {
 			my $front = $sd eq 'east' ? $i / ($r->[2] - 1) : 1 - $i / ($r->[2] - 1);
-			my $len = $style eq 'buzz' ? ($front > 0.7 ? 3 : 7) : $front > 0.75 ? 4 : $front > 0.45 ? 7 : 11;
-			$len = 15 if $f && $style ne 'bob' && $style ne 'pigtails';
+			my $len = ($style eq 'buzz' ? ($front > 0.7 ? 3 : 7) : $front > 0.75 ? 4 : $front > 0.45 ? 7 : 11) * $K;
+			$len = 15 * $K if $f && $style ne 'bob' && $style ne 'pigtails';
 			for my $j (0 .. $r->[3] - 1) { $j < $len ? hairpx($r, $i, $j) : clear($r, $i, $j); }
 		}
 	}
 	$r = $Hc->{south};
-	for my $i (0 .. $r->[2] - 1) { for my $j (0 .. $r->[3] - 1) { $j < ($style eq 'buzz' ? 10 : 14) ? hairpx($r, $i, $j) : clear($r, $i, $j); } }
+	for my $i (0 .. $r->[2] - 1) { for my $j (0 .. $r->[3] - 1) { $j < ($style eq 'buzz' ? 10 : 14) * $K ? hairpx($r, $i, $j) : clear($r, $i, $j); } }
 	$r = $Hc->{down};
 	clear($r, $_ % $r->[2], int($_ / $r->[2])) for 0 .. $r->[2] * $r->[3] - 1;
 }
@@ -374,16 +461,37 @@ fill($waist->{$_}, 'shirtD', 2, 0, $waist->{$_}[3] - 1, $waist->{$_}[2], 1) for 
 fill($hips->{$_}, 'pantsD', 2, 0, 0, $hips->{$_}[2], 2) for qw(north south east west);
 fill($hips->{north}, 'pantsD', 2, int($hips->{north}[2] / 2), 2, 1, 5) unless $f;
 if ($f && $B->{bust}) {
-	# The bust, two rounded shapes under the shirt.
+	# The bust: each side rounded out of layers, each smaller and further forward than the one under it, the cloth
+	# lit on top and in shade underneath; a shadow under it on the shirt, a fold between.
 	my $bd = $B->{bust};
+	my $front = -$ch / 2;
 	for my $s (1, -1) {
-		my $x0 = $s > 0 ? 0.25 : -3.25;
-		my $Bu = cube($body, "bust_" . ($s > 0 ? 'r' : 'l'), [$x0, 19, -$ch / 2 - $bd], [$x0 + 3, 22, -$ch / 2]);
-		paint($Bu, 'shirt', 3);
-		fill($Bu->{down}, 'shirtD', 2);
-		my $Bl = cube($body, "bust_low_" . ($s > 0 ? 'r' : 'l'), [$x0 + 0.5, 18.5, -$ch / 2 - $bd + 0.5], [$x0 + 2.5, 19, -$ch / 2]);
-		paint($Bl, 'shirtD', 2);
+		my $cx = $s * 1.75;
+		my @layers = ([3.5, 3.5, 0.5, 18.75], [3.0, 3.0, 0.75, 19.0], [2.25, 2.25, 1.0, 19.25], [1.5, 1.5, 1.0, 19.5]);
+		my $z = $front;
+		my $k = 0;
+		for my $l (@layers) {
+			my ($w, $h, $share, $y0) = @$l;
+			my $dz = $bd * $share / 2.75;
+			$dz = int($dz * 4 + 0.5) / 4;
+			next if $dz <= 0;
+			my $L = cube($body, "bust_" . ($s > 0 ? 'r' : 'l') . $k++, [$cx - $w / 2, $y0, $z - $dz], [$cx + $w / 2, $y0 + $h, $z]);
+			paint($L, 'shirt', 2);
+			fill($L->{up}, 'shirtL', 2);
+			fill($L->{down}, 'shirtD', 2);
+			my $r = $L->{north};
+			fill($r, 'shirtL', 2, 0, 0, $r->[2], int($r->[3] * 0.3));
+			fill($r, 'shirtD', 2, 0, $r->[3] - int($r->[3] * 0.25), $r->[2], int($r->[3] * 0.25));
+			# The outer side in shade.
+			fill($L->{$s > 0 ? 'east' : 'west'}, 'shirtD', 2);
+			$z -= $dz;
+		}
 	}
+	# Under it, on the shirt; and the fold between the two.
+	my $r = $chest->{north};
+	fill($r, 'shirtD', 2, 1, $r->[3] - 2, $r->[2] - 2, 2);
+	fill($r, 'shirtD', 2, int($r->[2] / 2) - 1, int($r->[3] * 0.35), 2, int($r->[3] * 0.5));
+	fill($waist->{north}, 'shirtD', 2, 2, 0, $waist->{north}[2] - 4, 2);
 } elsif (!$f && $B->{pecs}) {
 	my $Pe = cube($body, "pecs", [-$sh + 0.5, 20, -$ch / 2 - $B->{pecs}], [$sh - 0.5, 23, -$ch / 2]);
 	paint($Pe, 'shirt', 3);

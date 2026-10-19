@@ -19,7 +19,7 @@ import net.minecraft.resources.Identifier;
  */
 public final class SurvivorModels {
 	/** The ones built so far (the rest keep the player model). */
-	private static final Set<String> BUILT = Set.of("laurie", "bob");
+	private static final Set<String> BUILT = Set.copyOf(dev.halloween.game.Skins.SURVIVORS);
 	/** How tall each stands, against a player. */
 	private static final Map<String, Float> TALL = Map.of("tanya", 0.92f, "alexis", 1.05f, "bob", 1.04f, "eric", 1.03f, "marcus", 1.02f,
 		"thomas", 0.97f);

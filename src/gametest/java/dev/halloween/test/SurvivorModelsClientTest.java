@@ -39,7 +39,7 @@ public class SurvivorModelsClientTest implements FabricClientGameTest {
 				cfg.eventsEnabled = false;
 			});
 			ShapeBrain.paused = true;
-			dev.halloween.game.Skins.forced = "richard";
+			dev.halloween.game.Skins.forced = System.getenv().getOrDefault("HW_ME", "richard");
 			server.runCommand("hw shape bot");
 			server.runCommand("hw start");
 			ctx.waitTicks(60);
@@ -67,10 +67,10 @@ public class SurvivorModelsClientTest implements FabricClientGameTest {
 				return new Vec3(x + 0.5, 151, z + 0.5);
 			});
 			ctx.waitTicks(10);
-			String[][] views = {{"front", "0", "3.2"}, {"side", "4.2", "0"}, {"back", "0", "-4.2"}, {"close", "0", "2.0"}};
+			String[][] views = {{"front", "0", "6.5"}, {"side", "4.2", "0"}, {"back", "0", "-4.2"}, {"close", "0", "2.0"}, {"face", "-0.8", "1.1"}, {"bust", "-0.5", "1.6"}};
 			for (String[] v : views) {
-				Vec3 cam = base.add(Double.parseDouble(v[1]), v[0].equals("close") ? 1.5 : 1.2, Double.parseDouble(v[2]));
-				Vec3 look = base.add(0, v[0].equals("close") ? 1.5 : 0.95, 0);
+				Vec3 cam = base.add(Double.parseDouble(v[1]), v[0].equals("close") ? 1.5 : v[0].equals("face") ? 1.75 : v[0].equals("bust") ? 1.3 : 1.2, Double.parseDouble(v[2]));
+				Vec3 look = v[0].equals("face") ? base.add(-0.8, 1.72, 0) : v[0].equals("bust") ? base.add(-0.8, 1.25, 0) : base.add(0, v[0].equals("close") ? 1.5 : 0.95, 0);
 				ctx.runOnClient(mc -> KillCam.begin(new dev.halloween.net.HwNet.Cutscene(dev.halloween.game.Cutscenes.KILLCAM, 40, cam, look, Vec3.ZERO)));
 				for (int k = 0; k < 8; k++) {
 					hold(server, base, show);
