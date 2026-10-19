@@ -173,8 +173,9 @@ my %C = (
 	sleeve => $sleeveC, sleeveD => darker($sleeveC, 0.8),
 	pants => $pantsC, pantsD => darker($pantsC, 0.78), pantsL => lighter($pantsC, 0.1),
 	shoe => $shoeC, shoeD => darker($shoeC, 0.6), sole => [30, 28, 26],
-	eye => $eyeC, eyeD => darker($eyeC, 0.6), white => [222, 218, 208], pupil => [24, 20, 20], brow => darker($hairC, 0.72),
-	lid => darker($skinC, 0.74), lash => [70, 52, 46], mouth => darker($skinC, 0.45), stubble => darker($skinC, 0.72),
+	eye => $eyeC, eyeD => darker($eyeC, 0.65), white => [222, 218, 208], pupil => [24, 20, 20], brow => darker($hairC, 0.72),
+	lid => darker($skinC, 0.84), lash => darker($skinC, 0.55), crease => darker($skinC, 0.88), under => darker($skinC, 0.92),
+	glint => [205, 200, 195], browL => darker($hairC, 0.85), mouth => darker($skinC, 0.45), stubble => darker($skinC, 0.72),
 	cheek => [map { int($skinC->[$_] * 0.85 + [205, 120, 110]->[$_] * 0.15) } 0 .. 2],
 	lip => $B->{f} ? [map { int($skinC->[$_] * 0.55 + [170, 90, 92]->[$_] * 0.45) } 0 .. 2] : darker($skinC, 0.82),
 	lipD => $B->{f} ? [map { int($skinC->[$_] * 0.45 + [130, 62, 66]->[$_] * 0.55) } 0 .. 2] : darker($skinC, 0.7),
@@ -293,7 +294,7 @@ fill($Hd->{down}, 'skinD', 2);
 	for my $side (0, 1) {
 		# 0: the eye on the viewer's left (his right).
 		my $cx = $side ? $X->(0.69) : $X->(0.31);
-		my $ew = $X->(0.2);
+		my $ew = $X->(0.18);
 		my $x0 = $cx - int($ew / 2);
 		# The socket: shade under the brow, round the eye.
 		fill($fc, 'skinD', 2, $x0 - 1, $ey - 3, $ew + 2, 3);
@@ -301,31 +302,32 @@ fill($Hd->{down}, 'skinD', 2);
 		for my $i (0 .. $ew + 1) {
 			my $arch = $f ? int(1.5 * sin(3.14159 * $i / ($ew + 1))) : 0;
 			my $x = $x0 - 1 + $i;
-			at($fc, $x, $ey - 4 - $arch, 'brow', 2);
-			at($fc, $x, $ey - 5 - $arch, 'brow', 2) if !$f || $i > 1 && $i < $ew;
-			at($fc, $x, $ey - 6 - $arch, 'brow', 2) if !$f && $i > 0 && $i < $ew;
+			at($fc, $x, $ey - 4 - $arch, 'brow', 2) if $i > 0 || !$f;
+			at($fc, $x, $ey - 5 - $arch, 'browL', 2) if !$f && $i > 0 && $i < $ew;
 		}
-		# The white, its corners in shadow.
+		# The open eye, three texels high: the white only at the corners, the iris filling the middle (shaded under the
+		# lid at its top), the pupil in it with a glint, the lower rim of the iris a touch darker.
 		fill($fc, 'white', 2, $x0, $ey, $ew, 3);
+		at($fc, $x0, $ey, 'skinD', 1);
+		at($fc, $x0 + $ew - 1, $ey, 'skinD', 1);
 		at($fc, $x0, $ey + 2, 'skinD', 1);
 		at($fc, $x0 + $ew - 1, $ey + 2, 'skinD', 1);
-		at($fc, $side ? $x0 + $ew - 1 : $x0, $ey, 'skinD', 1);
-		# The iris (its rim darker), the pupil, a glint of light.
 		my $ix = $cx - 1;
-		fill($fc, 'eye', 4, $ix - 1, $ey, 4, 3);
-		at($fc, $ix - 1, $ey, 'pupil', 1) if 0;
+		fill($fc, 'eye', 3, $ix - 1, $ey, 4, 3);
+		fill($fc, 'eyeD', 2, $ix - 1, $ey, 4, 1);
 		fill($fc, 'pupil', 1, $ix, $ey + 1, 2, 1);
+		at($fc, $side ? $ix + 1 : $ix, $ey, 'glint', 0);
 		at($fc, $ix - 1, $ey + 2, 'eyeD', 2);
 		at($fc, $ix + 2, $ey + 2, 'eyeD', 2);
-		at($fc, $ix + 1, $ey, 'white', 0);
-		# The upper lid over it, darker (lashes on the women, a flick at the outer corner); the lower lid a faint line.
+		# The lid: a soft shade over the eye and its crease above, no hard line; the lashes only a darker edge on the women.
 		fill($fc, 'lid', 1, $x0, $ey - 1, $ew, 1);
+		fill($fc, 'crease', 1, $x0, $ey - 2, $ew, 1);
 		if ($f) {
-			at($fc, $side ? $x0 + $ew : $x0 - 1, $ey - 1, 'lash', 0);
-			at($fc, $side ? $x0 + $ew : $x0 - 1, $ey - 2, 'lash', 0);
-			fill($fc, 'lash', 0, $x0, $ey - 1, $ew, 1);
+			fill($fc, 'lash', 0, $x0 + 1, $ey - 1, $ew - 1, 1);
+			at($fc, $side ? $x0 + $ew : $x0 - 1, $ey - 1, 'lid', 0);
 		}
-		fill($fc, 'skinD', 1, $x0, $ey + 3, $ew, 1);
+		# The lower lid and the hollow under the eye.
+		fill($fc, 'under', 1, $x0, $ey + 3, $ew, 1);
 		# The cheekbone below, catching the light.
 		fill($fc, 'skinL', 2, $x0, $ey + 5, $ew, 2);
 		fill($fc, 'cheek', 2, $x0 + 1, $ey + 7, $ew - 2, 2) if $f;
