@@ -3,9 +3,13 @@ package dev.halloween.game;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 
-/** Survivors carry one item in hand plus four in pockets: hotbar slots 0-4, nothing else. */
+/** Survivors carry one item in hand plus four in pockets (hotbar slots 0-4), and a separate pocket for rounds (slot 5, not selectable). */
 public final class Inventory {
-	public static final int SLOTS = 5;
+	/** The hand and the pockets: what the selection can land on. */
+	public static final int HAND_SLOTS = 5;
+	/** The pocket kept for rounds. */
+	public static final int AMMO_SLOT = 5;
+	public static final int SLOTS = 6;
 
 	private Inventory() {
 	}
@@ -50,6 +54,19 @@ public final class Inventory {
 	 */
 	public static void give(ServerPlayer player, ItemStack stack) {
 		var inv = player.getInventory();
+		HwItems.Kind given = HwItems.kindOf(stack);
+		if (given != null && given.ammo()) {
+			// Rounds have a pocket of their own: an empty one, or the same kind already in it.
+			ItemStack have = inv.getItem(AMMO_SLOT);
+			if (have.isEmpty()) {
+				inv.setItem(AMMO_SLOT, stack.split(Math.min(stack.getCount(), stack.getMaxStackSize())));
+			} else if (ItemStack.isSameItemSameComponents(have, stack)) {
+				int move = Math.min(stack.getCount(), have.getMaxStackSize() - have.getCount());
+				have.grow(move);
+				stack.shrink(move);
+			}
+			inv.setChanged();
+		}
 		for (int i = 0; i < SLOTS && !stack.isEmpty(); i++) {
 			ItemStack have = inv.getItem(i);
 			if (!have.isEmpty() && ItemStack.isSameItemSameComponents(have, stack) && have.getCount() < have.getMaxStackSize()) {
@@ -62,7 +79,7 @@ public final class Inventory {
 			inv.setChanged();
 			return;
 		}
-		for (int i = 0; i < SLOTS; i++) {
+		for (int i = 0; i < HAND_SLOTS; i++) {
 			if (inv.getItem(i).isEmpty()) {
 				inv.setItem(i, stack);
 				return;
@@ -85,7 +102,7 @@ public final class Inventory {
 		}
 		var inv = player.getInventory();
 		java.util.List<Integer> junk = new java.util.ArrayList<>();
-		for (int i = 0; i < SLOTS; i++) {
+		for (int i = 0; i < HAND_SLOTS; i++) {
 			HwItems.Kind held = HwItems.kindOf(inv.getItem(i));
 			if (held == null || !held.escape()) {
 				junk.add(i);
@@ -113,7 +130,7 @@ public final class Inventory {
 	/** Is there something in the pockets that isn't for getting away (a bot could swap it for something that is)? */
 	public static boolean hasRoomForEscape(ServerPlayer player) {
 		var inv = player.getInventory();
-		for (int i = 0; i < SLOTS; i++) {
+		for (int i = 0; i < HAND_SLOTS; i++) {
 			HwItems.Kind held = HwItems.kindOf(inv.getItem(i));
 			if (inv.getItem(i).isEmpty() || held == null || !held.escape()) {
 				return true;
@@ -132,7 +149,7 @@ public final class Inventory {
 				give(player, stack);
 			}
 		}
-		if (inv.getSelectedSlot() >= SLOTS) {
+		if (inv.getSelectedSlot() >= HAND_SLOTS) {
 			inv.setSelectedSlot(0);
 		}
 	}

@@ -76,7 +76,10 @@ public final class Events {
 	}
 
 	/** Someone shown through walls: whom, to whom, until when. */
-	record Glow(int entityId, int viewers, int until) {
+	record Glow(int entityId, int viewers, int until, UUID only) {
+		Glow(int entityId, int viewers, int until) {
+			this(entityId, viewers, until, null);
+		}
 	}
 
 	/** Something for a bot to go and do: where, how near, hold use or not, what, how much it matters. */
@@ -205,7 +208,18 @@ public final class Events {
 	}
 
 	public static void tick(MinecraftServer server) {
-		if (!Match.running() || EVENTS.isEmpty()) {
+		if (!Match.running()) {
+			return;
+		}
+		if (EVENTS.isEmpty()) {
+			// No events this match, but a returning deputy's sight still runs its course.
+			if (!GLOWS.isEmpty()) {
+				int at = server.getTickCount();
+				GLOWS.removeIf(g -> g.until < at);
+				if (at % 10 == 0) {
+					sync(server);
+				}
+			}
 			return;
 		}
 		HwConfig cfg = HwConfig.get();
@@ -271,6 +285,18 @@ public final class Events {
 		if (now % 10 == 0) {
 			sync(server);
 		}
+	}
+
+	/** A deputy who has just arrived sees the survivors through walls for a while, to know whom to go to. */
+	public static void deputySight(ServerPlayer deputy) {
+		MinecraftServer server = deputy.level().getServer();
+		int until = server.getTickCount() + HwConfig.get().deputySightSeconds * 20;
+		for (ServerPlayer p : server.getPlayerList().getPlayers()) {
+			if (p != deputy && MatchManager.role(p) == Role.CIVILIAN && !p.isSpectator()) {
+				GLOWS.add(new Glow(p.getId(), FOR_SURVIVORS, until, deputy.getUUID()));
+			}
+		}
+		sync(server);
 	}
 
 	/** Which one comes: by weight, the side that is behind getting its own more often; not one twice a match. */
@@ -395,7 +421,7 @@ public final class Events {
 	public static List<Integer> glows(boolean survivors) {
 		List<Integer> out = new ArrayList<>();
 		for (Glow g : GLOWS) {
-			if ((g.viewers & (survivors ? FOR_SURVIVORS : FOR_SHAPE)) != 0) {
+			if (g.only == null && (g.viewers & (survivors ? FOR_SURVIVORS : FOR_SHAPE)) != 0) {
 				out.add(g.entityId);
 			}
 		}
@@ -522,7 +548,7 @@ public final class Events {
 			}
 			List<Integer> glows = new ArrayList<>();
 			for (Glow g : GLOWS) {
-				if ((g.viewers & me) != 0) {
+				if ((g.viewers & me) != 0 && (g.only == null || g.only.equals(p.getUUID()))) {
 					glows.add(g.entityId);
 				}
 			}

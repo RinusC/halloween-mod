@@ -375,10 +375,12 @@ public final class HwHud {
 		var inv = mc.player.getInventory();
 		int slots = dev.halloween.game.Inventory.SLOTS;
 		int size = 22;
-		int x0 = w / 2 - slots * size / 2;
+		int gap = 8;
+		int x0 = w / 2 - (slots * size + gap) / 2;
 		int y = h - size - 6;
 		for (int i = 0; i < slots; i++) {
-			int x = x0 + i * size;
+			// The rounds' pocket stands apart, at the right end.
+			int x = x0 + i * size + (i == dev.halloween.game.Inventory.AMMO_SLOT ? gap : 0);
 			boolean selected = inv.getSelectedSlot() == i;
 			g.fill(x, y, x + size - 2, y + size - 2, selected ? 0xC0E8E2D6 : 0x90000000);
 			g.fill(x + 1, y + 1, x + size - 3, y + size - 3, 0xC0181818);

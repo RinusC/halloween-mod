@@ -205,9 +205,10 @@ public final class ClientInteractions {
 		if (mc.player != null && ClientState.myRole().survivor()) {
 			var inv = mc.player.getInventory();
 			int slot = inv.getSelectedSlot();
-			if (slot >= dev.halloween.game.Inventory.SLOTS) {
-				inv.setSelectedSlot(lastSlot == dev.halloween.game.Inventory.SLOTS - 1 && slot == dev.halloween.game.Inventory.SLOTS ? 0
-					: lastSlot == 0 && slot == 8 ? dev.halloween.game.Inventory.SLOTS - 1 : Math.min(lastSlot, dev.halloween.game.Inventory.SLOTS - 1));
+			int hand = dev.halloween.game.Inventory.HAND_SLOTS;
+			if (slot >= hand) {
+				inv.setSelectedSlot(lastSlot == hand - 1 && slot == hand ? 0
+					: lastSlot == 0 && slot == 8 ? hand - 1 : Math.min(lastSlot, hand - 1));
 			}
 			lastSlot = inv.getSelectedSlot();
 		}

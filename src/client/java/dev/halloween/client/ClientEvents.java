@@ -93,6 +93,10 @@ public final class ClientEvents {
 		if (ClientState.match.state() != 2 || !state.glows().contains(entity.getId())) {
 			return -1;
 		}
+		if (ClientState.myRole() == dev.halloween.Role.DEPUTY && ClientState.ROLES.getOrDefault(entity.getUUID(), dev.halloween.Role.NONE).survivor()) {
+			// A deputy just arrived: the survivors to go to.
+			return 0x6FB7FF;
+		}
 		return ClientState.myRole().survivor() ? 0xE0261F : 0xFFC94A;
 	}
 

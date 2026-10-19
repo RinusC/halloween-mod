@@ -184,7 +184,7 @@ public class HwConfig {
 	public float vaultDamageFraction = 0.2f;
 
 	// --- Match ---
-	public int matchSeconds = 1500;
+	public int matchSeconds = 1200;
 	/** The opening scenes before a match starts (everyone stands still meanwhile; under 3 s plays none). */
 	public int countdownSeconds = 15;
 	/** Back gates can be opened only during the last this many seconds (0: any time, as in the original). */
@@ -316,6 +316,8 @@ public class HwConfig {
 	public float bodyFovDeg = 100f;
 	public int scoreFindBody = 25;
 	public int deputyRespawnSeconds = 30;
+	/** How long a deputy who has just arrived sees the survivors through walls. */
+	public int deputySightSeconds = 20;
 	public int maxDeputies = 2;
 	/** Containers are looked for this far around the map centre. */
 	public int lootRadius = 96;
@@ -869,7 +871,7 @@ public class HwConfig {
 
 	/** The file's version: older files get the defaults that changed since moved on (see {@link #migrate}). */
 	public int configVersion;
-	private static final int VERSION = 15;
+	private static final int VERSION = 16;
 
 	public static void load() {
 		Path path = path();
@@ -1032,6 +1034,10 @@ public class HwConfig {
 			if (this.botHideMaxTicks == 360) {
 				this.botHideMaxTicks = 220;
 			}
+		}
+		if (this.configVersion < 16 && this.matchSeconds == 1500) {
+			// The match is back to 20 minutes.
+			this.matchSeconds = 1200;
 		}
 		if (this.configVersion < VERSION) {
 			Halloween.LOGGER.info("Config moved on to version {}", VERSION);

@@ -551,6 +551,7 @@ public final class Match {
 		Inventory.give(player, HwItems.create(HwItems.Kind.BATON));
 		Inventory.give(player, HwItems.create(HwItems.Kind.FLASHLIGHT));
 		teleport(player, spawn);
+		Events.deputySight(player);
 		player.connection.send(new ClientboundSetSubtitleTextPacket(Component.translatable("halloween.match.deputy_hint").withStyle(ChatFormatting.GRAY)));
 		player.connection.send(new ClientboundSetTitleTextPacket(Component.translatable("halloween.match.you_deputy").withStyle(ChatFormatting.BLUE)));
 		announce(player.level().getServer(), Component.translatable("halloween.match.deputy_arrives", player.getDisplayName()).withStyle(ChatFormatting.BLUE));

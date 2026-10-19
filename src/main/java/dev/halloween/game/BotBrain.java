@@ -1186,8 +1186,15 @@ final class BotBrain {
 		if (kind == null || Inventory.has(this.bot, kind)) {
 			return false;
 		}
+		if (kind.ammo()) {
+			return switch (kind) {
+				case REVOLVER_AMMO -> Inventory.has(this.bot, HwItems.Kind.REVOLVER);
+				case RIFLE_AMMO -> Inventory.has(this.bot, HwItems.Kind.RIFLE);
+				default -> Inventory.has(this.bot, HwItems.Kind.SHOTGUN);
+			};
+		}
 		boolean free = false;
-		for (int i = 0; i < Inventory.SLOTS; i++) {
+		for (int i = 0; i < Inventory.HAND_SLOTS; i++) {
 			free |= this.bot.getInventory().getItem(i).isEmpty();
 		}
 		if (!free) {
