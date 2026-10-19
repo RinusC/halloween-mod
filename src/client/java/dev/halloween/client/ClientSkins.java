@@ -42,7 +42,7 @@ public final class ClientSkins {
 	private static PlayerSkin load(String key) {
 		String path = key.equals("police") ? "entity/police" : "entity/skin/" + key;
 		int index = Skins.SURVIVORS.indexOf(key);
-		boolean slim = index >= 0 && index < Skins.SLIM_COUNT;
+		boolean slim = false; // all survivor skins have wide arms
 		return PlayerSkin.insecure(new ClientAsset.ResourceTexture(Identifier.fromNamespaceAndPath("halloween", path)), null, null,
 			slim ? PlayerModelType.SLIM : PlayerModelType.WIDE);
 	}

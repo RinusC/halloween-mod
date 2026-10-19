@@ -1255,7 +1255,7 @@ public final class MatchManager {
 			}
 			int index = Skins.SURVIVORS.indexOf(key);
 			String texture = key.equals("police") ? "halloween:entity/police" : "halloween:entity/skin/" + key;
-			return "{texture:\"" + texture + "\",model:\"" + (index >= 0 && index < Skins.SLIM_COUNT ? "slim" : "wide") + "\"}";
+			return "{texture:\"" + texture + "\",model:\"" + "wide" + "\"}";
 		}
 		return null;
 	}
