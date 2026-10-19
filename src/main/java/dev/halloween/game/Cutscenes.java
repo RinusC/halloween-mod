@@ -227,11 +227,15 @@ public final class Cutscenes {
 		// Him: behind them in the shot, as far off as he can be seen from the camera (a little to one side of them,
 		// further round if need be, nearer if there is no room; through a window will do).
 		Vec3 ghost = null;
-		Vec3 camAt = eye.add(front.scale(2.8)).add(0, 0.2, 0);
+		// Where the camera will really be (short of a wall in a small room, as the client puts it).
+		Vec3 camWant = eye.add(front.scale(2.8)).add(0, 0.2, 0);
+		net.minecraft.world.phys.HitResult camHit = level.clip(new net.minecraft.world.level.ClipContext(eye, camWant, net.minecraft.world.level.ClipContext.Block.VISUAL,
+			net.minecraft.world.level.ClipContext.Fluid.NONE, p));
+		Vec3 camAt = camHit.getType() == net.minecraft.world.phys.HitResult.Type.MISS ? camWant : eye.lerp(camHit.getLocation(), 0.85);
 		Vec3 back = front.scale(-1);
 		search:
-		for (double d = 10; d >= 3; d -= 1) {
-			for (double deg : new double[]{14, -14, 0, 28, -28, 42, -42}) {
+		for (double d = 10; d >= 2; d -= 1) {
+			for (double deg : new double[]{14, -14, 0, 28, -28, 42, -42, 60, -60, 75, -75}) {
 				double a = Math.toRadians(deg);
 				Vec3 dir = new Vec3(back.x * Math.cos(a) - back.z * Math.sin(a), 0, back.x * Math.sin(a) + back.z * Math.cos(a));
 				BlockPos b = BlockPos.containing(feet.add(dir.scale(d)));

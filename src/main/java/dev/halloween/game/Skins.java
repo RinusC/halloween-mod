@@ -37,6 +37,9 @@ public final class Skins {
 	 * A new match: the people (not the bots) each get a survivor at random, any of them; the bots are named after the
 	 * rest. Returns the ones taken.
 	 */
+	/** Tests: the survivor the first person gets (null: at random). */
+	public static String forced;
+
 	public static java.util.Set<String> deal(List<ServerPlayer> people, java.util.Random random) {
 		List<String> free = new java.util.ArrayList<>(SURVIVORS);
 		java.util.Collections.shuffle(free, random);
@@ -45,7 +48,7 @@ public final class Skins {
 			if (free.isEmpty()) {
 				break;
 			}
-			String name = free.removeFirst();
+			String name = forced != null && free.remove(forced) ? forced : free.removeFirst();
 			CHOSEN.put(p.getUUID(), name);
 			taken.add(name);
 		}
