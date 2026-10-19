@@ -273,7 +273,9 @@ my $lLeg = bone("left_leg", [-1.9, 12, 0]);
 my $f = $B->{f};
 
 # ---------------------------------------------------------------- the head and face
-my $Hd = cube($head, "head", [-3.5, 24, -3.5], [3.5, 31.5, 3.5]);
+# The head shaped, not a box: the skull (a little narrower than it is tall), under it a narrower jaw with the chin to
+# the front, the crown rounded off a step, the back of the skull standing out behind.
+my $Hd = cube($head, "head", [-3.25, 25, -3.25], [3.25, 31.5, 3.25]);
 paint($Hd, 'skin', 3);
 fill($Hd->{down}, 'skinD', 2);
 {
@@ -381,7 +383,25 @@ for my $side (qw(east west)) {
 	# The jaw's line back to the ear.
 	fill($r, 'skinD', 2, 0, $r->[3] - 3, $ex + 2, 1);
 }
-my $Ns = cube($head, "nose", [-0.5, 26.5, -4], [0.5, 28, -3.5]);
+my $Jw = cube($head, "jaw", [-2.75, 24, -3.0], [2.75, 25, 2.0]);
+paint($Jw, 'skin', 2);
+fill($Jw->{north}, 'skinD', 2, 0, $Jw->{north}[3] - 1, $Jw->{north}[2], 1);
+fill($Jw->{$_}, 'skinD', 2) for qw(east west down);
+if (!$f) {
+	for my $face (qw(north east west)) {
+		my $r = $Jw->{$face};
+		for my $j (0 .. $r->[3] - 1) { for my $i (0 .. $r->[2] - 1) { at($r, $i, $j, 'stubble', 6) if rand() < 0.4; } }
+	}
+}
+my $Cn = cube($head, "chin", [-1.5, 23.5, -3.0], [1.5, 24, -1.5]);
+paint($Cn, 'skin', 2);
+fill($Cn->{down}, 'skinDD', 1);
+fill($Cn->{north}, 'skinL', 2, 1, 0, $Cn->{north}[2] - 2, 1);
+my $Cr = cube($head, "crown", [-2.75, 31.5, -2.75], [2.75, 32, 2.75]);
+paint($Cr, 'skin', 2);
+my $Sk = cube($head, "skull_back", [-2.75, 26, 3.25], [2.75, 30.5, 3.75]);
+paint($Sk, 'skinD', 2);
+my $Ns = cube($head, "nose", [-0.5, 26.75, -3.75], [0.5, 28.25, -3.25]);
 paint($Ns, 'skin', 2);
 fill($Ns->{down}, 'skinDD', 1);
 my $Nk = cube($head, "neck", [-1.5, 23, -1.5], [1.5, 24.5, 1.5]);
@@ -390,7 +410,7 @@ paint($Nk, 'skinD', 2);
 # ---------------------------------------------------------------- hair
 my $style = $B->{hair};
 # The cap over the head: the crown, the back, the sides down to the ears, a hairline at the front.
-my $Hc = cube($head, "hair", [-3.5, 24, -3.5], [3.5, 31.5, 3.5], $style eq 'buzz' ? 0.1 : 0.35);
+my $Hc = cube($head, "hair", [-3.25, 25, -3.25], [3.25, 31.5, 3.25], $style eq 'buzz' ? 0.1 : 0.35);
 {
 	my $r;
 	$r = $Hc->{up};
@@ -414,6 +434,22 @@ my $Hc = cube($head, "hair", [-3.5, 24, -3.5], [3.5, 31.5, 3.5], $style eq 'buzz
 	for my $i (0 .. $r->[2] - 1) { for my $j (0 .. $r->[3] - 1) { $j < ($style eq 'buzz' ? 10 : 14) * $K ? hairpx($r, $i, $j) : clear($r, $i, $j); } }
 	$r = $Hc->{down};
 	clear($r, $_ % $r->[2], int($_ / $r->[2])) for 0 .. $r->[2] * $r->[3] - 1;
+}
+{
+	my $inf = $style eq 'buzz' ? 0.1 : 0.35;
+	my $Hcr = cube($head, "hair_crown", [-2.75, 31.5, -2.75], [2.75, 32, 2.75], $inf);
+	my $Hsk = cube($head, "hair_skull", [-2.75, 26, 3.25], [2.75, 30.5, 3.75], $inf);
+	if ($style eq 'receding') {
+		paint($Hcr, 'skin', 2);
+		for my $fa (qw(north east west south down)) { my $r = $Hcr->{$fa}; clear($r, $_ % $r->[2], int($_ / $r->[2])) for 0 .. $r->[2] * $r->[3] - 1; }
+		my $r = $Hcr->{up};
+		for my $j (0 .. $r->[3] - 1) { for my $i (0 .. $r->[2] - 1) { $j > $r->[3] / 2 ? hairpx($r, $i, $j) : clear($r, $i, $j); } }
+	} else {
+		hairAll($Hcr);
+		my $r = $Hcr->{down};
+		clear($r, $_ % $r->[2], int($_ / $r->[2])) for 0 .. $r->[2] * $r->[3] - 1;
+	}
+	hairAll($Hsk);
 }
 if ($style eq 'shoulder' || $style eq 'long') {
 	# Down the back to the shoulders (long: past them), the sides framing the face, a fringe swept aside.
