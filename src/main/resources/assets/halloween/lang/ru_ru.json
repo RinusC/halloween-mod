@@ -415,6 +415,8 @@
 	"halloween.msg.demo.max": "Порталов не больше %s",
 	"halloween.msg.demo.too_close": "Слишком близко к другому порталу",
 	"halloween.msg.demo.bad_ground": "Нужно стоять на земле",
+	"halloween.msg.demo.light_above": "Свет! Наверху горит фальшфейер — он не пускает тебя. Жди, пока он прогорит",
+	"halloween.msg.demo.light_here": "Горящий фальшфейер рядом — Изнанка закрыта",
 	"halloween.msg.demo.abyss_portal": "Дар Бездны: встаньте на портал (или будьте в Изнанке)",
 	"halloween.msg.demo.sealed": "Один из порталов запечатан",
 	"halloween.hud.demo.building": "Изнанка складывается",

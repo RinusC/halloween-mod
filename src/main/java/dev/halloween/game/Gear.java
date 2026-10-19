@@ -246,6 +246,16 @@ public final class Gear {
 		level.playSound(null, at.x, at.y, at.z, SoundEvents.FIRECHARGE_USE, SoundSource.PLAYERS, 1f, 1.2f);
 	}
 
+	/** A road flare burns within {@code range} of this spot (the Demogorgon cannot cross to or from the Upside Down in its light). */
+	public static boolean flareNear(Vec3 spot, double range) {
+		for (Burning b : BURNING) {
+			if (!b.bang && b.at.distanceTo(spot) <= range) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	private static void removeLight(ServerLevel level, BlockPos pos) {
 		if (pos != null && level.getBlockState(pos).is(Blocks.LIGHT)) {
 			level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_CLIENTS);

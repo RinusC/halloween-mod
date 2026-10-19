@@ -60,6 +60,10 @@ public final class Demogorgon {
 	private static final Identifier BELOW_SPEED_ID = Halloween.id("upside_down_speed");
 	/** Sinking and climbing out: rooted to the spot. */
 	private static final Identifier ROOTED_ID = Halloween.id("upside_down_rooted");
+	/** A burning road flare keeps the Upside Down shut this far round it; a try to come up through it costs this long below. */
+	private static final double LIGHT_RANGE = 8;
+	private static final int LIGHT_HOLD_TICKS = 100;
+	private static int heldUntil = -1;
 	private static final int SHRED_CHARGE = 20;
 	private static final int SHRED_TICKS = 10;
 
@@ -238,14 +242,30 @@ public final class Demogorgon {
 		if (shredCharge >= 0 || shredTicks > 0) {
 			return;
 		}
+		int now = p.level().getServer().getTickCount();
 		if (phase == BELOW) {
+			if (now < heldUntil) {
+				return;
+			}
+			if (Gear.flareNear(UpsideDown.above(p.position()), LIGHT_RANGE)) {
+				// A burning flare up there holds the way shut: he is pushed back down for a while.
+				heldUntil = now + LIGHT_HOLD_TICKS;
+				p.sendOverlayMessage(Component.translatable("halloween.msg.demo.light_above").withStyle(ChatFormatting.RED));
+				p.level().playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.WARDEN_HURT, SoundSource.HOSTILE, 1.5f, 0.7f);
+				Vec3 up = UpsideDown.above(p.position());
+				p.level().sendParticles(ParticleTypes.FLAME, up.x, up.y + 0.5, up.z, 20, 0.4, 0.4, 0.4, 0.05);
+				AiStats.add(p, "demo.light_held");
+				return;
+			}
 			emerge(p);
 			return;
 		}
 		if (phase != UP || st.busy()) {
 			return;
 		}
-		if (st.jumpCooldown > 0) {
+		if (Gear.flareNear(p.position(), LIGHT_RANGE)) {
+			p.sendOverlayMessage(Component.translatable("halloween.msg.demo.light_here").withStyle(ChatFormatting.GRAY));
+		} else if (st.jumpCooldown > 0) {
 			p.sendOverlayMessage(Component.translatable("halloween.msg.demo.cooldown").withStyle(ChatFormatting.GRAY));
 		} else if (!UpsideDown.ready()) {
 			p.sendOverlayMessage(Component.translatable("halloween.msg.demo.not_ready").withStyle(ChatFormatting.GRAY));

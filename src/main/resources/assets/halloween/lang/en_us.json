@@ -415,6 +415,8 @@
 	"halloween.msg.demo.max": "No more than %s portals",
 	"halloween.msg.demo.too_close": "Too close to another portal",
 	"halloween.msg.demo.bad_ground": "You need solid ground under you",
+	"halloween.msg.demo.light_above": "Light! A flare burns up there and holds you back. Wait for it to burn out",
+	"halloween.msg.demo.light_here": "A burning flare is near: the Upside Down is shut",
 	"halloween.msg.demo.abyss_portal": "Of the Abyss: stand on a portal (or be in the Upside Down)",
 	"halloween.msg.demo.sealed": "A portal has been sealed",
 	"halloween.hud.demo.building": "Upside Down forming",
