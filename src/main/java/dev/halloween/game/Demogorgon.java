@@ -313,6 +313,8 @@ public final class Demogorgon {
 		phase = EMERGING;
 		phaseLeft = EMERGE_TICKS;
 		current = openRift(level, at, p.getYRot(), level.getServer().getTickCount());
+		// The houses round about feel him coming: their lights go mad while he claws out.
+		Flicker.start(level, at, EMERGE_TICKS);
 		level.playSound(null, at.x, at.y, at.z, SoundEvents.WARDEN_DIG, SoundSource.HOSTILE, 2.5f, 0.6f);
 		AiStats.add(p, "demo.up");
 	}
@@ -392,6 +394,7 @@ public final class Demogorgon {
 		ServerLevel level = server.overworld();
 		int now = server.getTickCount();
 		tickBursts(now);
+		Flicker.tick(level, now);
 		if (slowUntil >= 0 && now >= slowUntil) {
 			slowUntil = -1;
 		}
@@ -734,6 +737,7 @@ public final class Demogorgon {
 
 	public static void clear(ServerLevel level) {
 		tickBursts(Integer.MAX_VALUE);
+		Flicker.clear(level);
 		slowUntil = -1;
 		shredOn = false;
 		ServerPlayer d = Senses.shape(level);

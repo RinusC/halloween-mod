@@ -624,6 +624,7 @@
 	"halloween.hud.my_score": "Score: %s",
 	"halloween.hud.end_title": "Match over",
 	"subtitles.halloween.stinger": "The Shape appears",
+	"subtitles.halloween.bulb_hum": "Bulbs buzz and sizzle",
 	"halloween.hint.car_fuel": "The tank is empty: it needs gas",
 	"halloween.hint.flare_no_body": "Nobody comes for nothing: find a body first",
 	"halloween.hint.gate_fuse": "The gate keypad is dead: it needs a fuse",

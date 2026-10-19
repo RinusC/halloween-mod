@@ -35,6 +35,10 @@ public final class HwSounds {
 	public static final SoundEvent QTE_MISS = register("qte.miss");
 	public static final SoundEvent ESCAPE = register("qte.escape");
 	public static final SoundEvent BREAKER = register("world.breaker");
+	/** An overheating bulb as the Demogorgon comes up near by: the whine, the sizzle going dark, the click coming back. */
+	public static final SoundEvent BULB_HUM = register("world.bulb_hum");
+	public static final SoundEvent BULB_FIZZ = register("world.bulb_fizz");
+	public static final SoundEvent BULB_CLICK = register("world.bulb_click");
 	/** Michael's breathing, all match long (two CC0 recordings, sounds/shape/breath, see CREDITS.txt; heard within two blocks). */
 	public static final SoundEvent SHAPE_BREATH = register("shape.breath");
 	public static final SoundEvent PUSH = register("shape.push");
