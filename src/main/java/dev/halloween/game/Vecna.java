@@ -468,83 +468,39 @@ public final class Vecna {
 	}
 
 	/**
-	 * The thrown Grip's body, block displays turned across its way: a dark membrane, as wide as a man with his arms
-	 * out and taller than him, sheathed in a dull red glow, a bright seam down its middle and crimson veins that flicker
-	 * through it. Dark as the Upside Down even by day.
+	 * The thrown Grip's body: a pillar of dark red light from the ground up into the sky, carried by an item display
+	 * that the client draws as a beacon's beam (client.VecnaBeamRenderer).
 	 */
-	private static final List<Display.BlockDisplay> BOLT_PARTS = new ArrayList<>();
-	/** The veins: which parts they are (they flicker), the rest stand still. */
-	private static final List<Display.BlockDisplay> BOLT_VEINS = new ArrayList<>();
-
-	private static Display.BlockDisplay part(ServerLevel level, Vec3 at, float yaw, net.minecraft.world.level.block.state.BlockState block,
-		float x, float w, float h, float t, int light) {
-		Display.BlockDisplay d = new Display.BlockDisplay(net.minecraft.world.entity.EntityTypes.BLOCK_DISPLAY, level);
-		d.setBlockState(block);
-		d.setTransformation(slab(x, w, h, t));
-		d.setBrightnessOverride(new net.minecraft.util.Brightness(light, light));
-		d.setPosRotInterpolationDuration(1);
-		d.setTransformationInterpolationDuration(3);
-		d.setViewRange(3f);
-		d.setPos(at.x, at.y, at.z);
-		d.setYRot(yaw);
-		d.addTag(Leftovers.stamp());
-		level.addFreshEntity(d);
-		BOLT_PARTS.add(d);
-		return d;
-	}
-
-	/** An upright slab {@code w} wide (across the way), {@code h} tall, {@code t} thick, its middle {@code x} off the centre. */
-	private static com.mojang.math.Transformation slab(float x, float w, float h, float t) {
-		return new com.mojang.math.Transformation(new org.joml.Vector3f(x - w / 2, -h / 2, -t / 2), null, new org.joml.Vector3f(w, h, t), null);
-	}
+	private static Display.ItemDisplay beam;
 
 	private static void spawnBolt(ServerLevel level, Vec3 at, float yaw) {
 		removeBars();
-		HwConfig cfg = HwConfig.get();
-		float w = (float) cfg.vecnaGripWidth;
-		float h = (float) cfg.vecnaGripHeight;
-		// A dark smoky shell, a crimson glow showing through it from inside, the seam; ragged dark-red edges.
-		part(level, at, yaw, MapPlan.b("black_stained_glass"), 0, w + 0.2f, h + 0.15f, 0.18f, 2);
-		part(level, at, yaw, MapPlan.b("red_stained_glass"), 0, w - 0.1f, h - 0.1f, 0.07f, 15);
-		for (int s = -1; s <= 1; s += 2) {
-			part(level, at, yaw, MapPlan.b("nether_wart_block"), s * (w / 2 + 0.05f), 0.08f, h * 0.85f, 0.2f, 9);
-		}
-		part(level, at, yaw, net.minecraft.world.level.block.Blocks.REDSTONE_BLOCK.defaultBlockState(), 0, 0.06f, h * 0.92f, 0.1f, 15);
-		for (int i = 0; i < 5; i++) {
-			BOLT_VEINS.add(part(level, at, yaw, net.minecraft.world.level.block.Blocks.REDSTONE_BLOCK.defaultBlockState(), 0, 0.03f, h * 0.5f, 0.12f, 15));
-		}
-		flicker(level.getRandom());
-	}
-
-	/** The veins shift: each a crack of crimson light somewhere across it, of some length, fading in and out. */
-	private static void flicker(net.minecraft.util.RandomSource r) {
-		HwConfig cfg = HwConfig.get();
-		float w = (float) cfg.vecnaGripWidth;
-		float h = (float) cfg.vecnaGripHeight;
-		for (Display.BlockDisplay d : BOLT_VEINS) {
-			float x = (r.nextFloat() - 0.5f) * (w - 0.15f);
-			float len = h * (0.25f + r.nextFloat() * 0.6f);
-			d.setTransformationInterpolationDelay(0);
-			d.setTransformation(new com.mojang.math.Transformation(new org.joml.Vector3f(x - 0.02f, (r.nextFloat() - 0.5f) * (h - len) - len / 2, -0.06f), null,
-				new org.joml.Vector3f(0.03f + r.nextFloat() * 0.03f, len, 0.12f), null));
-		}
+		Display.ItemDisplay d = new Display.ItemDisplay(net.minecraft.world.entity.EntityTypes.ITEM_DISPLAY, level);
+		net.minecraft.world.item.ItemStack stack = new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.PAPER);
+		stack.set(net.minecraft.core.component.DataComponents.ITEM_MODEL, Halloween.id("vecna_beam"));
+		d.setItemStack(stack);
+		d.setItemTransform(net.minecraft.world.item.ItemDisplayContext.FIXED);
+		d.setBillboardConstraints(Display.BillboardConstraints.FIXED);
+		d.setPosRotInterpolationDuration(1);
+		// Seen from far off, as a pillar of light should be.
+		d.setViewRange(8f);
+		d.setPos(at.x, at.y, at.z);
+		d.addTag(Leftovers.stamp());
+		level.addFreshEntity(d);
+		beam = d;
 	}
 
 	private static void moveBars(Vec3 at, float yaw) {
-		for (Display.BlockDisplay d : BOLT_PARTS) {
-			if (!d.isRemoved()) {
-				d.setPos(at.x, at.y, at.z);
-				d.setYRot(yaw);
-			}
+		if (beam != null && !beam.isRemoved()) {
+			beam.setPos(at.x, at.y, at.z);
 		}
 	}
 
 	private static void removeBars() {
-		for (Display.BlockDisplay d : BOLT_PARTS) {
-			d.discard();
+		if (beam != null) {
+			beam.discard();
 		}
-		BOLT_PARTS.clear();
-		BOLT_VEINS.clear();
+		beam = null;
 	}
 
 	/** Its way as a facing (the membrane turned across it). */
@@ -604,26 +560,26 @@ public final class Vecna {
 			}
 			bolt = next;
 			boltLeft -= step / parts;
-			AABB reach = new AABB(bolt, bolt).inflate(half + 1, tall + 1, half + 1);
+			AABB reach = new AABB(bolt.x - half - 1, bolt.y - tall - 1, bolt.z - half - 1, bolt.x + half + 1, bolt.y + 256, bolt.z + half + 1);
 			for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, reach, Vecna::grippable)) {
 				if (e == v) {
 					continue;
 				}
-				// Within the membrane: across its width, a hand's breadth along its way, overlapping its height.
-				Vec3 rel = e.position().subtract(bolt);
-				double r = e.getBbWidth() / 2;
-				boolean inWidth = Math.abs(rel.dot(across)) <= half + r;
-				boolean inDepth = Math.abs(rel.dot(along)) <= r + 0.15;
-				boolean inHeight = e.getBoundingBox().maxY >= bolt.y - tall && e.getBoundingBox().minY <= bolt.y + tall;
-				if (inWidth && inDepth && inHeight) {
+				// Inside the pillar, at any height (it goes up to the sky): within its width, round its middle.
+				double dx = e.getX() - bolt.x;
+				double dz = e.getZ() - bolt.z;
+				double reachR = half + e.getBbWidth() / 2;
+				if (dx * dx + dz * dz <= reachR * reachR && e.getBoundingBox().maxY >= bolt.y - tall) {
 					catchHold(level, v, e, now);
 					return;
 				}
 			}
 		}
 		moveBars(bolt, boltYaw());
-		if (now % 3 == 0) {
-			flicker(level.getRandom());
+		// Sparks of red light drifting up the pillar.
+		for (int k = 0; k < 3; k++) {
+			double up = level.getRandom().nextDouble() * 24;
+			level.sendParticles(new DustParticleOptions(0xFF3A2A, 1.2f), bolt.x, bolt.y + up, bolt.z, 1, half * 0.5, 0.3, half * 0.5, 0);
 		}
 		// It sheds the dark behind it: smoke, ash, red dust fading to black; whispers as it passes.
 		Vec3 back = bolt.subtract(along.scale(0.4));
