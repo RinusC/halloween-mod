@@ -20,6 +20,8 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Display;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
@@ -465,42 +467,89 @@ public final class Vecna {
 		return VecnaRitual.rift() ? HwConfig.get().vecnaRiftGripSpeed : HwConfig.get().vecnaGripSpeed;
 	}
 
-	/** The thrown Grip's body: an upright bar of red light, a bright core in a glowing sheath (block displays). */
-	private static Display.BlockDisplay boltCore;
-	private static Display.BlockDisplay boltGlow;
+	/**
+	 * The thrown Grip's body, block displays turned across its way: a dark membrane, as wide as a man with his arms
+	 * out and taller than him, sheathed in a dull red glow, a bright seam down its middle and crimson veins that flicker
+	 * through it. Dark as the Upside Down even by day.
+	 */
+	private static final List<Display.BlockDisplay> BOLT_PARTS = new ArrayList<>();
+	/** The veins: which parts they are (they flicker), the rest stand still. */
+	private static final List<Display.BlockDisplay> BOLT_VEINS = new ArrayList<>();
 
-	private static Display.BlockDisplay bar(ServerLevel level, Vec3 at, net.minecraft.world.level.block.state.BlockState block, float width) {
-		HwConfig cfg = HwConfig.get();
+	private static Display.BlockDisplay part(ServerLevel level, Vec3 at, float yaw, net.minecraft.world.level.block.state.BlockState block,
+		float x, float w, float h, float t, int light) {
 		Display.BlockDisplay d = new Display.BlockDisplay(net.minecraft.world.entity.EntityTypes.BLOCK_DISPLAY, level);
 		d.setBlockState(block);
-		float h = (float) cfg.vecnaGripHeight;
-		d.setTransformation(new com.mojang.math.Transformation(new org.joml.Vector3f(-width / 2, -h / 2, -width / 2), null,
-			new org.joml.Vector3f(width, h, width), null));
-		d.setBrightnessOverride(new net.minecraft.util.Brightness(15, 15));
+		d.setTransformation(slab(x, w, h, t));
+		d.setBrightnessOverride(new net.minecraft.util.Brightness(light, light));
 		d.setPosRotInterpolationDuration(1);
+		d.setTransformationInterpolationDuration(3);
 		d.setViewRange(3f);
 		d.setPos(at.x, at.y, at.z);
+		d.setYRot(yaw);
 		d.addTag(Leftovers.stamp());
 		level.addFreshEntity(d);
+		BOLT_PARTS.add(d);
 		return d;
 	}
 
-	private static void moveBars(Vec3 at) {
-		for (Display.BlockDisplay d : new Display.BlockDisplay[]{boltCore, boltGlow}) {
-			if (d != null && !d.isRemoved()) {
+	/** An upright slab {@code w} wide (across the way), {@code h} tall, {@code t} thick, its middle {@code x} off the centre. */
+	private static com.mojang.math.Transformation slab(float x, float w, float h, float t) {
+		return new com.mojang.math.Transformation(new org.joml.Vector3f(x - w / 2, -h / 2, -t / 2), null, new org.joml.Vector3f(w, h, t), null);
+	}
+
+	private static void spawnBolt(ServerLevel level, Vec3 at, float yaw) {
+		removeBars();
+		HwConfig cfg = HwConfig.get();
+		float w = (float) cfg.vecnaGripWidth;
+		float h = (float) cfg.vecnaGripHeight;
+		// A dark smoky shell, a crimson glow showing through it from inside, the seam; ragged dark-red edges.
+		part(level, at, yaw, MapPlan.b("black_stained_glass"), 0, w + 0.2f, h + 0.15f, 0.18f, 2);
+		part(level, at, yaw, MapPlan.b("red_stained_glass"), 0, w - 0.1f, h - 0.1f, 0.07f, 15);
+		for (int s = -1; s <= 1; s += 2) {
+			part(level, at, yaw, MapPlan.b("nether_wart_block"), s * (w / 2 + 0.05f), 0.08f, h * 0.85f, 0.2f, 9);
+		}
+		part(level, at, yaw, net.minecraft.world.level.block.Blocks.REDSTONE_BLOCK.defaultBlockState(), 0, 0.06f, h * 0.92f, 0.1f, 15);
+		for (int i = 0; i < 5; i++) {
+			BOLT_VEINS.add(part(level, at, yaw, net.minecraft.world.level.block.Blocks.REDSTONE_BLOCK.defaultBlockState(), 0, 0.03f, h * 0.5f, 0.12f, 15));
+		}
+		flicker(level.getRandom());
+	}
+
+	/** The veins shift: each a crack of crimson light somewhere across it, of some length, fading in and out. */
+	private static void flicker(net.minecraft.util.RandomSource r) {
+		HwConfig cfg = HwConfig.get();
+		float w = (float) cfg.vecnaGripWidth;
+		float h = (float) cfg.vecnaGripHeight;
+		for (Display.BlockDisplay d : BOLT_VEINS) {
+			float x = (r.nextFloat() - 0.5f) * (w - 0.15f);
+			float len = h * (0.25f + r.nextFloat() * 0.6f);
+			d.setTransformationInterpolationDelay(0);
+			d.setTransformation(new com.mojang.math.Transformation(new org.joml.Vector3f(x - 0.02f, (r.nextFloat() - 0.5f) * (h - len) - len / 2, -0.06f), null,
+				new org.joml.Vector3f(0.03f + r.nextFloat() * 0.03f, len, 0.12f), null));
+		}
+	}
+
+	private static void moveBars(Vec3 at, float yaw) {
+		for (Display.BlockDisplay d : BOLT_PARTS) {
+			if (!d.isRemoved()) {
 				d.setPos(at.x, at.y, at.z);
+				d.setYRot(yaw);
 			}
 		}
 	}
 
 	private static void removeBars() {
-		for (Display.BlockDisplay d : new Display.BlockDisplay[]{boltCore, boltGlow}) {
-			if (d != null) {
-				d.discard();
-			}
+		for (Display.BlockDisplay d : BOLT_PARTS) {
+			d.discard();
 		}
-		boltCore = null;
-		boltGlow = null;
+		BOLT_PARTS.clear();
+		BOLT_VEINS.clear();
+	}
+
+	/** Its way as a facing (the membrane turned across it). */
+	private static float boltYaw() {
+		return (float) (Math.atan2(-boltDir.x, boltDir.z) * 180 / Math.PI);
 	}
 
 	/** Thrown from his hand at whatever the middle of his view rests on. */
@@ -516,21 +565,25 @@ public final class Vecna {
 		bolt = hand;
 		boltDir = dir.lengthSqr() < 4 ? look : dir.normalize();
 		boltLeft = gripRange();
-		removeBars();
-		boltCore = bar(level, hand, net.minecraft.world.level.block.Blocks.REDSTONE_BLOCK.defaultBlockState(), 0.07f);
-		boltGlow = bar(level, hand, MapPlan.b("red_stained_glass"), 0.22f);
-		level.playSound(null, hand.x, hand.y, hand.z, SoundEvents.EVOKER_CAST_SPELL, SoundSource.HOSTILE, 1.5f, 0.6f);
-		level.playSound(null, hand.x, hand.y, hand.z, SoundEvents.WARDEN_SONIC_CHARGE, SoundSource.HOSTILE, 0.6f, 1.6f);
+		spawnBolt(level, hand, boltYaw());
+		// A low tearing groan as it leaves his hand, and a burst of the dark.
+		level.playSound(null, hand.x, hand.y, hand.z, SoundEvents.EVOKER_CAST_SPELL, SoundSource.HOSTILE, 1.5f, 0.5f);
+		level.playSound(null, hand.x, hand.y, hand.z, SoundEvents.WARDEN_SONIC_CHARGE, SoundSource.HOSTILE, 0.9f, 0.6f);
+		level.playSound(null, hand.x, hand.y, hand.z, SoundEvents.SCULK_SHRIEKER_SHRIEK, SoundSource.HOSTILE, 0.5f, 0.5f);
+		level.sendParticles(ParticleTypes.LARGE_SMOKE, hand.x, hand.y, hand.z, 12, 0.2, 0.3, 0.2, 0.03);
+		level.sendParticles(new net.minecraft.core.particles.DustColorTransitionOptions(0xC01018, 0x100004, 1.4f), hand.x, hand.y, hand.z, 14, 0.3, 0.4, 0.3, 0);
 		AiStats.add(v, "vecna.grip.thrown");
 	}
 
 	/**
-	 * The Grip in flight: a standing streak of red, as tall as a man and narrow, a few strides a second; a step aside
-	 * is enough to let it by. A wall stops it; whoever it touches first (survivor, townsperson, officer) is caught.
+	 * The Grip in flight: a dark membrane standing across its way, as tall as a man and wider than one, a few strides a
+	 * second; a good step aside is enough to let it by. A wall stops it; whoever it touches first (survivor,
+	 * townsperson, officer) is caught.
 	 */
 	private static void tickBolt(ServerLevel level, ServerPlayer v, ShapeState st, int now) {
 		HwConfig cfg = HwConfig.get();
 		if (st.stunnedTicks > 0) {
+			burst(level);
 			missed(level, v);
 			return;
 		}
@@ -538,34 +591,70 @@ public final class Vecna {
 		int parts = Math.max(1, (int) Math.ceil(step / 0.2));
 		double half = cfg.vecnaGripWidth / 2;
 		double tall = cfg.vecnaGripHeight / 2;
+		Vec3 flat = new Vec3(boltDir.x, 0, boltDir.z);
+		Vec3 along = flat.lengthSqr() < 1.0E-4 ? new Vec3(0, 0, 1) : flat.normalize();
+		Vec3 across = new Vec3(-along.z, 0, along.x);
 		for (int i = 0; i < parts; i++) {
 			Vec3 next = bolt.add(boltDir.scale(step / parts));
 			if (level.clip(new net.minecraft.world.level.ClipContext(bolt, next, net.minecraft.world.level.ClipContext.Block.COLLIDER,
 				net.minecraft.world.level.ClipContext.Fluid.NONE, v)).getType() != net.minecraft.world.phys.HitResult.Type.MISS) {
-				level.sendParticles(ParticleTypes.SMOKE, bolt.x, bolt.y, bolt.z, 10, 0.1, 0.6, 0.1, 0.02);
+				burst(level);
 				missed(level, v);
 				return;
 			}
 			bolt = next;
 			boltLeft -= step / parts;
-			AABB column = new AABB(bolt.x - half, bolt.y - tall, bolt.z - half, bolt.x + half, bolt.y + tall, bolt.z + half);
-			for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, column.inflate(1), Vecna::grippable)) {
-				if (e != v && e.getBoundingBox().intersects(column)) {
+			AABB reach = new AABB(bolt, bolt).inflate(half + 1, tall + 1, half + 1);
+			for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, reach, Vecna::grippable)) {
+				if (e == v) {
+					continue;
+				}
+				// Within the membrane: across its width, a hand's breadth along its way, overlapping its height.
+				Vec3 rel = e.position().subtract(bolt);
+				double r = e.getBbWidth() / 2;
+				boolean inWidth = Math.abs(rel.dot(across)) <= half + r;
+				boolean inDepth = Math.abs(rel.dot(along)) <= r + 0.15;
+				boolean inHeight = e.getBoundingBox().maxY >= bolt.y - tall && e.getBoundingBox().minY <= bolt.y + tall;
+				if (inWidth && inDepth && inHeight) {
 					catchHold(level, v, e, now);
 					return;
 				}
 			}
 		}
-		// Seen by everyone: the bar of red light (moved smoothly by the client), shedding a few sparks.
-		moveBars(bolt);
-		level.sendParticles(new DustParticleOptions(0xFF3A2A, 0.7f), bolt.x, bolt.y, bolt.z, 2, 0.04, tall * 0.6, 0.04, 0);
+		moveBars(bolt, boltYaw());
+		if (now % 3 == 0) {
+			flicker(level.getRandom());
+		}
+		// It sheds the dark behind it: smoke, ash, red dust fading to black; whispers as it passes.
+		Vec3 back = bolt.subtract(along.scale(0.4));
+		level.sendParticles(ParticleTypes.LARGE_SMOKE, back.x, back.y, back.z, 2, across.x * half * 0.6, tall * 0.6, across.z * half * 0.6, 0.005);
+		level.sendParticles(ParticleTypes.ASH, back.x, back.y, back.z, 6, half * 0.7, tall * 0.7, half * 0.7, 0);
+		level.sendParticles(new net.minecraft.core.particles.DustColorTransitionOptions(0xB01020, 0x0A0004, 1.2f), back.x, back.y, back.z, 4,
+			across.x * half * 0.7, tall * 0.7, across.z * half * 0.7, 0);
+		if (now % 2 == 0) {
+			level.sendParticles(ParticleTypes.CRIMSON_SPORE, bolt.x, bolt.y, bolt.z, 3, half * 0.6, tall * 0.6, half * 0.6, 0.01);
+		}
 		if (now % 4 == 0) {
-			level.playSound(null, bolt.x, bolt.y, bolt.z, SoundEvents.SOUL_ESCAPE.value(), SoundSource.HOSTILE, 1.2f, 0.6f);
+			level.playSound(null, bolt.x, bolt.y, bolt.z, SoundEvents.SOUL_ESCAPE.value(), SoundSource.HOSTILE, 1.4f, 0.5f);
+		}
+		if (now % 10 == 0) {
+			level.playSound(null, bolt.x, bolt.y, bolt.z, SoundEvents.AMBIENT_SOUL_SAND_VALLEY_MOOD.value(), SoundSource.HOSTILE, 0.8f, 0.6f);
 		}
 		if (boltLeft <= 0) {
-			level.sendParticles(ParticleTypes.SMOKE, bolt.x, bolt.y, bolt.z, 10, 0.1, 0.6, 0.1, 0.02);
+			burst(level);
 			missed(level, v);
 		}
+	}
+
+	/** The membrane coming apart where it stops: a puff of the dark, a hiss. */
+	private static void burst(ServerLevel level) {
+		if (bolt == null) {
+			return;
+		}
+		double tall = HwConfig.get().vecnaGripHeight / 2;
+		level.sendParticles(ParticleTypes.LARGE_SMOKE, bolt.x, bolt.y, bolt.z, 20, 0.5, tall * 0.6, 0.5, 0.02);
+		level.sendParticles(new net.minecraft.core.particles.DustColorTransitionOptions(0xC01018, 0x100004, 1.5f), bolt.x, bolt.y, bolt.z, 25, 0.6, tall * 0.6, 0.6, 0);
+		level.playSound(null, bolt.x, bolt.y, bolt.z, SoundEvents.FIRE_EXTINGUISH, SoundSource.HOSTILE, 1f, 0.5f);
 	}
 
 	/** Gone by, into a wall or out of reach: a short rest. */
@@ -594,6 +683,12 @@ public final class Vecna {
 		gripCooldownMax = gripCooldown;
 		root(target, true);
 		level.playSound(null, target.getX(), target.getY(), target.getZ(), SoundEvents.ELDER_GUARDIAN_CURSE, SoundSource.HOSTILE, 0.8f, 0.6f);
+		// The dark closes over them as it takes hold.
+		level.sendParticles(new net.minecraft.core.particles.DustColorTransitionOptions(0xC01018, 0x100004, 1.5f), target.getX(), target.getY() + 1, target.getZ(), 30, 0.5, 0.8, 0.5, 0);
+		level.sendParticles(ParticleTypes.LARGE_SMOKE, target.getX(), target.getY() + 1, target.getZ(), 12, 0.4, 0.7, 0.4, 0.02);
+		if (target instanceof ServerPlayer sp) {
+			sp.addEffect(new MobEffectInstance(MobEffects.DARKNESS, 140, 0, true, false));
+		}
 		Panic.add(target, HwConfig.get().panicOnGrab);
 		AiStats.add(v, "vecna.grip");
 	}
@@ -672,6 +767,7 @@ public final class Vecna {
 			return;
 		}
 		LivingEntity t = gripped;
+		t.removeEffect(MobEffects.DARKNESS);
 		gripped = null;
 		root(t, false);
 		if (v != null) {

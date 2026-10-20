@@ -114,8 +114,29 @@ public class VecnaClientTest implements FabricClientGameTest {
 			server.runOnServer(s -> MatchManager.shapeState(player(s)).senseHeld = true);
 			ctx.waitTicks(HwConfig.get().vecnaGripAimTicks + 2);
 			server.runOnServer(s -> MatchManager.shapeState(player(s)).senseHeld = false);
-			ctx.waitTicks(9);
+			ctx.waitTicks(6);
 			ctx.takeScreenshot("vecna_grip_flying");
+			// And as the bot sees it coming.
+			int botEye = server.computeOnServer(s -> {
+				ServerPlayer bot = bot(s);
+				Vec3 d = player(s).getEyePosition().subtract(bot.getEyePosition());
+				bot.teleportTo(s.overworld(), bot.getX(), bot.getY(), bot.getZ(), java.util.Set.of(), (float) Math.toDegrees(Math.atan2(-d.x, d.z)), 0f, false);
+				return bot.getId();
+			});
+			ctx.runOnClient(mc -> {
+				net.minecraft.world.entity.Entity b = mc.level.getEntity(botEye);
+				Vec3 d = mc.player.getEyePosition().subtract(b.getEyePosition());
+				float yaw = (float) Math.toDegrees(Math.atan2(-d.x, d.z));
+				b.setYRot(yaw);
+				b.setYHeadRot(yaw);
+				b.setXRot(0f);
+				b.yRotO = yaw;
+				b.xRotO = 0f;
+				mc.setCameraEntity(b);
+				mc.options.setCameraType(CameraType.FIRST_PERSON);
+			});
+			ctx.takeScreenshot("vecna_grip_incoming");
+			ctx.runOnClient(mc -> mc.setCameraEntity(mc.player));
 			int caughtBy = -1;
 			for (int i = 0; i < 30 && caughtBy < 0; i++) {
 				if (server.computeOnServer(s -> Vecna.gripping())) {

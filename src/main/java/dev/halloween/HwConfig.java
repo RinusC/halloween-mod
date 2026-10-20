@@ -869,7 +869,7 @@ public class HwConfig {
 	/** The Grip thrown: blocks a second, a second's aim before it can go, the standing streak's width and height; a miss rests this long (a catch, vecnaGripCooldownTicks). */
 	public double vecnaGripSpeed = 12;
 	public int vecnaGripAimTicks = 20;
-	public double vecnaGripWidth = 0.5;
+	public double vecnaGripWidth = 1.5;
 	public double vecnaGripHeight = 2.6;
 	public int vecnaGripMissCooldownTicks = 160;
 	public double vecnaGripPull = 2;
@@ -925,7 +925,7 @@ public class HwConfig {
 
 	/** The file's version: older files get the defaults that changed since moved on (see {@link #migrate}). */
 	public int configVersion;
-	private static final int VERSION = 16;
+	private static final int VERSION = 17;
 
 	public static void load() {
 		Path path = path();
@@ -1092,6 +1092,10 @@ public class HwConfig {
 		if (this.configVersion < 16 && this.matchSeconds == 1500) {
 			// The match is back to 20 minutes.
 			this.matchSeconds = 1200;
+		}
+		if (this.configVersion < 17 && this.vecnaGripWidth == 0.5) {
+			// Vecna's Grip a block wider.
+			this.vecnaGripWidth = 1.5;
 		}
 		if (this.configVersion < VERSION) {
 			Halloween.LOGGER.info("Config moved on to version {}", VERSION);
