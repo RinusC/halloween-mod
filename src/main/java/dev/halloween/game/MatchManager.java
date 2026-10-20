@@ -291,6 +291,7 @@ public final class MatchManager {
 		TickTimer.step("Runt", () -> Runt.tick(server));
 		TickTimer.step("ShapeBrain", () -> ShapeBrain.tick(server));
 		TickTimer.step("Demogorgon", () -> Demogorgon.tick(server));
+		TickTimer.step("Vecna", () -> Vecna.tick(server));
 		TickTimer.step("Birds", () -> Birds.tick(server));
 		TickTimer.step("Panic", () -> Panic.tick(server));
 		TickTimer.step("Stamina", () -> Stamina.tick(server));
@@ -447,7 +448,8 @@ public final class MatchManager {
 			// (The Demogorgon, eating, stays put over them.)
 			// (Michael at a wardrobe stays by it.)
 			speed = Demogorgon.active() || state.grab.atLocker() ? -1 : cfg.grabSpeedModifier;
-		} else if (state.busy() || Match.frozen() || state.trappedTicks > 0 && state.shadowTicks == 0) {
+		} else if (state.busy() || Match.frozen() || state.trappedTicks > 0 && state.shadowTicks == 0 || Vecna.gripping()) {
+			// (Vecna holding someone in the Grip stands still, turning only.)
 			speed = -1;
 		} else if (state.shadowTicks > 0) {
 			speed += HwConfig.at(cfg.shapeJumpSpeedByTier, state.tier());
@@ -606,22 +608,28 @@ public final class MatchManager {
 			if (!(player.level().getEntity(id) instanceof LivingEntity target) || !MatchManager.exposed(target)) {
 				continue;
 			}
-			VictimState vs = victim(target);
-			if (vs.grabbed || vs.stalk >= 3f) {
-				vs.markTicks = Math.max(vs.markTicks, HwConfig.at(cfg.markTicksByStalk, vs.level()));
-				continue;
-			}
-			int before = vs.level();
-			vs.stalk = Math.min(3f, vs.stalk + cfg.demoScentPerSecond / 20f * Events.stalkFactor());
-			int after = vs.level();
-			if (after >= 1) {
-				vs.markTicks = Math.max(vs.markTicks, HwConfig.at(cfg.markTicksByStalk, after));
-			}
-			if (after > before) {
-				gainBloodthirst(player, state, cfg.bloodthirstPerStalkLevel);
-				score(player, state, policeHalf(target, cfg.scoreStalkLevel * after),
-					Component.translatable("halloween.score.stalk", target.getDisplayName(), after));
-			}
+			addStalk(player, state, target, cfg.demoScentPerSecond / 20f);
+		}
+	}
+
+	/** Stalking that comes some other way than Michael's eyes (blood, Vecna's powers): a level reached scores. */
+	static void addStalk(ServerPlayer player, ShapeState state, LivingEntity target, float amount) {
+		HwConfig cfg = HwConfig.get();
+		VictimState vs = victim(target);
+		if (vs.grabbed || vs.stalk >= 3f) {
+			vs.markTicks = Math.max(vs.markTicks, HwConfig.at(cfg.markTicksByStalk, vs.level()));
+			return;
+		}
+		int before = vs.level();
+		vs.stalk = Math.min(3f, vs.stalk + amount * Events.stalkFactor());
+		int after = vs.level();
+		if (after >= 1) {
+			vs.markTicks = Math.max(vs.markTicks, HwConfig.at(cfg.markTicksByStalk, after));
+		}
+		if (after > before) {
+			gainBloodthirst(player, state, cfg.bloodthirstPerStalkLevel);
+			score(player, state, policeHalf(target, cfg.scoreStalkLevel * after),
+				Component.translatable("halloween.score.stalk", target.getDisplayName(), after));
 		}
 	}
 
@@ -798,6 +806,10 @@ public final class MatchManager {
 			// The Upside Down: only being busy or the rest after a crossing hold him back.
 			return Demogorgon.crossing() ? 0 : state.busy() ? 4 : state.jumpCooldown > 0 ? 3 : 0;
 		}
+		if (Vecna.active()) {
+			// His Eyes have their own screen (HwNet.VecnaHud).
+			return 0;
+		}
 		if (state.shadowTicks > 0) {
 			return insideDoor(player) ? 5 : tooCloseToVictim(player) ? 6 : exposure(player);
 		}
@@ -818,6 +830,11 @@ public final class MatchManager {
 		if (Demogorgon.active()) {
 			// The Demogorgon goes down into the Upside Down in place of Shape Jump.
 			Demogorgon.riftKey(player, state);
+			return;
+		}
+		if (Vecna.active()) {
+			// Vecna's Eyes in place of Shape Jump.
+			Vecna.eyesKey(player, state);
 			return;
 		}
 		if (Windows.isVaulting(player)) {
@@ -876,6 +893,10 @@ public final class MatchManager {
 			Demogorgon.shredKey(player, state);
 			return;
 		}
+		if (Vecna.active()) {
+			// Vecna has no dash.
+			return;
+		}
 		if (role(player) != Role.SHAPE || state == null || state.busy() || state.shadowTicks > 0 || state.dashCooldown > 0 || state.dashTicks > 0) {
 			return;
 		}
@@ -894,6 +915,11 @@ public final class MatchManager {
 
 	public static void onImpulse(ServerPlayer player) {
 		ShapeState state = SHAPES.get(player.getUUID());
+		if (Vecna.active() && role(player) == Role.SHAPE && state != null) {
+			// Vecna's Anchor in place of the Impulse.
+			Vecna.anchorKey(player, state);
+			return;
+		}
 		if (role(player) != Role.SHAPE || state == null || state.busy() || state.impulseCooldown > 0) {
 			return;
 		}
@@ -1392,7 +1418,7 @@ public final class MatchManager {
 				shadow = state.shadowTicks > 0;
 			}
 		}
-		HwNet.WorldSync sync = new HwNet.WorldSync(roles, shapeId, shadow, Demogorgon.active() ? 1 : 0);
+		HwNet.WorldSync sync = new HwNet.WorldSync(roles, shapeId, shadow, Demogorgon.active() ? 1 : Vecna.active() ? 2 : 0);
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
 			ServerPlayNetworking.send(player, sync);
 		}

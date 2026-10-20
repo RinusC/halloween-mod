@@ -862,6 +862,17 @@ public class HwConfig {
 	public float demoRoarRange = 200;
 	public int demoRoarTicks = 60;
 	public float demoLightSlow = 0.1f;
+	/** The killer of the next matches is Vecna (/hw killer vecna; over killerDemogorgon). */
+	public boolean killerVecna = false;
+	/** Vecna's Grip: catches a survivor this far off within this angle of his aim, pulls them this fast (blocks a second). */
+	public double vecnaGripRange = 20;
+	public double vecnaGripAngleDeg = 7;
+	public double vecnaGripPull = 2;
+	/** Grip ends this long after the target is lost from sight; then this long before the next. */
+	public int vecnaGripLostTicks = 6;
+	public int vecnaGripCooldownTicks = 600;
+	/** Stalking (towards a capture level) for every second a survivor is held by the Grip. */
+	public float vecnaGripStalkPerSecond = 0.35f;
 
 	public static HwConfig get() {
 		return instance;

@@ -36,7 +36,7 @@ public final class HwNet {
 	// ---------------------------------------------------------------- S2C
 
 	/** Broadcast to everyone: who plays what, and whether the Shape is currently hidden in Shape Jump. */
-	/** {@code killer}: 0 Michael, 1 the Demogorgon (see game.Demogorgon). */
+	/** {@code killer}: 0 Michael, 1 the Demogorgon (see game.Demogorgon), 2 Vecna (game.Vecna). */
 	public record WorldSync(List<RoleEntry> roles, int shapeEntityId, boolean shadow, int killer) implements CustomPacketPayload {
 		public static final Type<WorldSync> TYPE = payloadType("world_sync");
 		public static final StreamCodec<RegistryFriendlyByteBuf, WorldSync> CODEC = StreamCodec.of((buf, v) -> {
@@ -83,6 +83,22 @@ public final class HwNet {
 
 		@Override
 		public Type<DemoHud> type() {
+			return TYPE;
+		}
+	}
+
+	/** Vecna's own screen: the Grip's rest left (and its full length), whom it holds (-1: nobody). */
+	public record VecnaHud(int gripCooldown, int gripCooldownMax, int gripTarget) implements CustomPacketPayload {
+		public static final Type<VecnaHud> TYPE = payloadType("vecna_hud");
+		public static final VecnaHud NONE = new VecnaHud(0, 1, -1);
+		public static final StreamCodec<RegistryFriendlyByteBuf, VecnaHud> CODEC = StreamCodec.of((buf, v) -> {
+			buf.writeVarInt(v.gripCooldown);
+			buf.writeVarInt(v.gripCooldownMax);
+			buf.writeVarInt(v.gripTarget);
+		}, buf -> new VecnaHud(buf.readVarInt(), buf.readVarInt(), buf.readVarInt()));
+
+		@Override
+		public Type<VecnaHud> type() {
 			return TYPE;
 		}
 	}
@@ -1271,6 +1287,7 @@ public final class HwNet {
 	public static void registerPayloads() {
 		PayloadTypeRegistry.clientboundPlay().register(WorldSync.TYPE, WorldSync.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(DemoHud.TYPE, DemoHud.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(VecnaHud.TYPE, VecnaHud.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(DemoPose.TYPE, DemoPose.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(DemoHouses.TYPE, DemoHouses.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(GunPose.TYPE, GunPose.CODEC);

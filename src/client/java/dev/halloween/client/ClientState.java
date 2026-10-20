@@ -73,9 +73,11 @@ public final class ClientState {
 	public static long impulseStart;
 	/** Reaction check during a long action (a call, a talk). */
 	public static HwNet.SkillCheck skill = HwNet.SkillCheck.INACTIVE;
-	/** This match's killer: 0 Michael, 1 the Demogorgon (WorldSync); and the Demogorgon's own screen. */
+	/** This match's killer: 0 Michael, 1 the Demogorgon, 2 Vecna (WorldSync); and the Demogorgon's own screen. */
 	public static int killer;
 	public static HwNet.DemoHud demo = HwNet.DemoHud.NONE;
+	/** Vecna's own screen (the Grip). */
+	public static HwNet.VecnaHud vecna = HwNet.VecnaHud.NONE;
 	/** Down in the Upside Down: the houses with a survivor in them (box corners in pairs). */
 	public static List<net.minecraft.core.BlockPos> demoHouses = List.of();
 
@@ -280,6 +282,7 @@ public final class ClientState {
 		ALERTS.clear();
 		skill = HwNet.SkillCheck.INACTIVE;
 		demo = HwNet.DemoHud.NONE;
+		vecna = HwNet.VecnaHud.NONE;
 		demoHouses = List.of();
 		NOTICES.clear();
 		FEED.clear();

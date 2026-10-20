@@ -1218,6 +1218,10 @@ public final class HwHud {
 		// Killer Sense diamond.
 		int senseX = w - 26;
 		boolean senseTired = hud.fatigue() > 0.6f;
+		if (MichaelRenderer.vecna()) {
+			vecnaAbilities(g, font, mc, hud, w, baseY);
+			return;
+		}
 		if (!MichaelRenderer.demogorgon()) {
 			abilityDiamond(g, font, senseX, baseY, "◉", HalloweenClient.KEY_SENSE,
 				hud.sense() ? 0xE0D8D2C4 : DARK_FILL, 1f - hud.fatigue(), senseTired ? 0xFFC77B2A : 0xFF606060, hud.sense() ? 0xFF101010 : TEXT);
@@ -1277,6 +1281,36 @@ public final class HwHud {
 		smallAction(g, font, sx, sy + 11, Component.translatable("halloween.hud.grab"), mc.options.keyUse.getTranslatedKeyMessage(), hud.grabCooldown());
 		smallAction(g, font, sx, sy + 22, Component.translatable(demo ? (dh.charging() ? "halloween.hud.shred.charging" : "halloween.hud.shred") : "halloween.hud.dash"),
 			mc.options.keySprint.getTranslatedKeyMessage(), hud.dashTicks() > 0 ? 0 : hud.dashCooldown());
+	}
+
+	/** Vecna's corner: the Grip on the Sense key, the Eyes and the Anchor (still to come), the weapon and the grab. */
+	private static void vecnaAbilities(GuiGraphicsExtractor g, Font font, Minecraft mc, HwNet.ShapeHud hud, int w, int baseY) {
+		HwNet.VecnaHud vh = ClientState.vecna;
+		int gripX = w - 26;
+		boolean holding = vh.gripTarget() >= 0;
+		boolean gripReady = vh.gripCooldown() == 0;
+		float gripProgress = gripReady ? 1f : 1f - (float) vh.gripCooldown() / Math.max(1, vh.gripCooldownMax());
+		abilityDiamond(g, font, gripX, baseY, "✋", HalloweenClient.KEY_SENSE,
+			holding ? 0xE08A1A2A : gripReady ? DARK_FILL : RED_FILL, gripProgress, 0xFF606060, holding ? 0xFFFFD0D0 : TEXT);
+		Component gripLine = holding ? Component.translatable("halloween.hud.vecna.grip.holding")
+			: gripReady ? (HalloweenClient.KEY_SENSE.isDown() ? Component.translatable("halloween.hud.vecna.grip.aim") : null)
+			: Component.literal(seconds(vh.gripCooldown()));
+		if (gripLine != null) {
+			// Right-aligned to the screen's edge: the longer lines would run off it centred on the diamond.
+			int lx = Math.min(gripX - font.width(gripLine) / 2, w - 4 - font.width(gripLine));
+			g.text(font, gripLine, lx, baseY - 26, holding ? 0xFFE07070 : DIM, true);
+		}
+		// The Eyes and the Anchor: not yet.
+		abilityDiamond(g, font, w - 62, baseY, "◉", HalloweenClient.KEY_SHAPE_JUMP, 0xE0303030, 1f, 0xFF606060, DIM);
+		abilityDiamond(g, font, w - 44, baseY - 36, "⚓", HalloweenClient.KEY_IMPULSE, 0xE0303030, 1f, 0xFF606060, DIM);
+
+		int weaponX = w - 112;
+		ItemStack held = mc.player.getMainHandItem();
+		if (!held.isEmpty()) {
+			g.item(held, weaponX, baseY - 8);
+		}
+		g.centeredText(font, mc.options.keyAttack.getTranslatedKeyMessage(), weaponX + 8, baseY + 12, DIM);
+		smallAction(g, font, weaponX - 10, baseY - 19, Component.translatable("halloween.hud.grab"), mc.options.keyUse.getTranslatedKeyMessage(), hud.grabCooldown());
 	}
 
 	private static void abilityDiamond(GuiGraphicsExtractor g, Font font, int cx, int cy, String glyph, KeyMapping key,

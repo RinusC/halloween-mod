@@ -198,11 +198,12 @@ public final class Demogorgon {
 	/** The next matches' killer: the Demogorgon (true) or Michael. */
 	public static void choose(boolean demogorgon) {
 		HwConfig.get().killerDemogorgon = demogorgon;
+		HwConfig.get().killerVecna = false;
 		HwConfig.save();
 	}
 
 	public static boolean chosen() {
-		return HwConfig.get().killerDemogorgon;
+		return HwConfig.get().killerDemogorgon && !HwConfig.get().killerVecna;
 	}
 
 	/** At a match's start: the Demogorgon this match if he is chosen and a person plays the killer (a bot plays Michael). */

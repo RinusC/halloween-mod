@@ -96,6 +96,11 @@ public final class MichaelRenderer {
 		return forceDemo || ClientState.killer == 1;
 	}
 
+	/** Is this match's killer Vecna? (Drawn as Michael until he has his own model.) */
+	public static boolean vecna() {
+		return ClientState.killer == 2;
+	}
+
 	/** Is this entity Michael (in a match)? */
 	public static boolean isMichael(Entity e) {
 		if (!enabled || e == null) {

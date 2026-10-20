@@ -71,6 +71,7 @@ public class HalloweenClient implements ClientModInitializer {
 			ClientState.killer = payload.killer();
 		});
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.DemoHud.TYPE, (payload, ctx) -> ClientState.demo = payload);
+		ClientPlayNetworking.registerGlobalReceiver(HwNet.VecnaHud.TYPE, (payload, ctx) -> ClientState.vecna = payload);
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.DemoPose.TYPE, (payload, ctx) -> DemogorgonModel.receive(payload));
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.GunPose.TYPE, (payload, ctx) -> GunPoses.receive(payload));
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.DemoHouses.TYPE, (payload, ctx) -> ClientState.demoHouses = payload.corners());
@@ -236,7 +237,7 @@ public class HalloweenClient implements ClientModInitializer {
 		if (ClientState.myRole() != Role.SHAPE) {
 			return false;
 		}
-		if (KEY_SENSE.isDown() && !MichaelRenderer.demogorgon()) {
+		if (KEY_SENSE.isDown() && !MichaelRenderer.demogorgon() && !MichaelRenderer.vecna()) {
 			return true;
 		}
 		LivingEntity picked = CameraAim.pickLiving(HwConfig.get().grabRange);

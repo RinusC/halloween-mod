@@ -60,6 +60,11 @@ public final class HwCommands {
 					Demogorgon.choose(true);
 					ctx.getSource().sendSuccess(() -> Component.translatable("halloween.cmd.killer_demogorgon"), true);
 					return 1;
+				}))
+				.then(Commands.literal("vecna").executes(ctx -> {
+					Vecna.choose();
+					ctx.getSource().sendSuccess(() -> Component.translatable("halloween.cmd.killer_vecna"), true);
+					return 1;
 				})))
 			.then(Commands.literal("runt")
 				.then(Commands.literal("bot").executes(ctx -> {
