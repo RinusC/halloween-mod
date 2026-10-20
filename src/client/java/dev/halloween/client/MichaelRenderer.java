@@ -106,6 +106,10 @@ public final class MichaelRenderer {
 		if (!enabled || e == null) {
 			return false;
 		}
+		if (VecnaClient.isPhantom(e)) {
+			// Vecna where he is not: a cursed survivor's phantom.
+			return true;
+		}
 		if (HeroScene.isGhost(e)) {
 			// Him, standing behind a survivor in their opening scene.
 			return true;

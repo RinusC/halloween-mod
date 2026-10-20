@@ -39,6 +39,7 @@ public class Halloween implements ModInitializer {
 				state.focusHeld = payload.focus();
 			}
 		});
+		ServerPlayNetworking.registerGlobalReceiver(HwNet.VecnaAnchorKey.TYPE, (payload, ctx) -> dev.halloween.game.Vecna.anchorKey(ctx.player(), payload.held()));
 		ServerPlayNetworking.registerGlobalReceiver(HwNet.UseAction.TYPE, (payload, ctx) -> {
 			switch (payload.kind()) {
 				case HwNet.UseAction.DOOR_LOCK -> DoorLocks.ping(ctx.player(), payload.pos());

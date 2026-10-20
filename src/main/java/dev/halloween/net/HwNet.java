@@ -87,18 +87,85 @@ public final class HwNet {
 		}
 	}
 
-	/** Vecna's own screen: the Grip's rest left (and its full length), whom it holds (-1: nobody). */
-	public record VecnaHud(int gripCooldown, int gripCooldownMax, int gripTarget) implements CustomPacketPayload {
+	/** A cursed survivor shown to Vecna while he chooses where his Anchor takes him. */
+	public record CurseMark(int entityId, Vec3 pos, int stage, String name) {
+	}
+
+	/**
+	 * Vecna's own screen: the Grip's rest left (and its full length), whom it holds (-1: nobody); the Eyes' reserve
+	 * (and its most), whose eyes he looks through (-1: his own); the Anchor's rest (and its full length), its phase
+	 * (game.Vecna.ANCHOR_*), the delay left, and the cursed while he chooses.
+	 */
+	public record VecnaHud(int gripCooldown, int gripCooldownMax, int gripTarget, int eyesReserve, int eyesMax, int eyesTarget,
+		int anchorCooldown, int anchorCooldownMax, int anchorPhase, int anchorLeft, List<CurseMark> marks) implements CustomPacketPayload {
 		public static final Type<VecnaHud> TYPE = payloadType("vecna_hud");
-		public static final VecnaHud NONE = new VecnaHud(0, 1, -1);
+		public static final VecnaHud NONE = new VecnaHud(0, 1, -1, 0, 1, -1, 0, 1, 0, 0, List.of());
 		public static final StreamCodec<RegistryFriendlyByteBuf, VecnaHud> CODEC = StreamCodec.of((buf, v) -> {
 			buf.writeVarInt(v.gripCooldown);
 			buf.writeVarInt(v.gripCooldownMax);
 			buf.writeVarInt(v.gripTarget);
-		}, buf -> new VecnaHud(buf.readVarInt(), buf.readVarInt(), buf.readVarInt()));
+			buf.writeVarInt(v.eyesReserve);
+			buf.writeVarInt(v.eyesMax);
+			buf.writeVarInt(v.eyesTarget);
+			buf.writeVarInt(v.anchorCooldown);
+			buf.writeVarInt(v.anchorCooldownMax);
+			buf.writeVarInt(v.anchorPhase);
+			buf.writeVarInt(v.anchorLeft);
+			buf.writeVarInt(v.marks.size());
+			for (CurseMark m : v.marks) {
+				buf.writeVarInt(m.entityId);
+				writeVec(buf, m.pos);
+				buf.writeVarInt(m.stage);
+				buf.writeUtf(m.name);
+			}
+		}, buf -> {
+			int[] head = new int[10];
+			for (int i = 0; i < head.length; i++) {
+				head[i] = buf.readVarInt();
+			}
+			int n = buf.readVarInt();
+			List<CurseMark> marks = new ArrayList<>(n);
+			for (int i = 0; i < n; i++) {
+				marks.add(new CurseMark(buf.readVarInt(), readVec(buf), buf.readVarInt(), buf.readUtf()));
+			}
+			return new VecnaHud(head[0], head[1], head[2], head[3], head[4], head[5], head[6], head[7], head[8], head[9], marks);
+		});
 
 		@Override
 		public Type<VecnaHud> type() {
+			return TYPE;
+		}
+	}
+
+	/**
+	 * A survivor's own curse (game.VecnaCurse): its stage (0 none), the way to the next (0..1), at the last stage the
+	 * ticks left to reach a booth; the telephone booths' phones, and which of them are dead for now (bits).
+	 */
+	public record CurseHud(int stage, float progress, int lastTicks, List<BlockPos> booths, int resting) implements CustomPacketPayload {
+		public static final Type<CurseHud> TYPE = payloadType("curse_hud");
+		public static final CurseHud NONE = new CurseHud(0, 0, 0, List.of(), 0);
+		public static final StreamCodec<RegistryFriendlyByteBuf, CurseHud> CODEC = StreamCodec.of((buf, v) -> {
+			buf.writeVarInt(v.stage);
+			buf.writeFloat(v.progress);
+			buf.writeVarInt(v.lastTicks);
+			buf.writeCollection(v.booths, (b, p) -> b.writeBlockPos(p));
+			buf.writeVarInt(v.resting);
+		}, buf -> new CurseHud(buf.readVarInt(), buf.readFloat(), buf.readVarInt(), buf.readList(b -> b.readBlockPos()), buf.readVarInt()));
+
+		@Override
+		public Type<CurseHud> type() {
+			return TYPE;
+		}
+	}
+
+	/** Vecna's Anchor key held down (true) or let go. */
+	public record VecnaAnchorKey(boolean held) implements CustomPacketPayload {
+		public static final Type<VecnaAnchorKey> TYPE = payloadType("vecna_anchor_key");
+		public static final StreamCodec<RegistryFriendlyByteBuf, VecnaAnchorKey> CODEC = StreamCodec.of(
+			(buf, v) -> buf.writeBoolean(v.held), buf -> new VecnaAnchorKey(buf.readBoolean()));
+
+		@Override
+		public Type<VecnaAnchorKey> type() {
 			return TYPE;
 		}
 	}
@@ -1288,6 +1355,8 @@ public final class HwNet {
 		PayloadTypeRegistry.clientboundPlay().register(WorldSync.TYPE, WorldSync.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(DemoHud.TYPE, DemoHud.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(VecnaHud.TYPE, VecnaHud.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(CurseHud.TYPE, CurseHud.CODEC);
+		PayloadTypeRegistry.serverboundPlay().register(VecnaAnchorKey.TYPE, VecnaAnchorKey.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(DemoPose.TYPE, DemoPose.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(DemoHouses.TYPE, DemoHouses.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(GunPose.TYPE, GunPose.CODEC);

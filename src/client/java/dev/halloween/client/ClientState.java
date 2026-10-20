@@ -78,6 +78,8 @@ public final class ClientState {
 	public static HwNet.DemoHud demo = HwNet.DemoHud.NONE;
 	/** Vecna's own screen (the Grip). */
 	public static HwNet.VecnaHud vecna = HwNet.VecnaHud.NONE;
+	/** A survivor's own curse (Vecna), and the booths that lift it. */
+	public static HwNet.CurseHud curse = HwNet.CurseHud.NONE;
 	/** Down in the Upside Down: the houses with a survivor in them (box corners in pairs). */
 	public static List<net.minecraft.core.BlockPos> demoHouses = List.of();
 
@@ -283,6 +285,8 @@ public final class ClientState {
 		skill = HwNet.SkillCheck.INACTIVE;
 		demo = HwNet.DemoHud.NONE;
 		vecna = HwNet.VecnaHud.NONE;
+		curse = HwNet.CurseHud.NONE;
+		VecnaClient.reset();
 		demoHouses = List.of();
 		NOTICES.clear();
 		FEED.clear();

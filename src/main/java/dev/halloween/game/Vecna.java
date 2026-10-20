@@ -4,7 +4,10 @@ import dev.halloween.Halloween;
 import dev.halloween.HwConfig;
 import dev.halloween.net.HwNet;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import java.util.ArrayList;
+import java.util.List;
 import net.minecraft.ChatFormatting;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
@@ -30,7 +33,11 @@ import net.minecraft.world.phys.Vec3;
  * keeps them in sight they cannot walk (they can still shoot) and are drawn slowly towards him; he stands still,
  * turning only. It breaks when he lets go, loses sight of them or is stunned; then a long rest. Every second held
  * stalks them.</li>
- * <li>The Eyes (Shape Jump key) and the Anchor (Impulse key): to come (docs/VECNA_PLAN.md).</li>
+ * <li>The Eyes (Shape Jump key): he sees through the eyes of the survivor nearest him, standing still, for as long as
+ * the reserve lasts (it fills again while he doesn't look); seeing them stalks them. A stun ends it.</li>
+ * <li>The Anchor (Impulse key, held): the cursed show with their stage; let go, he goes to the one under his aim
+ * (three seconds standing, the clock striking for them), coming out a few steps from them. Then a long rest.</li>
+ * <li>The curse ({@link VecnaCurse}) and the telephone booths that lift it ({@link Booths}).</li>
  * </ul>
  */
 public final class Vecna {
@@ -44,6 +51,18 @@ public final class Vecna {
 	private static int gripSince;
 	private static int gripLost;
 	private static int gripCooldown;
+	/** The Eyes: whose eyes he looks through (null: his own), the seconds of looking in reserve (ticks), ticks since the last refill. */
+	private static ServerPlayer eyesOn;
+	private static int eyesReserve;
+	private static int eyesIdle;
+	/** The Anchor: choosing (the key held), the delay before he goes, its target and ticks left; then its rest. */
+	public static final int ANCHOR_IDLE = 0;
+	public static final int ANCHOR_CHOOSING = 1;
+	public static final int ANCHOR_CHANNEL = 2;
+	private static int anchorPhase;
+	private static ServerPlayer anchorTarget;
+	private static int anchorLeft;
+	private static int anchorCooldown;
 
 	private Vecna() {
 	}
@@ -74,6 +93,11 @@ public final class Vecna {
 		return active() && gripped != null;
 	}
 
+	/** Standing still: holding the Grip, looking through the Eyes, or about to go by the Anchor. */
+	public static boolean rooted() {
+		return active() && (gripped != null || eyesOn != null || anchorPhase == ANCHOR_CHANNEL);
+	}
+
 	/** Is this one held by the Grip? */
 	public static boolean held(LivingEntity e) {
 		return gripping() && gripped == e;
@@ -81,14 +105,99 @@ public final class Vecna {
 
 	// ---------------------------------------------------------------- the keys
 
-	/** The Shape Jump key: the Eyes (not yet). */
+	/** The Shape Jump key: the Eyes on (through the nearest survivor's eyes) or off again. */
 	static void eyesKey(ServerPlayer p, ShapeState st) {
-		p.sendOverlayMessage(Component.translatable("halloween.msg.vecna.soon").withStyle(ChatFormatting.GRAY));
+		if (eyesOn != null) {
+			eyesOff(p);
+			return;
+		}
+		if (st.busy() || gripped != null || anchorPhase == ANCHOR_CHANNEL || Match.frozen()) {
+			return;
+		}
+		if (eyesReserve < 20) {
+			p.sendOverlayMessage(Component.translatable("halloween.msg.vecna.eyes_tired").withStyle(ChatFormatting.GRAY));
+			return;
+		}
+		ServerPlayer nearest = null;
+		for (ServerPlayer s : p.level().players()) {
+			if (MatchManager.role(s).survivor() && !s.isSpectator() && s.isAlive() && (nearest == null || s.distanceTo(p) < nearest.distanceTo(p))) {
+				nearest = s;
+			}
+		}
+		if (nearest == null) {
+			return;
+		}
+		eyesOn = nearest;
+		p.level().playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.ENDER_EYE_DEATH, SoundSource.HOSTILE, 1f, 0.5f);
+		AiStats.add(p, "vecna.eyes");
 	}
 
-	/** The Impulse key: the Anchor (not yet). */
-	static void anchorKey(ServerPlayer p, ShapeState st) {
-		p.sendOverlayMessage(Component.translatable("halloween.msg.vecna.soon").withStyle(ChatFormatting.GRAY));
+	private static void eyesOff(ServerPlayer p) {
+		if (eyesOn == null) {
+			return;
+		}
+		eyesOn = null;
+		eyesIdle = 0;
+		if (p != null) {
+			p.level().playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.ENDER_EYE_LAUNCH, SoundSource.HOSTILE, 0.8f, 0.5f);
+		}
+	}
+
+	/** The Impulse key, pressed or let go (the Anchor: held, the cursed show; let go, he goes to the one he aims at). */
+	public static void anchorKey(ServerPlayer p, boolean held) {
+		ShapeState st = MatchManager.shapeState(p);
+		if (!active() || st == null || MatchManager.role(p) != dev.halloween.Role.SHAPE) {
+			return;
+		}
+		if (held) {
+			if (anchorPhase != ANCHOR_IDLE) {
+				return;
+			}
+			if (anchorCooldown > 0) {
+				p.sendOverlayMessage(Component.translatable("halloween.msg.vecna.anchor_rest", (anchorCooldown + 19) / 20).withStyle(ChatFormatting.GRAY));
+				return;
+			}
+			anchorPhase = ANCHOR_CHOOSING;
+			return;
+		}
+		if (anchorPhase != ANCHOR_CHOOSING) {
+			return;
+		}
+		anchorPhase = ANCHOR_IDLE;
+		ServerPlayer target = anchorAimed(p, st);
+		if (target == null) {
+			p.sendOverlayMessage(Component.translatable("halloween.msg.vecna.anchor_none").withStyle(ChatFormatting.GRAY));
+			return;
+		}
+		if (st.busy() || gripped != null || eyesOn != null || Match.frozen()) {
+			return;
+		}
+		anchorPhase = ANCHOR_CHANNEL;
+		anchorTarget = target;
+		anchorLeft = HwConfig.get().vecnaAnchorDelayTicks;
+		ServerLevel level = p.level();
+		level.playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.PORTAL_TRIGGER, SoundSource.HOSTILE, 0.8f, 0.6f);
+		target.sendOverlayMessage(Component.translatable("halloween.msg.vecna.anchor_coming").withStyle(ChatFormatting.DARK_RED));
+		AiStats.add(p, "vecna.anchor");
+	}
+
+	/** The cursed survivor nearest his aim, wherever they are. */
+	private static ServerPlayer anchorAimed(ServerPlayer v, ShapeState st) {
+		Vec3 from = MatchManager.aimOrigin(v, st);
+		Vec3 look = MatchManager.aimDirection(v, st);
+		ServerPlayer best = null;
+		double bestAngle = Double.MAX_VALUE;
+		for (ServerPlayer s : v.level().players()) {
+			if (!MatchManager.role(s).survivor() || s.isSpectator() || !s.isAlive() || VecnaCurse.stage(s) < 1) {
+				continue;
+			}
+			double angle = Sight.angleTo(from, look, FocusPoints.bodyCenter(s));
+			if (angle < bestAngle) {
+				bestAngle = angle;
+				best = s;
+			}
+		}
+		return best;
 	}
 
 	// ---------------------------------------------------------------- every tick
@@ -103,24 +212,133 @@ public final class Vecna {
 		ShapeState st = v == null ? null : MatchManager.shapeState(v);
 		if (st == null) {
 			release(level, false);
+			eyesOff(null);
+			anchorPhase = ANCHOR_IDLE;
 			return;
 		}
+		HwConfig cfg = HwConfig.get();
 		if (gripCooldown > 0) {
 			gripCooldown--;
 		}
+		if (anchorCooldown > 0) {
+			anchorCooldown--;
+		}
 		if (gripped != null) {
 			tickGrip(level, v, st, now);
-		} else if (st.senseHeld && gripCooldown == 0 && !st.busy() && !Match.frozen()) {
+		} else if (st.senseHeld && gripCooldown == 0 && !st.busy() && eyesOn == null && anchorPhase != ANCHOR_CHANNEL && !Match.frozen()) {
 			// Holding the key with nobody caught yet: whoever comes under his aim is.
 			LivingEntity target = aimed(level, v, st);
 			if (target != null) {
 				catchHold(level, v, target, now);
 			}
 		}
-		if (now % 4 == 0) {
-			ServerPlayNetworking.send(v, new HwNet.VecnaHud(gripCooldown, HwConfig.get().vecnaGripCooldownTicks,
-				gripped == null ? -1 : gripped.getId()));
+		tickEyes(v, st);
+		tickAnchor(level, v, st, now);
+		if (now % 2 == 0) {
+			List<HwNet.CurseMark> marks = new ArrayList<>();
+			if (anchorPhase == ANCHOR_CHOOSING) {
+				for (ServerPlayer s : level.players()) {
+					int stage = MatchManager.role(s).survivor() && !s.isSpectator() && s.isAlive() ? VecnaCurse.stage(s) : 0;
+					if (stage > 0) {
+						marks.add(new HwNet.CurseMark(s.getId(), FocusPoints.bodyCenter(s), stage, s.getDisplayName().getString()));
+					}
+				}
+			}
+			ServerPlayNetworking.send(v, new HwNet.VecnaHud(gripCooldown, cfg.vecnaGripCooldownTicks, gripped == null ? -1 : gripped.getId(),
+				eyesReserve, eyesMax(), eyesOn == null ? -1 : eyesOn.getId(),
+				anchorCooldown, cfg.vecnaAnchorCooldownTicks, anchorPhase, anchorLeft, marks));
 		}
+	}
+
+	private static int eyesMax() {
+		return HwConfig.get().vecnaEyesMaxTicks;
+	}
+
+	/** The Eyes: their reserve drains while he looks, fills while he doesn't; seeing someone stalks them. */
+	private static void tickEyes(ServerPlayer v, ShapeState st) {
+		HwConfig cfg = HwConfig.get();
+		if (eyesOn == null) {
+			if (eyesReserve < eyesMax() && ++eyesIdle >= cfg.vecnaEyesRefillEvery) {
+				eyesIdle = 0;
+				eyesReserve++;
+			}
+			return;
+		}
+		ServerPlayer t = eyesOn;
+		if (--eyesReserve <= 0 || st.stunnedTicks > 0 || st.grab != null || t.isRemoved() || t.isSpectator() || !t.isAlive()
+			|| !MatchManager.role(t).survivor()) {
+			eyesReserve = Math.max(0, eyesReserve);
+			eyesOff(v);
+			return;
+		}
+		MatchManager.addStalk(v, st, t, cfg.vecnaEyesStalkPerSecond / 20f);
+	}
+
+	/** The Anchor's delay: he stands, the clock strikes for them, then he is there. */
+	private static void tickAnchor(ServerLevel level, ServerPlayer v, ShapeState st, int now) {
+		if (anchorPhase == ANCHOR_CHOOSING && (st.busy() || Match.frozen())) {
+			anchorPhase = ANCHOR_IDLE;
+		}
+		if (anchorPhase != ANCHOR_CHANNEL) {
+			return;
+		}
+		HwConfig cfg = HwConfig.get();
+		ServerPlayer t = anchorTarget;
+		if (st.stunnedTicks > 0 || st.grab != null || t == null || t.isRemoved() || t.isSpectator() || !t.isAlive()) {
+			// Stunned, or nobody to go to any more: it fails, and rests all the same.
+			anchorPhase = ANCHOR_IDLE;
+			anchorTarget = null;
+			anchorCooldown = cfg.vecnaAnchorCooldownTicks;
+			return;
+		}
+		if (anchorLeft % 20 == 0) {
+			// The clock strikes for them: he is coming.
+			t.connection.send(new net.minecraft.network.protocol.game.ClientboundSoundPacket(net.minecraft.core.Holder.direct(SoundEvents.BELL_BLOCK), SoundSource.MASTER,
+				t.getX(), t.getEyeY(), t.getZ(), 1.4f, 0.5f, t.getRandom().nextLong()));
+		}
+		level.sendParticles(ParticleTypes.REVERSE_PORTAL, v.getX(), v.getY() + 1, v.getZ(), 8, 0.4, 0.9, 0.4, 0.05);
+		if (--anchorLeft > 0) {
+			return;
+		}
+		anchorPhase = ANCHOR_IDLE;
+		anchorTarget = null;
+		anchorCooldown = cfg.vecnaAnchorCooldownTicks;
+		Vec3 to = arrival(level, t, cfg.vecnaAnchorDistance);
+		if (to == null) {
+			v.sendOverlayMessage(Component.translatable("halloween.msg.vecna.anchor_none").withStyle(ChatFormatting.GRAY));
+			return;
+		}
+		level.playSound(null, v.getX(), v.getY(), v.getZ(), SoundEvents.ENDERMAN_TELEPORT, SoundSource.HOSTILE, 1.5f, 0.5f);
+		Vec3 d = t.position().subtract(to);
+		float yaw = (float) (Math.atan2(-d.x, d.z) * 180 / Math.PI);
+		v.teleportTo(level, to.x, to.y, to.z, java.util.Set.of(), yaw, 0f, false);
+		level.playSound(null, to.x, to.y, to.z, SoundEvents.ENDERMAN_TELEPORT, SoundSource.HOSTILE, 1.5f, 0.5f);
+		level.playSound(null, to.x, to.y, to.z, SoundEvents.BELL_BLOCK, SoundSource.HOSTILE, 1.2f, 0.5f);
+		level.sendParticles(ParticleTypes.REVERSE_PORTAL, to.x, to.y + 1, to.z, 40, 0.4, 0.9, 0.4, 0.1);
+	}
+
+	/** Where he comes out: a spot he can stand on about this far from them, the one nearest that distance. */
+	private static Vec3 arrival(ServerLevel level, ServerPlayer t, double dist) {
+		BlockPos c = t.blockPosition();
+		BlockPos best = null;
+		double bestScore = Double.MAX_VALUE;
+		int r = (int) Math.ceil(dist) + 3;
+		for (int dx = -r; dx <= r; dx++) {
+			for (int dz = -r; dz <= r; dz++) {
+				for (int dy = -2; dy <= 2; dy++) {
+					BlockPos p = c.offset(dx, dy, dz);
+					if (!Nav.standable(level, p) || !Nav.inArea(p)) {
+						continue;
+					}
+					double score = Math.abs(Math.sqrt(dx * dx + dz * dz) - dist) + Math.abs(dy) * 2;
+					if (score < bestScore) {
+						bestScore = score;
+						best = p;
+					}
+				}
+			}
+		}
+		return best == null ? null : Vec3.atBottomCenterOf(best);
 	}
 
 	/** The survivor nearest his aim within reach and the cone, in sight. */
@@ -272,5 +490,12 @@ public final class Vecna {
 		}
 		gripCooldown = 0;
 		gripLost = 0;
+		eyesOn = null;
+		eyesReserve = HwConfig.get().vecnaEyesMaxTicks;
+		eyesIdle = 0;
+		anchorPhase = ANCHOR_IDLE;
+		anchorTarget = null;
+		anchorLeft = 0;
+		anchorCooldown = 0;
 	}
 }

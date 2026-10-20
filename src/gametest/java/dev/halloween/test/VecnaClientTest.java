@@ -110,6 +110,123 @@ public class VecnaClientTest implements FabricClientGameTest {
 				ShapeState st = MatchManager.shapeState(player(s));
 				st.senseHeld = false;
 			});
+
+			// The Eyes: through the bot's, then back.
+			server.runOnServer(s -> MatchManager.onShapeJump(player(s)));
+			ctx.waitTicks(10);
+			check(ctx.computeOnClient(mc -> mc.getCameraEntity() != mc.player && dev.halloween.client.VecnaClient.eyesActive()), "the Eyes look through the bot's");
+			ctx.takeScreenshot("vecna_eyes");
+			int reserve = ctx.computeOnClient(mc -> ClientState.vecna.eyesReserve());
+			LOG.info("Eyes reserve while looking: {}", reserve);
+			check(reserve < HwConfig.get().vecnaEyesMaxTicks, "the reserve drains while looking");
+			server.runOnServer(s -> MatchManager.onShapeJump(player(s)));
+			ctx.waitTicks(6);
+			check(ctx.computeOnClient(mc -> mc.getCameraEntity() == mc.player), "back to his own eyes");
+
+			// The booths are up; a call from one lifts the curse.
+			int booths = server.computeOnServer(s -> dev.halloween.game.Booths.all().size());
+			LOG.info("booths: {}", booths);
+			check(booths > 0, "telephone booths are up");
+			server.runOnServer(s -> {
+				dev.halloween.game.VecnaCurse.testSet(bot(s), 2);
+				dev.halloween.game.Booths.Booth b = dev.halloween.game.Booths.all().get(0);
+				ServerPlayer bot = bot(s);
+				bot.teleportTo(s.overworld(), b.inside.getX() + 0.5, b.inside.getY(), b.inside.getZ() + 0.5, java.util.Set.of(), 0f, 0f, false);
+				// (Held still: its own errands would walk it out of the booth.)
+				bot.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED).addOrUpdateTransientModifier(
+					new net.minecraft.world.entity.ai.attributes.AttributeModifier(dev.halloween.Halloween.id("test_still"), -1, net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
+				// He looks at the booth from a few steps off.
+				ServerPlayer p = player(s);
+				// In front of its doorway and a little to one side, where he can stand under the open sky.
+				net.minecraft.core.BlockPos door = b.inside.subtract(b.phone.below());
+				Vec3 front = null;
+				for (int k = 7; k >= 3 && front == null; k--) {
+					for (int side : new int[]{2, -2, 0}) {
+						net.minecraft.core.BlockPos at = b.inside.offset(door.getX() * k + door.getZ() * side, 0, door.getZ() * k + door.getX() * side);
+						if (dev.halloween.game.Nav.standable(s.overworld(), at) && s.overworld().canSeeSky(at.above())) {
+							front = Vec3.atBottomCenterOf(at);
+							break;
+						}
+					}
+				}
+				if (front == null) {
+					front = Vec3.atBottomCenterOf(b.inside.offset(door.getX() * 3, 0, door.getZ() * 3));
+				}
+				LOG.info("booth at {}, doorway {}, he stands at {}", b.inside, door, front);
+				Vec3 d = Vec3.atCenterOf(b.inside).subtract(front.add(0, 1.6, 0));
+				p.teleportTo(s.overworld(), front.x, front.y, front.z, java.util.Set.of(), (float) Math.toDegrees(Math.atan2(-d.x, d.z)) + 18f, 10f, false);
+			});
+			check(server.computeOnServer(s -> dev.halloween.game.VecnaCurse.stage(bot(s)) == 2), "the bot is cursed (stage 2)");
+			Vec3 boothAt = server.computeOnServer(s -> Vec3.atCenterOf(dev.halloween.game.Booths.all().get(0).inside));
+			ctx.waitTicks(3);
+			ctx.runOnClient(mc -> {
+				Vec3 d = boothAt.subtract(mc.player.getEyePosition());
+				mc.player.setYRot((float) (Math.atan2(-d.x, d.z) * 180 / Math.PI) - 22f);
+				mc.player.setXRot(5f);
+			});
+			ctx.waitTicks(10);
+			ctx.takeScreenshot("vecna_booth");
+			for (int i = 0; i < 40; i++) {
+				server.runOnServer(s -> dev.halloween.game.Holds.ping(bot(s), dev.halloween.game.Booths.all().get(0).phone));
+				ctx.waitTicks(4);
+				if (i == 10) {
+					server.runOnServer(s -> LOG.info("mid-call: bot {} from the phone, holding {}", bot(s).getEyePosition().distanceTo(Vec3.atCenterOf(dev.halloween.game.Booths.all().get(0).phone)), dev.halloween.game.Holds.working(bot(s))));
+				}
+			}
+			server.runOnServer(s -> LOG.info("bot {} from the phone, holding {}, stage {}", bot(s).getEyePosition().distanceTo(Vec3.atCenterOf(dev.halloween.game.Booths.all().get(0).phone)),
+				dev.halloween.game.Holds.working(bot(s)), dev.halloween.game.VecnaCurse.stage(bot(s))));
+			check(server.computeOnServer(s -> dev.halloween.game.VecnaCurse.stage(bot(s)) == 0), "the booth's call lifts the curse");
+			server.runOnServer(s -> bot(s).getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED).removeModifier(dev.halloween.Halloween.id("test_still")));
+			server.runOnServer(s -> dev.halloween.game.VecnaCurse.testSet(bot(s), 1));
+			check(server.computeOnServer(s -> dev.halloween.game.Holds.working(bot(s)) == false), "the bot holds nothing now");
+
+			// The Anchor: the bot, cursed, thirty blocks off; he chooses it and lets go, and three seconds later is beside it.
+			Vec3 far = server.computeOnServer(s -> {
+				ServerPlayer p = player(s);
+				for (int yaw = 0; yaw < 360; yaw += 30) {
+					Vec3 at = p.position().add(Vec3.directionFromRotation(0, yaw).scale(30));
+					if (dev.halloween.game.Nav.standable(s.overworld(), net.minecraft.core.BlockPos.containing(at))) {
+						bot(s).teleportTo(s.overworld(), at.x, Math.floor(at.y), at.z, java.util.Set.of(), 0f, 0f, false);
+						return at;
+					}
+				}
+				return null;
+			});
+			check(far != null, "a spot thirty blocks off for the bot");
+			ctx.runOnClient(mc -> {
+				Vec3 d = far.add(0, 1, 0).subtract(mc.player.getEyePosition());
+				mc.player.setYRot((float) (Math.atan2(-d.x, d.z) * 180 / Math.PI));
+			});
+			ctx.waitTicks(5);
+			server.runOnServer(s -> Vecna.anchorKey(player(s), true));
+			ctx.waitTicks(6);
+			ctx.takeScreenshot("vecna_anchor_choose");
+			check(ctx.computeOnClient(mc -> ClientState.vecna.marks().size() == 1), "holding the key shows the cursed bot");
+			server.runOnServer(s -> Vecna.anchorKey(player(s), false));
+			ctx.waitTicks(HwConfig.get().vecnaAnchorDelayTicks + 10);
+			double near = server.computeOnServer(s -> player(s).distanceTo(bot(s)));
+			LOG.info("after the Anchor: {} blocks from the bot", near);
+			check(near < 12, "the Anchor brought him beside the bot");
+			ctx.takeScreenshot("vecna_anchor_there");
+
+			// A phantom (as a cursed survivor sees one).
+			check(ctx.computeOnClient(mc -> dev.halloween.client.VecnaClient.testPhantom()), "a phantom stands");
+			ctx.runOnClient(mc -> mc.player.setYRot(mc.player.getYRot() + 120f));
+			ctx.waitTicks(4);
+			ctx.takeScreenshot("vecna_phantom");
+
+			// The last stage: twenty seconds (two here), then he takes the bot.
+			java.util.UUID doomed = server.computeOnServer(s -> bot(s).getUUID());
+			server.runOnServer(s -> {
+				HwConfig.get().vecnaCurseLastTicks = 40;
+				dev.halloween.game.VecnaCurse.testSet(bot(s), 4);
+			});
+			ctx.waitTicks(100);
+			// (A dead bot leaves the match: gone, or watching.)
+			check(server.computeOnServer(s -> s.getPlayerList().getPlayer(doomed) == null || s.getPlayerList().getPlayer(doomed).isSpectator()),
+				"the curse killed the bot at the last stage");
+			server.runOnServer(s -> HwConfig.get().vecnaCurseLastTicks = 400);
+			ctx.takeScreenshot("vecna_after_curse_death");
 			ctx.runOnClient(mc -> ClientDarkness.enabled = true);
 			server.runCommand("hw stop");
 			server.runCommand("hw killer michael");

@@ -72,6 +72,7 @@ public class HalloweenClient implements ClientModInitializer {
 		});
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.DemoHud.TYPE, (payload, ctx) -> ClientState.demo = payload);
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.VecnaHud.TYPE, (payload, ctx) -> ClientState.vecna = payload);
+		ClientPlayNetworking.registerGlobalReceiver(HwNet.CurseHud.TYPE, (payload, ctx) -> ClientState.curse = payload);
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.DemoPose.TYPE, (payload, ctx) -> DemogorgonModel.receive(payload));
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.GunPose.TYPE, (payload, ctx) -> GunPoses.receive(payload));
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.DemoHouses.TYPE, (payload, ctx) -> ClientState.demoHouses = payload.corners());
@@ -272,6 +273,7 @@ public class HalloweenClient implements ClientModInitializer {
 		ClientEvents.tick(mc);
 		ClientPanting.tick(mc);
 		ClientPanic.tick(mc);
+		VecnaClient.tick(mc);
 		while (KEY_PERKS.consumeClick()) {
 			if (mc.gui.screen() == null) {
 				mc.gui.setScreen(new PerkScreen());
@@ -281,6 +283,10 @@ public class HalloweenClient implements ClientModInitializer {
 		// Michael from behind; the Runt too while it rides somebody's back (then straight back to its own eyes).
 		boolean riding = role == Role.RUNT && ClientState.runtHud != null && ClientState.runtHud.holding() > 0;
 		CameraType wanted = role == Role.SHAPE || riding ? CameraType.THIRD_PERSON_BACK : CameraType.FIRST_PERSON;
+		if (VecnaClient.eyesActive()) {
+			// Vecna's Eyes: through theirs.
+			wanted = CameraType.FIRST_PERSON;
+		}
 		if (role != Role.NONE && mc.options.getCameraType() != wanted) {
 			mc.options.setCameraType(wanted);
 		}
@@ -432,8 +438,14 @@ public class HalloweenClient implements ClientModInitializer {
 		while (KEY_RUNT_ORDER.consumeClick()) {
 			openRuntOrders(mc);
 		}
+		if (MichaelRenderer.vecna()) {
+			// Vecna's Anchor: held and let go, not pressed.
+			VecnaClient.tickAnchorKey(mc);
+		}
 		while (KEY_IMPULSE.consumeClick()) {
-			ClientPlayNetworking.send(new HwNet.ActionPress(HwNet.Action.IMPULSE));
+			if (!MichaelRenderer.vecna()) {
+				ClientPlayNetworking.send(new HwNet.ActionPress(HwNet.Action.IMPULSE));
+			}
 		}
 
 		// Attack button: tap = light attack, hold = heavy attack, during a grab = reaction check.

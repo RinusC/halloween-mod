@@ -292,6 +292,7 @@ public final class MatchManager {
 		TickTimer.step("ShapeBrain", () -> ShapeBrain.tick(server));
 		TickTimer.step("Demogorgon", () -> Demogorgon.tick(server));
 		TickTimer.step("Vecna", () -> Vecna.tick(server));
+		TickTimer.step("VecnaCurse", () -> VecnaCurse.tick(server));
 		TickTimer.step("Birds", () -> Birds.tick(server));
 		TickTimer.step("Panic", () -> Panic.tick(server));
 		TickTimer.step("Stamina", () -> Stamina.tick(server));
@@ -431,6 +432,8 @@ public final class MatchManager {
 			// (Not while the countdown runs: his opening scene may stand him right by one of them.)
 			if (Demogorgon.active()) {
 				tickScent(player, state);
+			} else if (Vecna.active()) {
+				// Vecna stalks by his curse, his Eyes and his Grip (see Vecna, VecnaCurse), not by looking.
 			} else {
 				tickStalk(player, state);
 			}
@@ -448,8 +451,8 @@ public final class MatchManager {
 			// (The Demogorgon, eating, stays put over them.)
 			// (Michael at a wardrobe stays by it.)
 			speed = Demogorgon.active() || state.grab.atLocker() ? -1 : cfg.grabSpeedModifier;
-		} else if (state.busy() || Match.frozen() || state.trappedTicks > 0 && state.shadowTicks == 0 || Vecna.gripping()) {
-			// (Vecna holding someone in the Grip stands still, turning only.)
+		} else if (state.busy() || Match.frozen() || state.trappedTicks > 0 && state.shadowTicks == 0 || Vecna.rooted()) {
+			// (Vecna holding someone in the Grip, looking through the Eyes or about to go by the Anchor stands still, turning only.)
 			speed = -1;
 		} else if (state.shadowTicks > 0) {
 			speed += HwConfig.at(cfg.shapeJumpSpeedByTier, state.tier());
@@ -916,8 +919,7 @@ public final class MatchManager {
 	public static void onImpulse(ServerPlayer player) {
 		ShapeState state = SHAPES.get(player.getUUID());
 		if (Vecna.active() && role(player) == Role.SHAPE && state != null) {
-			// Vecna's Anchor in place of the Impulse.
-			Vecna.anchorKey(player, state);
+			// Vecna's Anchor in place of the Impulse: held and let go (HwNet.VecnaAnchorKey), not pressed.
 			return;
 		}
 		if (role(player) != Role.SHAPE || state == null || state.busy() || state.impulseCooldown > 0) {

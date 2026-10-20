@@ -125,6 +125,9 @@ public final class HwHud {
 			feed(g, mc.font, h);
 			bloodthirstRing(g, mc.font, hud, h);
 			abilities(g, mc, hud, w, h);
+			if (MichaelRenderer.vecna()) {
+				vecnaScreen(g, mc, w, h);
+			}
 			shapeDoorPrompt(g, mc, w, h);
 			prompts(g, mc, w, h);
 			progressBar(g, mc, w, h);
@@ -140,6 +143,7 @@ public final class HwHud {
 			} else {
 				alerts(g, mc, w, h, partial);
 				healthBar(g, mc, w, h);
+				curseHud(g, mc, w, h);
 				int pushLeft = (int) Math.max(0, ClientState.pushReadyAt - mc.level.getGameTime());
 				smallAction(g, mc.font, w - 12, h - 84, Component.translatable("halloween.hud.shove"), mc.options.keyAttack.getTranslatedKeyMessage(), pushLeft);
 				inventoryBar(g, mc, w, h);
@@ -1283,6 +1287,101 @@ public final class HwHud {
 			mc.options.keySprint.getTranslatedKeyMessage(), hud.dashTicks() > 0 ? 0 : hud.dashCooldown());
 	}
 
+	/** Vecna: the cursed while the Anchor key is held (the one he would go to picked out), the Anchor's delay, the Eyes. */
+	private static void vecnaScreen(GuiGraphicsExtractor g, Minecraft mc, int w, int h) {
+		HwNet.VecnaHud vh = ClientState.vecna;
+		if (vh.anchorPhase() == dev.halloween.game.Vecna.ANCHOR_CHOOSING) {
+			Vec3 from = CameraAim.origin();
+			Vec3 look = CameraAim.direction();
+			HwNet.CurseMark pick = null;
+			double best = Double.MAX_VALUE;
+			for (HwNet.CurseMark m : vh.marks()) {
+				double a = dev.halloween.game.Sight.angleTo(from, look, m.pos());
+				if (a < best) {
+					best = a;
+					pick = m;
+				}
+			}
+			for (HwNet.CurseMark m : vh.marks()) {
+				Projection.Point p = Projection.toScreen(m.pos(), w, h);
+				if (p == null) {
+					continue;
+				}
+				boolean it = m == pick;
+				int color = it ? 0xFFFF4040 : 0xFF8A3A3A;
+				diamond(g, (int) p.x(), (int) p.y(), it ? 6 : 4, 0xFF0C0C0C);
+				diamond(g, (int) p.x(), (int) p.y(), it ? 5 : 3, color);
+				Component label = Component.translatable("halloween.hud.vecna.mark", m.name(), m.stage(), (int) p.distance());
+				g.centeredText(mc.font, label, (int) p.x(), (int) p.y() - 16, color);
+			}
+			Component line = pick == null ? Component.translatable("halloween.hud.vecna.anchor_none")
+				: Component.translatable("halloween.hud.vecna.anchor_pick", pick.name(), HalloweenClient.KEY_IMPULSE.getTranslatedKeyMessage());
+			g.textWithBackdrop(mc.font, line, w / 2 - mc.font.width(line) / 2, h / 2 + 40, mc.font.width(line), pick == null ? DIM : 0xFFFF6060);
+		} else if (vh.anchorPhase() == dev.halloween.game.Vecna.ANCHOR_CHANNEL) {
+			Component line = Component.translatable("halloween.hud.vecna.anchor_going", seconds(vh.anchorLeft()));
+			g.textWithBackdrop(mc.font, line, w / 2 - mc.font.width(line) / 2, h / 2 + 40, mc.font.width(line), 0xFFFF6060);
+		}
+		if (vh.eyesTarget() >= 0) {
+			// Through their eyes: the edges darkened red, his reserve running down.
+			int edge = 40;
+			for (int i = 0; i < edge; i += 4) {
+				int a = (int) (150 * (1 - i / (float) edge));
+				int c = a << 24 | 0x2A0006;
+				g.fill(0, i, w, i + 4, c);
+				g.fill(0, h - i - 4, w, h - i, c);
+				g.fill(i, 0, i + 4, h, c);
+				g.fill(w - i - 4, 0, w - i, h, c);
+			}
+			Component line = Component.translatable("halloween.hud.vecna.eyes_on", seconds(vh.eyesReserve()), HalloweenClient.KEY_SHAPE_JUMP.getTranslatedKeyMessage());
+			g.textWithBackdrop(mc.font, line, w / 2 - mc.font.width(line) / 2, h - 60, mc.font.width(line), 0xFFFF8080);
+		}
+	}
+
+	/**
+	 * A survivor's curse (against Vecna): under the match clock, its four stages and the way to the next; at the
+	 * last, the seconds left in red. From the third stage on, the telephone booths show through walls.
+	 */
+	private static void curseHud(GuiGraphicsExtractor g, Minecraft mc, int w, int h) {
+		HwNet.CurseHud c = ClientState.curse;
+		if (c.booths().isEmpty()) {
+			return;
+		}
+		int cx = w / 2;
+		int y = 46;
+		int color = c.stage() >= 4 ? BLOOD : c.stage() >= 2 ? 0xFFE07070 : 0xFFB8A8C8;
+		Component title = Component.translatable("halloween.hud.curse." + c.stage());
+		g.centeredText(mc.font, title, cx, y, color);
+		for (int i = 0; i < 4; i++) {
+			int px = cx - 21 + i * 14;
+			diamond(g, px, y + 15, 4, 0xFF0C0C0C);
+			diamond(g, px, y + 15, 3, i < c.stage() ? color : 0xFF303030);
+		}
+		if (c.stage() < 4) {
+			int bw = 56;
+			g.fill(cx - bw / 2, y + 22, cx + bw / 2, y + 24, 0xC0181818);
+			g.fill(cx - bw / 2, y + 22, cx - bw / 2 + Math.round(bw * Mth.clamp(c.progress(), 0, 1)), y + 24, color);
+		} else {
+			Component left = Component.translatable("halloween.hud.curse.left", seconds(c.lastTicks()));
+			boolean blink = mc.level.getGameTime() % 10 < 6;
+			g.centeredText(mc.font, left, cx, y + 24, blink ? BLOOD : 0xFFFF8080);
+		}
+		if (c.stage() < 3) {
+			return;
+		}
+		for (int i = 0; i < c.booths().size(); i++) {
+			net.minecraft.core.BlockPos b = c.booths().get(i);
+			Projection.Point p = Projection.toScreen(Vec3.atCenterOf(b).add(0, 1.6, 0), w, h);
+			if (p == null) {
+				continue;
+			}
+			boolean dead = (c.resting() & 1 << i) != 0;
+			int mc2 = dead ? 0xFF606060 : 0xFF60C0FF;
+			diamond(g, (int) p.x(), (int) p.y(), 5, 0xFF0C0C0C);
+			diamond(g, (int) p.x(), (int) p.y(), 4, mc2);
+			g.centeredText(mc.font, Component.translatable(dead ? "halloween.hud.booth.dead" : "halloween.hud.booth", (int) p.distance()), (int) p.x(), (int) p.y() - 15, mc2);
+		}
+	}
+
 	/** Vecna's corner: the Grip on the Sense key, the Eyes and the Anchor (still to come), the weapon and the grab. */
 	private static void vecnaAbilities(GuiGraphicsExtractor g, Font font, Minecraft mc, HwNet.ShapeHud hud, int w, int baseY) {
 		HwNet.VecnaHud vh = ClientState.vecna;
@@ -1296,13 +1395,27 @@ public final class HwHud {
 			: gripReady ? (HalloweenClient.KEY_SENSE.isDown() ? Component.translatable("halloween.hud.vecna.grip.aim") : null)
 			: Component.literal(seconds(vh.gripCooldown()));
 		if (gripLine != null) {
-			// Right-aligned to the screen's edge: the longer lines would run off it centred on the diamond.
-			int lx = Math.min(gripX - font.width(gripLine) / 2, w - 4 - font.width(gripLine));
-			g.text(font, gripLine, lx, baseY - 26, holding ? 0xFFE07070 : DIM, true);
+			// Above the other diamonds, right-aligned to the screen's edge.
+			int lx = w - 4 - font.width(gripLine);
+			g.text(font, gripLine, lx, baseY - 76, holding ? 0xFFE07070 : DIM, true);
 		}
-		// The Eyes and the Anchor: not yet.
-		abilityDiamond(g, font, w - 62, baseY, "◉", HalloweenClient.KEY_SHAPE_JUMP, 0xE0303030, 1f, 0xFF606060, DIM);
-		abilityDiamond(g, font, w - 44, baseY - 36, "⚓", HalloweenClient.KEY_IMPULSE, 0xE0303030, 1f, 0xFF606060, DIM);
+		// The Eyes: the reserve as the fill (red while too little is left to look), lit while looking.
+		boolean looking = vh.eyesTarget() >= 0;
+		boolean eyesReady = vh.eyesReserve() >= 20;
+		abilityDiamond(g, font, w - 62, baseY, "◉", HalloweenClient.KEY_SHAPE_JUMP, looking ? 0xE08A1A2A : eyesReady ? DARK_FILL : RED_FILL,
+			vh.eyesReserve() / (float) Math.max(1, vh.eyesMax()), 0xFF8A6A9A, looking ? 0xFFFFD0D0 : TEXT);
+		if (looking || vh.eyesReserve() < vh.eyesMax()) {
+			g.centeredText(font, seconds(vh.eyesReserve()), w - 62, baseY - 26, looking ? 0xFFE07070 : DIM);
+		}
+		// The Anchor: its rest, or lit while choosing and going.
+		int ax = w - 44;
+		int ay = baseY - 36;
+		boolean anchorReady = vh.anchorCooldown() == 0;
+		abilityDiamond(g, font, ax, ay, "⚓", HalloweenClient.KEY_IMPULSE, vh.anchorPhase() != 0 ? 0xE08A1A2A : anchorReady ? DARK_FILL : RED_FILL,
+			anchorReady ? 1f : 1f - vh.anchorCooldown() / (float) Math.max(1, vh.anchorCooldownMax()), 0xFF606060, TEXT);
+		if (!anchorReady) {
+			g.centeredText(font, seconds(vh.anchorCooldown()), ax, ay - 26, DIM);
+		}
 
 		int weaponX = w - 112;
 		ItemStack held = mc.player.getMainHandItem();
@@ -1526,6 +1639,10 @@ public final class HwHud {
 		boolean shape = ClientState.myRole() == Role.SHAPE;
 		if (object == 1 && !shape) {
 			line = Component.translatable(ClientState.match.searched().contains(pos) ? "halloween.hud.prompt.searched" : "halloween.hud.prompt.search");
+		} else if (object == 7 && !shape) {
+			int i = ClientState.curse.booths().indexOf(pos);
+			line = Component.translatable((ClientState.curse.resting() & 1 << i) != 0 ? "halloween.hud.prompt.booth_dead"
+				: ClientState.curse.stage() > 0 ? "halloween.hud.prompt.booth" : "halloween.hud.prompt.booth_clean");
 		} else if (object == 2) {
 			line = Component.translatable(ClientState.match.cutPhones().contains(pos) && !shape ? "halloween.hud.prompt.phone_cut" : "halloween.hud.prompt.phone");
 		} else if (object == 4 && !shape) {

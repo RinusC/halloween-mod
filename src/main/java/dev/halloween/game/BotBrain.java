@@ -1112,7 +1112,7 @@ final class BotBrain {
 		// Townsfolk come first: with a way out open, the nearest one at home within reach is fetched and led out
 		// (even if it uses that way out up: another one will do for us); with none open yet, one close by comes
 		// along while we look for what opens one.
-		if (!this.escortingSomeone()) {
+		if (!this.escortingSomeone() && (best == null || !best.key.equals("booth"))) {
 			HwConfig cfg = this.cfg();
 			double range = openExits > 0 ? cfg.botRescueRange : cfg.botRescueRangeNoExit;
 			net.minecraft.world.entity.decoration.Mannequin pick = null;
@@ -1352,6 +1352,15 @@ final class BotBrain {
 		for (Events.BotJob job : Events.botJobs(this.bot)) {
 			if (!Bots.claimedByOther(job.pos(), this.bot)) {
 				out.put(new Task(job.pos(), job.within(), job.hold(), job.key()), job.value());
+			}
+		}
+		// Vecna's curse far gone: a telephone booth (one that still rings) before almost anything else.
+		int curse = Vecna.active() ? VecnaCurse.stage(this.bot) : 0;
+		if (curse >= 3) {
+			for (Booths.Booth b : Booths.all()) {
+				if (!b.resting(now)) {
+					out.put(new Task(b.phone, 2.0, true, "booth"), curse == 4 ? 500.0 : 150.0);
+				}
 			}
 		}
 		// He's close (the music is loud): don't start anything long that pins us down.

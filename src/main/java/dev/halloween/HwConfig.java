@@ -873,6 +873,28 @@ public class HwConfig {
 	public int vecnaGripCooldownTicks = 600;
 	/** Stalking (towards a capture level) for every second a survivor is held by the Grip. */
 	public float vecnaGripStalkPerSecond = 0.35f;
+	/** The curse: seconds a stage takes for the survivor farthest from him and for the nearest; the last stage's time to get to a booth. */
+	public int vecnaCurseFarSeconds = 120;
+	public int vecnaCurseNearSeconds = 240;
+	public int vecnaCurseLastTicks = 400;
+	/** Stage 1 and on: the clock strikes this often. Stalking per second for every stage. */
+	public int vecnaChimeTicks = 600;
+	public float vecnaCurseStalkPerStage = 0.01f;
+	/** Telephone booths: how many, the call (ticks held, reaction checks shorten it), how long a booth is dead after. */
+	public int vecnaBooths = 4;
+	public int vecnaBoothTicks = 120;
+	public int vecnaBoothRestTicks = 1200;
+	/** Stage 2 and on: a phantom of him shows every this many ticks or so (client). */
+	public int vecnaPhantomMinTicks = 300;
+	public int vecnaPhantomMaxTicks = 700;
+	/** The Eyes: reserve (ticks of looking), a tick back for every this many not looking; stalking per second seen. */
+	public int vecnaEyesMaxTicks = 200;
+	public int vecnaEyesRefillEvery = 6;
+	public float vecnaEyesStalkPerSecond = 0.2f;
+	/** The Anchor: standing this long before he goes, coming out this far from them; then its rest. */
+	public int vecnaAnchorDelayTicks = 60;
+	public double vecnaAnchorDistance = 8;
+	public int vecnaAnchorCooldownTicks = 1800;
 
 	public static HwConfig get() {
 		return instance;
