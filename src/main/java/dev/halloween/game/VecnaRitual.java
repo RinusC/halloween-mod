@@ -26,7 +26,7 @@ import net.minecraft.world.phys.Vec3;
  * Vecna's ritual: any bodies will do. He carries them one at a time over his shoulder (the grab key on a body; again
  * to lay it down; a stun drops it). Where he lays the first is the altar, a ring of red glow everyone sees; with four
  * bodies in the ring the rift opens and the whole town is the Upside Down until the match ends: a red murk with
- * lightning in it for all (client.VecnaClient), the rift itself torn open over the altar, the bodies risen round it.
+ * lightning in it for all (client.VecnaClient), burning cracks torn out from the altar along the streets ({@link VecnaCracks}), the bodies risen over the burning pit.
  * The rift makes him stronger (a tenth faster, a longer, wider, harder Grip, more and quicker Eyes, his Anchor to
  * anyone on a short rest) and puts every survivor's curse a stage on at once.
  */
@@ -166,14 +166,8 @@ public final class VecnaRitual {
 			m.setNoGravity(true);
 		}
 		MinecraftServer server = level.getServer();
-		// The rift itself, three times the Demogorgon's, over the altar.
-		server.getCommands().performPrefixedCommand(server.createCommandSourceStack().withLevel(level).withSuppressedOutput(), String.format(java.util.Locale.ROOT,
-			"summon minecraft:item_display %.2f %.2f %.2f {Tags:[\"%s\",\"%s\",\"hw_ritual_rift\"],view_range:4f,billboard:\"fixed\",item_display:\"fixed\","
-				+ "transformation:{left_rotation:[0f,0f,0f,1f],right_rotation:[0f,0f,0f,1f],translation:[0f,0f,0f],scale:[3f,3f,3f]},"
-				+ "item:{id:\"minecraft:paper\",count:1,components:{\"minecraft:item_model\":\"halloween:rift\"}},Rotation:[%.1ff,0f]}",
-			altar.x, altar.y, altar.z, Demogorgon.RIFT_TAG, Leftovers.stamp(), v.getYRot()));
-		List<Entity> found = level.getEntities((Entity) null, new AABB(altar, altar).inflate(1), e -> e.entityTags().contains("hw_ritual_rift"));
-		riftDisplay = found.isEmpty() ? null : found.get(0);
+		// The ground tears open: burning cracks out from the altar along the streets, over the whole town.
+		VecnaCracks.open(level, altar, Loot.radius() + 40, HwConfig.get().vecnaCrackSpreadTicks);
 		level.playSound(null, altar.x, altar.y, altar.z, SoundEvents.WARDEN_EMERGE, SoundSource.HOSTILE, 4f, 0.5f);
 		level.playSound(null, altar.x, altar.y, altar.z, SoundEvents.END_PORTAL_SPAWN, SoundSource.HOSTILE, 3f, 0.5f);
 		for (ServerPlayer p : level.players()) {
@@ -218,6 +212,7 @@ public final class VecnaRitual {
 			}
 		}
 		Flicker.tick(level, now);
+		VecnaCracks.tick(level, now);
 		HwConfig cfg = HwConfig.get();
 		if (altar != null && !rift && now % 4 == 0) {
 			// The ring: red embers round it, a slow pulse at its heart.
@@ -240,6 +235,12 @@ public final class VecnaRitual {
 				double up = Math.min(1, (now - riftAt) / 60.0) * 2.2 + Math.sin((now + i * 20) * 0.05) * 0.15;
 				m.teleportTo(altar.x + Math.cos(a) * 2.6, altar.y + up, altar.z + Math.sin(a) * 2.6);
 			}
+			if (now % 2 == 0) {
+				// The burning pit: flames licking up out of it, smoke and embers rising high.
+				level.sendParticles(ParticleTypes.FLAME, altar.x, altar.y + 0.3, altar.z, 6, 1.8, 0.1, 1.8, 0.02);
+				level.sendParticles(ParticleTypes.LARGE_SMOKE, altar.x, altar.y + 0.5, altar.z, 3, 1.5, 0.2, 1.5, 0.03);
+				level.sendParticles(new DustParticleOptions(0xFF4020, 1.6f), altar.x, altar.y + 1.5, altar.z, 4, 2, 1.2, 2, 0);
+			}
 			if (now % 3 == 0) {
 				level.sendParticles(ParticleTypes.CRIMSON_SPORE, altar.x, altar.y + 2, altar.z, 8, 2.5, 1.5, 2.5, 0.02);
 			}
@@ -256,6 +257,7 @@ public final class VecnaRitual {
 
 	public static void clear(MinecraftServer server) {
 		Flicker.clear(server.overworld());
+		VecnaCracks.clear(server.overworld());
 		carried = null;
 		altar = null;
 		rift = false;

@@ -18,10 +18,12 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
+import net.minecraft.world.entity.Display;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 /**
@@ -29,14 +31,16 @@ import net.minecraft.world.phys.Vec3;
  * slow as Michael and without his dash, Sense or Impulse: he wins with his head. Grabbing, the struggle and the kill
  * are Michael's; his own powers take Michael's keys.
  * <ul>
- * <li>The Grip (held Killer Sense key): a survivor under his aim within reach is caught. While he holds the key and
- * keeps them in sight they cannot walk (they can still shoot) and are drawn slowly towards him; he stands still,
- * turning only. It breaks when he lets go, loses sight of them or is stunned; then a long rest. Every second held
- * stalks them.</li>
+ * <li>The Grip (Killer Sense key): held, he stands with a hand thrust out, aiming (a second at least, everyone sees it
+ * coming); let go, it flies where he aimed: an upright streak of red, man-high and narrow, a few strides a second, so a
+ * step aside lets it by and a wall stops it. Whoever it touches first (survivor, townsperson, officer) is drawn to him
+ * by itself (they can still shoot); at his hand he takes them by the throat. Losing sight of them or a stun breaks it.
+ * A miss rests a little, a catch long. Every second drawn stalks them.</li>
  * <li>The Eyes (Shape Jump key): he sees through the eyes of the survivor nearest him, standing still, for as long as
- * the reserve lasts (it fills again while he doesn't look); seeing them stalks them. A stun ends it.</li>
- * <li>The Anchor (Impulse key, held): the cursed show with their stage; let go, he goes to the one under his aim
- * (three seconds standing, the clock striking for them), coming out a few steps from them. Then a long rest.</li>
+ * the reserve lasts (it fills again while he doesn't look); seeing them stalks them. They hear voices meanwhile. A stun ends it.</li>
+ * <li>The Anchor (Impulse key, held): the cursed show with their stage; let go, he is at once a few steps from the one
+ * under his aim, unseen at first, taking shape for three seconds (rooted, the clock striking for them): time for them
+ * to run. Then a long rest.</li>
  * <li>The curse ({@link VecnaCurse}) and the telephone booths that lift it ({@link Booths}).</li>
  * </ul>
  */
@@ -51,11 +55,19 @@ public final class Vecna {
 	private static int gripSince;
 	private static int gripLost;
 	private static int gripCooldown;
+	/** The rest the Grip took last (a miss rests less than a catch); ticks aimed so far (-1: not aiming); the throw in flight (null: none), its way and the reach left. */
+	private static int gripCooldownMax = 1;
+	private static int gripAim = -1;
+	private static Vec3 bolt;
+	private static Vec3 boltDir = Vec3.ZERO;
+	private static double boltLeft;
+	/** The Eyes: when the next whisper comes to the one he looks through. */
+	private static int nextWhisper;
 	/** The Eyes: whose eyes he looks through (null: his own), the seconds of looking in reserve (ticks), ticks since the last refill. */
 	private static ServerPlayer eyesOn;
 	private static int eyesReserve;
 	private static int eyesIdle;
-	/** The Anchor: choosing (the key held), the delay before he goes, its target and ticks left; then its rest. */
+	/** The Anchor: choosing (the key held), then arriving beside them (taking shape, rooted), whom for and ticks left; then its rest. */
 	public static final int ANCHOR_IDLE = 0;
 	public static final int ANCHOR_CHOOSING = 1;
 	public static final int ANCHOR_CHANNEL = 2;
@@ -93,9 +105,20 @@ public final class Vecna {
 		return active() && gripped != null;
 	}
 
-	/** Standing still: holding the Grip, looking through the Eyes, or about to go by the Anchor. */
+	/** Standing still: aiming or throwing the Grip or drawing someone in, looking through the Eyes, or taking shape after the Anchor. */
 	public static boolean rooted() {
-		return active() && (gripped != null || eyesOn != null || anchorPhase == ANCHOR_CHANNEL);
+		return active() && (gripAim >= 0 || bolt != null || gripped != null || eyesOn != null || anchorPhase == ANCHOR_CHANNEL);
+	}
+
+	/** The Grip in flight. */
+	public static boolean flying() {
+		return active() && bolt != null;
+	}
+
+	/** For tests: the Grip and the Anchor rested. */
+	public static void testReady() {
+		gripCooldown = 0;
+		anchorCooldown = 0;
 	}
 
 	/** Is this one held by the Grip? */
@@ -111,7 +134,7 @@ public final class Vecna {
 			eyesOff(p);
 			return;
 		}
-		if (st.busy() || gripped != null || anchorPhase == ANCHOR_CHANNEL || VecnaRitual.carrying() || Match.frozen()) {
+		if (st.busy() || gripped != null || bolt != null || gripAim >= 0 || anchorPhase == ANCHOR_CHANNEL || VecnaRitual.carrying() || Match.frozen()) {
 			return;
 		}
 		if (eyesReserve < 20) {
@@ -128,6 +151,7 @@ public final class Vecna {
 			return;
 		}
 		eyesOn = nearest;
+		nextWhisper = 0;
 		p.level().playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.ENDER_EYE_DEATH, SoundSource.HOSTILE, 1f, 0.5f);
 		AiStats.add(p, "vecna.eyes");
 	}
@@ -169,16 +193,38 @@ public final class Vecna {
 			p.sendOverlayMessage(Component.translatable("halloween.msg.vecna.anchor_none").withStyle(ChatFormatting.GRAY));
 			return;
 		}
-		if (st.busy() || gripped != null || eyesOn != null || VecnaRitual.carrying() || Match.frozen()) {
+		if (st.busy() || gripped != null || eyesOn != null || bolt != null || VecnaRitual.carrying() || Match.frozen()) {
 			return;
 		}
+		ServerLevel level = p.level();
+		HwConfig cfg = HwConfig.get();
+		Vec3 to = arrival(level, target, cfg.vecnaAnchorDistance);
+		if (to == null) {
+			p.sendOverlayMessage(Component.translatable("halloween.msg.vecna.anchor_none").withStyle(ChatFormatting.GRAY));
+			return;
+		}
+		if (gripAim >= 0) {
+			stopAim(p);
+		}
+		// He is there at once, and takes shape over a few seconds: time for them to run.
+		level.playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.ENDERMAN_TELEPORT, SoundSource.HOSTILE, 1.5f, 0.5f);
+		level.sendParticles(ParticleTypes.REVERSE_PORTAL, p.getX(), p.getY() + 1, p.getZ(), 30, 0.4, 0.9, 0.4, 0.1);
+		Vec3 d = target.position().subtract(to);
+		float yaw = (float) (Math.atan2(-d.x, d.z) * 180 / Math.PI);
+		p.teleportTo(level, to.x, to.y, to.z, java.util.Set.of(), yaw, 0f, false);
+		p.setInvisible(true);
+		level.playSound(null, to.x, to.y, to.z, SoundEvents.PORTAL_TRIGGER, SoundSource.HOSTILE, 1f, 0.6f);
 		anchorPhase = ANCHOR_CHANNEL;
 		anchorTarget = target;
-		anchorLeft = VecnaRitual.rift() ? HwConfig.get().vecnaRiftAnchorDelayTicks : HwConfig.get().vecnaAnchorDelayTicks;
-		ServerLevel level = p.level();
-		level.playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.PORTAL_TRIGGER, SoundSource.HOSTILE, 0.8f, 0.6f);
+		anchorLeft = arriveTicks();
+		anchorCooldown = anchorRest();
 		target.sendOverlayMessage(Component.translatable("halloween.msg.vecna.anchor_coming").withStyle(ChatFormatting.DARK_RED));
 		AiStats.add(p, "vecna.anchor");
+	}
+
+	/** How long he takes shape after the Anchor (shorter in the rift). */
+	private static int arriveTicks() {
+		return VecnaRitual.rift() ? HwConfig.get().vecnaRiftAnchorDelayTicks : HwConfig.get().vecnaAnchorDelayTicks;
 	}
 
 	/** The cursed survivor nearest his aim, wherever they are. */
@@ -211,9 +257,11 @@ public final class Vecna {
 		ServerPlayer v = Senses.shape(level);
 		ShapeState st = v == null ? null : MatchManager.shapeState(v);
 		if (st == null) {
-			release(level, false);
+			release(level, null, false);
 			eyesOff(null);
 			anchorPhase = ANCHOR_IDLE;
+			gripAim = -1;
+			bolt = null;
 			return;
 		}
 		HwConfig cfg = HwConfig.get();
@@ -225,12 +273,10 @@ public final class Vecna {
 		}
 		if (gripped != null) {
 			tickGrip(level, v, st, now);
-		} else if (st.senseHeld && gripCooldown == 0 && !st.busy() && eyesOn == null && anchorPhase != ANCHOR_CHANNEL && !VecnaRitual.carrying() && !Match.frozen()) {
-			// Holding the key with nobody caught yet: whoever comes under his aim is.
-			LivingEntity target = aimed(level, v, st);
-			if (target != null) {
-				catchHold(level, v, target, now);
-			}
+		} else if (bolt != null) {
+			tickBolt(level, v, st, now);
+		} else {
+			tickAim(level, v, st, now);
 		}
 		tickEyes(v, st);
 		tickAnchor(level, v, st, now);
@@ -244,7 +290,7 @@ public final class Vecna {
 					}
 				}
 			}
-			ServerPlayNetworking.send(v, new HwNet.VecnaHud(gripCooldown, cfg.vecnaGripCooldownTicks, gripped == null ? -1 : gripped.getId(),
+			ServerPlayNetworking.send(v, new HwNet.VecnaHud(gripCooldown, gripCooldownMax, gripped == null ? -1 : gripped.getId(), gripAim, cfg.vecnaGripAimTicks, bolt != null,
 				eyesReserve, eyesMax(), eyesOn == null ? -1 : eyesOn.getId(),
 				anchorCooldown, anchorRest(), anchorPhase, anchorLeft, marks));
 		}
@@ -281,9 +327,30 @@ public final class Vecna {
 			return;
 		}
 		MatchManager.addStalk(v, st, t, cfg.vecnaEyesStalkPerSecond / 20f);
+		whisper(t);
 	}
 
-	/** The Anchor's delay: he stands, the clock strikes for them, then he is there. */
+	/** Voices in the head of the one he looks through: whispers, now and then words. */
+	private static void whisper(ServerPlayer t) {
+		int now = t.level().getServer().getTickCount();
+		if (now < nextWhisper) {
+			return;
+		}
+		var r = t.getRandom();
+		nextWhisper = now + 30 + r.nextInt(30);
+		net.minecraft.core.Holder<net.minecraft.sounds.SoundEvent> sound = r.nextBoolean() ? SoundEvents.AMBIENT_CAVE
+			: net.minecraft.core.Holder.direct(r.nextBoolean() ? SoundEvents.SOUL_ESCAPE.value() : SoundEvents.WARDEN_NEARBY_CLOSE);
+		t.connection.send(new net.minecraft.network.protocol.game.ClientboundSoundPacket(sound, SoundSource.MASTER,
+			t.getX() + r.nextGaussian(), t.getEyeY(), t.getZ() + r.nextGaussian(), 0.9f, 0.5f + r.nextFloat() * 0.2f, r.nextLong()));
+		if (r.nextInt(3) > 0) {
+			t.sendOverlayMessage(Component.translatable("halloween.voice.vecna." + r.nextInt(8)).withStyle(ChatFormatting.DARK_PURPLE, ChatFormatting.ITALIC));
+		}
+	}
+
+	/**
+	 * After the Anchor: he is already there, taking shape out of the dark (unseen at first, then a figure in a swirl
+	 * of red), rooted, the clock striking for them every second. Time enough to run.
+	 */
 	private static void tickAnchor(ServerLevel level, ServerPlayer v, ShapeState st, int now) {
 		if (anchorPhase == ANCHOR_CHOOSING && (st.busy() || Match.frozen())) {
 			anchorPhase = ANCHOR_IDLE;
@@ -291,39 +358,31 @@ public final class Vecna {
 		if (anchorPhase != ANCHOR_CHANNEL) {
 			return;
 		}
-		HwConfig cfg = HwConfig.get();
 		ServerPlayer t = anchorTarget;
-		if (st.stunnedTicks > 0 || st.grab != null || t == null || t.isRemoved() || t.isSpectator() || !t.isAlive()) {
-			// Stunned, or nobody to go to any more: it fails, and rests all the same.
-			anchorPhase = ANCHOR_IDLE;
-			anchorTarget = null;
-			anchorCooldown = anchorRest();
-			return;
-		}
-		if (anchorLeft % 20 == 0) {
-			// The clock strikes for them: he is coming.
+		int total = arriveTicks();
+		if (t != null && !t.isRemoved() && anchorLeft % 20 == 0) {
 			t.connection.send(new net.minecraft.network.protocol.game.ClientboundSoundPacket(net.minecraft.core.Holder.direct(SoundEvents.BELL_BLOCK), SoundSource.MASTER,
 				t.getX(), t.getEyeY(), t.getZ(), 1.4f, 0.5f, t.getRandom().nextLong()));
 		}
-		level.sendParticles(ParticleTypes.REVERSE_PORTAL, v.getX(), v.getY() + 1, v.getZ(), 8, 0.4, 0.9, 0.4, 0.05);
+		// The dark gathering into him: sparks drawn in from round about.
+		for (int i = 0; i < 6; i++) {
+			double a = v.getRandom().nextDouble() * Math.PI * 2;
+			double r = 1.2 + v.getRandom().nextDouble();
+			level.sendParticles(ParticleTypes.REVERSE_PORTAL, v.getX() + Math.cos(a) * r, v.getY() + v.getRandom().nextDouble() * 2, v.getZ() + Math.sin(a) * r, 1, 0, 0, 0, 0.05);
+		}
+		level.sendParticles(new DustParticleOptions(0x8A0E1E, 1.2f), v.getX(), v.getY() + 1, v.getZ(), 4, 0.3, 0.8, 0.3, 0);
+		if (anchorLeft == total * 2 / 5) {
+			// Now he shows.
+			v.setInvisible(false);
+			level.playSound(null, v.getX(), v.getY(), v.getZ(), SoundEvents.BELL_BLOCK, SoundSource.HOSTILE, 1.4f, 0.5f);
+			level.playSound(null, v.getX(), v.getY(), v.getZ(), SoundEvents.WARDEN_EMERGE, SoundSource.HOSTILE, 1f, 1.2f);
+		}
 		if (--anchorLeft > 0) {
 			return;
 		}
+		v.setInvisible(false);
 		anchorPhase = ANCHOR_IDLE;
 		anchorTarget = null;
-		anchorCooldown = anchorRest();
-		Vec3 to = arrival(level, t, cfg.vecnaAnchorDistance);
-		if (to == null) {
-			v.sendOverlayMessage(Component.translatable("halloween.msg.vecna.anchor_none").withStyle(ChatFormatting.GRAY));
-			return;
-		}
-		level.playSound(null, v.getX(), v.getY(), v.getZ(), SoundEvents.ENDERMAN_TELEPORT, SoundSource.HOSTILE, 1.5f, 0.5f);
-		Vec3 d = t.position().subtract(to);
-		float yaw = (float) (Math.atan2(-d.x, d.z) * 180 / Math.PI);
-		v.teleportTo(level, to.x, to.y, to.z, java.util.Set.of(), yaw, 0f, false);
-		level.playSound(null, to.x, to.y, to.z, SoundEvents.ENDERMAN_TELEPORT, SoundSource.HOSTILE, 1.5f, 0.5f);
-		level.playSound(null, to.x, to.y, to.z, SoundEvents.BELL_BLOCK, SoundSource.HOSTILE, 1.2f, 0.5f);
-		level.sendParticles(ParticleTypes.REVERSE_PORTAL, to.x, to.y + 1, to.z, 40, 0.4, 0.9, 0.4, 0.1);
 	}
 
 	/** Where he comes out: a spot he can stand on about this far from them, the one nearest that distance. */
@@ -350,67 +409,224 @@ public final class Vecna {
 		return best == null ? null : Vec3.atBottomCenterOf(best);
 	}
 
-	/** The survivor nearest his aim within reach and the cone, in sight. */
-	private static LivingEntity aimed(ServerLevel level, ServerPlayer v, ShapeState st) {
+	// ---------------------------------------------------------------- the Grip: aimed, thrown, dodged
+
+	/** Holding the key: he stands with his hand thrust out; after a second's aim, letting go throws the Grip. */
+	private static void tickAim(ServerLevel level, ServerPlayer v, ShapeState st, int now) {
 		HwConfig cfg = HwConfig.get();
-		Vec3 from = MatchManager.aimOrigin(v, st);
-		Vec3 look = MatchManager.aimDirection(v, st);
-		Vec3 eye = v.getEyePosition();
-		LivingEntity best = null;
-		double bestAngle = VecnaRitual.rift() ? cfg.vecnaRiftGripAngleDeg : cfg.vecnaGripAngleDeg;
-		for (ServerPlayer s : level.players()) {
-			if (!grippable(s)) {
-				continue;
+		boolean can = gripCooldown == 0 && !st.busy() && eyesOn == null && anchorPhase != ANCHOR_CHANNEL
+			&& !VecnaRitual.carrying() && !Match.frozen();
+		if (gripAim < 0) {
+			if (st.senseHeld && can) {
+				gripAim = 0;
+				GrabSession.anim(v, HwNet.Anim.VECNA_CAST);
+				level.playSound(null, v.getX(), v.getY(), v.getZ(), SoundEvents.EVOKER_PREPARE_ATTACK, SoundSource.HOSTILE, 1.2f, 0.5f);
 			}
-			Vec3 body = FocusPoints.bodyCenter(s);
-			if (eye.distanceTo(body) > gripRange()) {
-				continue;
+			return;
+		}
+		if (!can) {
+			stopAim(v);
+			return;
+		}
+		if (st.senseHeld) {
+			gripAim++;
+			if (now % 2 == 0) {
+				// Red sparks gather in the outstretched hand: everyone sees it coming.
+				Vec3 hand = hand(v);
+				level.sendParticles(new DustParticleOptions(gripAim >= cfg.vecnaGripAimTicks ? 0xFF3020 : 0x8A0E1E, 0.9f), hand.x, hand.y, hand.z, 3, 0.12, 0.12, 0.12, 0);
 			}
-			double angle = Sight.angleTo(from, look, body);
-			if (angle <= bestAngle && Sight.canSee(level, eye, body, v)) {
-				best = s;
-				bestAngle = angle;
+			if (gripAim == cfg.vecnaGripAimTicks) {
+				level.playSound(null, v.getX(), v.getY(), v.getZ(), SoundEvents.AMETHYST_BLOCK_RESONATE, SoundSource.HOSTILE, 1.4f, 0.5f);
+			}
+			return;
+		}
+		// Let go.
+		if (gripAim < cfg.vecnaGripAimTicks) {
+			v.sendOverlayMessage(Component.translatable("halloween.msg.vecna.grip_short").withStyle(ChatFormatting.GRAY));
+			stopAim(v);
+			return;
+		}
+		gripAim = -1;
+		fire(level, v, st);
+	}
+
+	private static void stopAim(ServerPlayer v) {
+		gripAim = -1;
+		GrabSession.anim(v, HwNet.Anim.NONE);
+	}
+
+	/** His left hand, thrust out before him. */
+	private static Vec3 hand(ServerPlayer v) {
+		float yaw = v.getYRot() * Mth.DEG_TO_RAD;
+		return v.position().add(-Mth.sin(yaw) * 0.7 + Mth.cos(yaw) * 0.35, 1.4, Mth.cos(yaw) * 0.7 + Mth.sin(yaw) * 0.35);
+	}
+
+	private static double gripSpeed() {
+		return VecnaRitual.rift() ? HwConfig.get().vecnaRiftGripSpeed : HwConfig.get().vecnaGripSpeed;
+	}
+
+	/** The thrown Grip's body: an upright bar of red light, a bright core in a glowing sheath (block displays). */
+	private static Display.BlockDisplay boltCore;
+	private static Display.BlockDisplay boltGlow;
+
+	private static Display.BlockDisplay bar(ServerLevel level, Vec3 at, net.minecraft.world.level.block.state.BlockState block, float width) {
+		HwConfig cfg = HwConfig.get();
+		Display.BlockDisplay d = new Display.BlockDisplay(net.minecraft.world.entity.EntityTypes.BLOCK_DISPLAY, level);
+		d.setBlockState(block);
+		float h = (float) cfg.vecnaGripHeight;
+		d.setTransformation(new com.mojang.math.Transformation(new org.joml.Vector3f(-width / 2, -h / 2, -width / 2), null,
+			new org.joml.Vector3f(width, h, width), null));
+		d.setBrightnessOverride(new net.minecraft.util.Brightness(15, 15));
+		d.setPosRotInterpolationDuration(1);
+		d.setViewRange(3f);
+		d.setPos(at.x, at.y, at.z);
+		d.addTag(Leftovers.stamp());
+		level.addFreshEntity(d);
+		return d;
+	}
+
+	private static void moveBars(Vec3 at) {
+		for (Display.BlockDisplay d : new Display.BlockDisplay[]{boltCore, boltGlow}) {
+			if (d != null && !d.isRemoved()) {
+				d.setPos(at.x, at.y, at.z);
 			}
 		}
-		return best;
+	}
+
+	private static void removeBars() {
+		for (Display.BlockDisplay d : new Display.BlockDisplay[]{boltCore, boltGlow}) {
+			if (d != null) {
+				d.discard();
+			}
+		}
+		boltCore = null;
+		boltGlow = null;
+	}
+
+	/** Thrown from his hand at whatever the middle of his view rests on. */
+	private static void fire(ServerLevel level, ServerPlayer v, ShapeState st) {
+		Vec3 from = MatchManager.aimOrigin(v, st);
+		Vec3 look = MatchManager.aimDirection(v, st);
+		Vec3 far = from.add(look.scale(gripRange() + 6));
+		net.minecraft.world.phys.BlockHitResult hit = level.clip(new net.minecraft.world.level.ClipContext(from, far,
+			net.minecraft.world.level.ClipContext.Block.COLLIDER, net.minecraft.world.level.ClipContext.Fluid.NONE, v));
+		Vec3 aimAt = hit.getType() == net.minecraft.world.phys.HitResult.Type.MISS ? far : hit.getLocation();
+		Vec3 hand = hand(v);
+		Vec3 dir = aimAt.subtract(hand);
+		bolt = hand;
+		boltDir = dir.lengthSqr() < 4 ? look : dir.normalize();
+		boltLeft = gripRange();
+		removeBars();
+		boltCore = bar(level, hand, net.minecraft.world.level.block.Blocks.REDSTONE_BLOCK.defaultBlockState(), 0.07f);
+		boltGlow = bar(level, hand, MapPlan.b("red_stained_glass"), 0.22f);
+		level.playSound(null, hand.x, hand.y, hand.z, SoundEvents.EVOKER_CAST_SPELL, SoundSource.HOSTILE, 1.5f, 0.6f);
+		level.playSound(null, hand.x, hand.y, hand.z, SoundEvents.WARDEN_SONIC_CHARGE, SoundSource.HOSTILE, 0.6f, 1.6f);
+		AiStats.add(v, "vecna.grip.thrown");
+	}
+
+	/**
+	 * The Grip in flight: a standing streak of red, as tall as a man and narrow, a few strides a second; a step aside
+	 * is enough to let it by. A wall stops it; whoever it touches first (survivor, townsperson, officer) is caught.
+	 */
+	private static void tickBolt(ServerLevel level, ServerPlayer v, ShapeState st, int now) {
+		HwConfig cfg = HwConfig.get();
+		if (st.stunnedTicks > 0) {
+			missed(level, v);
+			return;
+		}
+		double step = gripSpeed() / 20.0;
+		int parts = Math.max(1, (int) Math.ceil(step / 0.2));
+		double half = cfg.vecnaGripWidth / 2;
+		double tall = cfg.vecnaGripHeight / 2;
+		for (int i = 0; i < parts; i++) {
+			Vec3 next = bolt.add(boltDir.scale(step / parts));
+			if (level.clip(new net.minecraft.world.level.ClipContext(bolt, next, net.minecraft.world.level.ClipContext.Block.COLLIDER,
+				net.minecraft.world.level.ClipContext.Fluid.NONE, v)).getType() != net.minecraft.world.phys.HitResult.Type.MISS) {
+				level.sendParticles(ParticleTypes.SMOKE, bolt.x, bolt.y, bolt.z, 10, 0.1, 0.6, 0.1, 0.02);
+				missed(level, v);
+				return;
+			}
+			bolt = next;
+			boltLeft -= step / parts;
+			AABB column = new AABB(bolt.x - half, bolt.y - tall, bolt.z - half, bolt.x + half, bolt.y + tall, bolt.z + half);
+			for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, column.inflate(1), Vecna::grippable)) {
+				if (e != v && e.getBoundingBox().intersects(column)) {
+					catchHold(level, v, e, now);
+					return;
+				}
+			}
+		}
+		// Seen by everyone: the bar of red light (moved smoothly by the client), shedding a few sparks.
+		moveBars(bolt);
+		level.sendParticles(new DustParticleOptions(0xFF3A2A, 0.7f), bolt.x, bolt.y, bolt.z, 2, 0.04, tall * 0.6, 0.04, 0);
+		if (now % 4 == 0) {
+			level.playSound(null, bolt.x, bolt.y, bolt.z, SoundEvents.SOUL_ESCAPE.value(), SoundSource.HOSTILE, 1.2f, 0.6f);
+		}
+		if (boltLeft <= 0) {
+			level.sendParticles(ParticleTypes.SMOKE, bolt.x, bolt.y, bolt.z, 10, 0.1, 0.6, 0.1, 0.02);
+			missed(level, v);
+		}
+	}
+
+	/** Gone by, into a wall or out of reach: a short rest. */
+	private static void missed(ServerLevel level, ServerPlayer v) {
+		bolt = null;
+		removeBars();
+		gripCooldown = HwConfig.get().vecnaGripMissCooldownTicks;
+		gripCooldownMax = gripCooldown;
+		GrabSession.anim(v, HwNet.Anim.NONE);
 	}
 
 	private static boolean grippable(LivingEntity e) {
-		return e instanceof ServerPlayer s && MatchManager.role(s).survivor() && !s.isSpectator() && s.isAlive()
-			&& MatchManager.exposed(s) && !MatchManager.isGrabbed(s);
+		if (e instanceof ServerPlayer s && (s.isSpectator() || !MatchManager.role(s).survivor())) {
+			return false;
+		}
+		return e.isAlive() && MatchManager.exposed(e) && MatchManager.grabHolding(e) == null;
 	}
 
 	private static void catchHold(ServerLevel level, ServerPlayer v, LivingEntity target, int now) {
+		bolt = null;
+		removeBars();
 		gripped = target;
 		gripSince = now;
 		gripLost = 0;
+		gripCooldown = HwConfig.get().vecnaGripCooldownTicks;
+		gripCooldownMax = gripCooldown;
 		root(target, true);
-		level.playSound(null, v.getX(), v.getY(), v.getZ(), SoundEvents.EVOKER_PREPARE_ATTACK, SoundSource.HOSTILE, 1.2f, 0.5f);
-		level.playSound(null, target.getX(), target.getY(), target.getZ(), SoundEvents.ELDER_GUARDIAN_CURSE, SoundSource.HOSTILE, 0.7f, 0.6f);
+		level.playSound(null, target.getX(), target.getY(), target.getZ(), SoundEvents.ELDER_GUARDIAN_CURSE, SoundSource.HOSTILE, 0.8f, 0.6f);
 		Panic.add(target, HwConfig.get().panicOnGrab);
 		AiStats.add(v, "vecna.grip");
 	}
 
+	/** Caught: drawn to him by itself; at his hand, he takes them by the throat. */
 	private static void tickGrip(ServerLevel level, ServerPlayer v, ShapeState st, int now) {
 		HwConfig cfg = HwConfig.get();
 		LivingEntity t = gripped;
-		if (!st.senseHeld || st.stunnedTicks > 0 || st.grab != null || !grippable(t) || t.level() != level
-			|| t.distanceTo(v) > gripRange() * 1.5) {
-			// Let go, stunned, the grab closed on them (or someone else), or they are out of his reach.
-			release(level, st.stunnedTicks > 0);
+		if (st.stunnedTicks > 0 || st.grab != null || !grippable(t) || t.level() != level || t.distanceTo(v) > gripRange() * 1.5) {
+			// Stunned, busy with someone else, or they are out of his reach (a wardrobe, someone else's hands).
+			release(level, v, st.stunnedTicks > 0);
 			return;
 		}
 		Vec3 eye = v.getEyePosition();
 		Vec3 body = FocusPoints.bodyCenter(t);
 		gripLost = Sight.canSee(level, eye, body, v) ? 0 : gripLost + 1;
 		if (gripLost > cfg.vecnaGripLostTicks) {
-			release(level, false);
+			release(level, v, false);
+			return;
+		}
+		Vec3 to = new Vec3(v.getX() - t.getX(), 0, v.getZ() - t.getZ());
+		double dist = to.length();
+		if (dist <= 1.8) {
+			// At his hand: straight into a stranglehold.
+			gripped = null;
+			root(t, false);
+			if (!MatchManager.vecnaGrab(v, t)) {
+				GrabSession.anim(v, HwNet.Anim.NONE);
+			}
 			return;
 		}
 		// Drawn towards him over the ground (they keep their own eyes, and their gun).
-		Vec3 to = new Vec3(v.getX() - t.getX(), 0, v.getZ() - t.getZ());
-		double dist = to.length();
-		Vec3 pull = dist > 1.6 ? to.scale((VecnaRitual.rift() ? cfg.vecnaRiftGripPull : cfg.vecnaGripPull) / 20.0 / dist) : Vec3.ZERO;
+		Vec3 pull = to.scale((VecnaRitual.rift() ? cfg.vecnaRiftGripPull : cfg.vecnaGripPull) / 20.0 / dist);
 		t.setDeltaMovement(pull.x, -0.1, pull.z);
 		t.hurtMarked = true;
 		MatchManager.addStalk(v, st, t, cfg.vecnaGripStalkPerSecond / 20f);
@@ -423,11 +639,9 @@ public final class Vecna {
 		}
 	}
 
-	/** The Grip seen by everyone: a writhing thread of red from his raised hand to their chest. */
+	/** The Grip while it draws someone: a quivering thread of red from his outstretched hand to their chest. */
 	private static void beam(ServerLevel level, ServerPlayer v, LivingEntity t, int now) {
-		float yaw = v.getYRot() * Mth.DEG_TO_RAD;
-		// His right hand, held out before him.
-		Vec3 hand = v.position().add(-Mth.sin(yaw) * 0.6 - Mth.cos(yaw) * 0.35, 1.45, Mth.cos(yaw) * 0.6 - Mth.sin(yaw) * 0.35);
+		Vec3 hand = hand(v);
 		Vec3 chest = FocusPoints.bodyCenter(t);
 		Vec3 d = chest.subtract(hand);
 		double len = d.length();
@@ -452,15 +666,17 @@ public final class Vecna {
 		}
 	}
 
-	/** The Grip ends: they can walk again; he rests before the next. */
-	private static void release(ServerLevel level, boolean stunned) {
+	/** The Grip broken before they reach him: they can walk again. */
+	private static void release(ServerLevel level, ServerPlayer v, boolean stunned) {
 		if (gripped == null) {
 			return;
 		}
 		LivingEntity t = gripped;
 		gripped = null;
 		root(t, false);
-		gripCooldown = HwConfig.get().vecnaGripCooldownTicks;
+		if (v != null) {
+			GrabSession.anim(v, HwNet.Anim.NONE);
+		}
 		level.playSound(null, t.getX(), t.getY(), t.getZ(), SoundEvents.BEACON_DEACTIVATE, SoundSource.HOSTILE, 1.2f, 0.6f);
 		if (t instanceof ServerPlayer sp) {
 			sp.sendOverlayMessage(Component.translatable(stunned ? "halloween.msg.vecna.freed_stun" : "halloween.msg.vecna.freed").withStyle(ChatFormatting.GRAY));
@@ -489,10 +705,23 @@ public final class Vecna {
 	/** Back to school: nothing of the Grip left on them. */
 	public static void reset(ServerPlayer p) {
 		root(p, false);
+		if (p.isInvisible()) {
+			p.setInvisible(false);
+		}
 	}
 
 	/** A match over (or starting): nobody held, no rest. */
 	public static void clear(ServerLevel level) {
+		if (anchorPhase == ANCHOR_CHANNEL) {
+			ServerPlayer v = Senses.shape(level);
+			if (v != null) {
+				v.setInvisible(false);
+			}
+		}
+		gripAim = -1;
+		bolt = null;
+		gripCooldownMax = 1;
+		removeBars();
 		if (gripped != null) {
 			root(gripped, false);
 			gripped = null;

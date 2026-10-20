@@ -89,6 +89,8 @@ public final class VecnaClient {
 	private static long riftFlashAt = -1000;
 	private static long riftNextFlash;
 	private static long riftNextDrone;
+	/** Glowing crack cells near this player (looked for once a second). */
+	private static final List<BlockPos> CRACKS = new ArrayList<>();
 
 	/** The rift is open: everyone in the match lives in the Upside Down now. */
 	public static boolean riftOpen() {
@@ -123,6 +125,39 @@ public final class VecnaClient {
 		if (now >= riftNextDrone) {
 			riftNextDrone = now + 100 + r.nextInt(80);
 			mc.level.playLocalSound(mc.player.getX(), mc.player.getY(), mc.player.getZ(), SoundEvents.AMBIENT_BASALT_DELTAS_MOOD.value(), SoundSource.AMBIENT, 0.7f, 0.5f, false);
+		}
+		// Over the cracks near by: embers, a red haze, smoke curling up.
+		if (now % 20 == 0) {
+			CRACKS.clear();
+			BlockPos me = mc.player.blockPosition();
+			BlockPos.MutableBlockPos p = new BlockPos.MutableBlockPos();
+			for (int dx = -20; dx <= 20; dx++) {
+				for (int dz = -20; dz <= 20; dz++) {
+					for (int dy = -6; dy <= 3; dy++) {
+						p.set(me.getX() + dx, me.getY() + dy, me.getZ() + dz);
+						if (mc.level.getBlockState(p).is(net.minecraft.world.level.block.Blocks.SHROOMLIGHT) && mc.level.getBlockState(p.above()).getCollisionShape(mc.level, p.above()).isEmpty()) {
+							CRACKS.add(p.immutable());
+							break;
+						}
+					}
+				}
+			}
+		}
+		for (int i = 0; i < Math.min(8, CRACKS.size()); i++) {
+			BlockPos c = CRACKS.get(r.nextInt(CRACKS.size()));
+			double x = c.getX() + r.nextDouble();
+			double z = c.getZ() + r.nextDouble();
+			double y = c.getY() + 1.02;
+			switch (r.nextInt(6)) {
+				case 0 -> mc.level.addParticle(net.minecraft.core.particles.ParticleTypes.SMALL_FLAME, x, y, z, 0, 0.02, 0);
+				case 1 -> mc.level.addParticle(net.minecraft.core.particles.ParticleTypes.SMOKE, x, y, z, 0, 0.04, 0);
+				case 2 -> {
+					if (r.nextInt(6) == 0) {
+						mc.level.addParticle(net.minecraft.core.particles.ParticleTypes.LAVA, x, y, z, 0, 0, 0);
+					}
+				}
+				default -> mc.level.addParticle(new net.minecraft.core.particles.DustParticleOptions(0xD02A10, 2.2f), x, y + r.nextDouble() * 1.5, z, 0, 0.01, 0);
+			}
 		}
 		// Spores and ash drifting in the air all round.
 		for (int i = 0; i < 6; i++) {

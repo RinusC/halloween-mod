@@ -183,8 +183,8 @@ public final class MatchManager {
 				SHAPES.put(player.getUUID(), state);
 				player.setGameMode(GameType.ADVENTURE);
 				player.getInventory().clearContent();
-				if (!Demogorgon.active()) {
-					// Michael's kitchen knife (the Demogorgon has his claws).
+				if (!Demogorgon.active() && !Vecna.active()) {
+					// Michael's kitchen knife (the Demogorgon has his claws, Vecna his bare hands).
 					ItemStack knife = new ItemStack(Items.IRON_SWORD);
 					knife.set(DataComponents.CUSTOM_NAME, Component.translatable("halloween.item.knife"));
 					knife.set(DataComponents.ITEM_MODEL, Halloween.id("michael_knife"));
@@ -1145,6 +1145,20 @@ public final class MatchManager {
 			return false;
 		}
 		return startGrab(player, state, victim, locker);
+	}
+
+	/** For tests: whatever grab this Shape is in, over. */
+	public static void testEndGrab(ServerPlayer player) {
+		ShapeState state = SHAPES.get(player.getUUID());
+		if (state != null && state.grab != null) {
+			state.grab.end();
+		}
+	}
+
+	/** Vecna's Grip has drawn someone to his hand: straight into a stranglehold. */
+	static boolean vecnaGrab(ServerPlayer player, LivingEntity victim) {
+		ShapeState state = SHAPES.get(player.getUUID());
+		return state != null && state.grab == null && state.stunnedTicks == 0 && isVictim(victim) && startGrab(player, state, victim);
 	}
 
 	private static boolean startGrab(ServerPlayer player, ShapeState state, LivingEntity victim) {

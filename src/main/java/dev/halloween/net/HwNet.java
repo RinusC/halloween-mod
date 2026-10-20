@@ -92,18 +92,21 @@ public final class HwNet {
 	}
 
 	/**
-	 * Vecna's own screen: the Grip's rest left (and its full length), whom it holds (-1: nobody); the Eyes' reserve
+	 * Vecna's own screen: the Grip's rest left (and its full length), whom it holds (-1: nobody), ticks aimed (-1: not aiming) of the aim it needs, whether it is in flight; the Eyes' reserve
 	 * (and its most), whose eyes he looks through (-1: his own); the Anchor's rest (and its full length), its phase
 	 * (game.Vecna.ANCHOR_*), the delay left, and the cursed while he chooses.
 	 */
-	public record VecnaHud(int gripCooldown, int gripCooldownMax, int gripTarget, int eyesReserve, int eyesMax, int eyesTarget,
+	public record VecnaHud(int gripCooldown, int gripCooldownMax, int gripTarget, int gripAim, int gripAimTicks, boolean gripFlying, int eyesReserve, int eyesMax, int eyesTarget,
 		int anchorCooldown, int anchorCooldownMax, int anchorPhase, int anchorLeft, List<CurseMark> marks) implements CustomPacketPayload {
 		public static final Type<VecnaHud> TYPE = payloadType("vecna_hud");
-		public static final VecnaHud NONE = new VecnaHud(0, 1, -1, 0, 1, -1, 0, 1, 0, 0, List.of());
+		public static final VecnaHud NONE = new VecnaHud(0, 1, -1, -1, 1, false, 0, 1, -1, 0, 1, 0, 0, List.of());
 		public static final StreamCodec<RegistryFriendlyByteBuf, VecnaHud> CODEC = StreamCodec.of((buf, v) -> {
 			buf.writeVarInt(v.gripCooldown);
 			buf.writeVarInt(v.gripCooldownMax);
 			buf.writeVarInt(v.gripTarget);
+			buf.writeVarInt(v.gripAim + 1);
+			buf.writeVarInt(v.gripAimTicks);
+			buf.writeBoolean(v.gripFlying);
 			buf.writeVarInt(v.eyesReserve);
 			buf.writeVarInt(v.eyesMax);
 			buf.writeVarInt(v.eyesTarget);
@@ -119,16 +122,23 @@ public final class HwNet {
 				buf.writeUtf(m.name);
 			}
 		}, buf -> {
-			int[] head = new int[10];
+			int[] head = new int[3];
 			for (int i = 0; i < head.length; i++) {
 				head[i] = buf.readVarInt();
+			}
+			int aim = buf.readVarInt() - 1;
+			int aimTicks = buf.readVarInt();
+			boolean flying = buf.readBoolean();
+			int[] rest = new int[7];
+			for (int i = 0; i < rest.length; i++) {
+				rest[i] = buf.readVarInt();
 			}
 			int n = buf.readVarInt();
 			List<CurseMark> marks = new ArrayList<>(n);
 			for (int i = 0; i < n; i++) {
 				marks.add(new CurseMark(buf.readVarInt(), readVec(buf), buf.readVarInt(), buf.readUtf()));
 			}
-			return new VecnaHud(head[0], head[1], head[2], head[3], head[4], head[5], head[6], head[7], head[8], head[9], marks);
+			return new VecnaHud(head[0], head[1], head[2], aim, aimTicks, flying, rest[0], rest[1], rest[2], rest[3], rest[4], rest[5], rest[6], marks);
 		});
 
 		@Override
@@ -516,6 +526,8 @@ public final class HwNet {
 		public static final int DEMO_TOSS = 25;
 		/** Dead, lying as they fell, every limb slack (carried like that too). */
 		public static final int DEAD = 26;
+		/** Vecna's Grip: one hand thrust out, fingers spread, shaking (held while he aims and while he pulls). */
+		public static final int VECNA_CAST = 27;
 
 		public static final Type<Anim> TYPE = payloadType("anim");
 		public static final StreamCodec<RegistryFriendlyByteBuf, Anim> CODEC = StreamCodec.of((buf, v) -> {

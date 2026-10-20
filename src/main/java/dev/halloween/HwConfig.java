@@ -864,9 +864,14 @@ public class HwConfig {
 	public float demoLightSlow = 0.1f;
 	/** The killer of the next matches is Vecna (/hw killer vecna; over killerDemogorgon). */
 	public boolean killerVecna = false;
-	/** Vecna's Grip: catches a survivor this far off within this angle of his aim, pulls them this fast (blocks a second). */
+	/** Vecna's Grip: reaches this far, pulls whom it catches this fast (blocks a second). */
 	public double vecnaGripRange = 20;
-	public double vecnaGripAngleDeg = 7;
+	/** The Grip thrown: blocks a second, a second's aim before it can go, the standing streak's width and height; a miss rests this long (a catch, vecnaGripCooldownTicks). */
+	public double vecnaGripSpeed = 12;
+	public int vecnaGripAimTicks = 20;
+	public double vecnaGripWidth = 0.5;
+	public double vecnaGripHeight = 2.6;
+	public int vecnaGripMissCooldownTicks = 160;
 	public double vecnaGripPull = 2;
 	/** Grip ends this long after the target is lost from sight; then this long before the next. */
 	public int vecnaGripLostTicks = 6;
@@ -891,17 +896,19 @@ public class HwConfig {
 	public int vecnaEyesMaxTicks = 200;
 	public int vecnaEyesRefillEvery = 6;
 	public float vecnaEyesStalkPerSecond = 0.2f;
-	/** The Anchor: standing this long before he goes, coming out this far from them; then its rest. */
+	/** The Anchor: coming out this far from them, taking shape (rooted) this long; then its rest. */
 	public int vecnaAnchorDelayTicks = 60;
 	public double vecnaAnchorDistance = 8;
 	public int vecnaAnchorCooldownTicks = 1800;
 	/** The ritual: bodies needed in the altar's ring, and its radius. */
 	public int vecnaRitualBodies = 4;
+	/** The rift's cracks spread over the town in this long. */
+	public int vecnaCrackSpreadTicks = 300;
 	public double vecnaAltarRadius = 3;
-	/** The rift open: his speed times this; the Grip's reach, angle and pull; the Eyes' reserve and refill; the Anchor (to anyone) delay and rest. */
+	/** The rift open: his speed times this; the Grip's reach, speed and pull; the Eyes' reserve and refill; the Anchor (to anyone): taking shape, and rest. */
 	public float vecnaRiftSpeedFactor = 1.1f;
 	public double vecnaRiftGripRange = 30;
-	public double vecnaRiftGripAngleDeg = 10;
+	public double vecnaRiftGripSpeed = 18;
 	public double vecnaRiftGripPull = 3;
 	public int vecnaRiftEyesMaxTicks = 300;
 	public int vecnaRiftEyesRefillEvery = 4;

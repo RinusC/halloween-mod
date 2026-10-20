@@ -62,7 +62,7 @@ public class VecnaClientTest implements FabricClientGameTest {
 					Vec3 dir = Vec3.directionFromRotation(0, yaw);
 					Vec3 at = p.position().add(dir.scale(12));
 					bot.teleportTo(s.overworld(), at.x, at.y, at.z, java.util.Set.of(), yaw + 180f, 0f, false);
-					if (s.overworld().noCollision(bot) && Sight.canSee(s.overworld(), p.getEyePosition(), FocusPoints.bodyCenter(bot), p)) {
+					if (s.overworld().noCollision(bot) && Sight.canSee(s.overworld(), p.getEyePosition(), FocusPoints.bodyCenter(bot), p) && clearCorridor(s, p, bot)) {
 						return at;
 					}
 				}
@@ -75,31 +75,71 @@ public class VecnaClientTest implements FabricClientGameTest {
 				mc.player.setXRot((float) (-Math.atan2(d.y, Math.hypot(d.x, d.z)) * 180 / Math.PI));
 			});
 			ctx.waitTicks(5);
+			// (The bot held still: its own errands would walk it off.)
+			server.runOnServer(s -> still(bot(s), true));
+			ctx.runOnClient(mc -> mc.options.setCameraType(CameraType.THIRD_PERSON_BACK));
+
+			// Too short an aim throws nothing.
+			server.runOnServer(s -> MatchManager.shapeState(player(s)).senseHeld = true);
+			ctx.waitTicks(8);
+			check(server.computeOnServer(s -> Vecna.rooted()), "aiming roots him");
+			server.runOnServer(s -> MatchManager.shapeState(player(s)).senseHeld = false);
+			ctx.waitTicks(3);
+			check(server.computeOnServer(s -> !Vecna.flying() && !Vecna.gripping()), "a short aim throws nothing");
+
+			// Thrown at the bot, which steps aside as it comes: it goes by.
+			server.runOnServer(s -> MatchManager.shapeState(player(s)).senseHeld = true);
+			ctx.waitTicks(HwConfig.get().vecnaGripAimTicks + 4);
+			ctx.takeScreenshot("vecna_grip_aim");
+			server.runOnServer(s -> MatchManager.shapeState(player(s)).senseHeld = false);
+			ctx.waitTicks(2);
+			check(server.computeOnServer(s -> Vecna.flying()), "let go after a second's aim: the Grip flies");
+			server.runOnServer(s -> {
+				ServerPlayer bot = bot(s);
+				Vec3 side = Vec3.directionFromRotation(0, player(s).getYRot() - 90).scale(3);
+				bot.teleportTo(s.overworld(), bot.getX() + side.x, bot.getY(), bot.getZ() + side.z, java.util.Set.of(), bot.getYRot(), 0f, false);
+			});
+			// (Twenty blocks at twelve a second: it flies a little under two seconds.)
+			ctx.waitTicks(45);
+			check(server.computeOnServer(s -> !Vecna.gripping() && !Vecna.flying()), "a step aside: the Grip went by");
+			server.runOnServer(s -> {
+				ServerPlayer bot = bot(s);
+				bot.teleportTo(s.overworld(), botAt.x, botAt.y, botAt.z, java.util.Set.of(), bot.getYRot(), 0f, false);
+				Vecna.testReady();
+			});
+			ctx.waitTicks(3);
+
+			// Thrown again, the bot standing: caught, drawn in, and straight into a stranglehold.
 			double before = server.computeOnServer(s -> bot(s).distanceTo(player(s)));
 			server.runOnServer(s -> MatchManager.shapeState(player(s)).senseHeld = true);
-			ctx.waitTicks(10);
-			check(server.computeOnServer(s -> Vecna.gripping()), "the Grip caught the bot");
-			ctx.runOnClient(mc -> mc.options.setCameraType(CameraType.THIRD_PERSON_BACK));
+			ctx.waitTicks(HwConfig.get().vecnaGripAimTicks + 2);
+			server.runOnServer(s -> MatchManager.shapeState(player(s)).senseHeld = false);
+			ctx.waitTicks(9);
+			ctx.takeScreenshot("vecna_grip_flying");
+			int caughtBy = -1;
+			for (int i = 0; i < 30 && caughtBy < 0; i++) {
+				if (server.computeOnServer(s -> Vecna.gripping())) {
+					caughtBy = i;
+				}
+				ctx.waitTicks(2);
+			}
+			LOG.info("caught {} ticks after the screenshot", caughtBy * 2);
+			check(caughtBy >= 0, "the Grip caught the bot");
+			server.runOnServer(s -> still(bot(s), false));
 			ctx.waitTicks(30);
-			ctx.takeScreenshot("vecna_grip_behind");
-			ctx.waitTicks(30);
+			ctx.takeScreenshot("vecna_grip_pull");
 			double after = server.computeOnServer(s -> bot(s).distanceTo(player(s)));
 			LOG.info("bot drawn from {} to {}", before, after);
-			check(after < before - 3, "the bot is drawn towards him");
-			check(ctx.computeOnClient(mc -> ClientState.vecna.gripTarget() >= 0), "his screen shows the Grip");
-			// Once caught, his aim no longer matters: turned aside, the Grip runs across the view.
-			ctx.runOnClient(mc -> mc.player.setYRot(mc.player.getYRot() - 45f));
+			check(after < before - 2, "the bot is drawn towards him");
+			boolean grabbed = false;
+			for (int i = 0; i < 60 && !grabbed; i++) {
+				ctx.waitTicks(4);
+				grabbed = server.computeOnServer(s -> MatchManager.shapeState(player(s)).grab != null);
+			}
+			check(grabbed, "drawn to his hand: he strangles them");
 			ctx.waitTicks(10);
-			ctx.takeScreenshot("vecna_grip_side");
-			check(server.computeOnServer(s -> Vecna.gripping()), "still held with him looking aside");
-
-			// A stun breaks it, and the rest begins.
-			server.runOnServer(s -> MatchManager.shapeState(player(s)).stunnedTicks = 40);
-			ctx.waitTicks(5);
-			check(server.computeOnServer(s -> !Vecna.gripping()), "a stun breaks the Grip");
-			double freed = server.computeOnServer(s -> bot(s).getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED));
-			check(freed > 0, "the bot can walk again");
-			server.runOnServer(s -> MatchManager.shapeState(player(s)).stunnedTicks = 0);
+			ctx.takeScreenshot("vecna_grip_strangle");
+			server.runOnServer(s -> MatchManager.testEndGrab(player(s)));
 			ctx.waitTicks(10);
 			check(server.computeOnServer(s -> !Vecna.gripping()), "no Grip again during its rest");
 			ctx.runOnClient(mc -> mc.options.setCameraType(CameraType.FIRST_PERSON));
@@ -203,10 +243,14 @@ public class VecnaClientTest implements FabricClientGameTest {
 			ctx.takeScreenshot("vecna_anchor_choose");
 			check(ctx.computeOnClient(mc -> ClientState.vecna.marks().size() == 1), "holding the key shows the cursed bot");
 			server.runOnServer(s -> Vecna.anchorKey(player(s), false));
-			ctx.waitTicks(HwConfig.get().vecnaAnchorDelayTicks + 10);
+			ctx.waitTicks(3);
+			check(server.computeOnServer(s -> player(s).distanceTo(bot(s)) < 12 && Vecna.rooted() && player(s).isInvisible()), "the Anchor: there at once, unseen, rooted while he takes shape");
+			ctx.takeScreenshot("vecna_anchor_arriving");
+			ctx.waitTicks(HwConfig.get().vecnaAnchorDelayTicks + 5);
+			check(server.computeOnServer(s -> !Vecna.rooted() && !player(s).isInvisible()), "taken shape: free again");
 			double near = server.computeOnServer(s -> player(s).distanceTo(bot(s)));
 			LOG.info("after the Anchor: {} blocks from the bot", near);
-			check(near < 12, "the Anchor brought him beside the bot");
+			// (The bot may well have run off while he took shape: that is the point.)
 			ctx.takeScreenshot("vecna_anchor_there");
 
 			// A phantom (as a cursed survivor sees one).
@@ -216,6 +260,7 @@ public class VecnaClientTest implements FabricClientGameTest {
 			ctx.takeScreenshot("vecna_phantom");
 
 			// The ritual: a body taken up, laid down (the altar), two more already in its ring, the fourth laid: the rift.
+			server.runOnServer(s -> HwConfig.get().vecnaCrackSpreadTicks = 40);
 			double speedBefore = server.computeOnServer(s -> player(s).getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED));
 			int stageBefore = server.computeOnServer(s -> dev.halloween.game.VecnaCurse.stage(bot(s)));
 			server.runOnServer(s -> {
@@ -304,9 +349,18 @@ public class VecnaClientTest implements FabricClientGameTest {
 			});
 			ctx.waitTicks(10);
 			ctx.takeScreenshot("vecna_rift");
-			ctx.runOnClient(mc -> ClientState.ritual = new dev.halloween.net.HwNet.VecnaRitual(false, net.minecraft.core.BlockPos.ZERO, 0, 4, false, -1));
-			ctx.waitTicks(1);
-			ctx.takeScreenshot("vecna_rift_nofog");
+			// From above, as in the show: the cracks out from the altar.
+			server.runOnServer(s -> {
+				Vec3 a = dev.halloween.game.VecnaRitual.altar();
+				player(s).teleportTo(s.overworld(), a.x, a.y + 30, a.z - 22, java.util.Set.of(), 0f, 52f, false);
+			});
+			ctx.runOnClient(mc -> {
+				mc.player.setYRot(0f);
+				mc.player.setXRot(52f);
+			});
+			ctx.waitTicks(3);
+			ctx.takeScreenshot("vecna_rift_above");
+			server.runOnServer(s -> HwConfig.get().vecnaCrackSpreadTicks = 300);
 			double speedAfter = server.computeOnServer(s -> player(s).getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED));
 			LOG.info("speed {} -> {}, bot stage {} -> {}", speedBefore, speedAfter, stageBefore, server.computeOnServer(s -> dev.halloween.game.VecnaCurse.stage(bot(s))));
 			check(speedAfter > speedBefore * 1.05, "the rift makes him faster");
@@ -339,6 +393,34 @@ public class VecnaClientTest implements FabricClientGameTest {
 			}
 		}
 		throw new IllegalStateException("no player");
+	}
+
+	/** Nothing solid in a lane a couple of blocks wide between him and the bot (his camera is off to one side). */
+	private static boolean clearCorridor(MinecraftServer s, ServerPlayer p, ServerPlayer bot) {
+		Vec3 to = FocusPoints.bodyCenter(bot);
+		Vec3 d = to.subtract(p.position());
+		Vec3 side = new Vec3(-d.z, 0, d.x).normalize();
+		for (double off : new double[]{-1.3, -0.6, 0, 0.6, 1.3}) {
+			for (double h : new double[]{1.2, 2.0}) {
+				Vec3 a = p.position().add(side.scale(off)).add(0, h, 0);
+				Vec3 b = to.add(side.scale(off * 0.3));
+				if (s.overworld().clip(new net.minecraft.world.level.ClipContext(a, b, net.minecraft.world.level.ClipContext.Block.COLLIDER,
+					net.minecraft.world.level.ClipContext.Fluid.NONE, p)).getType() != net.minecraft.world.phys.HitResult.Type.MISS) {
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+
+	private static void still(ServerPlayer p, boolean on) {
+		var speed = p.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED);
+		if (on) {
+			speed.addOrUpdateTransientModifier(new net.minecraft.world.entity.ai.attributes.AttributeModifier(dev.halloween.Halloween.id("test_still"), -1,
+				net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
+		} else {
+			speed.removeModifier(dev.halloween.Halloween.id("test_still"));
+		}
 	}
 
 	private static void summonCorpse(MinecraftServer s, Vec3 at) {

@@ -69,7 +69,7 @@ public final class Minimap {
 		return kind != BUILDING && trees ? TREES : kind;
 	}
 
-	private static boolean road(BlockState ground) {
+	static boolean road(BlockState ground) {
 		String id = ground.getBlock().getDescriptionId();
 		return id.contains("concrete") && !id.contains("powder") || id.contains("terracotta") || id.contains("smooth_stone")
 			|| id.contains("stone_brick") || id.contains("andesite") || id.contains("coarse_dirt");

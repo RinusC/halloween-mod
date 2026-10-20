@@ -1312,6 +1312,22 @@ public final class HwHud {
 					(int) p.x(), (int) p.y() - 16, 0xFFFF6060);
 			}
 		}
+		if (vh.gripAim() >= 0) {
+			// The Grip's aim: a standing line where it will go (it flies upright), filling as the aim steadies.
+			int cx = w / 2;
+			int top = h / 2 - 26;
+			int bottom = h / 2 + 26;
+			float k = Mth.clamp(vh.gripAim() / (float) Math.max(1, vh.gripAimTicks()), 0, 1);
+			boolean ready = k >= 1;
+			g.fill(cx - 2, top - 1, cx + 2, bottom + 1, 0x90000000);
+			g.fill(cx - 1, top, cx + 1, bottom, 0x60601018);
+			int fillTop = bottom - Math.round((bottom - top) * k);
+			g.fill(cx - 1, fillTop, cx + 1, bottom, ready ? 0xFFFF3A2A : 0xFFB02030);
+			if (ready) {
+				g.fill(cx - 4, top, cx + 4, top + 1, 0xFFFF3A2A);
+				g.fill(cx - 4, bottom - 1, cx + 4, bottom, 0xFFFF3A2A);
+			}
+		}
 		if (vh.anchorPhase() == dev.halloween.game.Vecna.ANCHOR_CHOOSING) {
 			Vec3 from = CameraAim.origin();
 			Vec3 look = CameraAim.direction();
@@ -1340,7 +1356,7 @@ public final class HwHud {
 				: Component.translatable("halloween.hud.vecna.anchor_pick", pick.name(), HalloweenClient.KEY_IMPULSE.getTranslatedKeyMessage());
 			g.textWithBackdrop(mc.font, line, w / 2 - mc.font.width(line) / 2, h / 2 + 40, mc.font.width(line), pick == null ? DIM : 0xFFFF6060);
 		} else if (vh.anchorPhase() == dev.halloween.game.Vecna.ANCHOR_CHANNEL) {
-			Component line = Component.translatable("halloween.hud.vecna.anchor_going", seconds(vh.anchorLeft()));
+			Component line = Component.translatable("halloween.hud.vecna.anchor_arriving", seconds(vh.anchorLeft()));
 			g.textWithBackdrop(mc.font, line, w / 2 - mc.font.width(line) / 2, h / 2 + 40, mc.font.width(line), 0xFFFF6060);
 		}
 		if (vh.eyesTarget() >= 0) {
@@ -1418,10 +1434,12 @@ public final class HwHud {
 		boolean gripReady = vh.gripCooldown() == 0;
 		float gripProgress = gripReady ? 1f : 1f - (float) vh.gripCooldown() / Math.max(1, vh.gripCooldownMax());
 		abilityDiamond(g, font, gripX, baseY, "✋", HalloweenClient.KEY_SENSE,
-			holding ? 0xE08A1A2A : gripReady ? DARK_FILL : RED_FILL, gripProgress, 0xFF606060, holding ? 0xFFFFD0D0 : TEXT);
+			holding || vh.gripFlying() || vh.gripAim() >= 0 ? 0xE08A1A2A : gripReady ? DARK_FILL : RED_FILL, gripProgress, 0xFF606060, holding ? 0xFFFFD0D0 : TEXT);
 		Component gripLine = holding ? Component.translatable("halloween.hud.vecna.grip.holding")
-			: gripReady ? (HalloweenClient.KEY_SENSE.isDown() ? Component.translatable("halloween.hud.vecna.grip.aim") : null)
-			: Component.literal(seconds(vh.gripCooldown()));
+			: vh.gripFlying() ? Component.translatable("halloween.hud.vecna.grip.flying")
+			: vh.gripAim() >= 0 ? Component.translatable(vh.gripAim() >= vh.gripAimTicks() ? "halloween.hud.vecna.grip.ready" : "halloween.hud.vecna.grip.aim",
+				HalloweenClient.KEY_SENSE.getTranslatedKeyMessage())
+			: gripReady ? null : Component.literal(seconds(vh.gripCooldown()));
 		if (gripLine != null) {
 			// Above the other diamonds, right-aligned to the screen's edge.
 			int lx = w - 4 - font.width(gripLine);

@@ -53,7 +53,7 @@ public final class ClientAnims {
 					s.riseStart = now();
 				}
 			}
-			case HwNet.Anim.HOLD, HwNet.Anim.STRUGGLE, HwNet.Anim.STRANGLE, HwNet.Anim.DEVOUR, HwNet.Anim.LOCKER_HOLD, HwNet.Anim.IMPALED -> s.hold = payload.kind();
+			case HwNet.Anim.HOLD, HwNet.Anim.STRUGGLE, HwNet.Anim.STRANGLE, HwNet.Anim.DEVOUR, HwNet.Anim.LOCKER_HOLD, HwNet.Anim.IMPALED, HwNet.Anim.VECNA_CAST -> s.hold = payload.kind();
 			case HwNet.Anim.DEAD -> {
 				// Stays down (flat at once if they were not), slack.
 				s.hold = payload.kind();
@@ -244,6 +244,16 @@ public final class ClientAnims {
 			m.rightArm.yRot = -0.2f;
 			m.rightArm.zRot = 0.05f;
 			m.head.xRot = 0.1f;
+		} else if (s.hold == HwNet.Anim.VECNA_CAST) {
+			// Vecna's Grip: the left hand thrust out at shoulder height, shaking with the strain; the right arm hangs.
+			float shake = Mth.sin(now * 2.3f) * 0.035f + Mth.sin(now * 3.7f) * 0.02f;
+			m.leftArm.xRot = -1.62f + shake;
+			m.leftArm.yRot = 0.12f;
+			m.leftArm.zRot = shake;
+			m.rightArm.xRot = 0.1f;
+			m.rightArm.yRot = 0;
+			m.rightArm.zRot = 0.08f;
+			m.head.xRot = 0.05f;
 		} else if (s.hold == HwNet.Anim.LOCKER_HOLD) {
 			// At a wardrobe: one hand at their throat pinning them to its door, the other braced on it above them.
 			m.leftArm.xRot = -1.55f + Mth.sin(now * 0.35f) * 0.04f;

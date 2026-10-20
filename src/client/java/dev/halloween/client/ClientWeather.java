@@ -37,10 +37,10 @@ public final class ClientWeather {
 		if (VecnaClient.riftOpen()) {
 			// Vecna's rift: the whole town in a red murk, lit from inside by the lightning (not as thick as the Demogorgon's below).
 			float flash = VecnaClient.riftFlash(0f);
-			data.color.set(0.22f + 0.4f * flash, 0.03f + 0.05f * flash, 0.035f + 0.04f * flash, data.color.w);
+			data.color.set(0.17f + 0.4f * flash, 0.025f + 0.05f * flash, 0.03f + 0.04f * flash, data.color.w);
 			// (Set outright: rain pushes the vanilla start far below zero, which would drown everything in red.)
-			float end = 40f + 16f * flash;
-			data.environmentalStart = 3f;
+			float end = 70f + 16f * flash;
+			data.environmentalStart = 8f;
 			data.environmentalEnd = end;
 			data.skyEnd = end;
 			data.cloudEnd = end;
