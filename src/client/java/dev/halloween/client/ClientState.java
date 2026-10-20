@@ -80,6 +80,8 @@ public final class ClientState {
 	public static HwNet.VecnaHud vecna = HwNet.VecnaHud.NONE;
 	/** A survivor's own curse (Vecna), and the booths that lift it. */
 	public static HwNet.CurseHud curse = HwNet.CurseHud.NONE;
+	/** Vecna's ritual and his rift (for everyone). */
+	public static HwNet.VecnaRitual ritual = HwNet.VecnaRitual.NONE;
 	/** Down in the Upside Down: the houses with a survivor in them (box corners in pairs). */
 	public static List<net.minecraft.core.BlockPos> demoHouses = List.of();
 
@@ -286,6 +288,7 @@ public final class ClientState {
 		demo = HwNet.DemoHud.NONE;
 		vecna = HwNet.VecnaHud.NONE;
 		curse = HwNet.CurseHud.NONE;
+		ritual = HwNet.VecnaRitual.NONE;
 		VecnaClient.reset();
 		demoHouses = List.of();
 		NOTICES.clear();

@@ -1290,6 +1290,28 @@ public final class HwHud {
 	/** Vecna: the cursed while the Anchor key is held (the one he would go to picked out), the Anchor's delay, the Eyes. */
 	private static void vecnaScreen(GuiGraphicsExtractor g, Minecraft mc, int w, int h) {
 		HwNet.VecnaHud vh = ClientState.vecna;
+		// The ritual: the body he carries, the altar (through walls) and how many lie in its ring; then the rift.
+		HwNet.VecnaRitual rit = ClientState.ritual;
+		Component ritLine;
+		if (rit.carrier() >= 0) {
+			ritLine = Component.translatable("halloween.hud.ritual.carrying", mc.options.keyUse.getTranslatedKeyMessage());
+		} else if (rit.rift()) {
+			ritLine = Component.translatable("halloween.hud.ritual.rift");
+		} else if (rit.hasAltar()) {
+			ritLine = Component.translatable("halloween.hud.ritual.count", rit.bodies(), rit.needed());
+		} else {
+			ritLine = Component.translatable("halloween.hud.ritual.none", rit.needed());
+		}
+		g.textWithBackdrop(mc.font, ritLine, w / 2 - mc.font.width(ritLine) / 2, h - 74, mc.font.width(ritLine), rit.rift() ? 0xFFFF6060 : 0xFFD0A0A0);
+		if (rit.hasAltar() && !rit.rift()) {
+			Projection.Point p = Projection.toScreen(Vec3.atBottomCenterOf(rit.altar()).add(0, 0.5, 0), w, h);
+			if (p != null) {
+				diamond(g, (int) p.x(), (int) p.y(), 6, 0xFF0C0C0C);
+				diamond(g, (int) p.x(), (int) p.y(), 5, 0xFFC01020);
+				g.centeredText(mc.font, Component.translatable("halloween.hud.ritual.altar", rit.bodies(), rit.needed(), (int) p.distance()),
+					(int) p.x(), (int) p.y() - 16, 0xFFFF6060);
+			}
+		}
 		if (vh.anchorPhase() == dev.halloween.game.Vecna.ANCHOR_CHOOSING) {
 			Vec3 from = CameraAim.origin();
 			Vec3 look = CameraAim.direction();
@@ -1348,6 +1370,12 @@ public final class HwHud {
 		}
 		int cx = w / 2;
 		int y = 46;
+		HwNet.VecnaRitual rit = ClientState.ritual;
+		if (rit.rift() || rit.hasAltar()) {
+			Component r = rit.rift() ? Component.translatable("halloween.hud.ritual.rift_survivor")
+				: Component.translatable("halloween.hud.ritual.survivor", rit.bodies(), rit.needed());
+			g.centeredText(mc.font, r, cx, y + 36, rit.rift() ? BLOOD : 0xFFD0A0A0);
+		}
 		int color = c.stage() >= 4 ? BLOOD : c.stage() >= 2 ? 0xFFE07070 : 0xFFB8A8C8;
 		Component title = Component.translatable("halloween.hud.curse." + c.stage());
 		g.centeredText(mc.font, title, cx, y, color);

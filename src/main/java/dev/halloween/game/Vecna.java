@@ -111,7 +111,7 @@ public final class Vecna {
 			eyesOff(p);
 			return;
 		}
-		if (st.busy() || gripped != null || anchorPhase == ANCHOR_CHANNEL || Match.frozen()) {
+		if (st.busy() || gripped != null || anchorPhase == ANCHOR_CHANNEL || VecnaRitual.carrying() || Match.frozen()) {
 			return;
 		}
 		if (eyesReserve < 20) {
@@ -169,12 +169,12 @@ public final class Vecna {
 			p.sendOverlayMessage(Component.translatable("halloween.msg.vecna.anchor_none").withStyle(ChatFormatting.GRAY));
 			return;
 		}
-		if (st.busy() || gripped != null || eyesOn != null || Match.frozen()) {
+		if (st.busy() || gripped != null || eyesOn != null || VecnaRitual.carrying() || Match.frozen()) {
 			return;
 		}
 		anchorPhase = ANCHOR_CHANNEL;
 		anchorTarget = target;
-		anchorLeft = HwConfig.get().vecnaAnchorDelayTicks;
+		anchorLeft = VecnaRitual.rift() ? HwConfig.get().vecnaRiftAnchorDelayTicks : HwConfig.get().vecnaAnchorDelayTicks;
 		ServerLevel level = p.level();
 		level.playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.PORTAL_TRIGGER, SoundSource.HOSTILE, 0.8f, 0.6f);
 		target.sendOverlayMessage(Component.translatable("halloween.msg.vecna.anchor_coming").withStyle(ChatFormatting.DARK_RED));
@@ -188,7 +188,7 @@ public final class Vecna {
 		ServerPlayer best = null;
 		double bestAngle = Double.MAX_VALUE;
 		for (ServerPlayer s : v.level().players()) {
-			if (!MatchManager.role(s).survivor() || s.isSpectator() || !s.isAlive() || VecnaCurse.stage(s) < 1) {
+			if (!MatchManager.role(s).survivor() || s.isSpectator() || !s.isAlive() || VecnaCurse.stage(s) < 1 && !VecnaRitual.rift()) {
 				continue;
 			}
 			double angle = Sight.angleTo(from, look, FocusPoints.bodyCenter(s));
@@ -225,7 +225,7 @@ public final class Vecna {
 		}
 		if (gripped != null) {
 			tickGrip(level, v, st, now);
-		} else if (st.senseHeld && gripCooldown == 0 && !st.busy() && eyesOn == null && anchorPhase != ANCHOR_CHANNEL && !Match.frozen()) {
+		} else if (st.senseHeld && gripCooldown == 0 && !st.busy() && eyesOn == null && anchorPhase != ANCHOR_CHANNEL && !VecnaRitual.carrying() && !Match.frozen()) {
 			// Holding the key with nobody caught yet: whoever comes under his aim is.
 			LivingEntity target = aimed(level, v, st);
 			if (target != null) {
@@ -239,26 +239,35 @@ public final class Vecna {
 			if (anchorPhase == ANCHOR_CHOOSING) {
 				for (ServerPlayer s : level.players()) {
 					int stage = MatchManager.role(s).survivor() && !s.isSpectator() && s.isAlive() ? VecnaCurse.stage(s) : 0;
-					if (stage > 0) {
+					if (stage > 0 || VecnaRitual.rift() && MatchManager.role(s).survivor() && !s.isSpectator() && s.isAlive()) {
 						marks.add(new HwNet.CurseMark(s.getId(), FocusPoints.bodyCenter(s), stage, s.getDisplayName().getString()));
 					}
 				}
 			}
 			ServerPlayNetworking.send(v, new HwNet.VecnaHud(gripCooldown, cfg.vecnaGripCooldownTicks, gripped == null ? -1 : gripped.getId(),
 				eyesReserve, eyesMax(), eyesOn == null ? -1 : eyesOn.getId(),
-				anchorCooldown, cfg.vecnaAnchorCooldownTicks, anchorPhase, anchorLeft, marks));
+				anchorCooldown, anchorRest(), anchorPhase, anchorLeft, marks));
 		}
 	}
 
+	private static double gripRange() {
+		return VecnaRitual.rift() ? HwConfig.get().vecnaRiftGripRange : HwConfig.get().vecnaGripRange;
+	}
+
+	/** The Anchor's rest: short once the rift is open. */
+	private static int anchorRest() {
+		return VecnaRitual.rift() ? HwConfig.get().vecnaRiftAnchorCooldownTicks : HwConfig.get().vecnaAnchorCooldownTicks;
+	}
+
 	private static int eyesMax() {
-		return HwConfig.get().vecnaEyesMaxTicks;
+		return VecnaRitual.rift() ? HwConfig.get().vecnaRiftEyesMaxTicks : HwConfig.get().vecnaEyesMaxTicks;
 	}
 
 	/** The Eyes: their reserve drains while he looks, fills while he doesn't; seeing someone stalks them. */
 	private static void tickEyes(ServerPlayer v, ShapeState st) {
 		HwConfig cfg = HwConfig.get();
 		if (eyesOn == null) {
-			if (eyesReserve < eyesMax() && ++eyesIdle >= cfg.vecnaEyesRefillEvery) {
+			if (eyesReserve < eyesMax() && ++eyesIdle >= (VecnaRitual.rift() ? cfg.vecnaRiftEyesRefillEvery : cfg.vecnaEyesRefillEvery)) {
 				eyesIdle = 0;
 				eyesReserve++;
 			}
@@ -288,7 +297,7 @@ public final class Vecna {
 			// Stunned, or nobody to go to any more: it fails, and rests all the same.
 			anchorPhase = ANCHOR_IDLE;
 			anchorTarget = null;
-			anchorCooldown = cfg.vecnaAnchorCooldownTicks;
+			anchorCooldown = anchorRest();
 			return;
 		}
 		if (anchorLeft % 20 == 0) {
@@ -302,7 +311,7 @@ public final class Vecna {
 		}
 		anchorPhase = ANCHOR_IDLE;
 		anchorTarget = null;
-		anchorCooldown = cfg.vecnaAnchorCooldownTicks;
+		anchorCooldown = anchorRest();
 		Vec3 to = arrival(level, t, cfg.vecnaAnchorDistance);
 		if (to == null) {
 			v.sendOverlayMessage(Component.translatable("halloween.msg.vecna.anchor_none").withStyle(ChatFormatting.GRAY));
@@ -348,13 +357,13 @@ public final class Vecna {
 		Vec3 look = MatchManager.aimDirection(v, st);
 		Vec3 eye = v.getEyePosition();
 		LivingEntity best = null;
-		double bestAngle = cfg.vecnaGripAngleDeg;
+		double bestAngle = VecnaRitual.rift() ? cfg.vecnaRiftGripAngleDeg : cfg.vecnaGripAngleDeg;
 		for (ServerPlayer s : level.players()) {
 			if (!grippable(s)) {
 				continue;
 			}
 			Vec3 body = FocusPoints.bodyCenter(s);
-			if (eye.distanceTo(body) > cfg.vecnaGripRange) {
+			if (eye.distanceTo(body) > gripRange()) {
 				continue;
 			}
 			double angle = Sight.angleTo(from, look, body);
@@ -386,7 +395,7 @@ public final class Vecna {
 		HwConfig cfg = HwConfig.get();
 		LivingEntity t = gripped;
 		if (!st.senseHeld || st.stunnedTicks > 0 || st.grab != null || !grippable(t) || t.level() != level
-			|| t.distanceTo(v) > cfg.vecnaGripRange * 1.5) {
+			|| t.distanceTo(v) > gripRange() * 1.5) {
 			// Let go, stunned, the grab closed on them (or someone else), or they are out of his reach.
 			release(level, st.stunnedTicks > 0);
 			return;
@@ -401,7 +410,7 @@ public final class Vecna {
 		// Drawn towards him over the ground (they keep their own eyes, and their gun).
 		Vec3 to = new Vec3(v.getX() - t.getX(), 0, v.getZ() - t.getZ());
 		double dist = to.length();
-		Vec3 pull = dist > 1.6 ? to.scale(cfg.vecnaGripPull / 20.0 / dist) : Vec3.ZERO;
+		Vec3 pull = dist > 1.6 ? to.scale((VecnaRitual.rift() ? cfg.vecnaRiftGripPull : cfg.vecnaGripPull) / 20.0 / dist) : Vec3.ZERO;
 		t.setDeltaMovement(pull.x, -0.1, pull.z);
 		t.hurtMarked = true;
 		MatchManager.addStalk(v, st, t, cfg.vecnaGripStalkPerSecond / 20f);

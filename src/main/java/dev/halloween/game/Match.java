@@ -206,6 +206,7 @@ public final class Match {
 		Demogorgon.clear(level);
 		Vecna.begin(shapeBot == null && shape != null);
 		Vecna.clear(level);
+		VecnaRitual.clear(server);
 		if (Demogorgon.active()) {
 			// The Upside Down under the town, built while the match runs.
 			UpsideDown.start(level);
@@ -395,6 +396,7 @@ public final class Match {
 		Demogorgon.clear(server.overworld());
 		Vecna.clear(server.overworld());
 		VecnaCurse.clear(server);
+		VecnaRitual.clear(server);
 		Booths.clear(server.overworld());
 		Nav.setArea(null);
 		Townsfolk.clear(server);

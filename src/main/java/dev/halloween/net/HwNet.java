@@ -158,6 +158,28 @@ public final class HwNet {
 		}
 	}
 
+	/**
+	 * Vecna's ritual, for everyone (game.VecnaRitual): whether there is an altar and where, bodies in its ring (and
+	 * how many it takes), whether the rift is open (the town gone under), and who carries a body (-1: nobody).
+	 */
+	public record VecnaRitual(boolean hasAltar, BlockPos altar, int bodies, int needed, boolean rift, int carrier) implements CustomPacketPayload {
+		public static final Type<VecnaRitual> TYPE = payloadType("vecna_ritual");
+		public static final VecnaRitual NONE = new VecnaRitual(false, BlockPos.ZERO, 0, 4, false, -1);
+		public static final StreamCodec<RegistryFriendlyByteBuf, VecnaRitual> CODEC = StreamCodec.of((buf, v) -> {
+			buf.writeBoolean(v.hasAltar);
+			buf.writeBlockPos(v.altar);
+			buf.writeVarInt(v.bodies);
+			buf.writeVarInt(v.needed);
+			buf.writeBoolean(v.rift);
+			buf.writeVarInt(v.carrier);
+		}, buf -> new VecnaRitual(buf.readBoolean(), buf.readBlockPos(), buf.readVarInt(), buf.readVarInt(), buf.readBoolean(), buf.readVarInt()));
+
+		@Override
+		public Type<VecnaRitual> type() {
+			return TYPE;
+		}
+	}
+
 	/** Vecna's Anchor key held down (true) or let go. */
 	public record VecnaAnchorKey(boolean held) implements CustomPacketPayload {
 		public static final Type<VecnaAnchorKey> TYPE = payloadType("vecna_anchor_key");
@@ -1356,6 +1378,7 @@ public final class HwNet {
 		PayloadTypeRegistry.clientboundPlay().register(DemoHud.TYPE, DemoHud.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(VecnaHud.TYPE, VecnaHud.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(CurseHud.TYPE, CurseHud.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(VecnaRitual.TYPE, VecnaRitual.CODEC);
 		PayloadTypeRegistry.serverboundPlay().register(VecnaAnchorKey.TYPE, VecnaAnchorKey.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(DemoPose.TYPE, DemoPose.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(DemoHouses.TYPE, DemoHouses.CODEC);

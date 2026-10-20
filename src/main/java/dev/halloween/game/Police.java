@@ -45,7 +45,7 @@ public final class Police {
 	public static final String TAG = "hw_police";
 
 	private static final class Body {
-		final Vec3 pos;
+		Vec3 pos;
 		final Component name;
 		boolean found;
 
@@ -217,6 +217,22 @@ public final class Police {
 
 	public static int officers() {
 		return (int) OFFICERS.values().stream().filter(o -> !o.body.isRemoved() && o.body.isAlive()).count();
+	}
+
+	/** A body carried off (by Vecna, to his altar): the nearest one to where it lay is now here. */
+	public static void moveBody(Vec3 from, Vec3 to) {
+		Body best = null;
+		double bestD = 2.0;
+		for (Body b : BODIES) {
+			double d = b.pos.distanceTo(from);
+			if (d < bestD) {
+				bestD = d;
+				best = b;
+			}
+		}
+		if (best != null) {
+			best.pos = to;
+		}
 	}
 
 	/** A victim was killed here: the body waits for someone to find it. */

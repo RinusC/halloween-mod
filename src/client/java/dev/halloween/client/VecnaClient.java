@@ -51,6 +51,7 @@ public final class VecnaClient {
 		}
 		tickPhantoms(mc);
 		tickEyes(mc);
+		tickRift(mc);
 	}
 
 	// ---------------------------------------------------------------- his keys and his Eyes
@@ -80,6 +81,56 @@ public final class VecnaClient {
 		} else if (eyesCamera) {
 			eyesCamera = false;
 			mc.setCameraEntity(mc.player);
+		}
+	}
+
+	// ---------------------------------------------------------------- the rift: the town gone under
+
+	private static long riftFlashAt = -1000;
+	private static long riftNextFlash;
+	private static long riftNextDrone;
+
+	/** The rift is open: everyone in the match lives in the Upside Down now. */
+	public static boolean riftOpen() {
+		return ClientState.ritual.rift() && ClientState.myRole() != Role.NONE;
+	}
+
+	/** Red lightning's glow in the murk now, 0..1 (a double flicker). */
+	public static float riftFlash(float partial) {
+		Minecraft mc = Minecraft.getInstance();
+		if (mc.level == null) {
+			return 0f;
+		}
+		float t = mc.level.getGameTime() - riftFlashAt + partial;
+		if (t < 0 || t > 12) {
+			return 0f;
+		}
+		return t < 3 ? 1f - t / 3f : t > 5 && t < 8 ? 0.7f * (1f - (t - 5) / 3f) : 0f;
+	}
+
+	private static void tickRift(Minecraft mc) {
+		if (!riftOpen()) {
+			return;
+		}
+		long now = mc.level.getGameTime();
+		var r = mc.level.getRandom();
+		if (now >= riftNextFlash) {
+			riftFlashAt = now;
+			riftNextFlash = now + 160 + r.nextInt(240);
+			mc.level.playLocalSound(mc.player.getX(), mc.player.getY() + 20, mc.player.getZ(), SoundEvents.LIGHTNING_BOLT_THUNDER, SoundSource.AMBIENT,
+				0.6f, 0.45f + r.nextFloat() * 0.15f, false);
+		}
+		if (now >= riftNextDrone) {
+			riftNextDrone = now + 100 + r.nextInt(80);
+			mc.level.playLocalSound(mc.player.getX(), mc.player.getY(), mc.player.getZ(), SoundEvents.AMBIENT_BASALT_DELTAS_MOOD.value(), SoundSource.AMBIENT, 0.7f, 0.5f, false);
+		}
+		// Spores and ash drifting in the air all round.
+		for (int i = 0; i < 6; i++) {
+			double x = mc.player.getX() + (r.nextDouble() - 0.5) * 24;
+			double y = mc.player.getY() + r.nextDouble() * 8 - 1;
+			double z = mc.player.getZ() + (r.nextDouble() - 0.5) * 24;
+			mc.level.addParticle(i % 3 == 0 ? net.minecraft.core.particles.ParticleTypes.WHITE_ASH : net.minecraft.core.particles.ParticleTypes.CRIMSON_SPORE,
+				x, y, z, 0, -0.01, 0);
 		}
 	}
 

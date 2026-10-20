@@ -895,6 +895,18 @@ public class HwConfig {
 	public int vecnaAnchorDelayTicks = 60;
 	public double vecnaAnchorDistance = 8;
 	public int vecnaAnchorCooldownTicks = 1800;
+	/** The ritual: bodies needed in the altar's ring, and its radius. */
+	public int vecnaRitualBodies = 4;
+	public double vecnaAltarRadius = 3;
+	/** The rift open: his speed times this; the Grip's reach, angle and pull; the Eyes' reserve and refill; the Anchor (to anyone) delay and rest. */
+	public float vecnaRiftSpeedFactor = 1.1f;
+	public double vecnaRiftGripRange = 30;
+	public double vecnaRiftGripAngleDeg = 10;
+	public double vecnaRiftGripPull = 3;
+	public int vecnaRiftEyesMaxTicks = 300;
+	public int vecnaRiftEyesRefillEvery = 4;
+	public int vecnaRiftAnchorDelayTicks = 30;
+	public int vecnaRiftAnchorCooldownTicks = 600;
 
 	public static HwConfig get() {
 		return instance;

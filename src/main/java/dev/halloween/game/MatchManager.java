@@ -293,6 +293,7 @@ public final class MatchManager {
 		TickTimer.step("Demogorgon", () -> Demogorgon.tick(server));
 		TickTimer.step("Vecna", () -> Vecna.tick(server));
 		TickTimer.step("VecnaCurse", () -> VecnaCurse.tick(server));
+		TickTimer.step("VecnaRitual", () -> VecnaRitual.tick(server));
 		TickTimer.step("Birds", () -> Birds.tick(server));
 		TickTimer.step("Panic", () -> Panic.tick(server));
 		TickTimer.step("Stamina", () -> Stamina.tick(server));
@@ -473,6 +474,10 @@ public final class MatchManager {
 				// Slower in the light.
 				speed = (1 + speed) * (1 - cfg.demoLightSlow) - 1;
 			}
+		}
+		if (VecnaRitual.rift() && speed > -1) {
+			// The town gone under: Vecna a tenth faster.
+			speed = (1 + speed) * cfg.vecnaRiftSpeedFactor - 1;
 		}
 		if (Demogorgon.slowed() && speed > -1) {
 			// A Shred that missed: heavy for a second.
@@ -1097,6 +1102,13 @@ public final class MatchManager {
 		ShapeState state = SHAPES.get(player.getUUID());
 		HwConfig cfg = HwConfig.get();
 		if (role(player) != Role.SHAPE || state == null || state.busy() || state.shadowTicks > 0 || state.grabCooldown > 0) {
+			return;
+		}
+		if (Vecna.active() && VecnaRitual.useKey(player, state, targetId)) {
+			// Vecna takes up a body for his ritual (or lays down the one he carries).
+			return;
+		}
+		if (targetId < 0) {
 			return;
 		}
 		// He lunges for them, whether or not he gets hold.

@@ -73,6 +73,7 @@ public class HalloweenClient implements ClientModInitializer {
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.DemoHud.TYPE, (payload, ctx) -> ClientState.demo = payload);
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.VecnaHud.TYPE, (payload, ctx) -> ClientState.vecna = payload);
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.CurseHud.TYPE, (payload, ctx) -> ClientState.curse = payload);
+		ClientPlayNetworking.registerGlobalReceiver(HwNet.VecnaRitual.TYPE, (payload, ctx) -> ClientState.ritual = payload);
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.DemoPose.TYPE, (payload, ctx) -> DemogorgonModel.receive(payload));
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.GunPose.TYPE, (payload, ctx) -> GunPoses.receive(payload));
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.DemoHouses.TYPE, (payload, ctx) -> ClientState.demoHouses = payload.corners());
@@ -241,6 +242,11 @@ public class HalloweenClient implements ClientModInitializer {
 		if (KEY_SENSE.isDown() && !MichaelRenderer.demogorgon() && !MichaelRenderer.vecna()) {
 			return true;
 		}
+		if (MichaelRenderer.vecna() && ClientState.ritual.carrier() >= 0) {
+			// Vecna with a body over his shoulder: lay it down.
+			ClientPlayNetworking.send(new HwNet.Grab(-1));
+			return true;
+		}
 		LivingEntity picked = CameraAim.pickLiving(HwConfig.get().grabRange);
 		if (picked == null) {
 			// Someone on a window sill, through the glass and a little further (the server checks they are climbing).
@@ -249,6 +255,10 @@ public class HalloweenClient implements ClientModInitializer {
 		if (picked != null) {
 			ClientPlayNetworking.send(new HwNet.Grab(picked.getId()));
 			return true;
+		}
+		if (MichaelRenderer.vecna()) {
+			// Vecna: a body at his feet, perhaps (the server looks).
+			ClientPlayNetworking.send(new HwNet.Grab(-1));
 		}
 		// A locker: throw the door open (and grab whoever hides inside).
 		net.minecraft.core.BlockPos block = CameraAim.pickBlock(HwConfig.get().grabRange);

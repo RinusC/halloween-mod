@@ -215,6 +215,103 @@ public class VecnaClientTest implements FabricClientGameTest {
 			ctx.waitTicks(4);
 			ctx.takeScreenshot("vecna_phantom");
 
+			// The ritual: a body taken up, laid down (the altar), two more already in its ring, the fourth laid: the rift.
+			double speedBefore = server.computeOnServer(s -> player(s).getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED));
+			int stageBefore = server.computeOnServer(s -> dev.halloween.game.VecnaCurse.stage(bot(s)));
+			server.runOnServer(s -> {
+				ServerPlayer p = player(s);
+				Vec3 f = p.position().add(Vec3.directionFromRotation(0, p.getYRot()).scale(1.5));
+				summonCorpse(s, f);
+			});
+			ctx.waitTicks(3);
+			int corpse = server.computeOnServer(s -> nearestCorpse(s, player(s).position()));
+			server.runOnServer(s -> MatchManager.onGrab(player(s), corpse));
+			ctx.waitTicks(10);
+			check(server.computeOnServer(s -> dev.halloween.game.VecnaRitual.carrying()), "he carries the body");
+			// Seen from the side: the bot beside him, the camera behind the bot.
+			int botId = server.computeOnServer(s -> {
+				ServerPlayer p = player(s);
+				Vec3 side = Vec3.directionFromRotation(0, p.getYRot() - 90).scale(4);
+				Vec3 at = p.position().add(side);
+				bot(s).teleportTo(s.overworld(), at.x, p.getY(), at.z, java.util.Set.of(), p.getYRot() + 90, 10f, false);
+				return bot(s).getId();
+			});
+			ctx.waitTicks(5);
+			ctx.runOnClient(mc -> {
+				mc.setCameraEntity(mc.level.getEntity(botId));
+				mc.options.setCameraType(CameraType.FIRST_PERSON);
+			});
+			ctx.takeScreenshot("vecna_carry");
+			ctx.runOnClient(mc -> mc.setCameraEntity(mc.player));
+			server.runOnServer(s -> MatchManager.onGrab(player(s), -1));
+			ctx.waitTicks(5);
+			check(server.computeOnServer(s -> !dev.halloween.game.VecnaRitual.carrying() && dev.halloween.game.VecnaRitual.altar() != null), "laid down: the altar");
+			server.runOnServer(s -> {
+				Vec3 a = dev.halloween.game.VecnaRitual.altar();
+				summonCorpse(s, a.add(1.5, 0, 0));
+				summonCorpse(s, a.add(-1.2, 0, 1));
+				// The fourth a few steps off, to bring; he goes to it.
+				summonCorpse(s, a.add(0, 0, -7));
+				player(s).teleportTo(s.overworld(), a.x, a.y, a.z - 5.5, java.util.Set.of(), 180f, 0f, false);
+			});
+			ctx.waitTicks(15);
+			ctx.takeScreenshot("vecna_altar");
+			int fourth = server.computeOnServer(s -> {
+				Vec3 a = dev.halloween.game.VecnaRitual.altar();
+				int best = -1;
+				double bestD = Double.MAX_VALUE;
+				for (net.minecraft.world.entity.decoration.Mannequin m : s.overworld().getEntitiesOfClass(net.minecraft.world.entity.decoration.Mannequin.class,
+					player(s).getBoundingBox().inflate(6), e -> e.entityTags().contains(MatchManager.CORPSE_TAG))) {
+					if (m.position().distanceTo(a) > 3.5 && m.distanceTo(player(s)) < bestD) {
+						bestD = m.distanceTo(player(s));
+						best = m.getId();
+					}
+				}
+				return best;
+			});
+			check(fourth >= 0, "a fourth body outside the ring");
+			server.runOnServer(s -> MatchManager.onGrab(player(s), fourth));
+			ctx.waitTicks(3);
+			server.runOnServer(s -> {
+				// He brings it to the altar and lays it down facing its middle.
+				ServerPlayer p = player(s);
+				Vec3 a = dev.halloween.game.VecnaRitual.altar();
+				p.teleportTo(s.overworld(), a.x, a.y, a.z - 2.2, java.util.Set.of(), 0f, 0f, false);
+			});
+			ctx.waitTicks(5);
+			server.runOnServer(s -> MatchManager.onGrab(player(s), -1));
+			ctx.waitTicks(10);
+			check(server.computeOnServer(s -> dev.halloween.game.VecnaRitual.rift()), "four bodies: the rift is open");
+			check(ctx.computeOnClient(mc -> dev.halloween.client.VecnaClient.riftOpen()), "the client lives in the rift");
+			ctx.waitTicks(70);
+			server.runOnServer(s -> {
+				ServerPlayer p = player(s);
+				Vec3 a = dev.halloween.game.VecnaRitual.altar();
+				for (int k = 9; k >= 4; k--) {
+					net.minecraft.core.BlockPos at = net.minecraft.core.BlockPos.containing(a.x, a.y, a.z - k);
+					for (int dy = -1; dy <= 2; dy++) {
+						if (dev.halloween.game.Nav.standable(s.overworld(), at.above(dy))) {
+							p.teleportTo(s.overworld(), a.x, at.getY() + dy, a.z - k, java.util.Set.of(), 0f, -8f, false);
+							LOG.info("rift view from {} blocks off", k);
+							return;
+						}
+					}
+				}
+			});
+			ctx.runOnClient(mc -> {
+				mc.player.setYRot(0f);
+				mc.player.setXRot(-8f);
+			});
+			ctx.waitTicks(10);
+			ctx.takeScreenshot("vecna_rift");
+			ctx.runOnClient(mc -> ClientState.ritual = new dev.halloween.net.HwNet.VecnaRitual(false, net.minecraft.core.BlockPos.ZERO, 0, 4, false, -1));
+			ctx.waitTicks(1);
+			ctx.takeScreenshot("vecna_rift_nofog");
+			double speedAfter = server.computeOnServer(s -> player(s).getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED));
+			LOG.info("speed {} -> {}, bot stage {} -> {}", speedBefore, speedAfter, stageBefore, server.computeOnServer(s -> dev.halloween.game.VecnaCurse.stage(bot(s))));
+			check(speedAfter > speedBefore * 1.05, "the rift makes him faster");
+			check(server.computeOnServer(s -> dev.halloween.game.VecnaCurse.stage(bot(s))) == stageBefore + 1, "the rift puts the curse a stage on");
+
 			// The last stage: twenty seconds (two here), then he takes the bot.
 			java.util.UUID doomed = server.computeOnServer(s -> bot(s).getUUID());
 			server.runOnServer(s -> {
@@ -242,6 +339,25 @@ public class VecnaClientTest implements FabricClientGameTest {
 			}
 		}
 		throw new IllegalStateException("no player");
+	}
+
+	private static void summonCorpse(MinecraftServer s, Vec3 at) {
+		s.getCommands().performPrefixedCommand(s.createCommandSourceStack().withLevel(s.overworld()).withSuppressedOutput(), String.format(java.util.Locale.ROOT,
+			"summon minecraft:mannequin %.2f %.2f %.2f {Tags:[\"%s\"],pose:\"sleeping\",immovable:1b,Invulnerable:1b,hide_description:1b}",
+			at.x, Math.floor(at.y), at.z, MatchManager.CORPSE_TAG));
+	}
+
+	private static int nearestCorpse(MinecraftServer s, Vec3 at) {
+		int best = -1;
+		double bestD = Double.MAX_VALUE;
+		for (net.minecraft.world.entity.decoration.Mannequin m : s.overworld().getEntitiesOfClass(net.minecraft.world.entity.decoration.Mannequin.class,
+			new net.minecraft.world.phys.AABB(at, at).inflate(6), e -> e.entityTags().contains(MatchManager.CORPSE_TAG))) {
+			if (m.position().distanceTo(at) < bestD) {
+				bestD = m.position().distanceTo(at);
+				best = m.getId();
+			}
+		}
+		return best;
 	}
 
 	private static ServerPlayer bot(MinecraftServer server) {
