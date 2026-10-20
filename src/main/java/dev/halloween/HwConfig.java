@@ -751,6 +751,8 @@ public class HwConfig {
 	public int botCalmTicks = 60;
 	/** Fleeing bots and townsfolk don't calm down while the killer is this near (heard close behind), seen or not. */
 	public double fleeSafeDistance = 24;
+	/** A panicking townsperson hears the killer this close behind and runs from where he is now. */
+	public double npcChaseHearRange = 16;
 	public float botHideChance = 0.35f;
 	public int botHideMinTicks = 100;
 	public int botHideMaxTicks = 220;

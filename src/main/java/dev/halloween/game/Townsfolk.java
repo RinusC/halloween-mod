@@ -388,7 +388,8 @@ public final class Townsfolk {
 		npc.wasGrabbed = false;
 
 		if (now % 4 == 0) {
-			ServerPlayer seen = Senses.seenShape(body, cfg.npcSightRange, cfg.npcDarkSightRange, cfg.npcFovDeg);
+			// Running for their life they keep looking back over the shoulder: he is seen behind them too.
+			ServerPlayer seen = Senses.seenShape(body, cfg.npcSightRange, cfg.npcDarkSightRange, npc.state == State.PANIC ? 360f : cfg.npcFovDeg);
 			if (seen != null) {
 				npc.threat = seen.position();
 				npc.seenFrom = body.position();
@@ -725,7 +726,16 @@ public final class Townsfolk {
 			npc.hideUntil = now + cfg.npcHideMinTicks + level.getRandom().nextInt(Math.max(1, cfg.npcHideMaxTicks - cfg.npcHideMinTicks));
 			return;
 		}
-		if (now >= npc.repathAt || npc.walker.idle()) {
+		ServerPlayer heard = heardKiller(npc.body, cfg.npcChaseHearRange);
+		if (heard != null) {
+			// His steps right behind: they know where he is now, not just where they first saw him.
+			npc.threat = heard.position();
+		}
+		if (npc.walker.idle() && npc.threat != null) {
+			// Nowhere better to run to just now: face him rather than stare at the wall they ran to.
+			npc.walker.face(npc.threat.add(0, 1.6, 0));
+		}
+		if (now >= npc.repathAt || npc.walker.idle() && now >= npc.repathAt - 20) {
 			npc.repathAt = now + 30;
 			Vec3 from = npc.threat;
 			Nav.Options opt = Nav.Options.walker();
@@ -765,6 +775,20 @@ public final class Townsfolk {
 			npc.pathSet = false;
 			npc.hideUntil = now + cfg.npcHideMinTicks + level.getRandom().nextInt(Math.max(1, cfg.npcHideMaxTicks - cfg.npcHideMinTicks));
 		}
+	}
+
+	/** The killer close enough to be heard on their heels (not one sunk into the Upside Down or hidden in Shape Jump). */
+	private static ServerPlayer heardKiller(LivingEntity who, double range) {
+		for (ServerPlayer p : ((ServerLevel) who.level()).players()) {
+			if (MatchManager.role(p) != dev.halloween.Role.SHAPE || p.isSpectator() || p.distanceTo(who) > range || UpsideDown.isBelow(p)) {
+				continue;
+			}
+			ShapeState st = MatchManager.shapeState(p);
+			if (st == null || st.shadowTicks == 0) {
+				return p;
+			}
+		}
+		return null;
 	}
 
 	/** Running townsfolk head for light (he can't Shape Jump there) and for other people. */
