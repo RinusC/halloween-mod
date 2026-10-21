@@ -181,13 +181,19 @@ public final class Booths {
 				}
 			}
 		}
+		// Its signs hang out over the band, one each side.
+		for (Direction d : Direction.Plane.HORIZONTAL) {
+			BlockPos c = at.relative(d, 2).above(2);
+			before.add(new Saved.Cell(c, level.getBlockState(c)));
+		}
 		saved.add(before);
-		// Thin metal posts at the corners, glass between them, a blue band round the top (the sign), a flat roof.
+		// A Bell booth of the seventies: thin metal posts at the corners, glass between them, a white band round the top
+		// lettered TELEPHONE in lit blue on every side, a grey metal roof.
 		BlockState post = Blocks.IRON_BARS.defaultBlockState();
 		BlockState glass = Blocks.GLASS_PANE.defaultBlockState();
-		BlockState band = MapPlan.b("blue_concrete");
+		BlockState band = MapPlan.b("smooth_quartz");
 		BlockState shelf = MapPlan.b("smooth_stone");
-		BlockState roof = MapPlan.b("smooth_stone_slab");
+		BlockState roof = MapPlan.b("polished_andesite_slab");
 		BlockPos phone = at.relative(back).above();
 		for (int dx = -1; dx <= 1; dx++) {
 			for (int dz = -1; dz <= 1; dz++) {
@@ -230,6 +236,25 @@ public final class Booths {
 						level.setBlock(c, Block.updateFromNeighbourShapes(s, level, c), Block.UPDATE_CLIENTS);
 					}
 				}
+			}
+		}
+		for (Direction d : Direction.Plane.HORIZONTAL) {
+			BlockPos c = at.relative(d, 2).above(2);
+			if (!level.getBlockState(c).isAir()) {
+				continue;
+			}
+			level.setBlock(c, MapPlan.b("pale_oak_wall_sign").setValue(net.minecraft.world.level.block.state.properties.BlockStateProperties.HORIZONTAL_FACING, d),
+				Block.UPDATE_ALL);
+			if (level.getBlockEntity(c) instanceof net.minecraft.world.level.block.entity.SignBlockEntity sign) {
+				net.minecraft.world.level.block.entity.SignText text = new net.minecraft.world.level.block.entity.SignText()
+					.setMessage(1, net.minecraft.network.chat.Component.literal("TELEPHONE").withStyle(net.minecraft.ChatFormatting.BOLD))
+					.setColor(net.minecraft.world.item.DyeColor.BLUE)
+					.setHasGlowingText(true);
+				sign.setText(text, true);
+				sign.setText(text, false);
+				sign.setWaxed(true);
+				sign.setChanged();
+				level.sendBlockUpdated(c, level.getBlockState(c), level.getBlockState(c), Block.UPDATE_CLIENTS);
 			}
 		}
 		BOOTHS.add(new Booth(phone, at));

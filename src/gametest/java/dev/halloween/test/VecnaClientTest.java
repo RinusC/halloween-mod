@@ -502,6 +502,21 @@ public class VecnaClientTest implements FabricClientGameTest {
 				"the curse killed the bot at the last stage");
 			server.runOnServer(s -> HwConfig.get().vecnaCurseLastTicks = 400);
 			ctx.takeScreenshot("vecna_after_curse_death");
+			// The curse as a survivor sees it on screen (this client made one for a moment): the veins at the second
+			// stage, and at the last.
+			for (int stage : new int[]{2, 4}) {
+				ctx.runOnClient(mc -> {
+					dev.halloween.client.ClientState.ROLES.put(mc.player.getUUID(), dev.halloween.Role.CIVILIAN);
+					dev.halloween.client.ClientState.curse = new dev.halloween.net.HwNet.CurseHud(stage, 0.4f, stage == 4 ? 300 : 0,
+						java.util.List.of(mc.player.blockPosition().offset(20, 0, 5)), 0);
+				});
+				ctx.waitTicks(1);
+				ctx.takeScreenshot("vecna_curse_screen_" + stage);
+			}
+			ctx.runOnClient(mc -> {
+				dev.halloween.client.ClientState.ROLES.put(mc.player.getUUID(), dev.halloween.Role.SHAPE);
+				dev.halloween.client.ClientState.curse = dev.halloween.net.HwNet.CurseHud.NONE;
+			});
 			ctx.runOnClient(mc -> ClientDarkness.enabled = true);
 			server.runCommand("hw stop");
 			server.runCommand("hw killer michael");

@@ -549,6 +549,9 @@ public final class HwHud {
 
 
 	private static final net.minecraft.resources.Identifier HEART_TEXTURE = dev.halloween.Halloween.id("textures/gui/heart.png");
+	/** The curse on a survivor's screen, by stage (tools/curse_veins.pl). */
+	private static final net.minecraft.resources.Identifier[] CURSE_VEINS = {dev.halloween.Halloween.id("textures/gui/curse_veins_1.png"), dev.halloween.Halloween.id("textures/gui/curse_veins_2.png"),
+		dev.halloween.Halloween.id("textures/gui/curse_veins_3.png"), dev.halloween.Halloween.id("textures/gui/curse_veins_4.png")};
 
 	/**
 	 * A house with someone in it, seen from the Upside Down: a heart hanging over it, beating (a double beat),
@@ -770,6 +773,40 @@ public final class HwHud {
 
 	// ---------------------------------------------------------------- grab
 
+	/**
+	 * A key shown in a small space, centred on (cx, cy): a mouse with the button lit for a mouse button, otherwise the
+	 * key's name in a keycap.
+	 */
+	private static void keyGlyph(GuiGraphicsExtractor g, Font font, net.minecraft.client.KeyMapping key, int cx, int cy) {
+		String id = key.saveString();
+		if (id.startsWith("key.mouse.")) {
+			boolean left = id.equals("key.mouse.left");
+			boolean right = id.equals("key.mouse.right");
+			int x0 = cx - 5;
+			int y0 = cy - 7;
+			// The body: rounded, an outline with a dark fill, a line down between the buttons.
+			g.fill(x0 + 1, y0, x0 + 9, y0 + 14, 0xFFE8E2D4);
+			g.fill(x0, y0 + 1, x0 + 10, y0 + 13, 0xFFE8E2D4);
+			g.fill(x0 + 1, y0 + 1, x0 + 9, y0 + 13, 0xFF1A1414);
+			g.fill(x0 + 1, y0 + 6, x0 + 9, y0 + 7, 0xFFE8E2D4);
+			g.fill(x0 + 4, y0 + 1, x0 + 6, y0 + 6, 0xFFE8E2D4);
+			if (left) {
+				g.fill(x0 + 1, y0 + 1, x0 + 4, y0 + 6, BLOOD);
+			} else if (right) {
+				g.fill(x0 + 6, y0 + 1, x0 + 9, y0 + 6, BLOOD);
+			} else {
+				g.fill(x0 + 4, y0 + 2, x0 + 6, y0 + 5, BLOOD);
+			}
+			return;
+		}
+		Component name = key.getTranslatedKeyMessage();
+		int tw = font.width(name);
+		int half = Math.max(5, tw / 2 + 3);
+		g.fill(cx - half, cy - 7, cx + half, cy + 6, 0xFFE8E2D4);
+		g.fill(cx - half + 1, cy - 6, cx + half - 1, cy + 5, 0xFF1A1414);
+		g.centeredText(font, name, cx, cy - 4, TEXT);
+	}
+
 	/** The Shape's side of a grab: a ring with a rotating needle and a target arc. */
 	private static void shapeGrab(GuiGraphicsExtractor g, Minecraft mc, int w, int h, float partial) {
 		HwNet.Qte qte = ClientState.qte;
@@ -788,7 +825,7 @@ public final class HwHud {
 				int y = (int) (cy + Math.sin(a) * t);
 				g.fill(x, y, x + 2, y + 2, 0xFFFFFFFF);
 			}
-			g.centeredText(mc.font, mc.options.keyAttack.getTranslatedKeyMessage(), cx, cy - 4, TEXT);
+			keyGlyph(g, mc.font, mc.options.keyAttack, cx, cy);
 		}
 		pips(g, cx, cy + (int) r + 10, qte.points(), qte.needed(), BLOOD);
 		pips(g, cx, cy + (int) r + 18, qte.enemyPoints(), qte.enemyNeeded(), 0xFFF2F2F2);
@@ -1162,10 +1199,19 @@ public final class HwHud {
 		return y;
 	}
 
-	/** XP feed on the left: "+075 XP" and the reasons, fading out after a few seconds. */
+	/**
+	 * XP feed on the left: "+075 XP" and the reasons, fading out after a few seconds. It stands on the ring at the bottom
+	 * left and grows upwards, clear of the lists at the top left however long they are.
+	 */
 	private static void feed(GuiGraphicsExtractor g, Font font, int h) {
 		long now = System.currentTimeMillis();
-		int y = h / 2 - 50;
+		int total = 0;
+		for (ClientState.FeedEntry entry : ClientState.FEED) {
+			if (now - entry.time() <= 5000) {
+				total += 22 + entry.lines().size() * 10;
+			}
+		}
+		int y = h - 66 - total;
 		for (ClientState.FeedEntry entry : ClientState.FEED) {
 			long age = now - entry.time();
 			if (age > 5000) {
@@ -1377,6 +1423,17 @@ public final class HwHud {
 		HwNet.CurseHud c = ClientState.curse;
 		if (c.booths().isEmpty()) {
 			return;
+		}
+		if (c.stage() >= 1) {
+			// Red veins creeping in from the edges of the screen, further each stage; at the last they throb with the clock.
+			int stage = Math.min(4, c.stage());
+			float a = 0.85f;
+			if (stage == 4) {
+				float sec = (mc.level.getGameTime() % 20 + mc.getDeltaTracker().getGameTimeDeltaPartialTick(false)) / 20f;
+				a = 0.75f + 0.25f * (float) Math.exp(-sec * 6);
+			}
+			g.blit(net.minecraft.client.renderer.RenderPipelines.GUI_TEXTURED, CURSE_VEINS[stage - 1], 0, 0, 0, 0, w, h, 512, 288, 512, 288,
+				net.minecraft.util.ARGB.white(a));
 		}
 		int cx = w / 2;
 		int y = 46;

@@ -163,6 +163,9 @@ public final class VecnaRitual {
 		RISEN.addAll(bodiesOnAltar(level).subList(0, HwConfig.get().vecnaRitualBodies));
 		for (Mannequin m : RISEN) {
 			m.setNoGravity(true);
+			// Upright in the air, hanging slack, as his victims do.
+			m.setPose(net.minecraft.world.entity.Pose.STANDING);
+			GrabSession.anim(m, HwNet.Anim.LIMP);
 		}
 		MinecraftServer server = level.getServer();
 		// The ground tears open: burning cracks out from the altar along the streets, over the whole town.

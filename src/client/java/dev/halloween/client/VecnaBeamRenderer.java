@@ -14,8 +14,8 @@ import net.minecraft.world.item.ItemStack;
 
 /**
  * Vecna's thrown Grip (game.Vecna) in place of the item display that carries it: a pillar of light from below the
- * ground up into the sky, drawn as a beacon's beam is (its scrolling, turning texture, always at full light), dark
- * crimson, its glow as wide as the Grip.
+ * ground up into the sky, drawn as beacon beams are (scrolling, turning, always at full light): a dark crimson glow as
+ * wide as the Grip, breathing, round a burning red core that swells and shrinks.
  */
 public final class VecnaBeamRenderer {
 	private static final Identifier MODEL = Halloween.id("vecna_beam");
@@ -46,8 +46,11 @@ public final class VecnaBeamRenderer {
 		pose.translate(-0.5f, 0f, -0.5f);
 		int start = -8;
 		int height = 400;
-		// The pillar (scrolling, turning, at full light) and its faint glow out to the Grip's full width.
-		BeaconRenderer.submitBeaconBeam(pose, collector, BeaconRenderer.BEAM_LOCATION, 1f, age, start, height, 0xFFB3121E, half * 0.7f, half);
+		// Two pillars, each scrolling and turning at its own pace: a dark crimson glow as wide as the Grip, breathing,
+		// and inside it the burning red core that swells and shrinks.
+		float pulse = 0.85f + 0.15f * net.minecraft.util.Mth.sin(age * 0.45f) + 0.05f * net.minecraft.util.Mth.sin(age * 1.7f);
+		BeaconRenderer.submitBeaconBeam(pose, collector, BeaconRenderer.BEAM_LOCATION, 1f, age * 1.3f, start, height, 0xFF6A0810, 0.001f, half * (0.9f + 0.1f * net.minecraft.util.Mth.sin(age * 0.3f)));
+		BeaconRenderer.submitBeaconBeam(pose, collector, BeaconRenderer.BEAM_LOCATION, 1f, age * 2.2f, start, height, 0xFFE0281C, half * 0.3f * pulse, half * 0.5f * pulse);
 		pose.popPose();
 		return true;
 	}

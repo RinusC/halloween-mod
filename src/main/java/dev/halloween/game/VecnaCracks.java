@@ -22,8 +22,8 @@ import net.minecraft.world.phys.Vec3;
 /**
  * The rift as the town sees it from above (Stranger Things, the end of season four): burning cracks torn through the
  * ground from the altar out across the whole town, following the streets, splitting as they go, a broken burning pit
- * where they meet. Glowing cores (shroomlight) edged with red rot (crimson nylium, its roots); they spread from the
- * middle over some seconds. Only the open ground: under a house a crack runs on unseen. All of it is put back after
+ * where they meet. A thin glowing seam (shroomlight) in charred black ground (blackstone), red rot (crimson nylium, its
+ * roots) only in patches along it; they spread from the middle over some seconds. Only the open ground: under a house a crack runs on unseen. All of it is put back after
  * the match, even after a crash (kept in {@link Saved}). The haze and the embers over them are client.VecnaClient's.
  */
 public final class VecnaCracks {
@@ -48,17 +48,17 @@ public final class VecnaCracks {
 		RandomSource r = level.getRandom();
 		Set<Long> used = new HashSet<>();
 		BlockState core = Blocks.SHROOMLIGHT.defaultBlockState();
-		BlockState rot = Blocks.CRIMSON_NYLIUM.defaultBlockState();
+		BlockState rot = Blocks.BLACKSTONE.defaultBlockState();
 		BlockPos c = BlockPos.containing(center);
 		// The pit where they meet: a broken burning disc.
 		for (int dx = -3; dx <= 3; dx++) {
 			for (int dz = -3; dz <= 3; dz++) {
 				double d = Math.sqrt(dx * dx + dz * dz);
-				if (d > 3.3 || d > 2.2 && r.nextFloat() < 0.4f) {
+				if (d > 3.4 || d > 2.5 && r.nextFloat() < 0.5f) {
 					continue;
 				}
-				boolean burning = d < 1.5 || r.nextFloat() < 0.45 - d * 0.1;
-				add(level, used, c.getX() + dx, c.getY(), c.getZ() + dz, burning ? core : rot, (int) d, r);
+				boolean burning = d < 0.8 || d < 1.6 && r.nextFloat() < 0.25f;
+				add(level, used, c.getX() + dx, c.getY(), c.getZ() + dz, burning ? core : edge(rot, r), (int) d, r);
 			}
 		}
 		// The main cracks: out every which way, bending towards the streets, splitting.
@@ -105,18 +105,18 @@ public final class VecnaCracks {
 				y = sy;
 			}
 			int order = order0 + step;
-			// A burning thread, its edges rotting here and there (a little wider near the pit).
-			int w = step < 8 ? width + 1 : width;
+			// A burning seam in charred ground, rotting here and there (a little wider near the pit).
+			int w = step < 6 ? width + 1 : width;
 			add(level, used, p.getX(), y, p.getZ(), core, order, r);
 			float side = angle + Mth.HALF_PI;
 			for (int k = 1; k <= w; k++) {
 				for (int s : new int[]{-1, 1}) {
-					if (k == w && r.nextFloat() < 0.65f) {
+					if (k == w && k > 1 && r.nextFloat() < 0.6f || r.nextFloat() < 0.12f) {
 						continue;
 					}
 					int ex = Mth.floor(x - Mth.sin(side) * k * s);
 					int ez = Mth.floor(z + Mth.cos(side) * k * s);
-					add(level, used, ex, y, ez, k < w && r.nextFloat() < 0.5f ? core : rot, order, r);
+					add(level, used, ex, y, ez, edge(rot, r), order, r);
 				}
 			}
 			if (step > 6 && r.nextFloat() < 0.035f && length - step > 12) {
@@ -125,6 +125,11 @@ public final class VecnaCracks {
 					Math.min(length - step, 12 + r.nextInt(30)), order, 1, r, core, rot);
 			}
 		}
+	}
+
+	/** The ground beside a seam: mostly charred black, red rot in patches. */
+	private static BlockState edge(BlockState charred, RandomSource r) {
+		return r.nextFloat() < 0.22f ? Blocks.CRIMSON_NYLIUM.defaultBlockState() : charred;
 	}
 
 	/** The ground's top block at this column near {@code y}, open to the sky (else MIN_VALUE: under a roof). */
@@ -150,12 +155,12 @@ public final class VecnaCracks {
 			return;
 		}
 		BlockState there = level.getBlockState(p);
-		if (there.is(Blocks.SHROOMLIGHT) || there.is(Blocks.CRIMSON_NYLIUM) || there.hasBlockEntity() || there.is(Blocks.BARRIER)) {
+		if (there.is(Blocks.SHROOMLIGHT) || there.is(Blocks.CRIMSON_NYLIUM) || there.is(Blocks.BLACKSTONE) || there.hasBlockEntity() || there.is(Blocks.BARRIER)) {
 			return;
 		}
 		PENDING.add(new Cell(p, state, order));
 		// Red roots out of the rot here and there.
-		if (state.is(Blocks.CRIMSON_NYLIUM) && r.nextFloat() < 0.18f && level.getBlockState(p.above()).isAir()) {
+		if (state.is(Blocks.CRIMSON_NYLIUM) && r.nextFloat() < 0.3f && level.getBlockState(p.above()).isAir()) {
 			PENDING.add(new Cell(p.above(), Blocks.CRIMSON_ROOTS.defaultBlockState(), order + 1));
 		}
 	}
