@@ -12,8 +12,8 @@ import net.minecraft.world.phys.Vec3;
 
 /**
  * Vecna takes the cursed one (game.VecnaDeath), as every client sees it: their body lifted, head thrown back, the
- * bones breaking one by one (each limb wrenched the wrong way with a jolt), the neck last, then slack; and for the
- * two of them a slow shot circling the body from low down, letterboxed, nothing else on screen.
+ * bones breaking one by one (each limb wrenched the wrong way with a jolt), the neck last, then slack; and for everyone in
+ * the match a slow shot circling the body from low down, letterboxed, nothing else on screen.
  */
 public final class VecnaDeathScene {
 	private static int victim = -1;
@@ -65,10 +65,10 @@ public final class VecnaDeathScene {
 		return Math.max(0f, t);
 	}
 
-	/** The scene is playing and this client is in it (the one dying, or him): the shot is theirs. */
+	/** The scene is playing and this client is in the match: everyone in it watches the shot. */
 	public static boolean cinematic() {
 		Minecraft mc = Minecraft.getInstance();
-		return time(0f) >= 0 && mc.player != null && (mc.player.getId() == victim || mc.player.getId() == vecna);
+		return time(0f) >= 0 && mc.player != null && ClientState.myRole() != dev.halloween.Role.NONE;
 	}
 
 	/** The camera for this frame (position, yaw, pitch), or null. */

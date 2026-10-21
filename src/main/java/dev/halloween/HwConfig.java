@@ -871,7 +871,7 @@ public class HwConfig {
 	public int vecnaGripAimTicks = 20;
 	public double vecnaGripWidth = 1.65;
 	public double vecnaGripHeight = 2.6;
-	public int vecnaGripMissCooldownTicks = 160;
+	public int vecnaGripMissCooldownTicks = 120;
 	/** Drawing someone in: he creeps at this share of his speed (aiming too); not at his hand in this long, the bond snaps and stuns him this long. */
 	public float vecnaCreepFactor = 0.2f;
 	public int vecnaGripPullTicks = 200;
@@ -881,7 +881,7 @@ public class HwConfig {
 	public double vecnaGripPull = 2;
 	/** Grip ends this long after the target is lost from sight; then this long before the next. */
 	public int vecnaGripLostTicks = 6;
-	public int vecnaGripCooldownTicks = 600;
+	public int vecnaGripCooldownTicks = 560;
 	/** Stalking (towards a capture level) for every second a survivor is held by the Grip. */
 	public float vecnaGripStalkPerSecond = 0.35f;
 	/** The curse (on one survivor): seconds each stage lasts before the next; at the last, the reaction checks' zones times this. */
@@ -900,7 +900,7 @@ public class HwConfig {
 	/** The Anchor: coming out this far from them, taking shape (rooted) this long; then its rest. */
 	public int vecnaAnchorDelayTicks = 60;
 	public double vecnaAnchorDistance = 8;
-	public int vecnaAnchorCooldownTicks = 1800;
+	public int vecnaAnchorCooldownTicks = 1500;
 	/** The ritual: people he must kill first (anyone at all) before killing the cursed one opens the rift. */
 	public int vecnaRitualKills = 3;
 	/** The rift's cracks spread over the town in this long. */
@@ -925,7 +925,7 @@ public class HwConfig {
 
 	/** The file's version: older files get the defaults that changed since moved on (see {@link #migrate}). */
 	public int configVersion;
-	private static final int VERSION = 18;
+	private static final int VERSION = 19;
 
 	public static void load() {
 		Path path = path();
@@ -1107,6 +1107,18 @@ public class HwConfig {
 			}
 			if (this.vecnaGripWidth == 1.5) {
 				this.vecnaGripWidth = 1.65;
+			}
+		}
+		if (this.configVersion < 19) {
+			// Vecna's Grip two seconds' less rest, his Anchor fifteen.
+			if (this.vecnaGripCooldownTicks == 600) {
+				this.vecnaGripCooldownTicks = 560;
+			}
+			if (this.vecnaGripMissCooldownTicks == 160) {
+				this.vecnaGripMissCooldownTicks = 120;
+			}
+			if (this.vecnaAnchorCooldownTicks == 1800) {
+				this.vecnaAnchorCooldownTicks = 1500;
 			}
 		}
 		if (this.configVersion < VERSION) {

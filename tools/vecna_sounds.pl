@@ -494,29 +494,38 @@ $clip{grip_ready} = sub {
 	mix($s, bell(660, 1.5, 0.4, 0.6), 0, 0.25);
 	reverb($s, 0.35, 0.8, 0.4, 1.5);
 };
+# Thrown: the air sucked in and torn open with a crack of power, a metal shriek going down, a deep blow under it.
 $clip{grip_cast} = sub {
-	my $s = zeros(3.5);
-	my $bl = whoosh(1.5, 7000, 250, 1.2);
-	env($bl, [0, 0], [0.03, 1], [1.5, 0]);
-	mix($s, $bl, 0, 0.9);
-	mix($s, thud(75, 38, 2, 0.5), 0, 1.1);
-	mix($s, crackle(0.5, 80, 1000, 5000), 0, 0.5);
-	mix($s, growl('m_scream_12', 0.42, 2.5), 0.05, 0.6);
-	reverb($s, 0.25, 0.85, 0.4, 2);
-};
-# Carried with the pillar as it flies (played every second, overlapping).
-$clip{grip_hum} = sub {
-	my $s = zeros(1.5);
-	for ([49, 1], [98.5, 0.5], [147, 0.3], [196.7, 0.18]) {
-		my ($f, $g) = @$_;
-		mix($s, sine(1.5, $f), 0, $g);
+	my $s = zeros(3);
+	my $suck = whoosh(0.35, 300, 5000, 2);
+	env($suck, [0, 0], [0.33, 1], [0.35, 0]);
+	mix($s, $suck, 0, 0.5);
+	mix($s, thud(62, 28, 2.2, 0.55), 0.33, 1.3);
+	my $tear = crackle(0.5, 300, 1500, 8000);
+	env($tear, [0, 1], [0.5, 0]);
+	mix($s, $tear, 0.33, 0.9);
+	for my $f (310, 327, 466) {
+		my $sc = saw(1.6, sub { $f * 2**(-1.2 * $_[0] / 1.6) });
+		$sc = bp($sc, sub { 2400 - 1500 * $_[0] / 1.6 }, 5);
+		env($sc, [0, 0], [0.05, 1], [1.6, 0]);
+		mix($s, $sc, 0.33, 0.25);
 	}
-	for my $i (0 .. $#$s) { $s->[$i] *= 0.6 + 0.4 * sin(2 * $PI * 5.5 * $i / $SR); }
-	my $hiss = bp(noise(1.5), 2400, 0.7);
-	for my $i (0 .. $#$hiss) { $hiss->[$i] *= 0.5 + 0.5 * sin(2 * $PI * 3.1 * $i / $SR + 1); }
-	mix($s, $hiss, 0, 0.25);
-	mix($s, crackle(1.5, 12, 1500, 5000), 0, 0.3);
-	$s = tanhs($s, 1.3);
+	reverb(tanhs($s, 1.3), 0.3, 0.88, 0.4, 2);
+};
+# Flying (played every second, overlapping): a roaring column of power, fluttering, sizzling, a thin whine over a throb.
+$clip{grip_hum} = sub {
+	my $d = 1.5;
+	my $s = zeros($d);
+	my $roar = bp(noise($d), 520, 0.9);
+	for my $i (0 .. $#$roar) { $roar->[$i] *= 0.65 + 0.35 * sin(2 * $PI * 11 * $i / $SR); }
+	mix($s, $roar, 0, 0.9);
+	mix($s, crackle($d, 70, 2500, 9000), 0, 0.45);
+	my $throb = sine($d, 55);
+	for my $i (0 .. $#$throb) { $throb->[$i] *= 0.6 + 0.4 * sin(2 * $PI * 3 * $i / $SR); }
+	mix($s, $throb, 0, 0.7);
+	my $whine = sine($d, sub { 1700 + 40 * sin(2 * $PI * 6 * $_[0]) });
+	mix($s, $whine, 0, 0.06);
+	$s = tanhs($s, 1.4);
 	fade($s, 0.25, 0.25);
 };
 $clip{grip_fizzle} = sub {

@@ -22,8 +22,8 @@ import net.minecraft.world.phys.Vec3;
  * Vecna takes the cursed one (Stranger Things, season four): instead of his usual kill, a scene. He stands with a hand
  * raised; the clock strikes and they are lifted off their feet, head thrown back; their bones break one by one (arms
  * wrenched back, the legs, last the neck), blood runs from their eyes, and they hang slack. If that ends his ritual
- * they stay up there and the rift opens under them; else they drop. Their pose and the camera for the two of them
- * are client.VecnaDeathScene's, from the {@link HwNet.VecnaDeath} every client gets.
+ * they stay up there and the rift opens under them; else they drop. Everyone in the match watches it (and stands
+ * still meanwhile). Their pose and the camera are client.VecnaDeathScene's, from the {@link HwNet.VecnaDeath} every client gets.
  */
 public final class VecnaDeath {
 	/** The whole scene (ticks); the bones break at these; the eyes; the body drops (if it is not his last); the kill. */
@@ -70,8 +70,13 @@ public final class VecnaDeath {
 		yaw = (float) (Math.atan2(-d.x, d.z) * 180 / Math.PI);
 		last = VecnaRitual.kills() >= HwConfig.get().vecnaRitualKills;
 		t = 0;
-		hold(p, true);
 		p.setNoGravity(true);
+		// Everyone watches: nobody moves meanwhile (survivors, the one dying).
+		for (ServerPlayer s : p.level().getServer().getPlayerList().getPlayers()) {
+			if (MatchManager.role(s).survivor()) {
+				hold(s, true);
+			}
+		}
 		GrabSession.anim(v, HwNet.Anim.VECNA_CAST);
 		ServerLevel level = p.level();
 		long now = level.getGameTime();
@@ -175,8 +180,10 @@ public final class VecnaDeath {
 	}
 
 	private static void release(ServerPlayer p) {
-		hold(p, false);
 		p.setNoGravity(false);
+		for (ServerPlayer s : p.level().getServer().getPlayerList().getPlayers()) {
+			hold(s, false);
+		}
 	}
 
 	private static void stop() {

@@ -114,11 +114,15 @@ public class VecnaModelClientTest implements FabricClientGameTest {
 					ctx.takeScreenshot("vecna_glide");
 				}
 			}
-			// A blow.
-			this.vecna(server, at[0] + 0.5, at[1] + 0.5, 0f);
+			// A blow, seen from the side.
+			this.vecna(server, at[0] + 0.5, at[1] + 0.5, 90f);
 			ctx.waitTicks(10);
 			server.runOnServer(s -> ShapeBrain.body().swing(InteractionHand.MAIN_HAND, true));
-			ctx.waitTicks(4);
+			int bodyId = server.computeOnServer(s -> ShapeBrain.body().getId());
+			ctx.waitTicks(1);
+			// (A mannequin's swing does not play on the client: the blow started here as a player's would.)
+			ctx.runOnClient(mc -> dev.halloween.client.VecnaModel.testStrike(bodyId));
+			ctx.waitTicks(2);
 			ctx.takeScreenshot("vecna_strike_1");
 			ctx.waitTicks(3);
 			ctx.takeScreenshot("vecna_strike_2");

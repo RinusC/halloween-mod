@@ -16,7 +16,7 @@
 #           curling and uncurling, the head slowly turning
 #   glide   drifting forwards through the air, leaning into it, the legs trailing
 #   cast    the Grip: the left arm thrust out, the fingers spread and clawed, trembling with the strain (laid over)
-#   strike  a backhand rake of the right claw (laid over)
+#   strike  the right arm thrust out and a lash shooting from the palm (laid over)
 #   jaw     the jaw from shut (0 s) to gaping (1 s)
 #   twitch  his head jerking (laid over now and then)
 #   throttle holding them by the throat with the left hand, the right claw raised over them
@@ -752,6 +752,12 @@ tendril("chest", "tendril_bk1", [1.0, 24.4, 2.3], [0.4, 0.6, 1], 3, 0.9, 0.32, [
 tendril("chest", "tendril_bk2", [0.0, 22.6, 2.3], [0, 0.4, 1], 2, 0.85, 0.3, [26, 0]);
 tendril("waist", "tendril_bk3", [-0.5, 19.6, 1.9], [-0.4, 0.2, 1], 2, 0.7, 0.26, [18, -12]);
 
+# The lash: a tentacle that shoots out of his right palm when he strikes (hidden, scaled to nothing, the rest of the
+# time: client.VecnaModel grows it). Six segments down from the palm, along the hand.
+tendril("right_hand", "lash", [3.35, 10.6, 0.35], [0, -1, 0.05], 6, 2.8, 1.4, [4, 0]);
+# (Not one of the writhing tendrils: it only moves when he strikes.)
+splice @TENDRILS, -6;
+
 # ---------------------------------------------------------------- posing
 sub setr {
 	my ($pose, $b, $x, $y, $z) = @_;
@@ -919,24 +925,31 @@ my $LIFT = 5;
 	anim("cast", $T, "loop", \@f, "linear");
 }
 
-# strike (laid over): a backhand rake of the right claw, up across him and down.
+# strike (laid over): the right arm thrust out at them, the hand open, and the lash out of the palm whipping across
+# (client.VecnaModel grows and shrinks it), then drawn back.
 {
 	my @f;
-	for my $kf ([0, 0, 0], [0.16, 1, 0], [0.3, 1, 1], [0.42, 0.3, 1], [0.55, 0, 0]) {
-		my ($t, $up, $down) = @$kf;
+	for my $i (0 .. 11) {
+		my $t = 0.55 * $i / 11;
+		my $out = $t < 0.1 ? $t / 0.1 : $t < 0.38 ? 1 : $t < 0.55 ? 1 - ($t - 0.38) / 0.17 : 0;
+		$out = $out * $out * (3 - 2 * $out);
 		my $p = {};
-		setr($p, "right_upper_arm", 120 * $up * (1 - $down) + 30 * $down, 0, 40 * $up * (1 - $down) - 30 * $down);
-		setr($p, "right_forearm", 40 * $up * (1 - $down));
-		setr($p, "chest", 0, -18 * $up * (1 - $down) + 26 * $down, 0);
-		setr($p, "head", -10 * $down);
-		setr($p, "jaw", 20 * $down);
-		for my $k (0 .. 3) {
-			setr($p, "right_finger$k", ($k - 1.5) * 12 * $up, 0, -30 * $down);
-			setr($p, "right_finger${k}_tip", 0, 0, -30 * $down);
+		setr($p, "right_shoulder", -4 * $out, 0, -4 * $out);
+		setr($p, "right_upper_arm", 88 * $out, -10 * $out, 6 * $out);
+		setr($p, "right_forearm", -6 * $out);
+		setr($p, "right_hand", 10 * $out);
+		fingers($p, 'right', -18 * $out, 16 * $out, -10 * $out);
+		setr($p, "chest", -4 * $out, 14 * $out, 0);
+		setr($p, "head", -6 * $out);
+		setr($p, "jaw", 22 * $out);
+		# The whip: a wave running down the lash, side to side.
+		my $ph = $t / 0.55 * 2 * $PI * 1.5;
+		for my $k (1 .. 5) {
+			setr($p, "lash_$k", 5 * sin($ph - $k * 0.9) * $out, 0, 14 * sin($ph * 1.3 - $k * 0.8) * $out);
 		}
 		push @f, [$t, $p];
 	}
-	anim("strike", 0.55, "once", \@f);
+	anim("strike", 0.55, "once", \@f, "linear");
 }
 
 # jaw: shut (0 s) to gaping (1 s).

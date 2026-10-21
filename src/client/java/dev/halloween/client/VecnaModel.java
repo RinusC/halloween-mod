@@ -15,8 +15,8 @@ import net.minecraft.util.Mth;
 /**
  * Vecna (art/vecna.bbmodel, made by tools/vecna_model.pl): a skeleton of his own, and he floats. Hanging in the air
  * when still (float), drifting forwards when he moves (glide), weighted by his speed. While he aims, throws or draws
- * in the Grip (HwNet.Anim.VECNA_CAST) his left arm is thrust out, clawed and trembling (cast, laid over); a blow is a
- * rake of the right claw (strike). The head where he looks, a jerk of it now and then (twitch), the jaw working. Holding
+ * in the Grip (HwNet.Anim.VECNA_CAST) his left arm is thrust out, clawed and trembling (cast, laid over); a blow is the
+ * right arm thrust out and a lash shooting from the palm (strike). The head where he looks, a jerk of it now and then (twitch), the jaw working. Holding
  * someone he has them by the throat in his left hand, the right claw raised over them (throttle), and drives it in to
  * kill (rend); hit or shaken off he reels back (recoil). In a fall his arms, legs and head take the player model's pose
  * (ClientAnims), still floating.
@@ -47,6 +47,11 @@ public final class VecnaModel extends Model<AvatarRenderState> {
 		return new VecnaModel(BbModel.load("/assets/halloween/models/entity/vecna.json", Set.of()));
 	}
 
+	/** For tests: a blow from this one now (a mannequin's swing does not play on the client). */
+	public static void testStrike(int id) {
+		STATES.computeIfAbsent(id, k -> new State()).strikeStart = now();
+	}
+
 	public static void clear() {
 		STATES.clear();
 	}
@@ -65,6 +70,8 @@ public final class VecnaModel extends Model<AvatarRenderState> {
 	@SuppressWarnings({"unchecked", "rawtypes"})
 	public void setupAnim(AvatarRenderState s) {
 		this.resetPose();
+		// The lash in his palm: nothing until he strikes.
+		this.lash(0f);
 		int id = ((HwRenderState) s).halloween$entityId();
 		float now = now();
 		State st = STATES.computeIfAbsent(id, k -> new State());
@@ -122,6 +129,9 @@ public final class VecnaModel extends Model<AvatarRenderState> {
 		float a = (now - st.strikeStart) / 20f;
 		if (a >= 0f && a < 0.55f) {
 			this.bb.apply("strike", a, 1f);
+			// Out of the palm in a tenth of a second, held while it whips, drawn back in.
+			float out = a < 0.1f ? a / 0.1f : a < 0.38f ? 1f : 1f - (a - 0.38f) / 0.17f;
+			this.lash(smooth(out));
 		}
 
 		// Now and then the head jerks.
@@ -131,6 +141,17 @@ public final class VecnaModel extends Model<AvatarRenderState> {
 			this.bb.apply("twitch", phase / 20f, Mth.sin(phase / 28f * Mth.PI));
 		}
 		this.look(s, st.cast);
+	}
+
+	/** How far the lash is out of his palm (0 hidden, 1 its full length). */
+	private void lash(float out) {
+		ModelPart p = this.bb.part("lash_0");
+		if (p != null) {
+			p.xScale = out;
+			p.zScale = out;
+			p.yScale = out;
+			p.visible = out > 0.01f;
+		}
 	}
 
 	/** The quick moves of a knife-killer that he makes with his claw instead. */
