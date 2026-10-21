@@ -17,7 +17,20 @@ public final class HwParticles {
 	/** Slaver running from the Demogorgon's mouth (over the one he is eating). */
 	public static final SimpleParticleType DROOL = Registry.register(BuiltInRegistries.PARTICLE_TYPE, Halloween.id("drool"), FabricParticleTypes.simple(true));
 
+	/** Vecna (client.VecnaParticles): soft smoke, a red haze, embers, ash flakes, Upside Down spores, sparks that keep their speed, the Grip's thread. */
+	public static final SimpleParticleType VECNA_SMOKE = vecna("smoke");
+	public static final SimpleParticleType VECNA_MIST = vecna("mist");
+	public static final SimpleParticleType VECNA_EMBER = vecna("ember");
+	public static final SimpleParticleType VECNA_ASH = vecna("ash");
+	public static final SimpleParticleType VECNA_SPORE = vecna("spore");
+	public static final SimpleParticleType VECNA_SPARK = vecna("spark");
+	public static final SimpleParticleType VECNA_THREAD = vecna("thread");
+
 	private HwParticles() {
+	}
+
+	private static SimpleParticleType vecna(String name) {
+		return Registry.register(BuiltInRegistries.PARTICLE_TYPE, Halloween.id("vecna_" + name), FabricParticleTypes.simple(true));
 	}
 
 	public static void init() {

@@ -1,6 +1,7 @@
 package dev.halloween.game;
 
 import dev.halloween.HwConfig;
+import dev.halloween.HwParticles;
 import dev.halloween.HwSounds;
 import dev.halloween.Role;
 import dev.halloween.net.HwNet;
@@ -9,8 +10,6 @@ import java.util.List;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.particles.DustParticleOptions;
-import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -216,12 +215,11 @@ public final class VecnaRitual {
 		if (altar != null && !rift && now % 4 == 0) {
 			// The ring: red embers round it, a slow pulse at its heart.
 			double r = cfg.vecnaAltarRadius;
-			DustParticleOptions red = new DustParticleOptions(0xC01020, 1.4f);
-			for (int i = 0; i < 16; i++) {
-				double a = i / 16.0 * Math.PI * 2 + now * 0.02;
-				level.sendParticles(red, altar.x + Math.cos(a) * r, altar.y + 0.15, altar.z + Math.sin(a) * r, 1, 0, 0, 0, 0);
+			for (int i = 0; i < 12; i++) {
+				double a = i / 12.0 * Math.PI * 2 + now * 0.02;
+				level.sendParticles(HwParticles.VECNA_EMBER, altar.x + Math.cos(a) * r, altar.y + 0.15, altar.z + Math.sin(a) * r, 0, 0, 0.3, 0, 0.05);
 			}
-			level.sendParticles(ParticleTypes.CRIMSON_SPORE, altar.x, altar.y + 0.5, altar.z, 4, 0.8, 0.3, 0.8, 0.01);
+			level.sendParticles(HwParticles.VECNA_MIST, altar.x, altar.y + 0.5, altar.z, 1, 0.6, 0.2, 0.6, 0.005);
 		}
 		if (rift) {
 			// The bodies risen round the rift, turning slowly.
@@ -236,12 +234,12 @@ public final class VecnaRitual {
 			}
 			if (now % 2 == 0) {
 				// The burning pit: flames licking up out of it, smoke and embers rising high.
-				level.sendParticles(ParticleTypes.FLAME, altar.x, altar.y + 0.3, altar.z, 6, 1.8, 0.1, 1.8, 0.02);
-				level.sendParticles(ParticleTypes.LARGE_SMOKE, altar.x, altar.y + 0.5, altar.z, 3, 1.5, 0.2, 1.5, 0.03);
-				level.sendParticles(new DustParticleOptions(0xFF4020, 1.6f), altar.x, altar.y + 1.5, altar.z, 4, 2, 1.2, 2, 0);
+				level.sendParticles(HwParticles.VECNA_EMBER, altar.x, altar.y + 0.3, altar.z, 5, 1.8, 0.1, 1.8, 0.03);
+				level.sendParticles(HwParticles.VECNA_SMOKE, altar.x, altar.y + 0.6, altar.z, 3, 1.5, 0.2, 1.5, 0.04);
+				level.sendParticles(HwParticles.VECNA_MIST, altar.x, altar.y + 1.5, altar.z, 1, 2, 1.2, 2, 0.005);
 			}
 			if (now % 3 == 0) {
-				level.sendParticles(ParticleTypes.CRIMSON_SPORE, altar.x, altar.y + 2, altar.z, 8, 2.5, 1.5, 2.5, 0.02);
+				level.sendParticles(HwParticles.VECNA_ASH, altar.x, altar.y + 2, altar.z, 4, 2.5, 1.5, 2.5, 0.02);
 			}
 		}
 		if (now % 10 == 0) {

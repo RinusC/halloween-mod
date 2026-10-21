@@ -154,14 +154,14 @@ public final class VecnaClient {
 			double z = c.getZ() + r.nextDouble();
 			double y = c.getY() + 1.02;
 			switch (r.nextInt(6)) {
-				case 0 -> mc.level.addParticle(net.minecraft.core.particles.ParticleTypes.SMALL_FLAME, x, y, z, 0, 0.02, 0);
-				case 1 -> mc.level.addParticle(net.minecraft.core.particles.ParticleTypes.SMOKE, x, y, z, 0, 0.04, 0);
-				case 2 -> {
-					if (r.nextInt(6) == 0) {
-						mc.level.addParticle(net.minecraft.core.particles.ParticleTypes.LAVA, x, y, z, 0, 0, 0);
+				case 0, 1 -> mc.level.addParticle(dev.halloween.HwParticles.VECNA_EMBER, x, y, z, 0, 0.01, 0);
+				case 2 -> mc.level.addParticle(dev.halloween.HwParticles.VECNA_SMOKE, x, y, z, 0, 0.02, 0);
+				case 3 -> {
+					if (r.nextInt(3) == 0) {
+						mc.level.addParticle(dev.halloween.HwParticles.VECNA_MIST, x, y + 0.6, z, 0, 0.005, 0);
 					}
 				}
-				default -> mc.level.addParticle(new net.minecraft.core.particles.DustParticleOptions(0xD02A10, 2.2f), x, y + r.nextDouble() * 1.5, z, 0, 0.01, 0);
+				default -> mc.level.addParticle(dev.halloween.HwParticles.VECNA_ASH, x, y + r.nextDouble() * 1.5, z, 0, 0.01, 0);
 			}
 		}
 		// Spores and ash drifting in the air all round.
@@ -169,12 +169,37 @@ public final class VecnaClient {
 			double x = mc.player.getX() + (r.nextDouble() - 0.5) * 24;
 			double y = mc.player.getY() + r.nextDouble() * 8 - 1;
 			double z = mc.player.getZ() + (r.nextDouble() - 0.5) * 24;
-			mc.level.addParticle(i % 3 == 0 ? net.minecraft.core.particles.ParticleTypes.WHITE_ASH : net.minecraft.core.particles.ParticleTypes.CRIMSON_SPORE,
-				x, y, z, 0, -0.01, 0);
+			mc.level.addParticle(i % 3 == 0 ? dev.halloween.HwParticles.VECNA_ASH : dev.halloween.HwParticles.VECNA_SPORE, x, y, z, 0, 0, 0);
 		}
 	}
 
 	// ---------------------------------------------------------------- phantoms
+
+	public static boolean isPhantomId(int id) {
+		for (Phantom p : PHANTOMS) {
+			if (p.body.getId() == id) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/** How solid a phantom is drawn now: wavering, gone for a frame or two now and then, faded in when it appears. */
+	public static float phantomAlpha(int id) {
+		Minecraft mc = Minecraft.getInstance();
+		float now = mc.level.getGameTime() + mc.getDeltaTracker().getGameTimeDeltaPartialTick(false);
+		for (Phantom p : PHANTOMS) {
+			if (p.body.getId() == id) {
+				float age = now - p.born;
+				int slot = (int) (now / 2);
+				if (Math.floorMod(slot * 1103515245 + id * 12345, 11) == 0) {
+					return 0f;
+				}
+				return Mth.clamp(age / 12f, 0f, 1f) * (0.74f + 0.12f * Mth.sin(age * 0.9f) + 0.06f * Mth.sin(age * 2.7f));
+			}
+		}
+		return 1f;
+	}
 
 	public static boolean isPhantom(Entity e) {
 		for (Phantom p : PHANTOMS) {
@@ -204,8 +229,21 @@ public final class VecnaClient {
 				if (seen) {
 					mc.level.playLocalSound(at.x, at.y, at.z, HwSounds.VECNA_PHANTOM_VANISH, SoundSource.HOSTILE, 1.2f, 1f, false);
 				}
+				// It comes apart into smoke and ash.
+				var r = mc.level.getRandom();
+				for (int i = 0; i < 14; i++) {
+					double y = p.body.getY() + r.nextDouble() * 2.3;
+					mc.level.addParticle(i % 3 == 0 ? dev.halloween.HwParticles.VECNA_ASH : dev.halloween.HwParticles.VECNA_SMOKE,
+						p.body.getX() + (r.nextDouble() - 0.5) * 0.7, y, p.body.getZ() + (r.nextDouble() - 0.5) * 0.7,
+						(r.nextDouble() - 0.5) * 0.06, 0.02 + r.nextDouble() * 0.03, (r.nextDouble() - 0.5) * 0.06);
+				}
 				mc.level.removeEntity(p.body.getId(), Entity.RemovalReason.DISCARDED);
 				it.remove();
+			} else if (age % 3 == 0) {
+				// A dark smoke curling off it, low down.
+				var r = mc.level.getRandom();
+				mc.level.addParticle(dev.halloween.HwParticles.VECNA_SMOKE, p.body.getX() + (r.nextDouble() - 0.5) * 0.6, p.body.getY() + 0.2 + r.nextDouble() * 0.6,
+					p.body.getZ() + (r.nextDouble() - 0.5) * 0.6, 0, 0.01, 0);
 			}
 		}
 		if (!cursed) {

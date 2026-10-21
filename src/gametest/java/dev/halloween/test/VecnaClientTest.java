@@ -204,6 +204,7 @@ public class VecnaClientTest implements FabricClientGameTest {
 			server.runOnServer(s -> {
 				HwConfig.get().vecnaGripPullTicks = 200;
 				MatchManager.shapeState(player(s)).stunnedTicks = 0;
+				dev.halloween.game.GrabSession.anim(player(s), dev.halloween.net.HwNet.Anim.RISE);
 				still(bot(s), false);
 			});
 			ctx.waitTicks(10);

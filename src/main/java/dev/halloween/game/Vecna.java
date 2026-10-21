@@ -2,6 +2,7 @@ package dev.halloween.game;
 
 import dev.halloween.Halloween;
 import dev.halloween.HwConfig;
+import dev.halloween.HwParticles;
 import dev.halloween.HwSounds;
 import dev.halloween.net.HwNet;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
@@ -9,8 +10,6 @@ import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.particles.DustParticleOptions;
-import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
@@ -236,7 +235,8 @@ public final class Vecna {
 		}
 		// He is there at once, and takes shape over a few seconds: time for them to run.
 		level.playSound(null, p.getX(), p.getY(), p.getZ(), HwSounds.VECNA_ANCHOR_VANISH, SoundSource.HOSTILE, 1.5f, 1f);
-		level.sendParticles(ParticleTypes.REVERSE_PORTAL, p.getX(), p.getY() + 1, p.getZ(), 30, 0.4, 0.9, 0.4, 0.1);
+		level.sendParticles(HwParticles.VECNA_SMOKE, p.getX(), p.getY() + 1, p.getZ(), 14, 0.35, 0.8, 0.35, 0.02);
+		level.sendParticles(HwParticles.VECNA_SPARK, p.getX(), p.getY() + 1, p.getZ(), 12, 0.3, 0.8, 0.3, 0.12);
 		Vec3 d = target.position().subtract(to);
 		float yaw = (float) (Math.atan2(-d.x, d.z) * 180 / Math.PI);
 		p.teleportTo(level, to.x, to.y, to.z, java.util.Set.of(), yaw, 0f, false);
@@ -266,7 +266,8 @@ public final class Vecna {
 			return;
 		}
 		level.playSound(null, p.getX(), p.getY(), p.getZ(), HwSounds.VECNA_ANCHOR_VANISH, SoundSource.HOSTILE, 1.5f, 1f);
-		level.sendParticles(ParticleTypes.REVERSE_PORTAL, p.getX(), p.getY() + 1, p.getZ(), 30, 0.4, 0.9, 0.4, 0.1);
+		level.sendParticles(HwParticles.VECNA_SMOKE, p.getX(), p.getY() + 1, p.getZ(), 14, 0.35, 0.8, 0.35, 0.02);
+		level.sendParticles(HwParticles.VECNA_SPARK, p.getX(), p.getY() + 1, p.getZ(), 12, 0.3, 0.8, 0.3, 0.12);
 		Vec3 d = altar.subtract(to);
 		p.teleportTo(level, to.x, to.y, to.z, java.util.Set.of(), (float) (Math.atan2(-d.x, d.z) * 180 / Math.PI), 0f, false);
 		p.setInvisible(true);
@@ -338,10 +339,9 @@ public final class Vecna {
 		tickAnchor(level, v, st, now);
 		if (now % 3 == 0 && !v.isInvisible()) {
 			// He floats: a dark haze and ash drifting under his feet.
-			level.sendParticles(new net.minecraft.core.particles.DustColorTransitionOptions(0x5A0A10, 0x0A0204, 1.3f), v.getX(), v.getY() + 0.15, v.getZ(), 2, 0.25, 0.08, 0.25, 0);
-			level.sendParticles(ParticleTypes.ASH, v.getX(), v.getY() + 0.3, v.getZ(), 3, 0.3, 0.2, 0.3, 0);
-			if (now % 12 == 0) {
-				level.sendParticles(ParticleTypes.SMOKE, v.getX(), v.getY() + 0.1, v.getZ(), 1, 0.2, 0.02, 0.2, 0.005);
+			level.sendParticles(HwParticles.VECNA_ASH, v.getX(), v.getY() + 0.4, v.getZ(), 1, 0.3, 0.3, 0.3, 0.005);
+			if (now % 9 == 0) {
+				level.sendParticles(HwParticles.VECNA_SMOKE, v.getX(), v.getY() + 0.1, v.getZ(), 1, 0.2, 0.02, 0.2, 0.004);
 			}
 		}
 		if (now % 2 == 0) {
@@ -429,12 +429,15 @@ public final class Vecna {
 				t.getX(), t.getEyeY(), t.getZ(), 1f, 1f, t.getRandom().nextLong()));
 		}
 		// The dark gathering into him: sparks drawn in from round about.
-		for (int i = 0; i < 6; i++) {
+		for (int i = 0; i < 3; i++) {
 			double a = v.getRandom().nextDouble() * Math.PI * 2;
 			double r = 1.2 + v.getRandom().nextDouble();
-			level.sendParticles(ParticleTypes.REVERSE_PORTAL, v.getX() + Math.cos(a) * r, v.getY() + v.getRandom().nextDouble() * 2, v.getZ() + Math.sin(a) * r, 1, 0, 0, 0, 0.05);
+			level.sendParticles(HwParticles.VECNA_SPARK, v.getX() + Math.cos(a) * r, v.getY() + v.getRandom().nextDouble() * 2, v.getZ() + Math.sin(a) * r, 0, -Math.cos(a), 0, -Math.sin(a), 0.14);
 		}
-		level.sendParticles(new DustParticleOptions(0x8A0E1E, 1.2f), v.getX(), v.getY() + 1, v.getZ(), 4, 0.3, 0.8, 0.3, 0);
+		if (anchorLeft % 4 == 0) {
+			level.sendParticles(HwParticles.VECNA_MIST, v.getX(), v.getY() + 1, v.getZ(), 1, 0.3, 0.6, 0.3, 0.005);
+			level.sendParticles(HwParticles.VECNA_SMOKE, v.getX(), v.getY() + 0.3, v.getZ(), 2, 0.4, 0.2, 0.4, 0.01);
+		}
 		if (anchorLeft == total * 2 / 5) {
 			// Now he shows.
 			v.setInvisible(false);
@@ -499,7 +502,7 @@ public final class Vecna {
 			if (now % 2 == 0) {
 				// Red sparks gather in the outstretched hand: everyone sees it coming.
 				Vec3 hand = hand(v);
-				level.sendParticles(new DustParticleOptions(gripAim >= cfg.vecnaGripAimTicks ? 0xFF3020 : 0x8A0E1E, 0.9f), hand.x, hand.y, hand.z, 3, 0.12, 0.12, 0.12, 0);
+				level.sendParticles(gripAim >= cfg.vecnaGripAimTicks ? HwParticles.VECNA_EMBER : HwParticles.VECNA_SPARK, hand.x, hand.y, hand.z, 1, 0.1, 0.1, 0.1, 0.02);
 			}
 			if (gripAim == cfg.vecnaGripAimTicks) {
 				level.playSound(null, v.getX(), v.getY(), v.getZ(), HwSounds.VECNA_GRIP_READY, SoundSource.HOSTILE, 1f, 1f);
@@ -597,8 +600,8 @@ public final class Vecna {
 		spawnBolt(level, hand, boltYaw());
 		// A low tearing groan as it leaves his hand, and a burst of the dark.
 		level.playSound(null, hand.x, hand.y, hand.z, HwSounds.VECNA_GRIP_CAST, SoundSource.HOSTILE, 1.6f, 1f);
-		level.sendParticles(ParticleTypes.LARGE_SMOKE, hand.x, hand.y, hand.z, 12, 0.2, 0.3, 0.2, 0.03);
-		level.sendParticles(new net.minecraft.core.particles.DustColorTransitionOptions(0xC01018, 0x100004, 1.4f), hand.x, hand.y, hand.z, 14, 0.3, 0.4, 0.3, 0);
+		level.sendParticles(HwParticles.VECNA_SMOKE, hand.x, hand.y, hand.z, 10, 0.2, 0.3, 0.2, 0.04);
+		level.sendParticles(HwParticles.VECNA_SPARK, hand.x, hand.y, hand.z, 10, 0.1, 0.1, 0.1, 0.18);
 		AiStats.add(v, "vecna.grip.thrown");
 	}
 
@@ -651,18 +654,16 @@ public final class Vecna {
 		}
 		moveBars(bolt, boltYaw());
 		// Sparks of red light drifting up the pillar.
-		for (int k = 0; k < 3; k++) {
-			double up = level.getRandom().nextDouble() * 24;
-			level.sendParticles(new DustParticleOptions(0xFF3A2A, 1.2f), bolt.x, bolt.y + up, bolt.z, 1, half * 0.5, 0.3, half * 0.5, 0);
+		for (int k = 0; k < 2; k++) {
+			double up = level.getRandom().nextDouble() * 20;
+			level.sendParticles(HwParticles.VECNA_EMBER, bolt.x, bolt.y + up, bolt.z, 1, half * 0.5, 0.3, half * 0.5, 0.01);
 		}
 		// It sheds the dark behind it: smoke, ash, red dust fading to black; whispers as it passes.
 		Vec3 back = bolt.subtract(along.scale(0.4));
-		level.sendParticles(ParticleTypes.LARGE_SMOKE, back.x, back.y, back.z, 2, across.x * half * 0.6, tall * 0.6, across.z * half * 0.6, 0.005);
-		level.sendParticles(ParticleTypes.ASH, back.x, back.y, back.z, 6, half * 0.7, tall * 0.7, half * 0.7, 0);
-		level.sendParticles(new net.minecraft.core.particles.DustColorTransitionOptions(0xB01020, 0x0A0004, 1.2f), back.x, back.y, back.z, 4,
-			across.x * half * 0.7, tall * 0.7, across.z * half * 0.7, 0);
-		if (now % 2 == 0) {
-			level.sendParticles(ParticleTypes.CRIMSON_SPORE, bolt.x, bolt.y, bolt.z, 3, half * 0.6, tall * 0.6, half * 0.6, 0.01);
+		level.sendParticles(HwParticles.VECNA_SMOKE, back.x, back.y, back.z, 2, across.x * half * 0.6, tall * 0.5, across.z * half * 0.6, 0.01);
+		level.sendParticles(HwParticles.VECNA_ASH, back.x, back.y, back.z, 2, half * 0.7, tall * 0.7, half * 0.7, 0.01);
+		if (now % 3 == 0) {
+			level.sendParticles(HwParticles.VECNA_MIST, back.x, back.y, back.z, 1, half * 0.4, tall * 0.4, half * 0.4, 0.005);
 		}
 		if (now % 20 == 0) {
 			level.playSound(null, bolt.x, bolt.y, bolt.z, HwSounds.VECNA_GRIP_HUM, SoundSource.HOSTILE, 1.4f, 1f);
@@ -679,8 +680,8 @@ public final class Vecna {
 			return;
 		}
 		double tall = HwConfig.get().vecnaGripHeight / 2;
-		level.sendParticles(ParticleTypes.LARGE_SMOKE, bolt.x, bolt.y, bolt.z, 20, 0.5, tall * 0.6, 0.5, 0.02);
-		level.sendParticles(new net.minecraft.core.particles.DustColorTransitionOptions(0xC01018, 0x100004, 1.5f), bolt.x, bolt.y, bolt.z, 25, 0.6, tall * 0.6, 0.6, 0);
+		level.sendParticles(HwParticles.VECNA_SMOKE, bolt.x, bolt.y, bolt.z, 14, 0.5, tall * 0.5, 0.5, 0.03);
+		level.sendParticles(HwParticles.VECNA_SPARK, bolt.x, bolt.y, bolt.z, 8, 0.3, tall * 0.4, 0.3, 0.1);
 		level.playSound(null, bolt.x, bolt.y, bolt.z, HwSounds.VECNA_GRIP_FIZZLE, SoundSource.HOSTILE, 1f, 1f);
 	}
 
@@ -712,8 +713,9 @@ public final class Vecna {
 		gripKeyWas = true;
 		level.playSound(null, target.getX(), target.getY(), target.getZ(), HwSounds.VECNA_GRIP_CATCH, SoundSource.HOSTILE, 1.2f, 1f);
 		// The dark closes over them as it takes hold.
-		level.sendParticles(new net.minecraft.core.particles.DustColorTransitionOptions(0xC01018, 0x100004, 1.5f), target.getX(), target.getY() + 1, target.getZ(), 30, 0.5, 0.8, 0.5, 0);
-		level.sendParticles(ParticleTypes.LARGE_SMOKE, target.getX(), target.getY() + 1, target.getZ(), 12, 0.4, 0.7, 0.4, 0.02);
+		level.sendParticles(HwParticles.VECNA_SMOKE, target.getX(), target.getY() + 1, target.getZ(), 12, 0.4, 0.7, 0.4, 0.03);
+		level.sendParticles(HwParticles.VECNA_SPARK, target.getX(), target.getY() + 1, target.getZ(), 12, 0.3, 0.6, 0.3, 0.15);
+		level.sendParticles(HwParticles.VECNA_MIST, target.getX(), target.getY() + 1, target.getZ(), 2, 0.3, 0.5, 0.3, 0.005);
 		if (target instanceof ServerPlayer sp) {
 			sp.addEffect(new MobEffectInstance(MobEffects.DARKNESS, 140, 0, true, false));
 		}
@@ -788,19 +790,17 @@ public final class Vecna {
 		}
 		Vec3 side = d.cross(new Vec3(0, 1, 0)).normalize();
 		Vec3 up = side.cross(d).normalize();
-		int n = Math.max(6, (int) (len / 0.3));
-		DustParticleOptions dark = new DustParticleOptions(0x8A0E1E, 0.6f);
-		DustParticleOptions glow = new DustParticleOptions(0xFF4A3A, 0.45f);
+		int n = Math.max(10, (int) (len / 0.12));
 		for (int i = 0; i <= n; i++) {
 			double k = i / (double) n;
 			// It quivers a little (still at the ends); much more and the lingering dust turns the thread into a band.
 			double sway = Math.sin(k * Math.PI) * 0.06;
 			double a = k * 9 - now * 0.35;
 			Vec3 at = hand.add(d.scale(k)).add(side.scale(Math.sin(a) * sway)).add(up.scale(Math.cos(a * 0.7) * sway));
-			level.sendParticles(i % 3 == 0 ? glow : dark, at.x, at.y, at.z, 1, 0, 0, 0, 0);
+			level.sendParticles(HwParticles.VECNA_THREAD, at.x, at.y, at.z, 1, 0, 0, 0, 0);
 		}
 		if (now % 3 == 0) {
-			level.sendParticles(ParticleTypes.REVERSE_PORTAL, chest.x, chest.y, chest.z, 3, 0.25, 0.4, 0.25, 0.02);
+			level.sendParticles(HwParticles.VECNA_SPARK, chest.x, chest.y, chest.z, 2, 0.2, 0.3, 0.2, 0.06);
 		}
 	}
 

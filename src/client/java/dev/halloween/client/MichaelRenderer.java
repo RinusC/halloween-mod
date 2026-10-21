@@ -216,6 +216,17 @@ public final class MichaelRenderer {
 		// As the player model would be: whole; see-through (invisible, to those who see the invisible); or only his
 		// outline (invisible but glowing).
 		Identifier texture = demogorgon() ? DEMO_TEXTURE : vecna() ? VECNA_TEXTURE : TEXTURE;
+		if (vecna() && VecnaClient.isPhantomId(((HwRenderState) avatar).halloween$entityId())) {
+			// A phantom: a dark shade of him, see-through and wavering, gone for a frame now and then; the eyes burn.
+			float a = VecnaClient.phantomAlpha(((HwRenderState) avatar).halloween$entityId());
+			if (a > 0.02f) {
+				int argb = net.minecraft.util.ARGB.color((int) (a * 255), 70, 42, 50);
+				collector.submitModel(m, avatar, pose, RenderTypes.entityTranslucent(texture), light, overlay, argb, null, 0, null);
+				collector.submitModel(m, avatar, pose, RenderTypes.entityTranslucentEmissive(VECNA_GLOW), 0xF000F0, overlay,
+					net.minecraft.util.ARGB.color((int) (Math.min(1f, a * 1.6f) * 255), 255, 255, 255), null, 0, null);
+			}
+			return true;
+		}
 		net.minecraft.client.renderer.rendertype.RenderType type = tint != -1 ? RenderTypes.entityTranslucentCullItemTarget(texture)
 			: avatar.isInvisible ? RenderTypes.outline(texture) : RenderTypes.entityCutout(texture);
 		collector.submitModel(m, avatar, pose, type, light, overlay, tint, null, outline, null);

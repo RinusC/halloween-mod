@@ -16,8 +16,10 @@ import net.minecraft.util.Mth;
  * Vecna (art/vecna.bbmodel, made by tools/vecna_model.pl): a skeleton of his own, and he floats. Hanging in the air
  * when still (float), drifting forwards when he moves (glide), weighted by his speed. While he aims, throws or draws
  * in the Grip (HwNet.Anim.VECNA_CAST) his left arm is thrust out, clawed and trembling (cast, laid over); a blow is a
- * rake of the right claw (strike). The head where he looks, a jerk of it now and then (twitch), the jaw working. In a
- * grab, a kill, a fall his arms, legs and head take the player model's pose (ClientAnims), still floating.
+ * rake of the right claw (strike). The head where he looks, a jerk of it now and then (twitch), the jaw working. Holding
+ * someone he has them by the throat in his left hand, the right claw raised over them (throttle), and drives it in to
+ * kill (rend); hit or shaken off he reels back (recoil). In a fall his arms, legs and head take the player model's pose
+ * (ClientAnims), still floating.
  */
 public final class VecnaModel extends Model<AvatarRenderState> {
 	private static final class State {
@@ -83,6 +85,22 @@ public final class VecnaModel extends Model<AvatarRenderState> {
 			this.bb.apply("cast", t / 20f, st.cast);
 		}
 
+		int hold = ClientAnims.hold(id);
+		int once = ClientAnims.once(id);
+		if (hold == HwNet.Anim.HOLD || hold == HwNet.Anim.STRUGGLE || hold == HwNet.Anim.LOCKER_HOLD || isClaw(once)) {
+			// By the throat in his left hand, the right claw over them; driven in when he kills.
+			this.bb.apply("throttle", t / 20f, 1f);
+			if (isClaw(once)) {
+				this.bb.apply("rend", ClientAnims.onceTime(id) / 20f * 0.6f / Math.max(0.3f, onceSeconds(once)), 1f);
+			}
+			return;
+		}
+		if (once == HwNet.Anim.STAGGER || once == HwNet.Anim.STABBED) {
+			// Hit, or shaken off: he reels back.
+			this.bb.apply("recoil", Math.min(0.8f, ClientAnims.onceTime(id) / 20f), 1f);
+			this.look(s, 0f);
+			return;
+		}
 		boolean busy = ClientAnims.busy(id) && !casting;
 		if (busy && this.source != null) {
 			// A grab, a kill, a fall: his arms, legs and head as the player model has them.
@@ -113,6 +131,20 @@ public final class VecnaModel extends Model<AvatarRenderState> {
 			this.bb.apply("twitch", phase / 20f, Mth.sin(phase / 28f * Mth.PI));
 		}
 		this.look(s, st.cast);
+	}
+
+	/** The quick moves of a knife-killer that he makes with his claw instead. */
+	private static boolean isClaw(int once) {
+		return once == HwNet.Anim.STAB || once == HwNet.Anim.KNIFE_DOWN || once == HwNet.Anim.LOCKER_STAB || once == HwNet.Anim.REACH;
+	}
+
+	/** How long that move lasts on the knife-killer (seconds; see ClientAnims). */
+	private static float onceSeconds(int once) {
+		return switch (once) {
+			case HwNet.Anim.KNIFE_DOWN -> 0.4f;
+			case HwNet.Anim.LOCKER_STAB -> 0.9f;
+			default -> 0.6f;
+		};
 	}
 
 	/** The head where he looks: some in the neck, the rest in the head. */

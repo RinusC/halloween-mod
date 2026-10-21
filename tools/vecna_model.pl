@@ -19,6 +19,9 @@
 #   strike  a backhand rake of the right claw (laid over)
 #   jaw     the jaw from shut (0 s) to gaping (1 s)
 #   twitch  his head jerking (laid over now and then)
+#   throttle holding them by the throat with the left hand, the right claw raised over them
+#   rend    the right claw driven into them and torn out (laid over throttle)
+#   recoil  reeling back when hit or shaken off
 #
 #   perl tools/vecna_model.pl art/vecna.bbmodel
 use strict;
@@ -104,8 +107,12 @@ sub skin {
 			my $cr = sin($b / 3.1 + sin($a / 7.0 + $ox) * 1.6 + noise($a / 5, $b / 5) * 2);
 			$c = mix($c, $C{skinDD}, 0.55) if $cr > 0.86;
 			$c = mix($c, $C{sheen}, 0.25) if $cr < -0.93;
-			$c = mul($c, $o{shade} // 1);
-			put($x0 + $i, $y0 + $j, jit($c, 4));
+			# Its form: darker towards the edges of the face (a rounded limb, not a box), lit from above.
+			my $u = $w > 1 ? $i / ($w - 1) : 0.5;
+			my $form = 1 - 0.34 * (abs($u - 0.5) * 2)**2.4;
+			$form *= 1.07 - 0.2 * ($h > 1 ? $j / ($h - 1) : 0.5) if $o{lit} // 1;
+			$c = mul($c, ($o{shade} // 1) * $form);
+			put($x0 + $i, $y0 + $j, jit($c, 2.5));
 		}
 	}
 	# Cracks of raw red.
@@ -168,11 +175,13 @@ sub vinepaint {
 		for my $j (0 .. $h - 1) {
 			for my $i (0 .. $w - 1) {
 				my $t = $w > 1 ? $i / ($w - 1) : 0.5;
-				my $c = $t < 0.3 ? $C{vineL} : $t > 0.75 ? $C{vineD} : $C{vine};
-				$c = mix($c, $C{vineW}, 0.4) if rand() < 0.05;
-				$c = mix($c, $C{crack}, 0.4) if rand() < 0.015;
+				# Round and wet: lit on one side, a sharp gleam along it, falling into black on the other.
+				my $c = $t < 0.45 ? mix($C{vineL}, $C{vine}, smooth($t / 0.45)) : mix($C{vine}, $C{vineD}, smooth(($t - 0.45) / 0.55));
+				$c = mix($c, $C{vineW}, 0.55 * (1 - abs($t - 0.22) / 0.12)) if abs($t - 0.22) < 0.12;
+				$c = mix($c, $C{vineW}, 0.15) if rand() < 0.05;
+				$c = mix($c, $C{crack}, 0.35) if rand() < 0.015;
 				$c = mul($c, 0.7) if $f eq 'down';
-				put($x0 + $i, $y0 + $j, jit($c, 5));
+				put($x0 + $i, $y0 + $j, jit($c, 3));
 			}
 		}
 	}
@@ -320,7 +329,7 @@ sub cube {
 sub fleshy {
 	my ($F, %o) = @_;
 	skin($F->{$_}, %o) for qw(north south east west);
-	skin($F->{$_}, %o, shade => ($o{shade} // 1) * 0.78, vines => 0) for qw(up down);
+	skin($F->{$_}, %o, shade => ($o{shade} // 1) * 0.78, vines => 0, lit => 0) for qw(up down);
 }
 
 # ---------------------------------------------------------------- vines and tendrils (cubes on little bones)
@@ -945,6 +954,81 @@ anim("jaw", 1.0, "hold_on_last_frame", [[0, {jaw => [0, 0, 0]}], [1.0, {jaw => [
 		push @f, [$t, $p];
 	}
 	anim("twitch", 1.4, "loop", \@f, "linear");
+}
+
+# throttle: holding them by the throat. The left arm reaching down and forward to their neck, the hand clenched round
+# it and squeezing in pulses; the right arm raised out to the side, claws spread over them; leaning in, head cocked,
+# the jaw slowly working.
+{
+	my @f;
+	my $T = 1.6;
+	for my $i (0 .. 12) {
+		my $t = $T * $i / 12;
+		my $u = $t / $T * 2 * $PI;
+		my $sq = (1 + sin($u * 2)) / 2;
+		my $sh = sin($u * 7) * 1.5;
+		my $p = {};
+		setr($p, "left_shoulder", -6, 0, 4);
+		setr($p, "left_upper_arm", 52 + $sh, -14, -6);
+		setr($p, "left_forearm", -14 - $sh * 0.5);
+		setr($p, "left_hand", 24 + 4 * $sq);
+		fingers($p, 'left', 58 + 14 * $sq, 6, 46 + 10 * $sq);
+		setr($p, "right_shoulder", -4, 0, -6);
+		setr($p, "right_upper_arm", 46 + 4 * sin($u), 6, 38 + 3 * sin($u + 1));
+		setr($p, "right_forearm", 58 + 5 * sin($u + 0.6));
+		setr($p, "right_hand", -12);
+		fingers($p, 'right', 22 + 8 * sin($u + 1.4), 16, 30);
+		setr($p, "chest", -10 - 2 * $sq, 6, 0);
+		setr($p, "neck", -6);
+		setr($p, "head", -12 + $sh * 0.4, 8, 14 + 3 * sin($u));
+		setr($p, "jaw", 10 + 8 * $sq);
+		writhe($p, $u * 2, 26);
+		push @f, [$t, $p];
+	}
+	anim("throttle", $T, "loop", \@f);
+}
+
+# rend (laid over throttle): the right claw drawn back and driven into them, then torn out.
+{
+	my @f;
+	for my $kf ([0, 0, 0, 0], [0.18, 1, 0, 0], [0.27, 0, 1, 0], [0.4, 0, 1, 1], [0.6, 0, 0, 0]) {
+		my ($t, $back, $in, $out) = @$kf;
+		my $p = {};
+		setr($p, "right_upper_arm", 70 * $back + 30 * $in - 10 * $out, 0, -18 * $back - 40 * $in);
+		setr($p, "right_forearm", 30 * $back - 55 * $in + 20 * $out);
+		setr($p, "right_hand", 12 * $in);
+		for my $k (0 .. 3) {
+			setr($p, "right_finger$k", 0, 0, 20 * $in - 40 * $out);
+			setr($p, "right_finger${k}_tip", 0, 0, 25 * $in - 40 * $out);
+		}
+		setr($p, "chest", -6 * $in, 22 * $back - 26 * $in, 0);
+		setr($p, "head", -8 * $in);
+		setr($p, "jaw", 18 * $in + 10 * $out);
+		push @f, [$t, $p];
+	}
+	anim("rend", 0.6, "once", \@f);
+}
+
+# recoil: hit or shaken off, he reels back, arms flung wide, head thrown back, jaw gaping, and gathers himself.
+{
+	my @f;
+	for my $kf ([0, 0], [0.12, 1], [0.35, 0.8], [0.8, 0]) {
+		my ($t, $k) = @$kf;
+		my $p = {};
+		setr($p, "chest", 16 * $k, 0, 0);
+		setr($p, "neck", 10 * $k);
+		setr($p, "head", 26 * $k, 0, -10 * $k);
+		setr($p, "jaw", 34 * $k);
+		for my $s (qw(right left)) {
+			my $sx = $s eq 'right' ? 1 : -1;
+			setr($p, "${s}_upper_arm", 30 * $k, 0, 50 * $k * $sx);
+			setr($p, "${s}_forearm", 30 * $k);
+			fingers($p, $s, -10 * $k, 18 * $k, -10 * $k);
+		}
+		writhe($p, $t * 20, 40 * $k);
+		push @f, [$t, $p];
+	}
+	anim("recoil", 0.8, "once", \@f);
 }
 
 # ---------------------------------------------------------------- the file
