@@ -884,17 +884,12 @@ public class HwConfig {
 	public int vecnaGripCooldownTicks = 600;
 	/** Stalking (towards a capture level) for every second a survivor is held by the Grip. */
 	public float vecnaGripStalkPerSecond = 0.35f;
-	/** The curse: seconds a stage takes for the survivor farthest from him and for the nearest; the last stage's time to get to a booth. */
-	public int vecnaCurseFarSeconds = 120;
-	public int vecnaCurseNearSeconds = 240;
-	public int vecnaCurseLastTicks = 400;
+	/** The curse (on one survivor): seconds each stage lasts before the next; at the last, the reaction checks' zones times this. */
+	public int vecnaCurseStageSeconds = 240;
+	public float vecnaCurseCheckFactor = 0.55f;
 	/** Stage 1 and on: the clock strikes this often. Stalking per second for every stage. */
 	public int vecnaChimeTicks = 600;
 	public float vecnaCurseStalkPerStage = 0.01f;
-	/** Telephone booths: how many, the call (ticks held, reaction checks shorten it), how long a booth is dead after. */
-	public int vecnaBooths = 4;
-	public int vecnaBoothTicks = 120;
-	public int vecnaBoothRestTicks = 1200;
 	/** Stage 2 and on: a phantom of him shows every this many ticks or so (client). */
 	public int vecnaPhantomMinTicks = 300;
 	public int vecnaPhantomMaxTicks = 700;
@@ -906,11 +901,10 @@ public class HwConfig {
 	public int vecnaAnchorDelayTicks = 60;
 	public double vecnaAnchorDistance = 8;
 	public int vecnaAnchorCooldownTicks = 1800;
-	/** The ritual: bodies needed in the altar's ring, and its radius. */
-	public int vecnaRitualBodies = 4;
+	/** The ritual: people he must kill first (anyone at all) before killing the cursed one opens the rift. */
+	public int vecnaRitualKills = 3;
 	/** The rift's cracks spread over the town in this long. */
 	public int vecnaCrackSpreadTicks = 300;
-	public double vecnaAltarRadius = 3;
 	/** The rift open: his speed times this; the Grip's reach, speed and pull; the Eyes' reserve and refill; the Anchor (to anyone): taking shape, and rest. */
 	public float vecnaRiftSpeedFactor = 1.1f;
 	public double vecnaRiftGripRange = 40;

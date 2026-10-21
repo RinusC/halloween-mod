@@ -1338,20 +1338,30 @@ public final class HwHud {
 	/** Vecna: the cursed while the Anchor key is held (the one he would go to picked out), the Anchor's delay, the Eyes. */
 	private static void vecnaScreen(GuiGraphicsExtractor g, Minecraft mc, int w, int h) {
 		HwNet.VecnaHud vh = ClientState.vecna;
-		// The ritual: the body he carries, the altar (through walls) and how many lie in its ring; then the rift.
+		// The ritual, under the match clock: his kills towards it, then the cursed one; the rift once open.
 		HwNet.VecnaRitual rit = ClientState.ritual;
-		if (rit.carrier() >= 0) {
-			// Only while he carries a body: how to lay it down.
-			Component ritLine = Component.translatable("halloween.hud.ritual.carrying", mc.options.keyUse.getTranslatedKeyMessage(), HalloweenClient.KEY_IMPULSE.getTranslatedKeyMessage());
-			g.textWithBackdrop(mc.font, ritLine, w / 2 - mc.font.width(ritLine) / 2, h - 74, mc.font.width(ritLine), 0xFFD0A0A0);
+		HwNet.CurseMark cursed = null;
+		for (HwNet.CurseMark m : vh.marks()) {
+			if (m.stage() > 0) {
+				cursed = m;
+			}
 		}
-		if (rit.hasAltar() && !rit.rift()) {
-			Projection.Point p = Projection.toScreen(Vec3.atBottomCenterOf(rit.altar()).add(0, 0.5, 0), w, h);
+		Component ritLine = rit.rift() ? Component.translatable("halloween.hud.ritual.rift")
+			: rit.kills() < rit.needed() ? Component.translatable("halloween.hud.ritual.kills", rit.kills(), rit.needed())
+			: cursed != null ? Component.translatable("halloween.hud.ritual.now_cursed", cursed.name())
+			: Component.translatable("halloween.hud.ritual.no_cursed");
+		g.centeredText(mc.font, ritLine, w / 2, 46, rit.rift() ? BLOOD : 0xFFD0A0A0);
+		if (cursed != null && !rit.rift()) {
+			g.centeredText(mc.font, Component.translatable("halloween.hud.ritual.cursed", cursed.name(), cursed.stage()), w / 2, 58, cursed.stage() >= 4 ? 0xFFFF6060 : DIM);
+		}
+		if (cursed != null && cursed.stage() >= 4 && vh.anchorPhase() != dev.halloween.game.Vecna.ANCHOR_CHOOSING) {
+			// Broken by the curse: he sees them wherever they are.
+			Projection.Point p = Projection.toScreen(cursed.pos(), w, h);
 			if (p != null) {
-				diamond(g, (int) p.x(), (int) p.y(), 6, 0xFF0C0C0C);
-				diamond(g, (int) p.x(), (int) p.y(), 5, 0xFFC01020);
-				g.centeredText(mc.font, Component.translatable("halloween.hud.ritual.altar", rit.bodies(), rit.needed(), (int) p.distance()),
-					(int) p.x(), (int) p.y() - 16, 0xFFFF6060);
+				diamond(g, (int) p.x(), (int) p.y(), 5, 0xFF0C0C0C);
+				diamond(g, (int) p.x(), (int) p.y(), 4, 0xFFFF4040);
+				g.centeredText(mc.font, Component.translatable("halloween.hud.vecna.mark", cursed.name(), cursed.stage(), (int) p.distance()),
+					(int) p.x(), (int) p.y() - 15, 0xFFFF6060);
 			}
 		}
 		if (vh.gripAim() >= 0) {
@@ -1423,7 +1433,11 @@ public final class HwHud {
 	 */
 	private static void curseHud(GuiGraphicsExtractor g, Minecraft mc, int w, int h) {
 		HwNet.CurseHud c = ClientState.curse;
-		if (c.booths().isEmpty()) {
+		HwNet.VecnaRitual rit = ClientState.ritual;
+		if (rit.rift()) {
+			g.centeredText(mc.font, Component.translatable("halloween.hud.ritual.rift_survivor"), w / 2, c.stage() == 0 ? 46 : 96, BLOOD);
+		}
+		if (c.stage() == 0) {
 			return;
 		}
 		if (c.stage() >= 1) {
@@ -1439,12 +1453,6 @@ public final class HwHud {
 		}
 		int cx = w / 2;
 		int y = 46;
-		HwNet.VecnaRitual rit = ClientState.ritual;
-		if (rit.rift() || rit.hasAltar()) {
-			Component r = rit.rift() ? Component.translatable("halloween.hud.ritual.rift_survivor")
-				: Component.translatable("halloween.hud.ritual.survivor", rit.bodies(), rit.needed());
-			g.centeredText(mc.font, r, cx, y + 36, rit.rift() ? BLOOD : 0xFFD0A0A0);
-		}
 		int color = c.stage() >= 4 ? BLOOD : c.stage() >= 2 ? 0xFFE07070 : 0xFFB8A8C8;
 		Component title = Component.translatable("halloween.hud.curse." + c.stage());
 		g.centeredText(mc.font, title, cx, y, color);
@@ -1458,25 +1466,11 @@ public final class HwHud {
 			g.fill(cx - bw / 2, y + 22, cx + bw / 2, y + 24, 0xC0181818);
 			g.fill(cx - bw / 2, y + 22, cx - bw / 2 + Math.round(bw * Mth.clamp(c.progress(), 0, 1)), y + 24, color);
 		} else {
-			Component left = Component.translatable("halloween.hud.curse.left", seconds(c.lastTicks()));
-			boolean blink = mc.level.getGameTime() % 10 < 6;
-			g.centeredText(mc.font, left, cx, y + 24, blink ? BLOOD : 0xFFFF8080);
+			// Broken: no way back, and he sees them.
+			boolean blink = mc.level.getGameTime() % 20 < 12;
+			g.centeredText(mc.font, Component.translatable("halloween.hud.curse.broken"), cx, y + 24, blink ? BLOOD : 0xFFFF8080);
 		}
-		if (c.stage() < 3) {
-			return;
-		}
-		for (int i = 0; i < c.booths().size(); i++) {
-			net.minecraft.core.BlockPos b = c.booths().get(i);
-			Projection.Point p = Projection.toScreen(Vec3.atCenterOf(b).add(0, 1.6, 0), w, h);
-			if (p == null) {
-				continue;
-			}
-			boolean dead = (c.resting() & 1 << i) != 0;
-			int mc2 = dead ? 0xFF606060 : 0xFF60C0FF;
-			diamond(g, (int) p.x(), (int) p.y(), 5, 0xFF0C0C0C);
-			diamond(g, (int) p.x(), (int) p.y(), 4, mc2);
-			g.centeredText(mc.font, Component.translatable(dead ? "halloween.hud.booth.dead" : "halloween.hud.booth", (int) p.distance()), (int) p.x(), (int) p.y() - 15, mc2);
-		}
+		g.centeredText(mc.font, Component.translatable("halloween.hud.curse.no_escape"), cx, y + 36, DIM);
 	}
 
 	/** Vecna's corner: the Grip on the Sense key, the Eyes and the Anchor (still to come), the weapon and the grab. */
@@ -1738,10 +1732,6 @@ public final class HwHud {
 		boolean shape = ClientState.myRole() == Role.SHAPE;
 		if (object == 1 && !shape) {
 			line = Component.translatable(ClientState.match.searched().contains(pos) ? "halloween.hud.prompt.searched" : "halloween.hud.prompt.search");
-		} else if (object == 7 && !shape) {
-			int i = ClientState.curse.booths().indexOf(pos);
-			line = Component.translatable((ClientState.curse.resting() & 1 << i) != 0 ? "halloween.hud.prompt.booth_dead"
-				: ClientState.curse.stage() > 0 ? "halloween.hud.prompt.booth" : "halloween.hud.prompt.booth_clean");
 		} else if (object == 2) {
 			line = Component.translatable(ClientState.match.cutPhones().contains(pos) && !shape ? "halloween.hud.prompt.phone_cut" : "halloween.hud.prompt.phone");
 		} else if (object == 4 && !shape) {

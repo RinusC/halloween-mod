@@ -42,7 +42,7 @@ import net.minecraft.world.phys.Vec3;
  * <li>The Anchor (Impulse key, held): the cursed show with their stage; let go, he is at once a few steps from the one
  * under his aim, unseen at first, taking shape for three seconds (rooted, the clock striking for them): time for them
  * to run. Then a long rest.</li>
- * <li>The curse ({@link VecnaCurse}) and the telephone booths that lift it ({@link Booths}).</li>
+ * <li>The curse on one survivor ({@link VecnaCurse}), and the ritual of kills that opens the rift ({@link VecnaRitual}).</li>
  * </ul>
  */
 public final class Vecna {
@@ -147,7 +147,7 @@ public final class Vecna {
 			eyesOff(p);
 			return;
 		}
-		if (st.busy() || gripped != null || bolt != null || gripAim >= 0 || anchorPhase == ANCHOR_CHANNEL || VecnaRitual.carrying() || Match.frozen()) {
+		if (st.busy() || gripped != null || bolt != null || gripAim >= 0 || anchorPhase == ANCHOR_CHANNEL || Match.frozen()) {
 			return;
 		}
 		if (eyesReserve < 20) {
@@ -203,11 +203,6 @@ public final class Vecna {
 				p.sendOverlayMessage(Component.translatable("halloween.msg.vecna.anchor_rest", (anchorCooldown + 19) / 20).withStyle(ChatFormatting.GRAY));
 				return;
 			}
-			if (VecnaRitual.carrying()) {
-				// With a body over his shoulder: the Anchor takes him (and it) to his altar.
-				toAltar(p, st);
-				return;
-			}
 			anchorPhase = ANCHOR_CHOOSING;
 			return;
 		}
@@ -220,7 +215,7 @@ public final class Vecna {
 			p.sendOverlayMessage(Component.translatable("halloween.msg.vecna.anchor_none").withStyle(ChatFormatting.GRAY));
 			return;
 		}
-		if (st.busy() || gripped != null || eyesOn != null || bolt != null || VecnaRitual.carrying() || Match.frozen()) {
+		if (st.busy() || gripped != null || eyesOn != null || bolt != null || Match.frozen()) {
 			return;
 		}
 		ServerLevel level = p.level();
@@ -248,35 +243,6 @@ public final class Vecna {
 		anchorCooldown = anchorRest();
 		target.sendOverlayMessage(Component.translatable("halloween.msg.vecna.anchor_coming").withStyle(ChatFormatting.DARK_RED));
 		AiStats.add(p, "vecna.anchor");
-	}
-
-	/** The Anchor with a body: beside the altar at once, taking shape there as after any Anchor. */
-	private static void toAltar(ServerPlayer p, ShapeState st) {
-		Vec3 altar = VecnaRitual.altar();
-		if (altar == null) {
-			p.sendOverlayMessage(Component.translatable("halloween.msg.vecna.no_altar").withStyle(ChatFormatting.GRAY));
-			return;
-		}
-		if (st.busy() || Match.frozen()) {
-			return;
-		}
-		ServerLevel level = p.level();
-		Vec3 to = arrival(level, BlockPos.containing(altar), 2.0);
-		if (to == null) {
-			return;
-		}
-		level.playSound(null, p.getX(), p.getY(), p.getZ(), HwSounds.VECNA_ANCHOR_VANISH, SoundSource.HOSTILE, 1.5f, 1f);
-		level.sendParticles(HwParticles.VECNA_SMOKE, p.getX(), p.getY() + 1, p.getZ(), 14, 0.35, 0.8, 0.35, 0.02);
-		level.sendParticles(HwParticles.VECNA_SPARK, p.getX(), p.getY() + 1, p.getZ(), 12, 0.3, 0.8, 0.3, 0.12);
-		Vec3 d = altar.subtract(to);
-		p.teleportTo(level, to.x, to.y, to.z, java.util.Set.of(), (float) (Math.atan2(-d.x, d.z) * 180 / Math.PI), 0f, false);
-		p.setInvisible(true);
-		level.playSound(null, to.x, to.y, to.z, HwSounds.VECNA_ANCHOR_ARRIVE, SoundSource.HOSTILE, 1.2f, 1f);
-		anchorPhase = ANCHOR_CHANNEL;
-		anchorTarget = null;
-		anchorLeft = arriveTicks();
-		anchorCooldown = anchorRest();
-		AiStats.add(p, "vecna.anchor.altar");
 	}
 
 	/** How long he takes shape after the Anchor (shorter in the rift). */
@@ -345,13 +311,13 @@ public final class Vecna {
 			}
 		}
 		if (now % 2 == 0) {
+			// The cursed one always (he knows who it is; through walls once they are broken); choosing where the Anchor
+			// goes, everyone it could go to.
 			List<HwNet.CurseMark> marks = new ArrayList<>();
-			if (anchorPhase == ANCHOR_CHOOSING) {
-				for (ServerPlayer s : level.players()) {
-					int stage = MatchManager.role(s).survivor() && !s.isSpectator() && s.isAlive() ? VecnaCurse.stage(s) : 0;
-					if (stage > 0 || VecnaRitual.rift() && MatchManager.role(s).survivor() && !s.isSpectator() && s.isAlive()) {
-						marks.add(new HwNet.CurseMark(s.getId(), FocusPoints.bodyCenter(s), stage, s.getDisplayName().getString()));
-					}
+			for (ServerPlayer s : level.players()) {
+				int stage = MatchManager.role(s).survivor() && !s.isSpectator() && s.isAlive() ? VecnaCurse.stage(s) : 0;
+				if (stage > 0 || anchorPhase == ANCHOR_CHOOSING && VecnaRitual.rift() && MatchManager.role(s).survivor() && !s.isSpectator() && s.isAlive()) {
+					marks.add(new HwNet.CurseMark(s.getId(), FocusPoints.bodyCenter(s), stage, s.getDisplayName().getString()));
 				}
 			}
 			ServerPlayNetworking.send(v, new HwNet.VecnaHud(gripCooldown, gripCooldownMax, gripped == null ? -1 : gripped.getId(), gripAim, cfg.vecnaGripAimTicks, bolt != null,
@@ -484,7 +450,7 @@ public final class Vecna {
 	private static void tickAim(ServerLevel level, ServerPlayer v, ShapeState st, int now) {
 		HwConfig cfg = HwConfig.get();
 		boolean can = gripCooldown == 0 && !st.busy() && eyesOn == null && anchorPhase != ANCHOR_CHANNEL
-			&& !VecnaRitual.carrying() && !Match.frozen();
+			&& !Match.frozen();
 		if (gripAim < 0) {
 			if (st.senseHeld && can) {
 				gripAim = 0;

@@ -1108,10 +1108,6 @@ public final class MatchManager {
 		if (role(player) != Role.SHAPE || state == null || state.busy() || state.shadowTicks > 0 || state.grabCooldown > 0) {
 			return;
 		}
-		if (Vecna.active() && VecnaRitual.useKey(player, state, targetId)) {
-			// Vecna takes up a body for his ritual (or lays down the one he carries).
-			return;
-		}
 		if (targetId < 0) {
 			return;
 		}
@@ -1262,6 +1258,7 @@ public final class MatchManager {
 		eliminate(victim);
 		spawnCorpse(level, pos, yaw, profile);
 		Blood.pool(level, pos);
+		VecnaRitual.killed(shape, victim, pos);
 		// His knife is bloody from now on.
 		ItemStack knife = shape.getInventory().getItem(0);
 		if (knife.is(Items.IRON_SWORD)) {

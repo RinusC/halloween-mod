@@ -83,7 +83,9 @@ public final class SkillChecks {
 		RandomSource random = player.getRandom();
 		c.open = true;
 		c.start = player.level().getGameTime();
-		c.round.roll(c.kind, c.kind == HwNet.Check.PULSE ? cfg.skillCheckZoneWidth * 1.2f : cfg.skillCheckZoneWidth, 0, random);
+		// (Narrower for Vecna's cursed one once they are broken: their hands shake.)
+		float width = (c.kind == HwNet.Check.PULSE ? cfg.skillCheckZoneWidth * 1.2f : cfg.skillCheckZoneWidth) * VecnaCurse.checkFactor(player);
+		c.round.roll(c.kind, width, 0, random);
 		// A bot presses some time into it; whether it lands is a roll.
 		c.simPress = 8 + random.nextInt(Math.max(1, cfg.skillCheckPeriodTicks - 10));
 		c.simHit = random.nextFloat() < cfg.botSkillCheckChance;

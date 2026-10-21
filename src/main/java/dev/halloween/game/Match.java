@@ -215,12 +215,8 @@ public final class Match {
 		Loot.setup(level, center, level.getRandom());
 		StreetWeapons.setup(level, center, Loot.radius(), level.getRandom());
 		restoreTown(level, center, Loot.radius());
-		if (Vecna.active()) {
-			// The telephone booths that lift his curse (on the minimap too).
-			Booths.setup(level, center, Loot.radius(), level.getRandom());
-		} else {
-			Booths.clear(level);
-		}
+		// Telephone booths left standing from before (there are none now).
+		Booths.clear(level);
 		Minimap.bake(level, area(points), center);
 		MapBoards.setup(level, area(points), center);
 

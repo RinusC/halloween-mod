@@ -147,20 +147,14 @@ public final class HwNet {
 		}
 	}
 
-	/**
-	 * A survivor's own curse (game.VecnaCurse): its stage (0 none), the way to the next (0..1), at the last stage the
-	 * ticks left to reach a booth; the telephone booths' phones, and which of them are dead for now (bits).
-	 */
-	public record CurseHud(int stage, float progress, int lastTicks, List<BlockPos> booths, int resting) implements CustomPacketPayload {
+	/** The cursed survivor's own curse (game.VecnaCurse), to them alone: its stage (0 none), the way to the next (0..1). */
+	public record CurseHud(int stage, float progress) implements CustomPacketPayload {
 		public static final Type<CurseHud> TYPE = payloadType("curse_hud");
-		public static final CurseHud NONE = new CurseHud(0, 0, 0, List.of(), 0);
+		public static final CurseHud NONE = new CurseHud(0, 0);
 		public static final StreamCodec<RegistryFriendlyByteBuf, CurseHud> CODEC = StreamCodec.of((buf, v) -> {
 			buf.writeVarInt(v.stage);
 			buf.writeFloat(v.progress);
-			buf.writeVarInt(v.lastTicks);
-			buf.writeCollection(v.booths, (b, p) -> b.writeBlockPos(p));
-			buf.writeVarInt(v.resting);
-		}, buf -> new CurseHud(buf.readVarInt(), buf.readFloat(), buf.readVarInt(), buf.readList(b -> b.readBlockPos()), buf.readVarInt()));
+		}, buf -> new CurseHud(buf.readVarInt(), buf.readFloat()));
 
 		@Override
 		public Type<CurseHud> type() {
@@ -169,20 +163,17 @@ public final class HwNet {
 	}
 
 	/**
-	 * Vecna's ritual, for everyone (game.VecnaRitual): whether there is an altar and where, bodies in its ring (and
-	 * how many it takes), whether the rift is open (the town gone under), and who carries a body (-1: nobody).
+	 * Vecna's ritual (game.VecnaRitual): how many he has killed towards it and how many it takes before the cursed one
+	 * (only he is told: 0 for the rest), and whether the rift is open (the town gone under), for everyone.
 	 */
-	public record VecnaRitual(boolean hasAltar, BlockPos altar, int bodies, int needed, boolean rift, int carrier) implements CustomPacketPayload {
+	public record VecnaRitual(int kills, int needed, boolean rift) implements CustomPacketPayload {
 		public static final Type<VecnaRitual> TYPE = payloadType("vecna_ritual");
-		public static final VecnaRitual NONE = new VecnaRitual(false, BlockPos.ZERO, 0, 4, false, -1);
+		public static final VecnaRitual NONE = new VecnaRitual(0, 3, false);
 		public static final StreamCodec<RegistryFriendlyByteBuf, VecnaRitual> CODEC = StreamCodec.of((buf, v) -> {
-			buf.writeBoolean(v.hasAltar);
-			buf.writeBlockPos(v.altar);
-			buf.writeVarInt(v.bodies);
+			buf.writeVarInt(v.kills);
 			buf.writeVarInt(v.needed);
 			buf.writeBoolean(v.rift);
-			buf.writeVarInt(v.carrier);
-		}, buf -> new VecnaRitual(buf.readBoolean(), buf.readBlockPos(), buf.readVarInt(), buf.readVarInt(), buf.readBoolean(), buf.readVarInt()));
+		}, buf -> new VecnaRitual(buf.readVarInt(), buf.readVarInt(), buf.readBoolean()));
 
 		@Override
 		public Type<VecnaRitual> type() {

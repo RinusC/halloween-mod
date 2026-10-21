@@ -36,7 +36,7 @@ public final class ClientInteractions {
 		return state.getBlock() instanceof DoorBlock && state.getValue(DoorBlock.HALF) == DoubleBlockHalf.UPPER ? pos.below() : pos;
 	}
 
-	/** What kind of match object is at {@code pos}: 0 none, 1 container, 2 phone, 3 exit, 4 gun case, 5 an event's, 6 a portal, 7 a telephone booth. */
+	/** What kind of match object is at {@code pos}: 0 none, 1 container, 2 phone, 3 exit, 4 gun case, 5 an event's, 6 a portal. */
 	public static int matchObject(Level level, BlockPos pos) {
 		HwNet.MatchSync match = ClientState.match;
 		if (match.state() != 2) {
@@ -51,10 +51,6 @@ public final class ClientInteractions {
 		}
 		if (match.cases().contains(pos)) {
 			return 4;
-		}
-		if (ClientState.curse.booths().contains(pos)) {
-			// A telephone booth against Vecna's curse.
-			return 7;
 		}
 		if (level.getBlockState(pos).is(HwBlocks.PHONE)) {
 			return 2;

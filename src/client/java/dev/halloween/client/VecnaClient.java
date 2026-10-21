@@ -54,7 +54,30 @@ public final class VecnaClient {
 		tickPhantoms(mc);
 		tickEyes(mc);
 		tickRift(mc);
+		tickTremble(mc);
 		VecnaLightning.tick(mc);
+	}
+
+	/** Two slow waves and a quick one: where the trembling hands have the view now (degrees, before scaling). */
+	private static float tremble(float t, float phase) {
+		return Mth.sin(t * 0.21f + phase) * 0.6f + Mth.sin(t * 0.53f + phase * 2.1f) * 0.3f + Mth.sin(t * 1.9f + phase * 0.7f) * 0.1f;
+	}
+
+	/**
+	 * The curse at its last stage: their hands shake. The view (and with it the aim) is moved by the change in a slow
+	 * wobble each tick, so it drifts and comes back rather than walking off.
+	 */
+	private static void tickTremble(Minecraft mc) {
+		boolean on = ClientState.curse.stage() >= 4 && ClientState.myRole().survivor() && !mc.player.isSpectator() && mc.gui.screen() == null;
+		if (!on) {
+			return;
+		}
+		float t = mc.level.getGameTime();
+		float amp = 1.6f;
+		float dYaw = (tremble(t, 0f) - tremble(t - 1, 0f)) * amp;
+		float dPitch = (tremble(t, 2.3f) - tremble(t - 1, 2.3f)) * amp * 0.7f;
+		mc.player.setYRot(mc.player.getYRot() + dYaw);
+		mc.player.setXRot(Mth.clamp(mc.player.getXRot() + dPitch, -90f, 90f));
 	}
 
 	// ---------------------------------------------------------------- his keys and his Eyes

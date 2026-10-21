@@ -4,13 +4,10 @@ import dev.halloween.HwConfig;
 import dev.halloween.HwSounds;
 import dev.halloween.net.HwNet;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.ChatFormatting;
-import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.game.ClientboundSoundPacket;
@@ -19,180 +16,189 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
-import net.minecraft.world.effect.MobEffectInstance;
-import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.entity.Entity;
 
 /**
- * Vecna's curse: it creeps over every survivor at once, the faster the farther they are from him (the farthest
- * reaches the next stage in two minutes, the nearest in four, the rest in between by how far they are). Each stage
- * keeps what the ones before brought:
+ * Vecna's curse: on one survivor only, chosen at random when the match starts and kept secret (they know, and he
+ * does; nobody else). It deepens by itself, whatever he does: a stage every few minutes ({@code vecnaCurseStageSeconds}),
+ * and each stage keeps what the ones before brought:
  * <ol>
  * <li>a grandfather clock striking, for them alone, every thirty seconds;</li>
  * <li>Vecna seen where he is not (client.VecnaClient's phantoms);</li>
  * <li>panic that never ebbs;</li>
- * <li>twenty seconds to get to a telephone booth, or he takes them: lifted off their feet, their bones breaking.</li>
+ * <li>broken: he sees them through any wall; their world swims and their hands shake (client), the reaction checks are
+ * narrower ({@link #checkFactor}).</li>
  * </ol>
- * A call from a booth ({@link Booths}) lifts it all. Every stage also stalks them for him, slowly.
+ * It never kills, and none of the ways out will take them (see Exits). They are the last of his ritual (see
+ * {@link VecnaRitual}): if he kills them before the others, the curse passes to another survivor a stage lighter.
  */
 public final class VecnaCurse {
-	private static final class Curse {
-		int stage;
-		/** Towards the next stage, 0..1. */
-		float progress;
-		/** Stage 4: ticks left to reach a booth; then the death (ticks of it left, -1 not yet). */
-		int deathLeft;
-		int dying = -1;
-		int nextChime;
-	}
-
-	private static final Map<UUID, Curse> CURSES = new HashMap<>();
-	private static final int DYING_TICKS = 50;
+	private static UUID cursed;
+	/** Chosen this match already (so nobody new is cursed once there is nobody left to pass it to). */
+	private static boolean chosen;
+	/** The rift is open: the curse is spent for the rest of the match. */
+	private static boolean spent;
+	private static int stage;
+	/** Towards the next stage, 0..1. */
+	private static float progress;
+	private static int nextChime;
 
 	private VecnaCurse() {
 	}
 
+	/** Is this the cursed survivor? */
+	public static boolean cursed(Entity e) {
+		return e != null && cursed != null && Vecna.active() && cursed.equals(e.getUUID());
+	}
+
 	public static int stage(ServerPlayer p) {
-		Curse c = CURSES.get(p.getUUID());
-		return c == null ? 0 : c.stage;
+		return cursed(p) ? stage : 0;
 	}
 
-	/** A booth's call: the curse gone, from the start again. */
-	public static void lift(ServerPlayer p) {
-		Curse c = CURSES.get(p.getUUID());
-		if (c == null || c.dying >= 0) {
-			return;
-		}
-		boolean wasCursed = c.stage > 0;
-		CURSES.remove(p.getUUID());
-		if (wasCursed) {
-			p.sendOverlayMessage(Component.translatable("halloween.msg.curse.lifted").withStyle(ChatFormatting.AQUA));
-			private_(p, HwSounds.VECNA_CURSE_LIFTED, 1f, 1f);
-		}
-		send(p, null);
+	/** At the last stage: broken. */
+	public static boolean broken(Entity e) {
+		return cursed(e) && stage >= 4;
 	}
 
-	/** One stage more at once (the rift opening). */
-	public static void bump(ServerPlayer p, int now) {
-		Curse c = CURSES.computeIfAbsent(p.getUUID(), id -> new Curse());
-		if (c.stage < 4) {
-			stageUp(p, c, now);
-		}
+	/** The reaction checks' zones for them times this (narrower when broken). */
+	public static float checkFactor(Entity e) {
+		return broken(e) ? HwConfig.get().vecnaCurseCheckFactor : 1f;
+	}
+
+	/** The cursed survivor, if there is one in the match now. */
+	public static ServerPlayer cursedPlayer(MinecraftServer server) {
+		ServerPlayer p = cursed == null ? null : server.getPlayerList().getPlayer(cursed);
+		return p != null && alive(p) ? p : null;
+	}
+
+	private static boolean alive(ServerPlayer p) {
+		return MatchManager.role(p).survivor() && !p.isSpectator() && p.isAlive() && !Exits.isSeated(p);
 	}
 
 	public static void tick(MinecraftServer server) {
 		if (!Vecna.active() || !Match.running()) {
-			if (!CURSES.isEmpty()) {
-				CURSES.clear();
+			if (cursed != null || chosen) {
+				clear(server);
 			}
+			return;
+		}
+		if (spent) {
 			return;
 		}
 		ServerLevel level = server.overworld();
 		int now = server.getTickCount();
-		ServerPlayer vecna = Senses.shape(level);
-		ShapeState st = vecna == null ? null : MatchManager.shapeState(vecna);
+		ServerPlayer p = cursed == null ? null : server.getPlayerList().getPlayer(cursed);
+		if (p == null || !alive(p)) {
+			// Not yet chosen, or gone some other way (left the game, shot dead): on to someone else.
+			pass(server, p, chosen ? Math.max(1, stage - 1) : 1, now);
+			return;
+		}
 		HwConfig cfg = HwConfig.get();
-		List<ServerPlayer> cursed = new ArrayList<>();
-		double near = Double.MAX_VALUE;
-		double far = 0;
-		for (ServerPlayer s : level.players()) {
-			if (MatchManager.role(s).survivor() && !s.isSpectator() && s.isAlive()) {
-				cursed.add(s);
-				if (vecna != null) {
-					double d = s.distanceTo(vecna);
-					near = Math.min(near, d);
-					far = Math.max(far, d);
-				}
+		if (stage < 4 && !Match.frozen()) {
+			progress += 1f / (cfg.vecnaCurseStageSeconds * 20f);
+			if (progress >= 1) {
+				stageUp(p, now);
 			}
 		}
-		CURSES.keySet().removeIf(id -> cursed.stream().noneMatch(s -> s.getUUID().equals(id)));
-		for (ServerPlayer s : cursed) {
-			Curse c = CURSES.computeIfAbsent(s.getUUID(), id -> new Curse());
-			if (c.dying >= 0) {
-				tickDying(s, c, vecna, st);
-				continue;
-			}
-			if (vecna != null && !Match.frozen()) {
-				if (c.stage < 4) {
-					// Two minutes a stage for the farthest, four for the nearest; alone (or all as far), in between.
-					double k = far - near < 1 ? 0.5 : (s.distanceTo(vecna) - near) / (far - near);
-					double seconds = cfg.vecnaCurseNearSeconds + (cfg.vecnaCurseFarSeconds - cfg.vecnaCurseNearSeconds) * k;
-					c.progress += (float) (1 / (seconds * 20));
-					if (c.progress >= 1) {
-						stageUp(s, c, now);
-					}
-				} else if (--c.deathLeft <= 0) {
-					startDying(s, c);
-					continue;
-				}
-				if (c.stage > 0 && st != null) {
-					MatchManager.addStalk(vecna, st, s, cfg.vecnaCurseStalkPerStage * c.stage / 20f);
-				}
-			}
-			effects(s, c, now);
-			if (now % 10 == 0) {
-				send(s, c);
-			}
+		ServerPlayer vecna = Senses.shape(level);
+		ShapeState st = vecna == null ? null : MatchManager.shapeState(vecna);
+		if (vecna != null && st != null && !Match.frozen()) {
+			MatchManager.addStalk(vecna, st, p, cfg.vecnaCurseStalkPerStage * stage / 20f);
+		}
+		effects(p, now);
+		if (now % 10 == 0) {
+			send(p);
 		}
 	}
 
-	private static void stageUp(ServerPlayer p, Curse c, int now) {
-		c.stage++;
-		c.progress = 0;
-		AiStats.add(p, "vecna.curse." + c.stage);
-		if (c.stage == 1) {
-			c.nextChime = now;
+	/**
+	 * The curse on someone new (the old bearer {@code from} gone: killed, left), at {@code atStage}; nobody left to
+	 * take it: it is over.
+	 */
+	private static void pass(MinecraftServer server, ServerPlayer from, int atStage, int now) {
+		if (from != null) {
+			ServerPlayNetworking.send(from, HwNet.CurseHud.NONE);
 		}
-		if (c.stage == 4) {
-			c.deathLeft = HwConfig.get().vecnaCurseLastTicks;
+		List<ServerPlayer> left = new ArrayList<>();
+		for (ServerPlayer s : server.getPlayerList().getPlayers()) {
+			if (alive(s) && (from == null || !s.getUUID().equals(from.getUUID()))) {
+				left.add(s);
+			}
+		}
+		cursed = null;
+		if (left.isEmpty()) {
+			return;
+		}
+		ServerPlayer next = left.get(server.overworld().getRandom().nextInt(left.size()));
+		boolean first = !chosen;
+		chosen = true;
+		cursed = next.getUUID();
+		stage = Math.max(1, Math.min(4, atStage));
+		progress = 0;
+		nextChime = now;
+		AiStats.add(next, first ? "vecna.cursed" : "vecna.cursed.passed");
+		next.sendOverlayMessage(Component.translatable(first ? "halloween.msg.curse.chosen" : "halloween.msg.curse.passed").withStyle(ChatFormatting.DARK_RED));
+		private_(next, HwSounds.VECNA_CURSE_LAST, 0.8f, 1f);
+		ServerPlayer vecna = Senses.shape(server.overworld());
+		if (vecna != null) {
+			vecna.sendOverlayMessage(Component.translatable(first ? "halloween.msg.curse.vecna_chosen" : "halloween.msg.curse.vecna_passed",
+				next.getDisplayName()).withStyle(ChatFormatting.DARK_RED));
+		}
+		if (stage >= 4) {
+			next.sendOverlayMessage(Component.translatable("halloween.msg.curse.last").withStyle(ChatFormatting.DARK_RED));
+		}
+		send(next);
+	}
+
+	/** Vecna killed them: the curse goes on to another survivor, a stage lighter (see VecnaRitual). */
+	static void killed(ServerPlayer p) {
+		if (!cursed(p)) {
+			return;
+		}
+		pass(p.level().getServer(), p, stage - 1, p.level().getServer().getTickCount());
+	}
+
+	/** The curse is spent (the rift is open): nobody bears it any more. */
+	static void end(MinecraftServer server) {
+		ServerPlayer p = cursed == null ? null : server.getPlayerList().getPlayer(cursed);
+		if (p != null) {
+			ServerPlayNetworking.send(p, HwNet.CurseHud.NONE);
+		}
+		cursed = null;
+		chosen = true;
+		spent = true;
+	}
+
+	private static void stageUp(ServerPlayer p, int now) {
+		stage++;
+		progress = 0;
+		AiStats.add(p, "vecna.curse." + stage);
+		if (stage == 4) {
 			p.sendOverlayMessage(Component.translatable("halloween.msg.curse.last").withStyle(ChatFormatting.DARK_RED));
 			private_(p, HwSounds.VECNA_CURSE_LAST, 1f, 1f);
+			ServerPlayer vecna = Senses.shape(p.level());
+			if (vecna != null) {
+				vecna.sendOverlayMessage(Component.translatable("halloween.msg.curse.vecna_broken", p.getDisplayName()).withStyle(ChatFormatting.DARK_RED));
+			}
 		} else {
-			p.sendOverlayMessage(Component.translatable("halloween.msg.curse.stage." + c.stage).withStyle(ChatFormatting.RED));
+			p.sendOverlayMessage(Component.translatable("halloween.msg.curse.stage." + stage).withStyle(ChatFormatting.RED));
 		}
-		send(p, c);
+		send(p);
 	}
 
 	/** What each stage brings (and keeps bringing). */
-	private static void effects(ServerPlayer p, Curse c, int now) {
-		if (c.stage >= 1 && now >= c.nextChime) {
+	private static void effects(ServerPlayer p, int now) {
+		if (now >= nextChime) {
 			// The grandfather clock: a deep bell and its hum, for them alone.
-			c.nextChime = now + HwConfig.get().vecnaChimeTicks;
+			nextChime = now + HwConfig.get().vecnaChimeTicks;
 			private_(p, HwSounds.VECNA_CLOCK_CHIME, 1f, 1f);
 		}
-		if (c.stage >= 3) {
+		if (stage >= 3) {
 			Panic.set(p, 1f);
 		}
-		if (c.stage == 4 && c.deathLeft % 20 == 0) {
-			// Every second of the last twenty: a tick of the clock.
-			private_(p, c.deathLeft / 20 % 2 == 0 ? HwSounds.VECNA_CLOCK_TICK : HwSounds.VECNA_CLOCK_TOCK, 1f, 1f);
-		}
-	}
-
-	/** Too late: lifted off their feet, arms flung out, their bones snapping one after another. */
-	private static void startDying(ServerPlayer p, Curse c) {
-		c.dying = DYING_TICKS;
-		if (Lockers.isInside(p)) {
-			Lockers.leave(p, false);
-		}
-		p.addEffect(new MobEffectInstance(MobEffects.LEVITATION, DYING_TICKS, 0, true, false));
-		p.level().playSound(null, p.getX(), p.getY(), p.getZ(), HwSounds.VECNA_CURSE_FLOAT, SoundSource.HOSTILE, 1.5f, 1f);
-		AiStats.add(p, "vecna.curse.death");
-	}
-
-	private static void tickDying(ServerPlayer p, Curse c, ServerPlayer vecna, ShapeState st) {
-		ServerLevel level = p.level();
-		if (c.dying % 8 == 0) {
-			level.playSound(null, p.getX(), p.getY(), p.getZ(), HwSounds.VECNA_BONE_CRACK, SoundSource.HOSTILE, 1.4f, 0.85f + p.getRandom().nextFloat() * 0.3f);
-		}
-		if (--c.dying > 0) {
-			return;
-		}
-		CURSES.remove(p.getUUID());
-		p.removeEffect(MobEffects.LEVITATION);
-		if (vecna != null && st != null) {
-			MatchManager.kill(vecna, st, p, MatchManager.KillKind.STRIKE, false);
-		} else {
-			MatchManager.eliminate(p);
+		if (stage >= 4 && now % 40 == 0) {
+			// Broken: the clock ticking on in their head.
+			private_(p, now / 40 % 2 == 0 ? HwSounds.VECNA_CLOCK_TICK : HwSounds.VECNA_CLOCK_TOCK, 0.6f, 1f);
 		}
 	}
 
@@ -200,35 +206,40 @@ public final class VecnaCurse {
 		p.connection.send(new ClientboundSoundPacket(Holder.direct(s), SoundSource.MASTER, p.getX(), p.getEyeY(), p.getZ(), volume, pitch, p.getRandom().nextLong()));
 	}
 
-	/** Their screen: the stage, how far to the next, the time left at the last; the booths. */
-	private static void send(ServerPlayer p, Curse c) {
-		int now = p.level().getServer().getTickCount();
-		List<BlockPos> booths = new ArrayList<>();
-		int resting = 0;
-		for (Booths.Booth b : Booths.all()) {
-			if (b.resting(now)) {
-				resting |= 1 << booths.size();
-			}
-			booths.add(b.phone);
-		}
-		ServerPlayNetworking.send(p, new HwNet.CurseHud(c == null ? 0 : c.stage, c == null ? 0 : c.progress,
-			c == null || c.stage < 4 ? 0 : Math.max(0, c.deathLeft), booths, resting));
+	/** Their screen: the stage and how far to the next. */
+	private static void send(ServerPlayer p) {
+		ServerPlayNetworking.send(p, new HwNet.CurseHud(stage, progress));
 	}
 
 	public static void clear(MinecraftServer server) {
-		for (ServerPlayer p : server.getPlayerList().getPlayers()) {
-			if (CURSES.containsKey(p.getUUID())) {
-				ServerPlayNetworking.send(p, HwNet.CurseHud.NONE);
-			}
+		ServerPlayer p = cursed == null ? null : server.getPlayerList().getPlayer(cursed);
+		if (p != null) {
+			ServerPlayNetworking.send(p, HwNet.CurseHud.NONE);
 		}
-		CURSES.clear();
+		cursed = null;
+		chosen = false;
+		spent = false;
+		stage = 0;
+		progress = 0;
 	}
 
-	/** For tests: this survivor at this stage now. */
-	public static void testSet(ServerPlayer p, int stage) {
-		Curse c = CURSES.computeIfAbsent(p.getUUID(), id -> new Curse());
-		c.stage = Math.max(0, stage - 1);
-		c.progress = 0;
-		stageUp(p, c, p.level().getServer().getTickCount());
+	/** For tests: this survivor cursed, at this stage now. */
+	public static void testSet(ServerPlayer p, int at) {
+		if (cursed != null && !cursed.equals(p.getUUID())) {
+			ServerPlayer old = p.level().getServer().getPlayerList().getPlayer(cursed);
+			if (old != null) {
+				ServerPlayNetworking.send(old, HwNet.CurseHud.NONE);
+			}
+		}
+		cursed = p.getUUID();
+		chosen = true;
+		stage = Math.max(1, at - 1);
+		progress = 0;
+		if (at > 1) {
+			stageUp(p, p.level().getServer().getTickCount());
+		} else {
+			stage = 1;
+			send(p);
+		}
 	}
 }

@@ -44,6 +44,8 @@ public class HalloweenClient implements ClientModInitializer {
 	private static final Identifier FX_SHAPE_JUMP = Halloween.id("shape_jump");
 	private static final Identifier FX_SENSE = Halloween.id("killer_sense");
 	private static final Identifier FX_FOCUS = Halloween.id("focus");
+	/** Vecna's curse at its last stage, for the cursed: the world swims. */
+	private static final Identifier FX_CURSE = Halloween.id("curse");
 
 	private static boolean sentSense;
 	private static boolean sentFocus;
@@ -241,11 +243,6 @@ public class HalloweenClient implements ClientModInitializer {
 			return false;
 		}
 		if (KEY_SENSE.isDown() && !MichaelRenderer.demogorgon() && !MichaelRenderer.vecna()) {
-			return true;
-		}
-		if (MichaelRenderer.vecna() && ClientState.ritual.carrier() >= 0) {
-			// Vecna with a body over his shoulder: lay it down.
-			ClientPlayNetworking.send(new HwNet.Grab(-1));
 			return true;
 		}
 		LivingEntity picked = CameraAim.pickLiving(HwConfig.get().grabRange);
@@ -495,7 +492,7 @@ public class HalloweenClient implements ClientModInitializer {
 		lastLevel = level;
 	}
 
-	/** Shape Jump and Killer Sense colour the whole world through post-processing shaders. */
+	/** Shape Jump, Killer Sense and the last stage of Vecna's curse colour the whole world through post-processing shaders. */
 	private static void updatePostEffect(Minecraft mc) {
 		Identifier wanted = null;
 		if (ClientState.shadowActive()) {
@@ -504,6 +501,8 @@ public class HalloweenClient implements ClientModInitializer {
 			wanted = FX_FOCUS;
 		} else if (ClientState.senseActive()) {
 			wanted = FX_SENSE;
+		} else if (ClientState.curse.stage() >= 4 && ClientState.myRole().survivor() && mc.player != null && !mc.player.isSpectator()) {
+			wanted = FX_CURSE;
 		}
 		Identifier current = mc.gameRenderer.currentPostEffect();
 		if (wanted != null && !wanted.equals(current)) {

@@ -1294,6 +1294,10 @@ final class BotBrain {
 				}
 			}
 		}
+		if (VecnaCurse.cursed(this.bot)) {
+			// Vecna's cursed one: no way out takes them (they still help open them for the others).
+			out.keySet().removeIf(t -> t.key.equals("exit"));
+		}
 		if (phonesMatter) {
 			List<BlockPos> cut = Exits.cutPhones();
 			for (BlockPos phone : MapPoints.get(this.level()).list(MapPoints.Type.PHONE)) {
@@ -1352,15 +1356,6 @@ final class BotBrain {
 		for (Events.BotJob job : Events.botJobs(this.bot)) {
 			if (!Bots.claimedByOther(job.pos(), this.bot)) {
 				out.put(new Task(job.pos(), job.within(), job.hold(), job.key()), job.value());
-			}
-		}
-		// Vecna's curse far gone: a telephone booth (one that still rings) before almost anything else.
-		int curse = Vecna.active() ? VecnaCurse.stage(this.bot) : 0;
-		if (curse >= 3) {
-			for (Booths.Booth b : Booths.all()) {
-				if (!b.resting(now)) {
-					out.put(new Task(b.phone, 2.0, true, "booth"), curse == 4 ? 500.0 : 150.0);
-				}
 			}
 		}
 		// He's close (the music is loud): don't start anything long that pins us down.

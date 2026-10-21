@@ -32,7 +32,8 @@ import net.minecraft.world.level.block.state.properties.Half;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * The four ways out, one of each in a random spot of its kind. Each lets exactly one civilian escape.
+ * The four ways out, one of each in a random spot of its kind. Each lets exactly one civilian escape. Vecna's cursed survivor
+ * can use none of them (see VecnaCurse).
  * <ul>
  * <li>Cellars (two a match): bolt cutters or the padlock key open one; the Shape can slam it shut again.</li>
  * <li>Car (the sedan): repair the engine with a kit, pour in the gas can, start it with the sedan keys. The
@@ -231,7 +232,7 @@ public final class Exits {
 		HwConfig cfg = HwConfig.get();
 		ServerLevel level = player.level();
 		Role role = MatchManager.role(player);
-		boolean civilian = role == Role.CIVILIAN;
+		boolean civilian = role == Role.CIVILIAN && !VecnaCurse.cursed(player);
 
 		if (isPhone(level, pos)) {
 			return phone(player, pos, role);
@@ -283,7 +284,7 @@ public final class Exits {
 				});
 			}
 			if (c.state == OPEN) {
-				hint(player, "halloween.hint.deputy_no_escape");
+				hint(player, VecnaCurse.cursed(player) ? "halloween.hint.curse_no_escape" : "halloween.hint.deputy_no_escape");
 			}
 			return null;
 		}
@@ -313,7 +314,7 @@ public final class Exits {
 						p -> SEATED.size() < HwConfig.get().carSeats && (carFlags & CAR_GONE) == 0 && !SEATED.contains(p.getUUID()), p -> board(level, p));
 				}
 				if (!civilian) {
-					hint(player, "halloween.hint.deputy_no_escape");
+					hint(player, VecnaCurse.cursed(player) ? "halloween.hint.curse_no_escape" : "halloween.hint.deputy_no_escape");
 				}
 				return null;
 			}
@@ -346,7 +347,7 @@ public final class Exits {
 				return null;
 			}
 			if (!civilian) {
-				hint(player, "halloween.hint.deputy_no_escape");
+				hint(player, VecnaCurse.cursed(player) ? "halloween.hint.curse_no_escape" : "halloween.hint.deputy_no_escape");
 				return null;
 			}
 			if (!Inventory.has(player, HwItems.Kind.SEDAN_KEYS)) {
@@ -375,7 +376,7 @@ public final class Exits {
 				});
 			}
 			if (role == Role.DEPUTY) {
-				hint(player, "halloween.hint.deputy_no_escape");
+				hint(player, VecnaCurse.cursed(player) ? "halloween.hint.curse_no_escape" : "halloween.hint.deputy_no_escape");
 			}
 			return null;
 		}
@@ -425,7 +426,7 @@ public final class Exits {
 				});
 			}
 			if (gateState == OPEN) {
-				hint(player, "halloween.hint.deputy_no_escape");
+				hint(player, VecnaCurse.cursed(player) ? "halloween.hint.curse_no_escape" : "halloween.hint.deputy_no_escape");
 			}
 		}
 		return null;

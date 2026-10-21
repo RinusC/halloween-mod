@@ -71,14 +71,6 @@ public final class Holds {
 			work.lastPing = now;
 			return;
 		}
-		if (Booths.isBooth(pos)) {
-			// A telephone booth lifts Vecna's curse; it is nobody's phone to call the police from or cut.
-			Holds.Hold booth = Booths.resolve(player, pos);
-			if (booth != null) {
-				WORK.put(player.getUUID(), new Work(booth, now));
-			}
-			return;
-		}
 		// A match event's object first (a ringing phone, the bag, the transformer, the crate in the fire).
 		Hold hold = Events.resolve(player, pos);
 		if (hold == null) {

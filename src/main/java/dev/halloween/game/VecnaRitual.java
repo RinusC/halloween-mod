@@ -5,43 +5,35 @@ import dev.halloween.HwParticles;
 import dev.halloween.HwSounds;
 import dev.halloween.Role;
 import dev.halloween.net.HwNet;
-import java.util.ArrayList;
-import java.util.List;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.ChatFormatting;
-import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundSource;
-import net.minecraft.util.Mth;
-import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.decoration.Mannequin;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * Vecna's ritual: any bodies will do. He carries them one at a time over his shoulder (the grab key on a body; again
- * to lay it down; a stun drops it). Where he lays the first is the altar, a ring of red glow everyone sees; with four
- * bodies in the ring the rift opens and the whole town is the Upside Down until the match ends: a red murk with
- * lightning in it for all (client.VecnaClient), burning cracks torn out from the altar along the streets ({@link VecnaCracks}), the bodies risen over the burning pit.
+ * Vecna's ritual: kills. First {@code vecnaRitualKills} of anyone at all by his own hand (survivors, bots,
+ * townsfolk, officers), then the cursed survivor ({@link VecnaCurse}): where they die the rift tears open and the
+ * whole town is the Upside Down until the match ends: a red murk with lightning in it for all (client.VecnaClient),
+ * burning cracks torn out from there along the streets ({@link VecnaCracks}), their body risen over the burning pit.
+ * Killing the cursed one sooner counts as one of the others, and the curse passes on (a stage lighter).
  * The rift makes him stronger (a tenth faster, a longer, wider, harder Grip, more and quicker Eyes, his Anchor to
- * anyone on a short rest) and puts every survivor's curse a stage on at once.
+ * anyone on a short rest).
  */
 public final class VecnaRitual {
-	private static Mannequin carried;
-	private static Vec3 altar;
+	private static int kills;
+	private static Vec3 pit;
 	private static boolean rift;
 	private static int riftAt;
-	private static Entity riftDisplay;
-	private static final List<Mannequin> RISEN = new ArrayList<>();
+	private static Mannequin risen;
 
 	private VecnaRitual() {
-	}
-
-	public static boolean carrying() {
-		return Vecna.active() && carried != null;
 	}
 
 	/** The rift is open: the town is the Upside Down. */
@@ -49,141 +41,81 @@ public final class VecnaRitual {
 		return Vecna.active() && rift;
 	}
 
-	private static boolean isCorpse(Entity e) {
-		return e instanceof Mannequin m && !m.isRemoved() && m.entityTags().contains(MatchManager.CORPSE_TAG) && !RISEN.contains(m);
+	/** Where the rift opened (null: not yet). */
+	public static Vec3 pit() {
+		return pit;
 	}
 
-	/**
-	 * The grab key: lay down the body he carries, or take up the one aimed at (or lying at his feet in front of him).
-	 * False: nothing to do with bodies, the grab goes on as usual.
-	 */
-	static boolean useKey(ServerPlayer v, ShapeState st, int targetId) {
-		if (carried != null) {
-			lay(v);
-			return true;
-		}
-		if (st.busy() || Vecna.rooted()) {
-			return false;
-		}
-		Entity target = targetId >= 0 ? v.level().getEntity(targetId) : null;
-		if (target != null && !isCorpse(target) && MatchManager.exposed(target)) {
-			return false;
-		}
-		Mannequin body = target != null && isCorpse(target) && target.distanceTo(v) <= 3.5 ? (Mannequin) target : nearBody(v);
-		if (body == null) {
-			return false;
-		}
-		carried = body;
-		v.level().playSound(null, body.getX(), body.getY(), body.getZ(), HwSounds.VECNA_BODY_LIFT, SoundSource.HOSTILE, 1f, 1f);
-		AiStats.add(v, "vecna.carry");
-		return true;
+	/** Kills so far towards the ritual. */
+	public static int kills() {
+		return kills;
 	}
 
-	/** A body at his feet, in front of him. */
-	private static Mannequin nearBody(ServerPlayer v) {
-		Vec3 look = v.getViewVector(1f);
-		Mannequin best = null;
-		double bestD = 3.0;
-		for (Mannequin m : v.level().getEntitiesOfClass(Mannequin.class, v.getBoundingBox().inflate(3), VecnaRitual::isCorpse)) {
-			Vec3 to = m.position().subtract(v.position());
-			double d = to.length();
-			if (d < bestD && (d < 1.2 || new Vec3(to.x, 0, to.z).normalize().dot(new Vec3(look.x, 0, look.z).normalize()) > 0.3)) {
-				best = m;
-				bestD = d;
-			}
+	/** Vecna killed someone (from MatchManager.kill, their body already lying at {@code at}). */
+	static void killed(ServerPlayer v, LivingEntity victim, Vec3 at) {
+		if (!Vecna.active() || rift) {
+			return;
 		}
-		return best;
-	}
-
-	/** Laid down before him on the ground; the first one makes the altar, the fourth in its ring opens the rift. */
-	private static void lay(ServerPlayer v) {
 		ServerLevel level = v.level();
-		Mannequin body = carried;
-		carried = null;
-		if (body.isRemoved()) {
+		int needed = HwConfig.get().vecnaRitualKills;
+		boolean wasCursed = VecnaCurse.cursed(victim);
+		if (wasCursed && kills >= needed) {
+			open(level, v, at);
 			return;
 		}
-		float yaw = v.getYRot();
-		Vec3 front = v.position().add(-Mth.sin(yaw * Mth.DEG_TO_RAD) * 1.1, 0, Mth.cos(yaw * Mth.DEG_TO_RAD) * 1.1);
-		Vec3 at = ground(level, front, v.position());
-		Vec3 from = body.position();
-		body.teleportTo(at.x, at.y, at.z);
-		body.setYRot(yaw + 90);
-		body.setYBodyRot(yaw + 90);
-		Police.moveBody(from, at);
-		level.playSound(null, at.x, at.y, at.z, HwSounds.VECNA_BODY_DROP, SoundSource.HOSTILE, 1f, 1f);
-		HwConfig cfg = HwConfig.get();
-		if (rift) {
-			return;
+		if (wasCursed && victim instanceof ServerPlayer p) {
+			VecnaCurse.killed(p);
 		}
-		if (altar == null) {
-			altar = at;
-			level.playSound(null, at.x, at.y, at.z, HwSounds.VECNA_ALTAR_KINDLE, SoundSource.HOSTILE, 1.5f, 1f);
-			v.sendOverlayMessage(Component.translatable("halloween.msg.ritual.altar").withStyle(ChatFormatting.DARK_RED));
-			AiStats.add(v, "vecna.altar");
+		kills++;
+		AiStats.add(v, "vecna.ritual.kill");
+		if (kills < needed) {
+			v.sendOverlayMessage(Component.translatable("halloween.msg.ritual.count", kills, needed).withStyle(ChatFormatting.DARK_RED));
+		} else if (kills == needed) {
+			// Enough: now the cursed one.
+			v.sendOverlayMessage(Component.translatable("halloween.msg.ritual.ready").withStyle(ChatFormatting.DARK_RED));
+			v.connection.send(new net.minecraft.network.protocol.game.ClientboundSoundPacket(net.minecraft.core.Holder.direct(HwSounds.VECNA_ALTAR_KINDLE),
+				SoundSource.MASTER, v.getX(), v.getEyeY(), v.getZ(), 1f, 1f, v.getRandom().nextLong()));
 		}
-		int n = bodiesOnAltar(level).size();
-		if (at.distanceTo(altar) <= cfg.vecnaAltarRadius) {
-			v.sendOverlayMessage(Component.translatable("halloween.msg.ritual.count", n, cfg.vecnaRitualBodies).withStyle(ChatFormatting.DARK_RED));
-		}
-		if (n >= cfg.vecnaRitualBodies) {
-			open(level, v);
-		}
-	}
-
-	/** Where something laid at {@code want} comes to rest: the floor under it (not inside a wall: else at his own feet). */
-	private static Vec3 ground(ServerLevel level, Vec3 want, Vec3 fallback) {
-		BlockPos p = BlockPos.containing(want);
-		for (int dy = 1; dy >= -3; dy--) {
-			BlockPos c = p.above(dy);
-			if (level.getBlockState(c).getCollisionShape(level, c).isEmpty() && !level.getBlockState(c.below()).getCollisionShape(level, c.below()).isEmpty()) {
-				return new Vec3(want.x, c.getY(), want.z);
-			}
-		}
-		return fallback;
-	}
-
-	private static List<Mannequin> bodiesOnAltar(ServerLevel level) {
-		if (altar == null) {
-			return List.of();
-		}
-		double r = HwConfig.get().vecnaAltarRadius;
-		return level.getEntitiesOfClass(Mannequin.class, new AABB(altar, altar).inflate(r, 3, r),
-			m -> isCorpse(m) && m != carried && m.position().distanceTo(altar) <= r + 0.5);
+		sync(level.getServer());
 	}
 
 	// ---------------------------------------------------------------- the rift
 
-	/** Four bodies in the ring: the rift tears open over the altar, and the town goes under. */
-	private static void open(ServerLevel level, ServerPlayer v) {
+	/** The cursed one killed last: the rift tears open where they fell, and the town goes under. */
+	private static void open(ServerLevel level, ServerPlayer v, Vec3 at) {
 		rift = true;
+		pit = at;
 		int now = level.getServer().getTickCount();
 		riftAt = now;
-		RISEN.clear();
-		RISEN.addAll(bodiesOnAltar(level).subList(0, HwConfig.get().vecnaRitualBodies));
-		for (Mannequin m : RISEN) {
-			m.setNoGravity(true);
-			// Upright in the air, hanging slack, as his victims do.
-			m.setPose(net.minecraft.world.entity.Pose.STANDING);
-			GrabSession.anim(m, HwNet.Anim.LIMP);
+		VecnaCurse.end(level.getServer());
+		// Their body rises over the pit, upright, hanging slack, as his victims do.
+		risen = null;
+		for (Mannequin m : level.getEntitiesOfClass(Mannequin.class, new AABB(at, at).inflate(1.5),
+			m -> m.entityTags().contains(MatchManager.CORPSE_TAG))) {
+			if (risen == null || m.distanceToSqr(at) < risen.distanceToSqr(at)) {
+				risen = m;
+			}
+		}
+		if (risen != null) {
+			risen.setNoGravity(true);
+			risen.setPose(net.minecraft.world.entity.Pose.STANDING);
+			GrabSession.anim(risen, HwNet.Anim.LIMP);
 		}
 		MinecraftServer server = level.getServer();
-		// The ground tears open: burning cracks out from the altar along the streets, over the whole town.
-		VecnaCracks.open(level, altar, Loot.radius() + 40, HwConfig.get().vecnaCrackSpreadTicks);
-		level.playSound(null, altar.x, altar.y, altar.z, HwSounds.VECNA_RIFT_OPEN, SoundSource.HOSTILE, 4f, 1f);
+		// The ground tears open: burning cracks out from there along the streets, over the whole town.
+		VecnaCracks.open(level, at, Loot.radius() + 40, HwConfig.get().vecnaCrackSpreadTicks);
+		level.playSound(null, at.x, at.y, at.z, HwSounds.VECNA_RIFT_OPEN, SoundSource.HOSTILE, 4f, 1f);
 		for (ServerPlayer p : level.players()) {
 			if (MatchManager.role(p) != Role.NONE) {
 				p.connection.send(new net.minecraft.network.protocol.game.ClientboundSoundPacket(net.minecraft.core.Holder.direct(HwSounds.VECNA_THUNDER), SoundSource.MASTER,
 					p.getX(), p.getEyeY(), p.getZ(), 1f, 0.9f, p.getRandom().nextLong()));
 			}
-			if (MatchManager.role(p).survivor() && !p.isSpectator() && p.isAlive()) {
-				VecnaCurse.bump(p, now);
-			}
 		}
-		Flicker.start(level, altar, 200);
+		Flicker.start(level, at, 200);
 		Match.announce(server, Component.translatable("halloween.match.rift").withStyle(ChatFormatting.DARK_RED));
 		AiStats.add(v, "vecna.rift");
 		Match.markDirty();
+		sync(server);
 	}
 
 	// ---------------------------------------------------------------- every tick
@@ -194,86 +126,56 @@ public final class VecnaRitual {
 		}
 		ServerLevel level = server.overworld();
 		int now = server.getTickCount();
-		ServerPlayer v = Senses.shape(level);
-		ShapeState st = v == null ? null : MatchManager.shapeState(v);
-		if (carried != null) {
-			if (v == null || st == null || carried.isRemoved()) {
-				carried = null;
-			} else if (st.stunnedTicks > 0 || st.grab != null) {
-				// Stunned (or busy with someone): the body falls.
-				lay(v);
-			} else {
-				// Over his shoulder, across his back.
-				float yaw = v.getYRot();
-				Vec3 at = v.position().add(Mth.cos(yaw * Mth.DEG_TO_RAD) * 0.1, 1.45, Mth.sin(yaw * Mth.DEG_TO_RAD) * 0.1);
-				carried.teleportTo(at.x, at.y, at.z);
-				carried.setYRot(yaw + 90);
-				carried.setYBodyRot(yaw + 90);
-				carried.setYHeadRot(yaw + 90);
-			}
-		}
 		Flicker.tick(level, now);
 		VecnaCracks.tick(level, now);
-		HwConfig cfg = HwConfig.get();
-		if (altar != null && !rift && now % 4 == 0) {
-			// The ring: red embers round it, a slow pulse at its heart.
-			double r = cfg.vecnaAltarRadius;
-			for (int i = 0; i < 12; i++) {
-				double a = i / 12.0 * Math.PI * 2 + now * 0.02;
-				level.sendParticles(HwParticles.VECNA_EMBER, altar.x + Math.cos(a) * r, altar.y + 0.15, altar.z + Math.sin(a) * r, 0, 0, 0.3, 0, 0.05);
-			}
-			level.sendParticles(HwParticles.VECNA_MIST, altar.x, altar.y + 0.5, altar.z, 1, 0.6, 0.2, 0.6, 0.005);
-		}
 		if (rift) {
-			// The bodies risen round the rift, turning slowly.
-			for (int i = 0; i < RISEN.size(); i++) {
-				Mannequin m = RISEN.get(i);
-				if (m.isRemoved()) {
-					continue;
-				}
-				double a = i / (double) RISEN.size() * Math.PI * 2 + (now - riftAt) * 0.01;
-				double up = Math.min(1, (now - riftAt) / 60.0) * 2.2 + Math.sin((now + i * 20) * 0.05) * 0.15;
-				m.teleportTo(altar.x + Math.cos(a) * 2.6, altar.y + up, altar.z + Math.sin(a) * 2.6);
+			if (risen != null && !risen.isRemoved()) {
+				// Their body risen over the rift, turning slowly.
+				double up = Math.min(1, (now - riftAt) / 60.0) * 2.2 + Math.sin(now * 0.05) * 0.15;
+				risen.teleportTo(pit.x, pit.y + up, pit.z);
+				risen.setYRot((now - riftAt) * 0.6f);
+				risen.setYBodyRot((now - riftAt) * 0.6f);
 			}
 			if (now % 2 == 0) {
-				// The burning pit: flames licking up out of it, smoke and embers rising high.
-				level.sendParticles(HwParticles.VECNA_EMBER, altar.x, altar.y + 0.3, altar.z, 5, 1.8, 0.1, 1.8, 0.03);
-				level.sendParticles(HwParticles.VECNA_SMOKE, altar.x, altar.y + 0.6, altar.z, 3, 1.5, 0.2, 1.5, 0.04);
-				level.sendParticles(HwParticles.VECNA_MIST, altar.x, altar.y + 1.5, altar.z, 1, 2, 1.2, 2, 0.005);
+				// The burning pit: embers licking up out of it, smoke rising high.
+				level.sendParticles(HwParticles.VECNA_EMBER, pit.x, pit.y + 0.3, pit.z, 5, 1.8, 0.1, 1.8, 0.03);
+				level.sendParticles(HwParticles.VECNA_SMOKE, pit.x, pit.y + 0.6, pit.z, 3, 1.5, 0.2, 1.5, 0.04);
+				level.sendParticles(HwParticles.VECNA_MIST, pit.x, pit.y + 1.5, pit.z, 1, 2, 1.2, 2, 0.005);
 			}
 			if (now % 3 == 0) {
-				level.sendParticles(HwParticles.VECNA_ASH, altar.x, altar.y + 2, altar.z, 4, 2.5, 1.5, 2.5, 0.02);
+				level.sendParticles(HwParticles.VECNA_ASH, pit.x, pit.y + 2, pit.z, 4, 2.5, 1.5, 2.5, 0.02);
 			}
 		}
-		if (now % 10 == 0) {
-			HwNet.VecnaRitual payload = new HwNet.VecnaRitual(altar != null, altar == null ? BlockPos.ZERO : BlockPos.containing(altar),
-				altar == null ? 0 : rift ? cfg.vecnaRitualBodies : bodiesOnAltar(level).size(), cfg.vecnaRitualBodies, rift,
-				carried != null && v != null ? v.getId() : -1);
-			for (ServerPlayer p : server.getPlayerList().getPlayers()) {
-				ServerPlayNetworking.send(p, payload);
-			}
+		if (now % 20 == 0) {
+			sync(server);
 		}
+	}
+
+	/** Everyone learns whether the rift is open; only he how far the ritual has come. */
+	private static void sync(MinecraftServer server) {
+		int needed = HwConfig.get().vecnaRitualKills;
+		HwNet.VecnaRitual all = new HwNet.VecnaRitual(0, needed, rift);
+		HwNet.VecnaRitual his = new HwNet.VecnaRitual(Math.min(kills, needed), needed, rift);
+		for (ServerPlayer p : server.getPlayerList().getPlayers()) {
+			ServerPlayNetworking.send(p, MatchManager.role(p) == Role.SHAPE ? his : all);
+		}
+	}
+
+	/** For tests: Vecna kills this one now (as with his claw, a body left and all). */
+	public static void testKill(ServerPlayer v, LivingEntity victim) {
+		MatchManager.kill(v, MatchManager.shapeState(v), victim, MatchManager.KillKind.STRIKE, false);
 	}
 
 	public static void clear(MinecraftServer server) {
 		Flicker.clear(server.overworld());
 		VecnaCracks.clear(server.overworld());
-		carried = null;
-		altar = null;
+		kills = 0;
+		pit = null;
 		rift = false;
-		RISEN.clear();
-		if (riftDisplay != null) {
-			riftDisplay.discard();
-			riftDisplay = null;
-		}
+		risen = null;
 		server.getCommands().performPrefixedCommand(server.createCommandSourceStack().withSuppressedOutput(), "kill @e[tag=hw_ritual_rift]");
 		for (ServerPlayer p : server.getPlayerList().getPlayers()) {
 			ServerPlayNetworking.send(p, HwNet.VecnaRitual.NONE);
 		}
-	}
-
-	/** For tests: the altar here with this many bodies already. */
-	public static Vec3 altar() {
-		return altar;
 	}
 }

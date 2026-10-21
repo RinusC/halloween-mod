@@ -472,7 +472,7 @@ public final class GrabSession {
 		t.zoneWidth = Math.max(0.08f, cfg.victimZoneWidth
 			- HwConfig.at(cfg.victimZoneShrinkByTier, this.state.tier())
 			- HwConfig.at(cfg.victimZoneShrinkByStalk, this.victimState.level())
-			+ (Perks.has(this.victim, Perks.Perk.SLIPPERY) ? cfg.perkSlipperyZone : 0f));
+			+ (Perks.has(this.victim, Perks.Perk.SLIPPERY) ? cfg.perkSlipperyZone : 0f)) * VecnaCurse.checkFactor(this.victim);
 		// Each round a different kind, at random: the narrower the zone (stalked, his Bloodthirst), the more taps.
 		int kind = VICTIM_KINDS[this.random.nextInt(VICTIM_KINDS.length)];
 		int taps = Mth.clamp(Math.round(7 * cfg.victimZoneWidth / t.zoneWidth), 6, 12);
