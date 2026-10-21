@@ -331,7 +331,17 @@ public class VecnaClientTest implements FabricClientGameTest {
 			ctx.waitTicks(5);
 			ctx.takeScreenshot("vecna_cursed_broken");
 			// He takes them: the scene (lifted, the bones, the eyes), seen as he sees it; the rift opens under them.
-			server.runOnServer(s -> dev.halloween.game.VecnaDeath.testStart(player(s), bot(s)));
+			// (By his claw: a blow that would kill it, close in front of him.)
+			server.runOnServer(s -> {
+				ServerPlayer p = player(s);
+				Vec3 at = p.position().add(Vec3.directionFromRotation(0, p.getYRot()).scale(2.0));
+				bot(s).teleportTo(s.overworld(), at.x, p.getY(), at.z, java.util.Set.of(), p.getYRot() + 180, 0f, false);
+				bot(s).setHealth(1f);
+				MatchManager.shapeState(p).attackCooldown = 0;
+			});
+			ctx.waitTicks(2);
+			server.runOnServer(s -> MatchManager.onShapeAttack(player(s), bot(s).getId(), true));
+			check(server.computeOnServer(s -> dev.halloween.game.VecnaDeath.active()), "a killing blow on the cursed one starts the scene");
 			int shot = 0;
 			for (int at : new int[]{30, 66, 104, 140}) {
 				ctx.waitTicks(at - shot);

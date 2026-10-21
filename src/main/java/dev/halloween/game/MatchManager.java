@@ -1072,6 +1072,11 @@ public final class MatchManager {
 			vs.staggerTicks = Math.max(vs.staggerTicks, 15);
 		}
 		if (victim.getHealth() - damage <= 0) {
+			if (Vecna.active() && VecnaCurse.cursed(victim) && victim instanceof ServerPlayer cursed) {
+				// Vecna's blow on the cursed one: not a plain kill but the scene (VecnaDeath).
+				VecnaDeath.start(player, cursed);
+				return;
+			}
 			kill(player, state, victim, KillKind.STRIKE, false);
 		} else {
 			victim.hurtServer(level, player.damageSources().playerAttack(player), damage);
