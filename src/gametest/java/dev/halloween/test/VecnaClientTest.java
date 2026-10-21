@@ -16,6 +16,7 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContex
 import net.minecraft.client.CameraType;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -82,7 +83,10 @@ public class VecnaClientTest implements FabricClientGameTest {
 			// Too short an aim throws nothing.
 			server.runOnServer(s -> MatchManager.shapeState(player(s)).senseHeld = true);
 			ctx.waitTicks(8);
-			check(server.computeOnServer(s -> Vecna.rooted()), "aiming roots him");
+			check(server.computeOnServer(s -> Vecna.creeping() && !Vecna.rooted()), "aiming: he can only creep");
+			double creep = server.computeOnServer(s -> player(s).getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED));
+			LOG.info("speed while aiming: {}", creep);
+			check(creep > 0 && creep < baseSpeed * 0.3, "creeping speed while aiming");
 			server.runOnServer(s -> MatchManager.shapeState(player(s)).senseHeld = false);
 			ctx.waitTicks(3);
 			check(server.computeOnServer(s -> !Vecna.flying() && !Vecna.gripping()), "a short aim throws nothing");
@@ -99,8 +103,8 @@ public class VecnaClientTest implements FabricClientGameTest {
 				Vec3 side = Vec3.directionFromRotation(0, player(s).getYRot() - 90).scale(3);
 				bot.teleportTo(s.overworld(), bot.getX() + side.x, bot.getY(), bot.getZ() + side.z, java.util.Set.of(), bot.getYRot(), 0f, false);
 			});
-			// (Twenty blocks at twelve a second: it flies a little under two seconds.)
-			ctx.waitTicks(45);
+			// (Thirty blocks at twelve a second: it flies two and a half seconds.)
+			ctx.waitTicks(60);
 			check(server.computeOnServer(s -> !Vecna.gripping() && !Vecna.flying()), "a step aside: the Grip went by");
 			server.runOnServer(s -> {
 				ServerPlayer bot = bot(s);
@@ -163,6 +167,46 @@ public class VecnaClientTest implements FabricClientGameTest {
 			server.runOnServer(s -> MatchManager.testEndGrab(player(s)));
 			ctx.waitTicks(10);
 			check(server.computeOnServer(s -> !Vecna.gripping()), "no Grip again during its rest");
+
+			// He lets go himself: the key pressed again while drawing them in.
+			server.runOnServer(s -> {
+				ServerPlayer bot = bot(s);
+				bot.teleportTo(s.overworld(), botAt.x, botAt.y, botAt.z, java.util.Set.of(), bot.getYRot(), 0f, false);
+				still(bot, true);
+				Vecna.testReady();
+			});
+			ctx.waitTicks(3);
+			throwGrip(ctx, server);
+			check(waitCaught(ctx, server), "caught again");
+			check(server.computeOnServer(s -> Vecna.held(bot(s)) && !bot(s).isSpectator()), "the held one is the bot");
+			check(server.computeOnServer(s -> {
+				// Held: no window, door or shove for them.
+				dev.halloween.game.MatchManager.onPush(bot(s));
+				return Vecna.held(bot(s));
+			}), "a shove does nothing while held");
+			server.runOnServer(s -> MatchManager.shapeState(player(s)).senseHeld = true);
+			ctx.waitTicks(3);
+			server.runOnServer(s -> MatchManager.shapeState(player(s)).senseHeld = false);
+			check(server.computeOnServer(s -> !Vecna.gripping() && MatchManager.shapeState(player(s)).stunnedTicks == 0), "R again: he let go, no stun");
+
+			// Not drawn in within the time (ten seconds; one here): the bond snaps and throws him down.
+			server.runOnServer(s -> {
+				ServerPlayer bot = bot(s);
+				bot.teleportTo(s.overworld(), botAt.x, botAt.y, botAt.z, java.util.Set.of(), bot.getYRot(), 0f, false);
+				Vecna.testReady();
+				HwConfig.get().vecnaGripPullTicks = 20;
+			});
+			ctx.waitTicks(3);
+			throwGrip(ctx, server);
+			check(waitCaught(ctx, server), "caught once more");
+			ctx.waitTicks(28);
+			check(server.computeOnServer(s -> !Vecna.gripping() && MatchManager.shapeState(player(s)).stunnedTicks > 0), "too long: the bond snapped, he is stunned");
+			server.runOnServer(s -> {
+				HwConfig.get().vecnaGripPullTicks = 200;
+				MatchManager.shapeState(player(s)).stunnedTicks = 0;
+				still(bot(s), false);
+			});
+			ctx.waitTicks(10);
 			ctx.runOnClient(mc -> mc.options.setCameraType(CameraType.FIRST_PERSON));
 			ctx.waitTicks(5);
 			ctx.takeScreenshot("vecna_hud_rest");
@@ -177,6 +221,7 @@ public class VecnaClientTest implements FabricClientGameTest {
 			ctx.waitTicks(10);
 			check(ctx.computeOnClient(mc -> mc.getCameraEntity() != mc.player && dev.halloween.client.VecnaClient.eyesActive()), "the Eyes look through the bot's");
 			ctx.takeScreenshot("vecna_eyes");
+			check(ctx.computeOnClient(mc -> ClientState.outlineColor(mc.player) != -1), "through the Eyes he sees himself through walls");
 			int reserve = ctx.computeOnClient(mc -> ClientState.vecna.eyesReserve());
 			LOG.info("Eyes reserve while looking: {}", reserve);
 			check(reserve < HwConfig.get().vecnaEyesMaxTicks, "the reserve drains while looking");
@@ -370,6 +415,30 @@ public class VecnaClientTest implements FabricClientGameTest {
 			});
 			ctx.waitTicks(10);
 			ctx.takeScreenshot("vecna_rift");
+			// Orange lightning across the sky.
+			server.runCommand("time set midnight");
+			ctx.waitTicks(2);
+			ctx.runOnClient(mc -> {
+				mc.player.setXRot(-35f);
+				for (int i = 0; i < 3; i++) {
+					dev.halloween.client.VecnaLightning.strike(mc);
+				}
+			});
+			ctx.waitTicks(1);
+			ctx.takeScreenshot("vecna_rift_lightning");
+			LOG.info("lightning: {} bolts, extracted {}, drawn {}", ctx.computeOnClient(mc -> mc.level.getEntitiesOfClass(net.minecraft.world.entity.Display.ItemDisplay.class, mc.player.getBoundingBox().inflate(60), e -> e.getId() < -7_000_000).size()), ctx.computeOnClient(mc -> dev.halloween.client.VecnaLightning.extracted), ctx.computeOnClient(mc -> dev.halloween.client.VecnaLightning.drawn));
+			// In the rift he steers the thrown Grip with his eyes.
+			server.runOnServer(s -> Vecna.testReady());
+			ctx.runOnClient(mc -> mc.player.setXRot(0f));
+			throwGrip(ctx, server);
+			ctx.waitTicks(2);
+			double yaw0 = server.computeOnServer(s -> Math.toDegrees(Math.atan2(-Vecna.testBoltDir().x, Vecna.testBoltDir().z)));
+			ctx.runOnClient(mc -> mc.player.setYRot(mc.player.getYRot() + 70f));
+			ctx.waitTicks(10);
+			double yaw1 = server.computeOnServer(s -> Math.toDegrees(Math.atan2(-Vecna.testBoltDir().x, Vecna.testBoltDir().z)));
+			LOG.info("steered from {} to {}", yaw0, yaw1);
+			check(Math.abs(Mth.wrapDegrees(yaw1 - yaw0)) > 25, "in the rift the Grip turns where he looks");
+			ctx.waitTicks(60);
 			// From above, as in the show: the cracks out from the altar.
 			server.runOnServer(s -> {
 				Vec3 a = dev.halloween.game.VecnaRitual.altar();
@@ -432,6 +501,23 @@ public class VecnaClientTest implements FabricClientGameTest {
 			}
 		}
 		return true;
+	}
+
+	/** Aim a second, let go. */
+	private static void throwGrip(ClientGameTestContext ctx, TestServerContext server) {
+		server.runOnServer(s -> MatchManager.shapeState(player(s)).senseHeld = true);
+		ctx.waitTicks(HwConfig.get().vecnaGripAimTicks + 2);
+		server.runOnServer(s -> MatchManager.shapeState(player(s)).senseHeld = false);
+	}
+
+	private static boolean waitCaught(ClientGameTestContext ctx, TestServerContext server) {
+		for (int i = 0; i < 40; i++) {
+			if (server.computeOnServer(s -> Vecna.gripping())) {
+				return true;
+			}
+			ctx.waitTicks(2);
+		}
+		return false;
 	}
 
 	private static void still(ServerPlayer p, boolean on) {

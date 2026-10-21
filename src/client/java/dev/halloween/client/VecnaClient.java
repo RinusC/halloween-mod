@@ -52,6 +52,7 @@ public final class VecnaClient {
 		tickPhantoms(mc);
 		tickEyes(mc);
 		tickRift(mc);
+		VecnaLightning.tick(mc);
 	}
 
 	// ---------------------------------------------------------------- his keys and his Eyes
@@ -118,7 +119,9 @@ public final class VecnaClient {
 		var r = mc.level.getRandom();
 		if (now >= riftNextFlash) {
 			riftFlashAt = now;
-			riftNextFlash = now + 160 + r.nextInt(240);
+			riftNextFlash = now + 70 + r.nextInt(120);
+			// Orange lightning forking across the sky with it.
+			VecnaLightning.strike(mc);
 			mc.level.playLocalSound(mc.player.getX(), mc.player.getY() + 20, mc.player.getZ(), SoundEvents.LIGHTNING_BOLT_THUNDER, SoundSource.AMBIENT,
 				0.6f, 0.45f + r.nextFloat() * 0.15f, false);
 		}
@@ -275,6 +278,7 @@ public final class VecnaClient {
 	}
 
 	public static void reset() {
+		VecnaLightning.clear();
 		Minecraft mc = Minecraft.getInstance();
 		for (Phantom p : PHANTOMS) {
 			if (mc.level != null) {

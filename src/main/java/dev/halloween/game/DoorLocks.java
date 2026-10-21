@@ -104,6 +104,10 @@ public final class DoorLocks {
 			return InteractionResult.PASS;
 		}
 		Role role = MatchManager.role(sp);
+		if (Vecna.held(sp)) {
+			// Drawn in by Vecna's Grip: no hand free for a door.
+			return InteractionResult.FAIL;
+		}
 		if (role.survivor() && sp.isShiftKeyDown()) {
 			return InteractionResult.FAIL;
 		}
@@ -123,7 +127,7 @@ public final class DoorLocks {
 	/** A civilian holding use on a door; arrives about every 4 ticks while held. */
 	public static void ping(ServerPlayer player, BlockPos clicked) {
 		ServerLevel level = player.level();
-		if (!MatchManager.role(player).survivor() || player.isSpectator() || !isDoor(level.getBlockState(clicked))) {
+		if (!MatchManager.role(player).survivor() || player.isSpectator() || Vecna.held(player) || !isDoor(level.getBlockState(clicked))) {
 			return;
 		}
 		BlockPos door = base(level, clicked);

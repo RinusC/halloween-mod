@@ -95,7 +95,7 @@ public final class Windows {
 		HwConfig cfg = HwConfig.get();
 		boolean shadow = shadow(player);
 		if (!MatchManager.role(player).survivor() && !shadow || player.isSpectator() || isVaulting(player)
-			|| MatchManager.isGrabbed(player) || !isWindow(level.getBlockState(clicked))) {
+			|| MatchManager.isGrabbed(player) || Vecna.held(player) || !isWindow(level.getBlockState(clicked))) {
 			return;
 		}
 		fast &= !shadow;

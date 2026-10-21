@@ -60,6 +60,8 @@ public final class Vecna {
 	/** The rest the Grip took last (a miss rests less than a catch); ticks aimed so far (-1: not aiming); the throw in flight (null: none), its way and the reach left. */
 	private static int gripCooldownMax = 1;
 	private static int gripAim = -1;
+	/** The Grip key as it was last tick while drawing someone in (pressed anew: he lets go). */
+	private static boolean gripKeyWas;
 	private static Vec3 bolt;
 	private static Vec3 boltDir = Vec3.ZERO;
 	private static double boltLeft;
@@ -107,14 +109,24 @@ public final class Vecna {
 		return active() && gripped != null;
 	}
 
-	/** Standing still: aiming or throwing the Grip or drawing someone in, looking through the Eyes, or taking shape after the Anchor. */
+	/** Barely moving: aiming the Grip, throwing it or drawing someone in (he can creep along). */
+	public static boolean creeping() {
+		return active() && (gripAim >= 0 || bolt != null || gripped != null);
+	}
+
+	/** Standing still: looking through the Eyes, or taking shape after the Anchor. */
 	public static boolean rooted() {
-		return active() && (gripAim >= 0 || bolt != null || gripped != null || eyesOn != null || anchorPhase == ANCHOR_CHANNEL);
+		return active() && (eyesOn != null || anchorPhase == ANCHOR_CHANNEL);
 	}
 
 	/** The Grip in flight. */
 	public static boolean flying() {
 		return active() && bolt != null;
+	}
+
+	/** For tests: the thrown Grip's way. */
+	public static Vec3 testBoltDir() {
+		return boltDir;
 	}
 
 	/** For tests: the Grip and the Anchor rested. */
@@ -543,6 +555,15 @@ public final class Vecna {
 			missed(level, v);
 			return;
 		}
+		if (VecnaRitual.rift()) {
+			// The rift open, he steers it: it bends towards where he looks now, as far off as it already is.
+			Vec3 from = MatchManager.aimOrigin(v, st);
+			Vec3 look = MatchManager.aimDirection(v, st);
+			Vec3 want = from.add(look.scale(from.distanceTo(bolt) + 4)).subtract(bolt);
+			if (want.lengthSqr() > 0.01) {
+				boltDir = boltDir.scale(1 - cfg.vecnaRiftSteer).add(want.normalize().scale(cfg.vecnaRiftSteer)).normalize();
+			}
+		}
 		double step = gripSpeed() / 20.0;
 		int parts = Math.max(1, (int) Math.ceil(step / 0.2));
 		double half = cfg.vecnaGripWidth / 2;
@@ -552,12 +573,6 @@ public final class Vecna {
 		Vec3 across = new Vec3(-along.z, 0, along.x);
 		for (int i = 0; i < parts; i++) {
 			Vec3 next = bolt.add(boltDir.scale(step / parts));
-			if (level.clip(new net.minecraft.world.level.ClipContext(bolt, next, net.minecraft.world.level.ClipContext.Block.COLLIDER,
-				net.minecraft.world.level.ClipContext.Fluid.NONE, v)).getType() != net.minecraft.world.phys.HitResult.Type.MISS) {
-				burst(level);
-				missed(level, v);
-				return;
-			}
 			bolt = next;
 			boltLeft -= step / parts;
 			AABB reach = new AABB(bolt.x - half - 1, bolt.y - tall - 1, bolt.z - half - 1, bolt.x + half + 1, bolt.y + 256, bolt.z + half + 1);
@@ -638,6 +653,7 @@ public final class Vecna {
 		gripCooldown = HwConfig.get().vecnaGripCooldownTicks;
 		gripCooldownMax = gripCooldown;
 		root(target, true);
+		gripKeyWas = true;
 		level.playSound(null, target.getX(), target.getY(), target.getZ(), SoundEvents.ELDER_GUARDIAN_CURSE, SoundSource.HOSTILE, 0.8f, 0.6f);
 		// The dark closes over them as it takes hold.
 		level.sendParticles(new net.minecraft.core.particles.DustColorTransitionOptions(0xC01018, 0x100004, 1.5f), target.getX(), target.getY() + 1, target.getZ(), 30, 0.5, 0.8, 0.5, 0);
@@ -658,11 +674,21 @@ public final class Vecna {
 			release(level, v, st.stunnedTicks > 0);
 			return;
 		}
-		Vec3 eye = v.getEyePosition();
-		Vec3 body = FocusPoints.bodyCenter(t);
-		gripLost = Sight.canSee(level, eye, body, v) ? 0 : gripLost + 1;
-		if (gripLost > cfg.vecnaGripLostTicks) {
+		if (st.senseHeld && !gripKeyWas) {
+			// He lets them go himself (the key pressed again).
 			release(level, v, false);
+			gripKeyWas = true;
+			return;
+		}
+		gripKeyWas = st.senseHeld;
+		if (now - gripSince > cfg.vecnaGripPullTicks) {
+			// Too long (a wall in the way, most likely): the bond snaps, and it throws him down.
+			release(level, v, false);
+			st.stunnedTicks = Math.max(st.stunnedTicks, cfg.vecnaGripSnapStunTicks);
+			st.senseHeld = false;
+			GrabSession.anim(v, HwNet.Anim.FALL);
+			level.playSound(null, v.getX(), v.getY(), v.getZ(), SoundEvents.WARDEN_SONIC_BOOM, SoundSource.HOSTILE, 1f, 0.5f);
+			v.sendOverlayMessage(Component.translatable("halloween.msg.vecna.snap").withStyle(ChatFormatting.DARK_RED));
 			return;
 		}
 		Vec3 to = new Vec3(v.getX() - t.getX(), 0, v.getZ() - t.getZ());

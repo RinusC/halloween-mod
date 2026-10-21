@@ -169,6 +169,10 @@ public final class ClientState {
 
 	/** Outline colour the Shape sees for an entity, or -1 for none. */
 	public static int outlineColor(Entity entity) {
+		if (entity == Minecraft.getInstance().player && VecnaClient.eyesActive()) {
+			// Vecna looking through someone's eyes sees where he himself stands, through walls.
+			return 0xD02030;
+		}
 		int event = ClientEvents.glow(entity);
 		if (event != -1) {
 			// Shown by a match event: Michael after Loomis's call, everyone to him at midnight.

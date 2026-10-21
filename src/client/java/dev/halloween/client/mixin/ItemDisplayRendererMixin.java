@@ -20,13 +20,15 @@ public class ItemDisplayRendererMixin {
 		RiftRenderer.extract(entity, state, partialTicks);
 		dev.halloween.client.BirdRenderer.extract(entity, partialTicks);
 		dev.halloween.client.VecnaBeamRenderer.extract(entity, partialTicks);
+		dev.halloween.client.VecnaLightning.extract(entity, partialTicks);
 	}
 
 	@Inject(method = "submitInner(Lnet/minecraft/client/renderer/entity/state/ItemDisplayEntityRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;IF)V",
 		at = @At("HEAD"), cancellable = true)
 	private void halloween$riftModel(ItemDisplayEntityRenderState state, PoseStack pose, SubmitNodeCollector collector, int light, float progress, CallbackInfo ci) {
 		if (RiftRenderer.submit(state, pose, collector, light) || dev.halloween.client.BirdRenderer.submit(state, pose, collector, light)
-			|| dev.halloween.client.VecnaBeamRenderer.submit(state, pose, collector)) {
+			|| dev.halloween.client.VecnaBeamRenderer.submit(state, pose, collector)
+			|| dev.halloween.client.VecnaLightning.submit(state, pose, collector)) {
 			ci.cancel();
 		}
 	}

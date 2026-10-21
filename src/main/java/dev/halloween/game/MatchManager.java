@@ -475,6 +475,10 @@ public final class MatchManager {
 				speed = (1 + speed) * (1 - cfg.demoLightSlow) - 1;
 			}
 		}
+		if (Vecna.creeping() && speed > -1) {
+			// Aiming, throwing or drawing in the Grip: he can only creep.
+			speed = (1 + speed) * cfg.vecnaCreepFactor - 1;
+		}
 		if (VecnaRitual.rift() && speed > -1) {
 			// The town gone under: Vecna a tenth faster.
 			speed = (1 + speed) * cfg.vecnaRiftSpeedFactor - 1;
@@ -916,7 +920,7 @@ public final class MatchManager {
 
 	/** The push key: survivors shove the Shape away (he no longer pushes anyone). */
 	public static void onPush(ServerPlayer player) {
-		if (role(player).survivor()) {
+		if (role(player).survivor() && !Vecna.held(player)) {
 			Fight.survivorPush(player);
 		}
 	}

@@ -1292,17 +1292,11 @@ public final class HwHud {
 		HwNet.VecnaHud vh = ClientState.vecna;
 		// The ritual: the body he carries, the altar (through walls) and how many lie in its ring; then the rift.
 		HwNet.VecnaRitual rit = ClientState.ritual;
-		Component ritLine;
 		if (rit.carrier() >= 0) {
-			ritLine = Component.translatable("halloween.hud.ritual.carrying", mc.options.keyUse.getTranslatedKeyMessage());
-		} else if (rit.rift()) {
-			ritLine = Component.translatable("halloween.hud.ritual.rift");
-		} else if (rit.hasAltar()) {
-			ritLine = Component.translatable("halloween.hud.ritual.count", rit.bodies(), rit.needed());
-		} else {
-			ritLine = Component.translatable("halloween.hud.ritual.none", rit.needed());
+			// Only while he carries a body: how to lay it down.
+			Component ritLine = Component.translatable("halloween.hud.ritual.carrying", mc.options.keyUse.getTranslatedKeyMessage());
+			g.textWithBackdrop(mc.font, ritLine, w / 2 - mc.font.width(ritLine) / 2, h - 74, mc.font.width(ritLine), 0xFFD0A0A0);
 		}
-		g.textWithBackdrop(mc.font, ritLine, w / 2 - mc.font.width(ritLine) / 2, h - 74, mc.font.width(ritLine), rit.rift() ? 0xFFFF6060 : 0xFFD0A0A0);
 		if (rit.hasAltar() && !rit.rift()) {
 			Projection.Point p = Projection.toScreen(Vec3.atBottomCenterOf(rit.altar()).add(0, 0.5, 0), w, h);
 			if (p != null) {

@@ -865,13 +865,19 @@ public class HwConfig {
 	/** The killer of the next matches is Vecna (/hw killer vecna; over killerDemogorgon). */
 	public boolean killerVecna = false;
 	/** Vecna's Grip: reaches this far, pulls whom it catches this fast (blocks a second). */
-	public double vecnaGripRange = 20;
+	public double vecnaGripRange = 30;
 	/** The Grip thrown: blocks a second, a second's aim before it can go, the standing streak's width and height; a miss rests this long (a catch, vecnaGripCooldownTicks). */
 	public double vecnaGripSpeed = 12;
 	public int vecnaGripAimTicks = 20;
-	public double vecnaGripWidth = 1.5;
+	public double vecnaGripWidth = 1.65;
 	public double vecnaGripHeight = 2.6;
 	public int vecnaGripMissCooldownTicks = 160;
+	/** Drawing someone in: he creeps at this share of his speed (aiming too); not at his hand in this long, the bond snaps and stuns him this long. */
+	public float vecnaCreepFactor = 0.2f;
+	public int vecnaGripPullTicks = 200;
+	public int vecnaGripSnapStunTicks = 60;
+	/** The rift open: how hard the thrown Grip turns towards where he looks each tick (0..1). */
+	public float vecnaRiftSteer = 0.25f;
 	public double vecnaGripPull = 2;
 	/** Grip ends this long after the target is lost from sight; then this long before the next. */
 	public int vecnaGripLostTicks = 6;
@@ -907,7 +913,7 @@ public class HwConfig {
 	public double vecnaAltarRadius = 3;
 	/** The rift open: his speed times this; the Grip's reach, speed and pull; the Eyes' reserve and refill; the Anchor (to anyone): taking shape, and rest. */
 	public float vecnaRiftSpeedFactor = 1.1f;
-	public double vecnaRiftGripRange = 30;
+	public double vecnaRiftGripRange = 40;
 	public double vecnaRiftGripSpeed = 18;
 	public double vecnaRiftGripPull = 3;
 	public int vecnaRiftEyesMaxTicks = 300;
@@ -925,7 +931,7 @@ public class HwConfig {
 
 	/** The file's version: older files get the defaults that changed since moved on (see {@link #migrate}). */
 	public int configVersion;
-	private static final int VERSION = 17;
+	private static final int VERSION = 18;
 
 	public static void load() {
 		Path path = path();
@@ -1096,6 +1102,18 @@ public class HwConfig {
 		if (this.configVersion < 17 && this.vecnaGripWidth == 0.5) {
 			// Vecna's Grip a block wider.
 			this.vecnaGripWidth = 1.5;
+		}
+		if (this.configVersion < 18) {
+			// Vecna's Grip ten blocks further and a tenth wider.
+			if (this.vecnaGripRange == 20) {
+				this.vecnaGripRange = 30;
+			}
+			if (this.vecnaRiftGripRange == 30) {
+				this.vecnaRiftGripRange = 40;
+			}
+			if (this.vecnaGripWidth == 1.5) {
+				this.vecnaGripWidth = 1.65;
+			}
 		}
 		if (this.configVersion < VERSION) {
 			Halloween.LOGGER.info("Config moved on to version {}", VERSION);
