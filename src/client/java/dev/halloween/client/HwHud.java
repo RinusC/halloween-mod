@@ -18,7 +18,7 @@ import net.minecraft.world.phys.Vec3;
 
 /**
  * Match HUD, laid out like the original: Bloodthirst ring bottom-left, weapon and ability diamonds
- * bottom-right, XP feed on the left, objectives top-left, world markers projected on screen.
+ * bottom-right, XP feed on the right under the notices, objectives top-left, world markers projected on screen.
  * Civilians get health and their side of the grab check.
  */
 public final class HwHud {
@@ -122,7 +122,7 @@ public final class HwHud {
 			}
 			int y = goals(g, mc, true);
 			exitLines(g, mc.font, 10, y + 4);
-			feed(g, mc.font, h);
+			feed(g, mc.font, w, h);
 			bloodthirstRing(g, mc.font, hud, h);
 			abilities(g, mc, hud, w, h);
 			if (MichaelRenderer.vecna()) {
@@ -158,7 +158,7 @@ public final class HwHud {
 			int gy = goals(g, mc, false);
 			// The ways out, each with its steps.
 			escapeSteps(g, mc, gy);
-			feed(g, mc.font, h);
+			feed(g, mc.font, w, h);
 		}
 		matchTimer(g, mc, w);
 		ClientEvents.render(g, mc, w, h, partialTicks(delta));
@@ -1200,18 +1200,13 @@ public final class HwHud {
 	}
 
 	/**
-	 * XP feed on the left: "+075 XP" and the reasons, fading out after a few seconds. It stands on the ring at the bottom
-	 * left and grows upwards, clear of the lists at the top left however long they are.
+	 * XP feed on the right, under the notices: "+075 XP" and the reasons, right-aligned, fading out after a few
+	 * seconds. The left side is the lists' (objectives, ways out), however long they get.
 	 */
-	private static void feed(GuiGraphicsExtractor g, Font font, int h) {
+	private static void feed(GuiGraphicsExtractor g, Font font, int w, int h) {
 		long now = System.currentTimeMillis();
-		int total = 0;
-		for (ClientState.FeedEntry entry : ClientState.FEED) {
-			if (now - entry.time() <= 5000) {
-				total += 22 + entry.lines().size() * 10;
-			}
-		}
-		int y = h - 66 - total;
+		int right = w - 12;
+		int y = h / 2 + 16;
 		for (ClientState.FeedEntry entry : ClientState.FEED) {
 			long age = now - entry.time();
 			if (age > 5000) {
@@ -1221,16 +1216,23 @@ public final class HwHud {
 			if (alpha < 8) {
 				continue;
 			}
+			if (y + 16 + entry.lines().size() * 10 > h - 140) {
+				// No more room above the abilities and the key hints.
+				break;
+			}
 			int color = (alpha << 24) | (TEXT & 0xFFFFFF);
+			String points = String.format("+%03d", entry.points());
+			int xpW = font.width("XP");
+			int numW = (int) (font.width(points) * 1.6f);
 			g.pose().pushMatrix();
-			g.pose().translate(10, y);
+			g.pose().translate(right - xpW - 3 - numW, y);
 			g.pose().scale(1.6f, 1.6f);
-			g.text(font, String.format("+%03d", entry.points()), 0, 0, color, true);
+			g.text(font, points, 0, 0, color, true);
 			g.pose().popMatrix();
-			g.text(font, "XP", 10 + (int) (font.width("+000") * 1.6f) + 3, y + 5, color, true);
+			g.text(font, "XP", right - xpW, y + 5, color, true);
 			y += 16;
 			for (Component line : entry.lines()) {
-				g.text(font, line, 10, y, color, true);
+				g.text(font, line, right - font.width(line), y, color, true);
 				y += 10;
 			}
 			y += 6;
@@ -1591,7 +1593,7 @@ public final class HwHud {
 		Font font = mc.font;
 		g.text(font, Component.translatable("halloween.hud.runt.goal1"), 10, 10, TEXT, true);
 		g.text(font, Component.translatable("halloween.hud.runt.goal2"), 10, 22, TEXT, true);
-		feed(g, font, h);
+		feed(g, font, w, h);
 		if (hud == null) {
 			return;
 		}
