@@ -68,7 +68,7 @@ public final class Vecna {
 	/** The Eyes: when the next whisper comes to the one he looks through. */
 	private static int nextWhisper;
 	/** The Eyes: whose eyes he looks through (null: his own), the seconds of looking in reserve (ticks), ticks since the last refill. */
-	private static ServerPlayer eyesOn;
+	private static LivingEntity eyesOn;
 	private static int eyesReserve;
 	private static int eyesIdle;
 	/** The Anchor: choosing (the key held), then arriving beside them (taking shape, rooted), whom for and ticks left; then its rest. */
@@ -155,9 +155,10 @@ public final class Vecna {
 			p.sendOverlayMessage(Component.translatable("halloween.msg.vecna.eyes_tired").withStyle(ChatFormatting.GRAY));
 			return;
 		}
-		ServerPlayer nearest = null;
-		for (ServerPlayer s : p.level().players()) {
-			if (MatchManager.role(s).survivor() && !s.isSpectator() && s.isAlive() && (nearest == null || s.distanceTo(p) < nearest.distanceTo(p))) {
+		// The nearest survivor or townsperson (or officer).
+		LivingEntity nearest = null;
+		for (LivingEntity s : p.level().getEntitiesOfClass(LivingEntity.class, p.getBoundingBox().inflate(256), Vecna::watchable)) {
+			if (nearest == null || s.distanceTo(p) < nearest.distanceTo(p)) {
 				nearest = s;
 			}
 		}
@@ -168,6 +169,14 @@ public final class Vecna {
 		nextWhisper = 0;
 		p.level().playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.ENDER_EYE_DEATH, SoundSource.HOSTILE, 1f, 0.5f);
 		AiStats.add(p, "vecna.eyes");
+	}
+
+	/** Whom the Eyes can look through: a survivor, a townsperson, an officer, alive and in the match. */
+	private static boolean watchable(LivingEntity e) {
+		if (e instanceof ServerPlayer s) {
+			return MatchManager.role(s).survivor() && !s.isSpectator() && s.isAlive();
+		}
+		return e.isAlive() && !e.isRemoved() && MatchManager.isVictim(e);
 	}
 
 	private static void eyesOff(ServerPlayer p) {
@@ -193,6 +202,11 @@ public final class Vecna {
 			}
 			if (anchorCooldown > 0) {
 				p.sendOverlayMessage(Component.translatable("halloween.msg.vecna.anchor_rest", (anchorCooldown + 19) / 20).withStyle(ChatFormatting.GRAY));
+				return;
+			}
+			if (VecnaRitual.carrying()) {
+				// With a body over his shoulder: the Anchor takes him (and it) to his altar.
+				toAltar(p, st);
 				return;
 			}
 			anchorPhase = ANCHOR_CHOOSING;
@@ -234,6 +248,34 @@ public final class Vecna {
 		anchorCooldown = anchorRest();
 		target.sendOverlayMessage(Component.translatable("halloween.msg.vecna.anchor_coming").withStyle(ChatFormatting.DARK_RED));
 		AiStats.add(p, "vecna.anchor");
+	}
+
+	/** The Anchor with a body: beside the altar at once, taking shape there as after any Anchor. */
+	private static void toAltar(ServerPlayer p, ShapeState st) {
+		Vec3 altar = VecnaRitual.altar();
+		if (altar == null) {
+			p.sendOverlayMessage(Component.translatable("halloween.msg.vecna.no_altar").withStyle(ChatFormatting.GRAY));
+			return;
+		}
+		if (st.busy() || Match.frozen()) {
+			return;
+		}
+		ServerLevel level = p.level();
+		Vec3 to = arrival(level, BlockPos.containing(altar), 2.0);
+		if (to == null) {
+			return;
+		}
+		level.playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.ENDERMAN_TELEPORT, SoundSource.HOSTILE, 1.5f, 0.5f);
+		level.sendParticles(ParticleTypes.REVERSE_PORTAL, p.getX(), p.getY() + 1, p.getZ(), 30, 0.4, 0.9, 0.4, 0.1);
+		Vec3 d = altar.subtract(to);
+		p.teleportTo(level, to.x, to.y, to.z, java.util.Set.of(), (float) (Math.atan2(-d.x, d.z) * 180 / Math.PI), 0f, false);
+		p.setInvisible(true);
+		level.playSound(null, to.x, to.y, to.z, SoundEvents.PORTAL_TRIGGER, SoundSource.HOSTILE, 1f, 0.6f);
+		anchorPhase = ANCHOR_CHANNEL;
+		anchorTarget = null;
+		anchorLeft = arriveTicks();
+		anchorCooldown = anchorRest();
+		AiStats.add(p, "vecna.anchor.altar");
 	}
 
 	/** How long he takes shape after the Anchor (shorter in the rift). */
@@ -341,15 +383,16 @@ public final class Vecna {
 			}
 			return;
 		}
-		ServerPlayer t = eyesOn;
-		if (--eyesReserve <= 0 || st.stunnedTicks > 0 || st.grab != null || t.isRemoved() || t.isSpectator() || !t.isAlive()
-			|| !MatchManager.role(t).survivor()) {
+		LivingEntity t = eyesOn;
+		if (--eyesReserve <= 0 || st.stunnedTicks > 0 || st.grab != null || !watchable(t)) {
 			eyesReserve = Math.max(0, eyesReserve);
 			eyesOff(v);
 			return;
 		}
 		MatchManager.addStalk(v, st, t, cfg.vecnaEyesStalkPerSecond / 20f);
-		whisper(t);
+		if (t instanceof ServerPlayer sp) {
+			whisper(sp);
+		}
 	}
 
 	/** Voices in the head of the one he looks through: whispers, now and then words. */
@@ -409,7 +452,10 @@ public final class Vecna {
 
 	/** Where he comes out: a spot he can stand on about this far from them, the one nearest that distance. */
 	private static Vec3 arrival(ServerLevel level, ServerPlayer t, double dist) {
-		BlockPos c = t.blockPosition();
+		return arrival(level, t.blockPosition(), dist);
+	}
+
+	private static Vec3 arrival(ServerLevel level, BlockPos c, double dist) {
 		BlockPos best = null;
 		double bestScore = Double.MAX_VALUE;
 		int r = (int) Math.ceil(dist) + 3;
@@ -536,8 +582,17 @@ public final class Vecna {
 		net.minecraft.world.phys.BlockHitResult hit = level.clip(new net.minecraft.world.level.ClipContext(from, far,
 			net.minecraft.world.level.ClipContext.Block.COLLIDER, net.minecraft.world.level.ClipContext.Fluid.NONE, v));
 		Vec3 aimAt = hit.getType() == net.minecraft.world.phys.HitResult.Type.MISS ? far : hit.getLocation();
+		// Someone under the crosshair (nearer than the wall): the Grip goes for them. The camera is over his shoulder and
+		// the Grip leaves his hand, so it is aimed at the point the crosshair rests on, not along his body's facing.
+		net.minecraft.world.phys.EntityHitResult who = net.minecraft.world.entity.projectile.ProjectileUtil.getEntityHitResult(level, v, from, aimAt,
+			new AABB(from, aimAt).inflate(1.5), e -> e instanceof LivingEntity le && e != v && grippable(le), 0.3f);
+		if (who != null) {
+			aimAt = FocusPoints.bodyCenter((LivingEntity) who.getEntity());
+		}
 		Vec3 hand = hand(v);
 		Vec3 dir = aimAt.subtract(hand);
+		// An upright pillar: only its way over the ground matters.
+		dir = new Vec3(dir.x, 0, dir.z);
 		bolt = hand;
 		boltDir = dir.lengthSqr() < 4 ? look : dir.normalize();
 		boltLeft = gripRange();
@@ -701,7 +756,8 @@ public final class Vecna {
 		}
 		Vec3 to = new Vec3(v.getX() - t.getX(), 0, v.getZ() - t.getZ());
 		double dist = to.length();
-		if (dist <= 1.8) {
+		boolean clear = Sight.canSee(level, v.getEyePosition(), FocusPoints.bodyCenter(t), v);
+		if (dist <= 1.8 && clear) {
 			// At his hand: straight into a stranglehold.
 			gripped = null;
 			root(t, false);
@@ -712,6 +768,10 @@ public final class Vecna {
 		}
 		// Drawn towards him over the ground (they keep their own eyes, and their gun).
 		Vec3 pull = to.scale((VecnaRitual.rift() ? cfg.vecnaRiftGripPull : cfg.vecnaGripPull) / 20.0 / dist);
+		if (!clear && !level.noCollision(t, t.getBoundingBox().move(pull.x * 3, 0.05, pull.z * 3))) {
+			// A wall between them: held against it, not slid along it (and not taken through it).
+			pull = Vec3.ZERO;
+		}
 		t.setDeltaMovement(pull.x, -0.1, pull.z);
 		t.hurtMarked = true;
 		MatchManager.addStalk(v, st, t, cfg.vecnaGripStalkPerSecond / 20f);

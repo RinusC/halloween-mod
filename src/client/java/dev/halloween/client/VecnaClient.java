@@ -39,6 +39,8 @@ public final class VecnaClient {
 	private static boolean sentAnchor;
 	/** The camera was put on someone else for the Eyes (and must come back). */
 	private static boolean eyesCamera;
+	/** For tests: frames he was drawn while looking through someone's eyes. */
+	public static int selfDrawn;
 	/** A test's phantom stands this long whoever this client is. */
 	private static int testUntil = -1;
 

@@ -217,10 +217,30 @@ public class VecnaClientTest implements FabricClientGameTest {
 			});
 
 			// The Eyes: through the bot's, then back.
+			server.runOnServer(s -> {
+				// The bot facing him, so he is in its view.
+				ServerPlayer bot = bot(s);
+				Vec3 d = player(s).position().subtract(bot.position());
+				bot.teleportTo(s.overworld(), bot.getX(), bot.getY(), bot.getZ(), java.util.Set.of(), (float) Math.toDegrees(Math.atan2(-d.x, d.z)), 5f, false);
+			});
 			server.runOnServer(s -> MatchManager.onShapeJump(player(s)));
 			ctx.waitTicks(10);
 			check(ctx.computeOnClient(mc -> mc.getCameraEntity() != mc.player && dev.halloween.client.VecnaClient.eyesActive()), "the Eyes look through the bot's");
+			ctx.runOnClient(mc -> {
+				// Whoever he looks through, turned to face him.
+				net.minecraft.world.entity.Entity b = mc.getCameraEntity();
+				Vec3 d = mc.player.getEyePosition().subtract(b.getEyePosition());
+				float yaw = (float) Math.toDegrees(Math.atan2(-d.x, d.z));
+				b.setYRot(yaw);
+				b.setYHeadRot(yaw);
+				b.yRotO = yaw;
+				b.setXRot(5f);
+				b.xRotO = 5f;
+				dev.halloween.client.VecnaClient.selfDrawn = 0;
+			});
+			ctx.waitTicks(1);
 			ctx.takeScreenshot("vecna_eyes");
+			check(ctx.computeOnClient(mc -> dev.halloween.client.VecnaClient.selfDrawn > 0), "through the Eyes he is drawn himself");
 			check(ctx.computeOnClient(mc -> ClientState.outlineColor(mc.player) != -1), "through the Eyes he sees himself through walls");
 			int reserve = ctx.computeOnClient(mc -> ClientState.vecna.eyesReserve());
 			LOG.info("Eyes reserve while looking: {}", reserve);
@@ -384,7 +404,20 @@ public class VecnaClientTest implements FabricClientGameTest {
 			server.runOnServer(s -> MatchManager.onGrab(player(s), fourth));
 			ctx.waitTicks(3);
 			server.runOnServer(s -> {
-				// He brings it to the altar and lays it down facing its middle.
+				// Far off with it; the Anchor takes him to the altar.
+				ServerPlayer p = player(s);
+				Vec3 a = dev.halloween.game.VecnaRitual.altar();
+				p.teleportTo(s.overworld(), a.x, a.y, a.z - 16, java.util.Set.of(), 0f, 0f, false);
+				Vecna.testReady();
+			});
+			ctx.waitTicks(3);
+			server.runOnServer(s -> Vecna.anchorKey(player(s), true));
+			ctx.waitTicks(2);
+			check(server.computeOnServer(s -> player(s).position().distanceTo(dev.halloween.game.VecnaRitual.altar()) < 4 && dev.halloween.game.VecnaRitual.carrying()),
+				"the Anchor with a body: at the altar");
+			server.runOnServer(s -> Vecna.anchorKey(player(s), false));
+			ctx.waitTicks(HwConfig.get().vecnaAnchorDelayTicks + 5);
+			server.runOnServer(s -> {
 				ServerPlayer p = player(s);
 				Vec3 a = dev.halloween.game.VecnaRitual.altar();
 				p.teleportTo(s.overworld(), a.x, a.y, a.z - 2.2, java.util.Set.of(), 0f, 0f, false);

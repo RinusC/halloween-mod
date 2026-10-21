@@ -1294,7 +1294,7 @@ public final class HwHud {
 		HwNet.VecnaRitual rit = ClientState.ritual;
 		if (rit.carrier() >= 0) {
 			// Only while he carries a body: how to lay it down.
-			Component ritLine = Component.translatable("halloween.hud.ritual.carrying", mc.options.keyUse.getTranslatedKeyMessage());
+			Component ritLine = Component.translatable("halloween.hud.ritual.carrying", mc.options.keyUse.getTranslatedKeyMessage(), HalloweenClient.KEY_IMPULSE.getTranslatedKeyMessage());
 			g.textWithBackdrop(mc.font, ritLine, w / 2 - mc.font.width(ritLine) / 2, h - 74, mc.font.width(ritLine), 0xFFD0A0A0);
 		}
 		if (rit.hasAltar() && !rit.rift()) {

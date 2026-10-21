@@ -13,6 +13,7 @@
 		"ItemInHandLayerMixin",
 		"ItemDisplayRendererMixin",
 		"CameraMixin",
+		"LevelExtractorMixin",
 		"EntityMixin",
 		"EntityRendererMixin",
 		"EntityRenderStateMixin",
