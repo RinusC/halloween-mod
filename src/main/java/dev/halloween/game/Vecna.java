@@ -2,6 +2,7 @@ package dev.halloween.game;
 
 import dev.halloween.Halloween;
 import dev.halloween.HwConfig;
+import dev.halloween.HwSounds;
 import dev.halloween.net.HwNet;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import java.util.ArrayList;
@@ -15,7 +16,6 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Display;
@@ -167,7 +167,7 @@ public final class Vecna {
 		}
 		eyesOn = nearest;
 		nextWhisper = 0;
-		p.level().playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.ENDER_EYE_DEATH, SoundSource.HOSTILE, 1f, 0.5f);
+		p.level().playSound(null, p.getX(), p.getY(), p.getZ(), HwSounds.VECNA_EYES_OPEN, SoundSource.HOSTILE, 1f, 1f);
 		AiStats.add(p, "vecna.eyes");
 	}
 
@@ -186,7 +186,7 @@ public final class Vecna {
 		eyesOn = null;
 		eyesIdle = 0;
 		if (p != null) {
-			p.level().playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.ENDER_EYE_LAUNCH, SoundSource.HOSTILE, 0.8f, 0.5f);
+			p.level().playSound(null, p.getX(), p.getY(), p.getZ(), HwSounds.VECNA_EYES_CLOSE, SoundSource.HOSTILE, 0.8f, 1f);
 		}
 	}
 
@@ -235,13 +235,13 @@ public final class Vecna {
 			stopAim(p);
 		}
 		// He is there at once, and takes shape over a few seconds: time for them to run.
-		level.playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.ENDERMAN_TELEPORT, SoundSource.HOSTILE, 1.5f, 0.5f);
+		level.playSound(null, p.getX(), p.getY(), p.getZ(), HwSounds.VECNA_ANCHOR_VANISH, SoundSource.HOSTILE, 1.5f, 1f);
 		level.sendParticles(ParticleTypes.REVERSE_PORTAL, p.getX(), p.getY() + 1, p.getZ(), 30, 0.4, 0.9, 0.4, 0.1);
 		Vec3 d = target.position().subtract(to);
 		float yaw = (float) (Math.atan2(-d.x, d.z) * 180 / Math.PI);
 		p.teleportTo(level, to.x, to.y, to.z, java.util.Set.of(), yaw, 0f, false);
 		p.setInvisible(true);
-		level.playSound(null, to.x, to.y, to.z, SoundEvents.PORTAL_TRIGGER, SoundSource.HOSTILE, 1f, 0.6f);
+		level.playSound(null, to.x, to.y, to.z, HwSounds.VECNA_ANCHOR_ARRIVE, SoundSource.HOSTILE, 1.2f, 1f);
 		anchorPhase = ANCHOR_CHANNEL;
 		anchorTarget = target;
 		anchorLeft = arriveTicks();
@@ -265,12 +265,12 @@ public final class Vecna {
 		if (to == null) {
 			return;
 		}
-		level.playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.ENDERMAN_TELEPORT, SoundSource.HOSTILE, 1.5f, 0.5f);
+		level.playSound(null, p.getX(), p.getY(), p.getZ(), HwSounds.VECNA_ANCHOR_VANISH, SoundSource.HOSTILE, 1.5f, 1f);
 		level.sendParticles(ParticleTypes.REVERSE_PORTAL, p.getX(), p.getY() + 1, p.getZ(), 30, 0.4, 0.9, 0.4, 0.1);
 		Vec3 d = altar.subtract(to);
 		p.teleportTo(level, to.x, to.y, to.z, java.util.Set.of(), (float) (Math.atan2(-d.x, d.z) * 180 / Math.PI), 0f, false);
 		p.setInvisible(true);
-		level.playSound(null, to.x, to.y, to.z, SoundEvents.PORTAL_TRIGGER, SoundSource.HOSTILE, 1f, 0.6f);
+		level.playSound(null, to.x, to.y, to.z, HwSounds.VECNA_ANCHOR_ARRIVE, SoundSource.HOSTILE, 1.2f, 1f);
 		anchorPhase = ANCHOR_CHANNEL;
 		anchorTarget = null;
 		anchorLeft = arriveTicks();
@@ -402,11 +402,10 @@ public final class Vecna {
 			return;
 		}
 		var r = t.getRandom();
-		nextWhisper = now + 30 + r.nextInt(30);
-		net.minecraft.core.Holder<net.minecraft.sounds.SoundEvent> sound = r.nextBoolean() ? SoundEvents.AMBIENT_CAVE
-			: net.minecraft.core.Holder.direct(r.nextBoolean() ? SoundEvents.SOUL_ESCAPE.value() : SoundEvents.WARDEN_NEARBY_CLOSE);
+		nextWhisper = now + 50 + r.nextInt(40);
+		var sound = net.minecraft.core.Holder.direct(HwSounds.VECNA_WHISPER);
 		t.connection.send(new net.minecraft.network.protocol.game.ClientboundSoundPacket(sound, SoundSource.MASTER,
-			t.getX() + r.nextGaussian(), t.getEyeY(), t.getZ() + r.nextGaussian(), 0.9f, 0.5f + r.nextFloat() * 0.2f, r.nextLong()));
+			t.getX() + r.nextGaussian(), t.getEyeY(), t.getZ() + r.nextGaussian(), 0.9f, 0.92f + r.nextFloat() * 0.16f, r.nextLong()));
 		if (r.nextInt(3) > 0) {
 			t.sendOverlayMessage(Component.translatable("halloween.voice.vecna." + r.nextInt(8)).withStyle(ChatFormatting.DARK_PURPLE, ChatFormatting.ITALIC));
 		}
@@ -426,8 +425,8 @@ public final class Vecna {
 		ServerPlayer t = anchorTarget;
 		int total = arriveTicks();
 		if (t != null && !t.isRemoved() && anchorLeft % 20 == 0) {
-			t.connection.send(new net.minecraft.network.protocol.game.ClientboundSoundPacket(net.minecraft.core.Holder.direct(SoundEvents.BELL_BLOCK), SoundSource.MASTER,
-				t.getX(), t.getEyeY(), t.getZ(), 1.4f, 0.5f, t.getRandom().nextLong()));
+			t.connection.send(new net.minecraft.network.protocol.game.ClientboundSoundPacket(net.minecraft.core.Holder.direct(HwSounds.VECNA_ANCHOR_TOLL), SoundSource.MASTER,
+				t.getX(), t.getEyeY(), t.getZ(), 1f, 1f, t.getRandom().nextLong()));
 		}
 		// The dark gathering into him: sparks drawn in from round about.
 		for (int i = 0; i < 6; i++) {
@@ -439,8 +438,7 @@ public final class Vecna {
 		if (anchorLeft == total * 2 / 5) {
 			// Now he shows.
 			v.setInvisible(false);
-			level.playSound(null, v.getX(), v.getY(), v.getZ(), SoundEvents.BELL_BLOCK, SoundSource.HOSTILE, 1.4f, 0.5f);
-			level.playSound(null, v.getX(), v.getY(), v.getZ(), SoundEvents.WARDEN_EMERGE, SoundSource.HOSTILE, 1f, 1.2f);
+			level.playSound(null, v.getX(), v.getY(), v.getZ(), HwSounds.VECNA_ANCHOR_REVEAL, SoundSource.HOSTILE, 1.6f, 1f);
 		}
 		if (--anchorLeft > 0) {
 			return;
@@ -488,7 +486,7 @@ public final class Vecna {
 			if (st.senseHeld && can) {
 				gripAim = 0;
 				GrabSession.anim(v, HwNet.Anim.VECNA_CAST);
-				level.playSound(null, v.getX(), v.getY(), v.getZ(), SoundEvents.EVOKER_PREPARE_ATTACK, SoundSource.HOSTILE, 1.2f, 0.5f);
+				level.playSound(null, v.getX(), v.getY(), v.getZ(), HwSounds.VECNA_GRIP_CHARGE, SoundSource.HOSTILE, 1f, 1f);
 			}
 			return;
 		}
@@ -504,7 +502,7 @@ public final class Vecna {
 				level.sendParticles(new DustParticleOptions(gripAim >= cfg.vecnaGripAimTicks ? 0xFF3020 : 0x8A0E1E, 0.9f), hand.x, hand.y, hand.z, 3, 0.12, 0.12, 0.12, 0);
 			}
 			if (gripAim == cfg.vecnaGripAimTicks) {
-				level.playSound(null, v.getX(), v.getY(), v.getZ(), SoundEvents.AMETHYST_BLOCK_RESONATE, SoundSource.HOSTILE, 1.4f, 0.5f);
+				level.playSound(null, v.getX(), v.getY(), v.getZ(), HwSounds.VECNA_GRIP_READY, SoundSource.HOSTILE, 1f, 1f);
 			}
 			return;
 		}
@@ -598,9 +596,7 @@ public final class Vecna {
 		boltLeft = gripRange();
 		spawnBolt(level, hand, boltYaw());
 		// A low tearing groan as it leaves his hand, and a burst of the dark.
-		level.playSound(null, hand.x, hand.y, hand.z, SoundEvents.EVOKER_CAST_SPELL, SoundSource.HOSTILE, 1.5f, 0.5f);
-		level.playSound(null, hand.x, hand.y, hand.z, SoundEvents.WARDEN_SONIC_CHARGE, SoundSource.HOSTILE, 0.9f, 0.6f);
-		level.playSound(null, hand.x, hand.y, hand.z, SoundEvents.SCULK_SHRIEKER_SHRIEK, SoundSource.HOSTILE, 0.5f, 0.5f);
+		level.playSound(null, hand.x, hand.y, hand.z, HwSounds.VECNA_GRIP_CAST, SoundSource.HOSTILE, 1.6f, 1f);
 		level.sendParticles(ParticleTypes.LARGE_SMOKE, hand.x, hand.y, hand.z, 12, 0.2, 0.3, 0.2, 0.03);
 		level.sendParticles(new net.minecraft.core.particles.DustColorTransitionOptions(0xC01018, 0x100004, 1.4f), hand.x, hand.y, hand.z, 14, 0.3, 0.4, 0.3, 0);
 		AiStats.add(v, "vecna.grip.thrown");
@@ -668,11 +664,8 @@ public final class Vecna {
 		if (now % 2 == 0) {
 			level.sendParticles(ParticleTypes.CRIMSON_SPORE, bolt.x, bolt.y, bolt.z, 3, half * 0.6, tall * 0.6, half * 0.6, 0.01);
 		}
-		if (now % 4 == 0) {
-			level.playSound(null, bolt.x, bolt.y, bolt.z, SoundEvents.SOUL_ESCAPE.value(), SoundSource.HOSTILE, 1.4f, 0.5f);
-		}
-		if (now % 10 == 0) {
-			level.playSound(null, bolt.x, bolt.y, bolt.z, SoundEvents.AMBIENT_SOUL_SAND_VALLEY_MOOD.value(), SoundSource.HOSTILE, 0.8f, 0.6f);
+		if (now % 20 == 0) {
+			level.playSound(null, bolt.x, bolt.y, bolt.z, HwSounds.VECNA_GRIP_HUM, SoundSource.HOSTILE, 1.4f, 1f);
 		}
 		if (boltLeft <= 0) {
 			burst(level);
@@ -688,7 +681,7 @@ public final class Vecna {
 		double tall = HwConfig.get().vecnaGripHeight / 2;
 		level.sendParticles(ParticleTypes.LARGE_SMOKE, bolt.x, bolt.y, bolt.z, 20, 0.5, tall * 0.6, 0.5, 0.02);
 		level.sendParticles(new net.minecraft.core.particles.DustColorTransitionOptions(0xC01018, 0x100004, 1.5f), bolt.x, bolt.y, bolt.z, 25, 0.6, tall * 0.6, 0.6, 0);
-		level.playSound(null, bolt.x, bolt.y, bolt.z, SoundEvents.FIRE_EXTINGUISH, SoundSource.HOSTILE, 1f, 0.5f);
+		level.playSound(null, bolt.x, bolt.y, bolt.z, HwSounds.VECNA_GRIP_FIZZLE, SoundSource.HOSTILE, 1f, 1f);
 	}
 
 	/** Gone by, into a wall or out of reach: a short rest. */
@@ -717,7 +710,7 @@ public final class Vecna {
 		gripCooldownMax = gripCooldown;
 		root(target, true);
 		gripKeyWas = true;
-		level.playSound(null, target.getX(), target.getY(), target.getZ(), SoundEvents.ELDER_GUARDIAN_CURSE, SoundSource.HOSTILE, 0.8f, 0.6f);
+		level.playSound(null, target.getX(), target.getY(), target.getZ(), HwSounds.VECNA_GRIP_CATCH, SoundSource.HOSTILE, 1.2f, 1f);
 		// The dark closes over them as it takes hold.
 		level.sendParticles(new net.minecraft.core.particles.DustColorTransitionOptions(0xC01018, 0x100004, 1.5f), target.getX(), target.getY() + 1, target.getZ(), 30, 0.5, 0.8, 0.5, 0);
 		level.sendParticles(ParticleTypes.LARGE_SMOKE, target.getX(), target.getY() + 1, target.getZ(), 12, 0.4, 0.7, 0.4, 0.02);
@@ -750,7 +743,7 @@ public final class Vecna {
 			st.stunnedTicks = Math.max(st.stunnedTicks, cfg.vecnaGripSnapStunTicks);
 			st.senseHeld = false;
 			GrabSession.anim(v, HwNet.Anim.FALL);
-			level.playSound(null, v.getX(), v.getY(), v.getZ(), SoundEvents.WARDEN_SONIC_BOOM, SoundSource.HOSTILE, 1f, 0.5f);
+			level.playSound(null, v.getX(), v.getY(), v.getZ(), HwSounds.VECNA_GRIP_SNAP, SoundSource.HOSTILE, 1.4f, 1f);
 			v.sendOverlayMessage(Component.translatable("halloween.msg.vecna.snap").withStyle(ChatFormatting.DARK_RED));
 			return;
 		}
@@ -777,7 +770,7 @@ public final class Vecna {
 		MatchManager.addStalk(v, st, t, cfg.vecnaGripStalkPerSecond / 20f);
 		beam(level, v, t, now);
 		if ((now - gripSince) % 15 == 0) {
-			level.playSound(null, t.getX(), t.getY(), t.getZ(), SoundEvents.BEACON_AMBIENT, SoundSource.HOSTILE, 1.4f, 0.5f);
+			level.playSound(null, t.getX(), t.getY(), t.getZ(), HwSounds.VECNA_GRIP_PULL, SoundSource.HOSTILE, 1.2f, 0.95f + t.getRandom().nextFloat() * 0.1f);
 		}
 		if (t instanceof ServerPlayer sp && (now - gripSince) % 10 == 0) {
 			sp.sendOverlayMessage(Component.translatable("halloween.msg.vecna.gripped").withStyle(ChatFormatting.DARK_RED));
@@ -823,7 +816,7 @@ public final class Vecna {
 		if (v != null) {
 			GrabSession.anim(v, HwNet.Anim.NONE);
 		}
-		level.playSound(null, t.getX(), t.getY(), t.getZ(), SoundEvents.BEACON_DEACTIVATE, SoundSource.HOSTILE, 1.2f, 0.6f);
+		level.playSound(null, t.getX(), t.getY(), t.getZ(), HwSounds.VECNA_GRIP_RELEASE, SoundSource.HOSTILE, 1f, 1f);
 		if (t instanceof ServerPlayer sp) {
 			sp.sendOverlayMessage(Component.translatable(stunned ? "halloween.msg.vecna.freed_stun" : "halloween.msg.vecna.freed").withStyle(ChatFormatting.GRAY));
 		}

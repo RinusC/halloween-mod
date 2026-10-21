@@ -1,0 +1,5 @@
+Vecna's sounds (16-bit mono WAV under .ogg names), made by tools/vecna_sounds.pl.
+Bells, clock, thunder, rift, Grip, bodies: synthesised for this mod, no outside material.
+His voice (inside grip_cast, anchor_reveal, curse_last, rift_open, rift_drone): the CC0 recordings in sounds/voice
+  (m_death_1, m_death_4, m_death_8 - Exewin / HaelDB; m_scream_12, m_scream_20 - HaelDB), slowed, pitched down and distorted.
+Whispers (whisper_1..4, phantom_vanish): townsfolk talk lines from sounds/talk (Coqui voice pack, private use) through a noise vocoder.

@@ -1,6 +1,7 @@
 package dev.halloween.game;
 
 import dev.halloween.HwConfig;
+import dev.halloween.HwSounds;
 import dev.halloween.Role;
 import dev.halloween.net.HwNet;
 import java.util.ArrayList;
@@ -14,7 +15,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
@@ -75,7 +75,7 @@ public final class VecnaRitual {
 			return false;
 		}
 		carried = body;
-		v.level().playSound(null, body.getX(), body.getY(), body.getZ(), SoundEvents.ARMOR_EQUIP_LEATHER.value(), SoundSource.HOSTILE, 1f, 0.6f);
+		v.level().playSound(null, body.getX(), body.getY(), body.getZ(), HwSounds.VECNA_BODY_LIFT, SoundSource.HOSTILE, 1f, 1f);
 		AiStats.add(v, "vecna.carry");
 		return true;
 	}
@@ -112,14 +112,14 @@ public final class VecnaRitual {
 		body.setYRot(yaw + 90);
 		body.setYBodyRot(yaw + 90);
 		Police.moveBody(from, at);
-		level.playSound(null, at.x, at.y, at.z, SoundEvents.PLAYER_ATTACK_KNOCKBACK, SoundSource.HOSTILE, 0.8f, 0.5f);
+		level.playSound(null, at.x, at.y, at.z, HwSounds.VECNA_BODY_DROP, SoundSource.HOSTILE, 1f, 1f);
 		HwConfig cfg = HwConfig.get();
 		if (rift) {
 			return;
 		}
 		if (altar == null) {
 			altar = at;
-			level.playSound(null, at.x, at.y, at.z, SoundEvents.SCULK_SHRIEKER_SHRIEK, SoundSource.HOSTILE, 1.5f, 0.5f);
+			level.playSound(null, at.x, at.y, at.z, HwSounds.VECNA_ALTAR_KINDLE, SoundSource.HOSTILE, 1.5f, 1f);
 			v.sendOverlayMessage(Component.translatable("halloween.msg.ritual.altar").withStyle(ChatFormatting.DARK_RED));
 			AiStats.add(v, "vecna.altar");
 		}
@@ -168,12 +168,11 @@ public final class VecnaRitual {
 		MinecraftServer server = level.getServer();
 		// The ground tears open: burning cracks out from the altar along the streets, over the whole town.
 		VecnaCracks.open(level, altar, Loot.radius() + 40, HwConfig.get().vecnaCrackSpreadTicks);
-		level.playSound(null, altar.x, altar.y, altar.z, SoundEvents.WARDEN_EMERGE, SoundSource.HOSTILE, 4f, 0.5f);
-		level.playSound(null, altar.x, altar.y, altar.z, SoundEvents.END_PORTAL_SPAWN, SoundSource.HOSTILE, 3f, 0.5f);
+		level.playSound(null, altar.x, altar.y, altar.z, HwSounds.VECNA_RIFT_OPEN, SoundSource.HOSTILE, 4f, 1f);
 		for (ServerPlayer p : level.players()) {
 			if (MatchManager.role(p) != Role.NONE) {
-				p.connection.send(new net.minecraft.network.protocol.game.ClientboundSoundPacket(net.minecraft.core.Holder.direct(SoundEvents.LIGHTNING_BOLT_THUNDER), SoundSource.MASTER,
-					p.getX(), p.getEyeY(), p.getZ(), 1f, 0.5f, p.getRandom().nextLong()));
+				p.connection.send(new net.minecraft.network.protocol.game.ClientboundSoundPacket(net.minecraft.core.Holder.direct(HwSounds.VECNA_THUNDER), SoundSource.MASTER,
+					p.getX(), p.getEyeY(), p.getZ(), 1f, 0.9f, p.getRandom().nextLong()));
 			}
 			if (MatchManager.role(p).survivor() && !p.isSpectator() && p.isAlive()) {
 				VecnaCurse.bump(p, now);

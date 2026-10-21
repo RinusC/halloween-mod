@@ -32,7 +32,7 @@ public abstract class SoundBufferLibraryMixin {
 	@Inject(method = "getCompleteBuffer", at = @At("HEAD"), cancellable = true)
 	private void halloween$wavVoices(Identifier location, CallbackInfoReturnable<CompletableFuture<SoundBuffer>> cir) {
 		if (!location.getNamespace().equals("halloween") || !location.getPath().startsWith("sounds/voice/") && !location.getPath().startsWith("sounds/shape/")
-			&& !location.getPath().startsWith("sounds/talk/") && !location.getPath().startsWith("sounds/crow/")) {
+			&& !location.getPath().startsWith("sounds/talk/") && !location.getPath().startsWith("sounds/crow/") && !location.getPath().startsWith("sounds/vecna/")) {
 			return;
 		}
 		cir.setReturnValue(this.cache.computeIfAbsent(location, l -> CompletableFuture.supplyAsync(() -> {

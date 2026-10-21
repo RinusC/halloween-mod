@@ -99,6 +99,39 @@ public final class HwSounds {
 	public static final SoundEvent CASE_KEY = register("case.key");
 	public static final SoundEvent CASE_WRONG = register("case.wrong");
 	public static final SoundEvent CASE_OPEN = register("case.open");
+	/** Vecna (sounds/vecna/, made by tools/vecna_sounds.pl): the Eyes, the Anchor, the Grip. */
+	public static final SoundEvent VECNA_EYES_OPEN = register("vecna.eyes_open");
+	public static final SoundEvent VECNA_EYES_CLOSE = register("vecna.eyes_close");
+	public static final SoundEvent VECNA_WHISPER = register("vecna.whisper");
+	public static final SoundEvent VECNA_ANCHOR_VANISH = register("vecna.anchor_vanish");
+	public static final SoundEvent VECNA_ANCHOR_ARRIVE = register("vecna.anchor_arrive");
+	public static final SoundEvent VECNA_ANCHOR_TOLL = register("vecna.anchor_toll");
+	public static final SoundEvent VECNA_ANCHOR_REVEAL = register("vecna.anchor_reveal");
+	public static final SoundEvent VECNA_GRIP_CHARGE = register("vecna.grip_charge");
+	public static final SoundEvent VECNA_GRIP_READY = register("vecna.grip_ready");
+	public static final SoundEvent VECNA_GRIP_CAST = register("vecna.grip_cast");
+	public static final SoundEvent VECNA_GRIP_HUM = register("vecna.grip_hum");
+	public static final SoundEvent VECNA_GRIP_FIZZLE = register("vecna.grip_fizzle");
+	public static final SoundEvent VECNA_GRIP_CATCH = register("vecna.grip_catch");
+	public static final SoundEvent VECNA_GRIP_PULL = register("vecna.grip_pull");
+	public static final SoundEvent VECNA_GRIP_RELEASE = register("vecna.grip_release");
+	public static final SoundEvent VECNA_GRIP_SNAP = register("vecna.grip_snap");
+	/** The curse: the grandfather clock, its last toll, lifted at a booth, the levitation and the bones. */
+	public static final SoundEvent VECNA_CLOCK_CHIME = register("vecna.clock_chime");
+	public static final SoundEvent VECNA_CLOCK_TICK = register("vecna.clock_tick");
+	public static final SoundEvent VECNA_CLOCK_TOCK = register("vecna.clock_tock");
+	public static final SoundEvent VECNA_CURSE_LAST = register("vecna.curse_last");
+	public static final SoundEvent VECNA_CURSE_LIFTED = register("vecna.curse_lifted");
+	public static final SoundEvent VECNA_CURSE_FLOAT = register("vecna.curse_float");
+	public static final SoundEvent VECNA_BONE_CRACK = register("vecna.bone_crack");
+	public static final SoundEvent VECNA_PHANTOM_VANISH = register("vecna.phantom_vanish");
+	/** The ritual and the rift. */
+	public static final SoundEvent VECNA_BODY_LIFT = register("vecna.body_lift");
+	public static final SoundEvent VECNA_BODY_DROP = register("vecna.body_drop");
+	public static final SoundEvent VECNA_ALTAR_KINDLE = register("vecna.altar_kindle");
+	public static final SoundEvent VECNA_RIFT_OPEN = register("vecna.rift_open");
+	public static final SoundEvent VECNA_THUNDER = register("vecna.thunder");
+	public static final SoundEvent VECNA_RIFT_DRONE = register("vecna.rift_drone");
 
 	private HwSounds() {
 	}

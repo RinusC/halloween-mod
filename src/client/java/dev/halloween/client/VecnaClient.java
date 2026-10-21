@@ -1,6 +1,7 @@
 package dev.halloween.client;
 
 import dev.halloween.HwConfig;
+import dev.halloween.HwSounds;
 import dev.halloween.Role;
 import dev.halloween.net.HwNet;
 import java.util.ArrayList;
@@ -8,7 +9,6 @@ import java.util.List;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
-import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
@@ -124,12 +124,12 @@ public final class VecnaClient {
 			riftNextFlash = now + 70 + r.nextInt(120);
 			// Orange lightning forking across the sky with it.
 			VecnaLightning.strike(mc);
-			mc.level.playLocalSound(mc.player.getX(), mc.player.getY() + 20, mc.player.getZ(), SoundEvents.LIGHTNING_BOLT_THUNDER, SoundSource.AMBIENT,
-				0.6f, 0.45f + r.nextFloat() * 0.15f, false);
+			mc.level.playLocalSound(mc.player.getX(), mc.player.getY() + 20, mc.player.getZ(), HwSounds.VECNA_THUNDER, SoundSource.AMBIENT,
+				0.7f, 0.85f + r.nextFloat() * 0.25f, false);
 		}
 		if (now >= riftNextDrone) {
-			riftNextDrone = now + 100 + r.nextInt(80);
-			mc.level.playLocalSound(mc.player.getX(), mc.player.getY(), mc.player.getZ(), SoundEvents.AMBIENT_BASALT_DELTAS_MOOD.value(), SoundSource.AMBIENT, 0.7f, 0.5f, false);
+			riftNextDrone = now + 160 + r.nextInt(80);
+			mc.level.playLocalSound(mc.player.getX(), mc.player.getY(), mc.player.getZ(), HwSounds.VECNA_RIFT_DRONE, SoundSource.AMBIENT, 0.8f, 0.9f + r.nextFloat() * 0.2f, false);
 		}
 		// Over the cracks near by: embers, a red haze, smoke curling up.
 		if (now % 20 == 0) {
@@ -202,7 +202,7 @@ public final class VecnaClient {
 			boolean seen = age > 8 && angle < 14 && dev.halloween.game.Sight.canSee(mc.level, eye, at, mc.player);
 			if (!cursed || seen || age > 120 || eye.distanceTo(at) < 4.5) {
 				if (seen) {
-					mc.level.playLocalSound(at.x, at.y, at.z, SoundEvents.SOUL_ESCAPE.value(), SoundSource.HOSTILE, 1.2f, 0.5f, false);
+					mc.level.playLocalSound(at.x, at.y, at.z, HwSounds.VECNA_PHANTOM_VANISH, SoundSource.HOSTILE, 1.2f, 1f, false);
 				}
 				mc.level.removeEntity(p.body.getId(), Entity.RemovalReason.DISCARDED);
 				it.remove();
@@ -264,7 +264,7 @@ public final class VecnaClient {
 				mc.level.addEntity(m);
 				PHANTOMS.add(new Phantom(m, now));
 				// A tick of the clock where it stands.
-				mc.level.playLocalSound(at.x, at.y + 1, at.z, SoundEvents.NOTE_BLOCK_HAT.value(), SoundSource.HOSTILE, 1f, 0.5f, false);
+				mc.level.playLocalSound(at.x, at.y + 1, at.z, HwSounds.VECNA_CLOCK_TICK, SoundSource.HOSTILE, 1f, 1f, false);
 				return;
 			}
 		}

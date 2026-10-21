@@ -1,6 +1,7 @@
 package dev.halloween.game;
 
 import dev.halloween.HwConfig;
+import dev.halloween.HwSounds;
 import dev.halloween.net.HwNet;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -17,7 +18,6 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
-import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
@@ -66,7 +66,7 @@ public final class VecnaCurse {
 		CURSES.remove(p.getUUID());
 		if (wasCursed) {
 			p.sendOverlayMessage(Component.translatable("halloween.msg.curse.lifted").withStyle(ChatFormatting.AQUA));
-			private_(p, SoundEvents.AMETHYST_BLOCK_CHIME, 1.5f, 0.6f);
+			private_(p, HwSounds.VECNA_CURSE_LIFTED, 1f, 1f);
 		}
 		send(p, null);
 	}
@@ -145,7 +145,7 @@ public final class VecnaCurse {
 		if (c.stage == 4) {
 			c.deathLeft = HwConfig.get().vecnaCurseLastTicks;
 			p.sendOverlayMessage(Component.translatable("halloween.msg.curse.last").withStyle(ChatFormatting.DARK_RED));
-			private_(p, SoundEvents.ELDER_GUARDIAN_CURSE, 1f, 0.5f);
+			private_(p, HwSounds.VECNA_CURSE_LAST, 1f, 1f);
 		} else {
 			p.sendOverlayMessage(Component.translatable("halloween.msg.curse.stage." + c.stage).withStyle(ChatFormatting.RED));
 		}
@@ -157,15 +157,14 @@ public final class VecnaCurse {
 		if (c.stage >= 1 && now >= c.nextChime) {
 			// The grandfather clock: a deep bell and its hum, for them alone.
 			c.nextChime = now + HwConfig.get().vecnaChimeTicks;
-			private_(p, SoundEvents.BELL_BLOCK, 1.2f, 0.5f);
-			private_(p, SoundEvents.BELL_RESONATE, 0.8f, 0.5f);
+			private_(p, HwSounds.VECNA_CLOCK_CHIME, 1f, 1f);
 		}
 		if (c.stage >= 3) {
 			Panic.set(p, 1f);
 		}
 		if (c.stage == 4 && c.deathLeft % 20 == 0) {
 			// Every second of the last twenty: a tick of the clock.
-			private_(p, SoundEvents.NOTE_BLOCK_HAT.value(), 1f, 0.5f);
+			private_(p, c.deathLeft / 20 % 2 == 0 ? HwSounds.VECNA_CLOCK_TICK : HwSounds.VECNA_CLOCK_TOCK, 1f, 1f);
 		}
 	}
 
@@ -176,15 +175,14 @@ public final class VecnaCurse {
 			Lockers.leave(p, false);
 		}
 		p.addEffect(new MobEffectInstance(MobEffects.LEVITATION, DYING_TICKS, 0, true, false));
-		p.level().playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.ELDER_GUARDIAN_CURSE, SoundSource.HOSTILE, 1.5f, 0.5f);
+		p.level().playSound(null, p.getX(), p.getY(), p.getZ(), HwSounds.VECNA_CURSE_FLOAT, SoundSource.HOSTILE, 1.5f, 1f);
 		AiStats.add(p, "vecna.curse.death");
 	}
 
 	private static void tickDying(ServerPlayer p, Curse c, ServerPlayer vecna, ShapeState st) {
 		ServerLevel level = p.level();
 		if (c.dying % 8 == 0) {
-			level.playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.SKELETON_HURT, SoundSource.HOSTILE, 1.4f, 0.5f + p.getRandom().nextFloat() * 0.3f);
-			level.playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.ZOMBIE_BREAK_WOODEN_DOOR, SoundSource.HOSTILE, 0.5f, 1.6f);
+			level.playSound(null, p.getX(), p.getY(), p.getZ(), HwSounds.VECNA_BONE_CRACK, SoundSource.HOSTILE, 1.4f, 0.85f + p.getRandom().nextFloat() * 0.3f);
 		}
 		if (--c.dying > 0) {
 			return;
@@ -200,10 +198,6 @@ public final class VecnaCurse {
 
 	private static void private_(ServerPlayer p, SoundEvent s, float volume, float pitch) {
 		p.connection.send(new ClientboundSoundPacket(Holder.direct(s), SoundSource.MASTER, p.getX(), p.getEyeY(), p.getZ(), volume, pitch, p.getRandom().nextLong()));
-	}
-
-	private static void private_(ServerPlayer p, Holder<SoundEvent> s, float volume, float pitch) {
-		p.connection.send(new ClientboundSoundPacket(s, SoundSource.MASTER, p.getX(), p.getEyeY(), p.getZ(), volume, pitch, p.getRandom().nextLong()));
 	}
 
 	/** Their screen: the stage, how far to the next, the time left at the last; the booths. */
