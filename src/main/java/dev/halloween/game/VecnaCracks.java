@@ -49,7 +49,9 @@ public final class VecnaCracks {
 		Set<Long> used = new HashSet<>();
 		BlockState core = Blocks.SHROOMLIGHT.defaultBlockState();
 		BlockState rot = Blocks.BLACKSTONE.defaultBlockState();
-		BlockPos c = BlockPos.containing(center);
+		// Under a roof (in a house, upstairs): from the nearest open ground outside instead.
+		BlockPos c = openGround(level, BlockPos.containing(center));
+		center = Vec3.atBottomCenterOf(c);
 		// The pit where they meet: a broken burning disc.
 		for (int dx = -3; dx <= 3; dx++) {
 			for (int dz = -3; dz <= 3; dz++) {
@@ -125,6 +127,30 @@ public final class VecnaCracks {
 					Math.min(length - step, 12 + r.nextInt(30)), order, 1, r, core, rot);
 			}
 		}
+	}
+
+	/**
+	 * The ground's top block open to the sky at {@code from} or nearest round it (searching outwards, up to 24 blocks):
+	 * the highest solid block of the column, if it is not above {@code from} (a roof). Else {@code from} as it is.
+	 */
+	private static BlockPos openGround(ServerLevel level, BlockPos from) {
+		for (int r = 0; r <= 24; r++) {
+			for (int dx = -r; dx <= r; dx++) {
+				for (int dz = -r; dz <= r; dz++) {
+					if (Math.max(Math.abs(dx), Math.abs(dz)) != r) {
+						continue;
+					}
+					int x = from.getX() + dx;
+					int z = from.getZ() + dz;
+					int top = level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z) - 1;
+					BlockPos p = new BlockPos(x, top, z);
+					if (top <= from.getY() + 1 && level.getBlockState(p).isCollisionShapeFullBlock(level, p)) {
+						return p.above();
+					}
+				}
+			}
+		}
+		return from;
 	}
 
 	/** The ground beside a seam: mostly charred black, red rot in patches. */
