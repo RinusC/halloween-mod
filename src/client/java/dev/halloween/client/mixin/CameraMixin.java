@@ -125,7 +125,9 @@ public abstract class CameraMixin {
 			// His model is taller than he is: the camera up to where his eyes are drawn (not through a ceiling).
 			// The Demogorgon: higher standing, low to the ground on all fours.
 			double lift = dev.halloween.client.MichaelRenderer.demogorgon() ? dev.halloween.client.DemogorgonModel.cameraLift(mc.player.getId())
-				: (dev.halloween.client.MichaelRenderer.TALL - 1f) * mc.player.getEyeHeight();
+				: (dev.halloween.client.MichaelRenderer.TALL - 1f) * mc.player.getEyeHeight()
+				// Vecna floats: his eyes higher still.
+				+ (dev.halloween.client.MichaelRenderer.vecna() ? dev.halloween.client.VecnaModel.LIFT * dev.halloween.client.MichaelRenderer.TALL : 0);
 			Vec3 up = from.add(0, Math.max(0, lift), 0);
 			HitResult roof = mc.level.clip(new ClipContext(from, up, ClipContext.Block.VISUAL, ClipContext.Fluid.NONE, mc.player));
 			from = roof.getType() == HitResult.Type.MISS ? up : from.add(0, Math.max(0, roof.getLocation().y - from.y - 0.15), 0);

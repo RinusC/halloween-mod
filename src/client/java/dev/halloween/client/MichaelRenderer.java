@@ -29,6 +29,13 @@ public final class MichaelRenderer {
 	private static final Identifier TEXTURE = Halloween.id("textures/entity/michael.png");
 	/** The Demogorgon, when he is this match's killer (art/demogorgon.bbmodel, a skeleton of his own: see DemogorgonModel). */
 	private static final Identifier DEMO_TEXTURE = Halloween.id("textures/entity/demogorgon.png");
+	/** Vecna, when he is this match's killer (art/vecna.bbmodel: see VecnaModel). */
+	private static final Identifier VECNA_TEXTURE = Halloween.id("textures/entity/vecna.png");
+	/** What of him glows in the dark: the eyes, the cracks in his skin. */
+	private static final Identifier VECNA_GLOW = Halloween.id("textures/entity/vecna_glow.png");
+	private static VecnaModel vecnaModel;
+	/** For tests: draw this match's killer as Vecna whoever he is. */
+	public static boolean forceVecna;
 	/** 2.1 blocks tall instead of 1.8. */
 	public static final float TALL = 2.1f / 1.8f;
 	/** How much of the arm's raise his wrist takes back, so the knife's point stays down (see mixin.ItemInHandLayerMixin). */
@@ -77,6 +84,13 @@ public final class MichaelRenderer {
 		}
 	}
 
+	private static VecnaModel vecnaModel() {
+		if (vecnaModel == null) {
+			vecnaModel = VecnaModel.load();
+		}
+		return vecnaModel;
+	}
+
 	private static DemogorgonModel demoModel() {
 		if (demoModel == null) {
 			demoModel = DemogorgonModel.load();
@@ -98,7 +112,7 @@ public final class MichaelRenderer {
 
 	/** Is this match's killer Vecna? (Drawn as Michael until he has his own model.) */
 	public static boolean vecna() {
-		return ClientState.killer == 2;
+		return forceVecna || ClientState.killer == 2;
 	}
 
 	/** Is this entity Michael (in a match)? */
@@ -134,6 +148,10 @@ public final class MichaelRenderer {
 		}
 		if (demogorgon()) {
 			// His own skeleton and animations (DemogorgonModel); the player model keeps its pose for his grabs.
+			return;
+		}
+		if (vecna()) {
+			// Vecna too (VecnaModel).
 			return;
 		}
 		// No swinging walk: legs and arms from rest, then his heavy one laid on.
@@ -188,16 +206,22 @@ public final class MichaelRenderer {
 		if (demogorgon()) {
 			demoModel().source = humanoid;
 			m = demoModel();
+		} else if (vecna()) {
+			vecnaModel().source = humanoid;
+			m = vecnaModel();
 		} else {
 			model().source = humanoid;
 			m = model();
 		}
 		// As the player model would be: whole; see-through (invisible, to those who see the invisible); or only his
 		// outline (invisible but glowing).
-		Identifier texture = demogorgon() ? DEMO_TEXTURE : TEXTURE;
+		Identifier texture = demogorgon() ? DEMO_TEXTURE : vecna() ? VECNA_TEXTURE : TEXTURE;
 		net.minecraft.client.renderer.rendertype.RenderType type = tint != -1 ? RenderTypes.entityTranslucentCullItemTarget(texture)
 			: avatar.isInvisible ? RenderTypes.outline(texture) : RenderTypes.entityCutout(texture);
 		collector.submitModel(m, avatar, pose, type, light, overlay, tint, null, outline, null);
+		if (vecna() && !avatar.isInvisible && tint == -1) {
+			collector.submitModel(m, avatar, pose, RenderTypes.entityTranslucentEmissive(VECNA_GLOW), 0xF000F0, overlay, -1, null, 0, null);
+		}
 		return true;
 	}
 }

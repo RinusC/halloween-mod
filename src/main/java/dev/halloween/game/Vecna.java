@@ -294,6 +294,14 @@ public final class Vecna {
 		}
 		tickEyes(v, st);
 		tickAnchor(level, v, st, now);
+		if (now % 3 == 0 && !v.isInvisible()) {
+			// He floats: a dark haze and ash drifting under his feet.
+			level.sendParticles(new net.minecraft.core.particles.DustColorTransitionOptions(0x5A0A10, 0x0A0204, 1.3f), v.getX(), v.getY() + 0.15, v.getZ(), 2, 0.25, 0.08, 0.25, 0);
+			level.sendParticles(ParticleTypes.ASH, v.getX(), v.getY() + 0.3, v.getZ(), 3, 0.3, 0.2, 0.3, 0);
+			if (now % 12 == 0) {
+				level.sendParticles(ParticleTypes.SMOKE, v.getX(), v.getY() + 0.1, v.getZ(), 1, 0.2, 0.02, 0.2, 0.005);
+			}
+		}
 		if (now % 2 == 0) {
 			List<HwNet.CurseMark> marks = new ArrayList<>();
 			if (anchorPhase == ANCHOR_CHOOSING) {

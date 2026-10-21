@@ -31,11 +31,11 @@ public abstract class ItemInHandLayerMixin {
 		}
 	}
 
-	/** The Demogorgon holds nothing in his claws (his arms are his own, not the player model's). */
+	/** The Demogorgon holds nothing in his claws, nor Vecna in his hands (his arms are his own, not the player model's). */
 	@Inject(method = "submitArmWithItem", at = @At("HEAD"), cancellable = true)
 	private void halloween$demoNoItem(ArmedEntityRenderState state, net.minecraft.client.renderer.item.ItemStackRenderState item, net.minecraft.world.item.ItemStack stack,
 		HumanoidArm arm, PoseStack pose, net.minecraft.client.renderer.SubmitNodeCollector collector, int light, CallbackInfo ci) {
-		if (dev.halloween.client.MichaelRenderer.demogorgon() && dev.halloween.client.MichaelRenderer.isMichael(state)) {
+		if ((dev.halloween.client.MichaelRenderer.demogorgon() || dev.halloween.client.MichaelRenderer.vecna()) && dev.halloween.client.MichaelRenderer.isMichael(state)) {
 			ci.cancel();
 		}
 	}
