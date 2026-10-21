@@ -163,6 +163,25 @@ public final class HwNet {
 	}
 
 	/**
+	 * Vecna takes the cursed one (game.VecnaDeath), for everyone: who dies and at whose hand, the game tick it began
+	 * and how long it lasts (the body's pose on every client, the camera for the two of them).
+	 */
+	public record VecnaDeath(int victimId, int vecnaId, long start, int ticks) implements CustomPacketPayload {
+		public static final Type<VecnaDeath> TYPE = payloadType("vecna_death");
+		public static final StreamCodec<RegistryFriendlyByteBuf, VecnaDeath> CODEC = StreamCodec.of((buf, v) -> {
+			buf.writeVarInt(v.victimId);
+			buf.writeVarInt(v.vecnaId);
+			buf.writeLong(v.start);
+			buf.writeVarInt(v.ticks);
+		}, buf -> new VecnaDeath(buf.readVarInt(), buf.readVarInt(), buf.readLong(), buf.readVarInt()));
+
+		@Override
+		public Type<VecnaDeath> type() {
+			return TYPE;
+		}
+	}
+
+	/**
 	 * Vecna's ritual (game.VecnaRitual): how many he has killed towards it and how many it takes before the cursed one
 	 * (only he is told: 0 for the rest), and whether the rift is open (the town gone under), for everyone.
 	 */
@@ -1382,6 +1401,7 @@ public final class HwNet {
 		PayloadTypeRegistry.clientboundPlay().register(VecnaHud.TYPE, VecnaHud.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(CurseHud.TYPE, CurseHud.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(VecnaRitual.TYPE, VecnaRitual.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(VecnaDeath.TYPE, VecnaDeath.CODEC);
 		PayloadTypeRegistry.serverboundPlay().register(VecnaAnchorKey.TYPE, VecnaAnchorKey.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(DemoPose.TYPE, DemoPose.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(DemoHouses.TYPE, DemoHouses.CODEC);

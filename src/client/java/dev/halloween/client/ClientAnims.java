@@ -192,6 +192,10 @@ public final class ClientAnims {
 
 	/** Lays the entity's grab pose over the model's ordinary one. */
 	public static void apply(HumanoidModel<?> m, int entityId) {
+		if (VecnaDeathScene.pose(m, entityId)) {
+			// Vecna taking them: lifted, the bones breaking.
+			return;
+		}
 		if (HeroScene.pose(m, entityId)) {
 			// In their opening scene, at what they do.
 			return;

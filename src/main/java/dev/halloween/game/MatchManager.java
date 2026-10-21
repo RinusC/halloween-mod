@@ -294,6 +294,7 @@ public final class MatchManager {
 		TickTimer.step("Vecna", () -> Vecna.tick(server));
 		TickTimer.step("VecnaCurse", () -> VecnaCurse.tick(server));
 		TickTimer.step("VecnaRitual", () -> VecnaRitual.tick(server));
+		TickTimer.step("VecnaDeath", () -> VecnaDeath.tick(server));
 		TickTimer.step("Birds", () -> Birds.tick(server));
 		TickTimer.step("Panic", () -> Panic.tick(server));
 		TickTimer.step("Stamina", () -> Stamina.tick(server));

@@ -115,7 +115,7 @@ public final class Vecna {
 
 	/** Standing still: looking through the Eyes, or taking shape after the Anchor. */
 	public static boolean rooted() {
-		return active() && (eyesOn != null || anchorPhase == ANCHOR_CHANNEL);
+		return active() && (eyesOn != null || anchorPhase == ANCHOR_CHANNEL || VecnaDeath.active());
 	}
 
 	/** The Grip in flight. */

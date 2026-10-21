@@ -107,6 +107,14 @@ public abstract class CameraMixin {
 			this.setRotation((float) cut[3], (float) cut[4]);
 			return;
 		}
+		// Vecna taking the cursed one: the shot circling them.
+		cut = dev.halloween.client.VecnaDeathScene.camera(partialTicks);
+		if (cut != null) {
+			this.detached = true;
+			this.setPosition(new Vec3(cut[0], cut[1], cut[2]));
+			this.setRotation((float) cut[3], (float) cut[4]);
+			return;
+		}
 		// A kill seen from the side.
 		cut = dev.halloween.client.KillCam.camera(partialTicks);
 		if (cut != null) {

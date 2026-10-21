@@ -15,7 +15,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public class ItemInHandRendererMixin {
 	@Inject(method = "submitHandsWithItems", at = @At("HEAD"), cancellable = true)
 	private void halloween$hands(float frameInterp, PoseStack poseStack, SubmitNodeCollector collector, LocalPlayer player, int lightCoords, CallbackInfo ci) {
-		if (dev.halloween.client.Cutscene.active() && dev.halloween.client.Cutscene.showsBody() || dev.halloween.client.KillCam.active()) {
+		if (dev.halloween.client.Cutscene.active() && dev.halloween.client.Cutscene.showsBody() || dev.halloween.client.KillCam.active() || dev.halloween.client.VecnaDeathScene.cinematic()) {
 			// A scene seen from outside them: no hands in the picture.
 			ci.cancel();
 			return;

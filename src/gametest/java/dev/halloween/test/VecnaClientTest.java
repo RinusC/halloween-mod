@@ -330,8 +330,19 @@ public class VecnaClientTest implements FabricClientGameTest {
 			});
 			ctx.waitTicks(5);
 			ctx.takeScreenshot("vecna_cursed_broken");
-			server.runOnServer(s -> dev.halloween.game.VecnaRitual.testKill(player(s), bot(s)));
-			ctx.waitTicks(10);
+			// He takes them: the scene (lifted, the bones, the eyes), seen as he sees it; the rift opens under them.
+			server.runOnServer(s -> dev.halloween.game.VecnaDeath.testStart(player(s), bot(s)));
+			int shot = 0;
+			for (int at : new int[]{30, 66, 104, 140}) {
+				ctx.waitTicks(at - shot);
+				shot = at;
+				ctx.takeScreenshot("vecna_death_" + at);
+				if (at == 66) {
+					check(ctx.computeOnClient(mc -> dev.halloween.client.VecnaDeathScene.cinematic()), "the scene's shot is his");
+					check(server.computeOnServer(s -> bot(s).getY() > dev.halloween.game.VecnaDeath.HEIGHT * 0.8 + player(s).getY() - 0.5), "the cursed one is lifted");
+				}
+			}
+			ctx.waitTicks(15);
 			check(server.computeOnServer(s -> dev.halloween.game.VecnaRitual.rift() && dev.halloween.game.VecnaRitual.pit() != null), "the cursed one killed last: the rift is open");
 			check(ctx.computeOnClient(mc -> dev.halloween.client.VecnaClient.riftOpen()), "the client lives in the rift");
 			ctx.waitTicks(70);

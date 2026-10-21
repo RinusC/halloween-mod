@@ -392,6 +392,7 @@ public final class Match {
 		Demogorgon.clear(server.overworld());
 		Vecna.clear(server.overworld());
 		VecnaCurse.clear(server);
+		VecnaDeath.clear();
 		VecnaRitual.clear(server);
 		Booths.clear(server.overworld());
 		Nav.setArea(null);

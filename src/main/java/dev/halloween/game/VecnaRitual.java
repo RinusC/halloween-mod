@@ -12,6 +12,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.decoration.Mannequin;
 import net.minecraft.world.phys.AABB;
@@ -32,6 +33,8 @@ public final class VecnaRitual {
 	private static boolean rift;
 	private static int riftAt;
 	private static Mannequin risen;
+	/** How high over the pit the body was when the rift opened (it goes on up from there). */
+	private static double risenFrom;
 
 	private VecnaRitual() {
 	}
@@ -60,7 +63,7 @@ public final class VecnaRitual {
 		int needed = HwConfig.get().vecnaRitualKills;
 		boolean wasCursed = VecnaCurse.cursed(victim);
 		if (wasCursed && kills >= needed) {
-			open(level, v, at);
+			open(level, v, VecnaDeath.floor(level, at));
 			return;
 		}
 		if (wasCursed && victim instanceof ServerPlayer p) {
@@ -90,13 +93,14 @@ public final class VecnaRitual {
 		VecnaCurse.end(level.getServer());
 		// Their body rises over the pit, upright, hanging slack, as his victims do.
 		risen = null;
-		for (Mannequin m : level.getEntitiesOfClass(Mannequin.class, new AABB(at, at).inflate(1.5),
+		for (Mannequin m : level.getEntitiesOfClass(Mannequin.class, new AABB(at, at).inflate(1.5, 4, 1.5),
 			m -> m.entityTags().contains(MatchManager.CORPSE_TAG))) {
 			if (risen == null || m.distanceToSqr(at) < risen.distanceToSqr(at)) {
 				risen = m;
 			}
 		}
 		if (risen != null) {
+			risenFrom = risen.getY() - at.y;
 			risen.setNoGravity(true);
 			risen.setPose(net.minecraft.world.entity.Pose.STANDING);
 			GrabSession.anim(risen, HwNet.Anim.LIMP);
@@ -131,7 +135,7 @@ public final class VecnaRitual {
 		if (rift) {
 			if (risen != null && !risen.isRemoved()) {
 				// Their body risen over the rift, turning slowly.
-				double up = Math.min(1, (now - riftAt) / 60.0) * 2.2 + Math.sin(now * 0.05) * 0.15;
+				double up = Mth.lerp(Math.min(1, (now - riftAt) / 60.0), risenFrom, 2.2) + Math.sin(now * 0.05) * 0.15;
 				risen.teleportTo(pit.x, pit.y + up, pit.z);
 				risen.setYRot((now - riftAt) * 0.6f);
 				risen.setYBodyRot((now - riftAt) * 0.6f);

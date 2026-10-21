@@ -169,6 +169,10 @@ public final class ClientState {
 
 	/** Outline colour the Shape sees for an entity, or -1 for none. */
 	public static int outlineColor(Entity entity) {
+		if (VecnaDeathScene.cinematic()) {
+			// The scene's shot: no outlines in the picture.
+			return -1;
+		}
 		if (entity == Minecraft.getInstance().player && VecnaClient.eyesActive()) {
 			// Vecna looking through someone's eyes sees where he himself stands, through walls.
 			return 0xD02030;
@@ -293,6 +297,7 @@ public final class ClientState {
 		vecna = HwNet.VecnaHud.NONE;
 		curse = HwNet.CurseHud.NONE;
 		ritual = HwNet.VecnaRitual.NONE;
+		VecnaDeathScene.clear();
 		VecnaClient.reset();
 		demoHouses = List.of();
 		NOTICES.clear();

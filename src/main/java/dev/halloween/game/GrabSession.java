@@ -715,6 +715,14 @@ public final class GrabSession {
 
 	private void tickFinisher() {
 		this.finisherTick++;
+		if (this.finisherTick == 1 && Vecna.active() && VecnaCurse.cursed(this.victim) && this.victim instanceof ServerPlayer cursed) {
+			// Vecna and the cursed one: not his usual kill but the scene (VecnaDeath).
+			this.done = true;
+			anim(this.shape, HwNet.Anim.NONE);
+			anim(this.victim, HwNet.Anim.NONE);
+			VecnaDeath.start(this.shape, cursed);
+			return;
+		}
 		if (this.atLocker()) {
 			this.tickLockerFinisher();
 			return;

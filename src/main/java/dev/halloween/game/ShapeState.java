@@ -54,7 +54,7 @@ public final class ShapeState {
 	public int aimTick = -1000;
 
 	public boolean busy() {
-		return this.grab != null || this.recoverTicks > 0 || this.stunnedTicks > 0 || Demogorgon.rooted();
+		return this.grab != null || this.recoverTicks > 0 || this.stunnedTicks > 0 || Demogorgon.rooted() || VecnaDeath.active();
 	}
 
 	public boolean senseActive() {

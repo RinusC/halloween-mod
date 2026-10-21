@@ -40,6 +40,10 @@ public final class HwHud {
 		if (mc.player == null || mc.level == null) {
 			return;
 		}
+		if (VecnaDeathScene.overlay(g, delta)) {
+			// Vecna taking the cursed one, for the two of them.
+			return;
+		}
 		if (KillCam.overlay(g, delta)) {
 			// A kill seen from the side.
 			return;
