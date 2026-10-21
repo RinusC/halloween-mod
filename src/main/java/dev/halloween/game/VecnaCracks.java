@@ -49,7 +49,20 @@ public final class VecnaCracks {
 		Set<Long> used = new HashSet<>();
 		BlockState core = Blocks.SHROOMLIGHT.defaultBlockState();
 		BlockState rot = Blocks.BLACKSTONE.defaultBlockState();
-		// Under a roof (in a house, upstairs): from the nearest open ground outside instead.
+		noGround = 0;
+		tooFar = 0;
+		kept = 0;
+		// The pit always opens right under the body, whatever is there.
+		BlockPos under = BlockPos.containing(center).below();
+		for (int dx = -1; dx <= 1; dx++) {
+			for (int dz = -1; dz <= 1; dz++) {
+				BlockPos p = under.offset(dx, 0, dz);
+				if (!level.getBlockState(p).hasBlockEntity() && used.add(p.asLong())) {
+					PENDING.add(new Cell(p, dx == 0 && dz == 0 || r.nextBoolean() ? core : rot, 0));
+				}
+			}
+		}
+		// Under a roof (in a house, upstairs): the cracks from the nearest open ground outside instead.
 		BlockPos c = openGround(level, BlockPos.containing(center));
 		center = Vec3.atBottomCenterOf(c);
 		// The pit where they meet: a broken burning disc.
@@ -71,7 +84,8 @@ public final class VecnaCracks {
 			crack(level, used, center, angle, radius, 3, 1, r, core, rot);
 		}
 		PENDING.sort((a, b) -> Integer.compare(a.order, b.order));
-		Halloween.LOGGER.info("Vecna: rift cracks of {} cells", PENDING.size());
+		Halloween.LOGGER.info("Vecna: rift cracks of {} cells from {} ({} under the body; left out: {} no open ground, {} too far up or down, {} kept)",
+			PENDING.size(), c, level.getBlockState(under), noGround, tooFar, kept);
 	}
 
 	/** One crack: a meandering walk over the ground, glowing at its heart, rotting at its edges; it splits now and then. */
@@ -142,10 +156,9 @@ public final class VecnaCracks {
 					}
 					int x = from.getX() + dx;
 					int z = from.getZ() + dz;
-					int top = level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z) - 1;
-					BlockPos p = new BlockPos(x, top, z);
-					if (top <= from.getY() + 1 && level.getBlockState(p).isCollisionShapeFullBlock(level, p)) {
-						return p.above();
+					int sy = surface(level, x, from.getY(), z);
+					if (sy != Integer.MIN_VALUE) {
+						return new BlockPos(x, sy + 1, z);
 					}
 				}
 			}
@@ -158,22 +171,45 @@ public final class VecnaCracks {
 		return r.nextFloat() < 0.22f ? Blocks.CRIMSON_NYLIUM.defaultBlockState() : charred;
 	}
 
-	/** The ground's top block at this column near {@code y}, open to the sky (else MIN_VALUE: under a roof). */
+	/** The ground's top block at this column near {@code y}, with no roof over it (else MIN_VALUE). */
 	private static int surface(ServerLevel level, int x, int y, int z) {
 		BlockPos.MutableBlockPos p = new BlockPos.MutableBlockPos();
 		for (int dy = 3; dy >= -4; dy--) {
 			p.set(x, y + dy, z);
 			BlockState s = level.getBlockState(p);
-			if (s.isCollisionShapeFullBlock(level, p) && level.getBlockState(p.above()).getCollisionShape(level, p.above()).isEmpty()) {
-				return level.canSeeSky(p.above()) ? p.getY() : Integer.MIN_VALUE;
+			if (!s.getCollisionShape(level, p).isEmpty() && !s.hasBlockEntity() && level.getBlockState(p.above()).getCollisionShape(level, p.above()).isEmpty()) {
+				return covered(level, p) ? Integer.MIN_VALUE : p.getY();
 			}
 		}
 		return Integer.MIN_VALUE;
 	}
 
+	/** A roof over this ground block: something solid (not a barrier) in the six blocks above it. */
+	private static boolean covered(ServerLevel level, BlockPos ground) {
+		BlockPos.MutableBlockPos p = new BlockPos.MutableBlockPos();
+		for (int dy = 2; dy <= 7; dy++) {
+			p.set(ground.getX(), ground.getY() + dy, ground.getZ());
+			BlockState s = level.getBlockState(p);
+			if (!s.getCollisionShape(level, p).isEmpty() && !s.is(Blocks.BARRIER)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/** Why cells were left out this time (for the log): no ground, too far up or down, taken, already rift or kept. */
+	private static int noGround;
+	private static int tooFar;
+	private static int kept;
+
 	private static void add(ServerLevel level, Set<Long> used, int x, int y, int z, BlockState state, int order, RandomSource r) {
 		int sy = surface(level, x, y, z);
-		if (sy == Integer.MIN_VALUE || Math.abs(sy - y) > 2) {
+		if (sy == Integer.MIN_VALUE) {
+			noGround++;
+			return;
+		}
+		if (Math.abs(sy - y) > 2) {
+			tooFar++;
 			return;
 		}
 		BlockPos p = new BlockPos(x, sy, z);
@@ -182,6 +218,7 @@ public final class VecnaCracks {
 		}
 		BlockState there = level.getBlockState(p);
 		if (there.is(Blocks.SHROOMLIGHT) || there.is(Blocks.CRIMSON_NYLIUM) || there.is(Blocks.BLACKSTONE) || there.hasBlockEntity() || there.is(Blocks.BARRIER)) {
+			kept++;
 			return;
 		}
 		PENDING.add(new Cell(p, state, order));
