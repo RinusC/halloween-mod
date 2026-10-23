@@ -14,12 +14,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 /** Knocked down: the whole body goes over backwards from the feet, and comes up again (see ClientAnims). */
 @Mixin(LivingEntityRenderer.class)
 public abstract class LivingEntityRendererMixin {
-	/** The Runt is drawn as his creature, not as a person (see RuntRenderer). */
+	/** The Runt is drawn as his creature, not as a person (see RuntRenderer); a wolf as the side job's dog (DogRenderer). */
 	@Inject(method = "submit(Lnet/minecraft/client/renderer/entity/state/LivingEntityRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;Lnet/minecraft/client/renderer/state/level/CameraRenderState;)V",
 		at = @At("HEAD"), cancellable = true)
 	private void halloween$runt(LivingEntityRenderState state, PoseStack poseStack, net.minecraft.client.renderer.SubmitNodeCollector collector,
 		net.minecraft.client.renderer.state.level.CameraRenderState camera, CallbackInfo ci) {
-		if (dev.halloween.client.RuntRenderer.submit(state, poseStack, collector)) {
+		if (dev.halloween.client.RuntRenderer.submit(state, poseStack, collector) || dev.halloween.client.DogRenderer.submit(state, poseStack, collector)) {
 			ci.cancel();
 		}
 	}
