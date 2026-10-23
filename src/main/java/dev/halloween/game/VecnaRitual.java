@@ -62,7 +62,7 @@ public final class VecnaRitual {
 		ServerLevel level = v.level();
 		int needed = HwConfig.get().vecnaRitualKills;
 		boolean wasCursed = VecnaCurse.cursed(victim);
-		if (wasCursed) {
+		if (wasCursed && kills >= needed) {
 			open(level, v, VecnaDeath.floor(level, at));
 			return;
 		}

@@ -68,7 +68,7 @@ public final class VecnaDeath {
 		ground = p.position();
 		Vec3 d = v.position().subtract(p.position());
 		yaw = (float) (Math.atan2(-d.x, d.z) * 180 / Math.PI);
-		last = true;
+		last = VecnaRitual.kills() >= HwConfig.get().vecnaRitualKills;
 		t = 0;
 		p.setNoGravity(true);
 		// Everyone watches: nobody moves meanwhile (survivors, the one dying).
