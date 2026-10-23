@@ -28,6 +28,11 @@ dependencies {
 
 	// Fabric API. This is technically optional, but you probably want it anyway.
 	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+
+	// Vivecraft API for VR play, compile only: the mod runs without it. Taken from the game instance,
+	// not downloaded (see vivecraft_jar in gradle.properties).
+	compileOnly files(project.vivecraft_jar)
+	clientCompileOnly files(project.vivecraft_jar)
 }
 
 processResources {
