@@ -17,7 +17,18 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public class VrFogMixin {
 	@Inject(method = "setupFog", at = @At("RETURN"))
 	private void halloween$vrBlack(Camera camera, int renderDistance, DeltaTracker delta, float darken, ClientLevel level, CallbackInfoReturnable<FogData> cir) {
-		float k = VrShots.black(delta.getGameTimeDeltaPartialTick(false));
+		float partial = delta.getGameTimeDeltaPartialTick(false);
+		float[] tint = dev.halloween.client.ClientVr.fogTint(partial);
+		if (tint != null) {
+			// A glare, a daze, a flash: the fog closes in and takes the colour, as much as it says.
+			FogData fog = cir.getReturnValue();
+			float t = tint[0];
+			fog.environmentalStart = Mth.lerp(t, fog.environmentalStart, 0f);
+			fog.environmentalEnd = Mth.lerp(t, fog.environmentalEnd, Math.min(fog.environmentalEnd, tint[4]));
+			fog.skyEnd = Mth.lerp(t, fog.skyEnd, Math.min(fog.skyEnd, tint[4]));
+			fog.color.set(Mth.lerp(t, fog.color.x(), tint[1]), Mth.lerp(t, fog.color.y(), tint[2]), Mth.lerp(t, fog.color.z(), tint[3]), fog.color.w());
+		}
+		float k = VrShots.black(partial);
 		if (k <= 0f) {
 			return;
 		}

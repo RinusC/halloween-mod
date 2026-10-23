@@ -1,6 +1,7 @@
 package dev.halloween.client;
 
 import dev.halloween.Vr;
+import dev.halloween.net.HwNet;
 import net.minecraft.client.Minecraft;
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
@@ -21,6 +22,7 @@ public final class ClientVr {
 	private static long beatAt;
 	private static boolean dub;
 	private static long ticks;
+	private static int lastHurt;
 
 	private ClientVr() {
 	}
@@ -83,6 +85,26 @@ public final class ClientVr {
 		}
 	}
 
+	/**
+	 * What the HUD lays over the whole screen on a monitor, as a tint of the world's fog in the headset: how much (0..1),
+	 * the colour (RGB 0..1) and how near the fog closes in (blocks); null for nothing. The Shape blinded by a flashlight
+	 * (white, close), knocked down (dimmer), a lightning flash in the Upside Down (red).
+	 */
+	public static float @Nullable [] fogTint(float partial) {
+		if (!active()) {
+			return null;
+		}
+		HwNet.ShapeHud hud = ClientState.myRole() == dev.halloween.Role.SHAPE ? ClientState.hud : null;
+		if (hud != null && hud.blind()) {
+			return new float[]{0.9f, 0.96f, 0.95f, 0.92f, 2.5f};
+		}
+		if (hud != null && hud.stunnedTicks() > 0) {
+			return new float[]{0.35f, 0f, 0f, 0f, 24f};
+		}
+		float flash = MichaelRenderer.demogorgon() && ClientState.demo.below() ? ClientUpsideDown.flash(partial) : 0f;
+		return flash > 0.01f ? new float[]{flash * 0.5f, 1f, 0.25f, 0.19f, 64f} : null;
+	}
+
 	/** Buzz the local controller; strength 0..1. */
 	public static void buzz(boolean mainHand, float seconds, float strength) {
 		if (active()) {
@@ -112,6 +134,11 @@ public final class ClientVr {
 			beatAt = ticks + (dub ? Math.round(Mth.lerp(panic, 20f, 6f)) : 4);
 			dub = !dub;
 		}
+		// Hurt: a hard jolt in both hands.
+		if (mc.player != null && mc.player.hurtTime > lastHurt) {
+			both(0.15f, 1f);
+		}
+		lastHurt = mc.player == null ? 0 : mc.player.hurtTime;
 		float[] quake = ClientEvents.quakeShake(mc.level.getGameTime());
 		if (quake != null) {
 			both(0.06f, Mth.clamp((Math.abs(quake[0]) + Math.abs(quake[1])) * 0.5f, 0.1f, 1f));

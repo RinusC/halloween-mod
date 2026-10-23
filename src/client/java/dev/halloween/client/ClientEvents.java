@@ -154,6 +154,11 @@ public final class ClientEvents {
 			int color = color(m.kind());
 			int dist = (int) Math.round(mc.player.position().distanceTo(m.pos()));
 			Component label = Component.translatable("halloween.event.mark." + m.kind(), dist);
+			if (ClientVr.active()) {
+				VrMarks.add(m.pos().add(0, 0.6, 0), "◆", color, 1.4f);
+				VrMarks.add(m.pos().add(0, 0.95, 0), label, color, 1f);
+				continue;
+			}
 			Projection.Point p = Projection.toScreen(m.pos().add(0, 0.6, 0), w, h);
 			if (p != null && p.x() >= 0 && p.x() <= w && p.y() >= 0 && p.y() <= h) {
 				HwHud.diamond(g, (int) p.x(), (int) p.y(), 5, 0xFF0C0C0C);

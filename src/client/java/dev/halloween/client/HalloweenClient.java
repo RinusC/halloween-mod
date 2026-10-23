@@ -67,6 +67,7 @@ public class HalloweenClient implements ClientModInitializer {
 		// In the headset: short buttons for the radial menu, and the hands (see VrKeys, VrHands).
 		VrKeys.register();
 		VrHands.register();
+		VrMarks.register();
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.WorldSync.TYPE, (payload, ctx) -> {
 			ClientState.ROLES.clear();
 			for (HwNet.RoleEntry entry : payload.roles()) {

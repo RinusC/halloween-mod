@@ -15,6 +15,10 @@ public final class Projection {
 	}
 
 	public static Point toScreen(Vec3 world, int guiWidth, int guiHeight) {
+		if (ClientVr.active()) {
+			// In the headset the HUD is a panel before the face: marks go on the world instead (VrMarks).
+			return null;
+		}
 		Camera camera = Minecraft.getInstance().gameRenderer.mainCamera();
 		Vec3 d = world.subtract(camera.position());
 		Vector3fc f = camera.forwardVector();

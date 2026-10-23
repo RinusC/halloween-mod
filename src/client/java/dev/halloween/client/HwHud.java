@@ -40,6 +40,7 @@ public final class HwHud {
 		if (mc.player == null || mc.level == null) {
 			return;
 		}
+		VrMarks.begin();
 		if (VecnaDeathScene.overlay(g, delta)) {
 			// Vecna taking the cursed one, for the two of them.
 			return;
@@ -440,12 +441,16 @@ public final class HwHud {
 
 	/** The Shape's stun meter, knock-down and the flashlight glare. */
 	private static void stunAndBlind(GuiGraphicsExtractor g, Minecraft mc, HwNet.ShapeHud hud, int w, int h) {
-		if (hud.blind()) {
+		// In the headset the glare and the daze are in the world's fog (ClientVr.fogTint), not on the panel.
+		boolean vr = ClientVr.active();
+		if (hud.blind() && !vr) {
 			g.fill(0, 0, w, h, 0xF0F4F2EA);
 			g.fillGradient(0, 0, w, h, 0x00FFFFFF, 0x60E0D8C0);
 		}
 		if (hud.stunnedTicks() > 0) {
-			g.fill(0, 0, w, h, 0x50000000);
+			if (!vr) {
+				g.fill(0, 0, w, h, 0x50000000);
+			}
 			g.pose().pushMatrix();
 			g.pose().translate(w / 2f, h / 2f - 30);
 			g.pose().scale(2f, 2f);
@@ -480,6 +485,10 @@ public final class HwHud {
 
 	/** Shape Jump: tall light beams rising over the victims. */
 	private static void beams(GuiGraphicsExtractor g, HwNet.ShapeHud hud, int w, int h) {
+		if (ClientVr.active()) {
+			hud.beams().forEach(VrMarks::beam);
+			return;
+		}
 		for (Vec3 base : hud.beams()) {
 			Projection.Point bottom = Projection.toScreen(base, w, h);
 			Projection.Point top = Projection.toScreen(base.add(0, 80, 0), w, h);
@@ -509,6 +518,10 @@ public final class HwHud {
 			float age = now - n.at() + partial;
 			int alpha = (int) (220 * Mth.clamp(1 - age / 30f, 0, 1));
 			int color = (alpha << 24) | (n.loud() ? 0xFFE6B0 : 0xC8C8C8);
+			if (ClientVr.active()) {
+				VrMarks.add(n.pos().add(0, 0.3, 0), "◯", color, (n.loud() ? 2.2f : 1.6f) * (1f + age * 0.03f));
+				continue;
+			}
 			Projection.Point p = Projection.toScreen(n.pos().add(0, 0.3, 0), w, h);
 			if (p != null && p.x() >= 0 && p.x() <= w && p.y() >= 0 && p.y() <= h) {
 				float base = (float) Mth.clamp(160 / Math.max(4, p.distance()), 4, 22) * (n.loud() ? 1.4f : 1f);
@@ -534,7 +547,8 @@ public final class HwHud {
 		float flash = ClientUpsideDown.flash(partial);
 		// The vignette, pulsing slowly; a flash of lightning over everything.
 		int pulse = (int) (70 + 30 * Mth.sin((mc.level.getGameTime() + partial) * 0.05f));
-		for (int i = 0; i < 6; i++) {
+		// In the headset: neither (the panel is not the view); the flash reddens the fog instead (ClientVr.fogTint).
+		for (int i = 0; i < (ClientVr.active() ? 0 : 6); i++) {
 			int a = Math.max(0, pulse - i * 12);
 			int edge = (i + 1) * Math.max(w, h) / 36;
 			int c = (a << 24) | 0x3A0006;
@@ -543,7 +557,7 @@ public final class HwHud {
 			g.fill(0, 0, edge, h, c);
 			g.fill(w - edge, 0, w, h, c);
 		}
-		if (flash > 0.01f) {
+		if (flash > 0.01f && !ClientVr.active()) {
 			g.fill(0, 0, w, h, ((int) (flash * 120) << 24) | 0xFF4030);
 		}
 		for (Vec3 heart : ClientUpsideDown.hearts()) {
@@ -562,6 +576,10 @@ public final class HwHud {
 	 * glowing, rings of the beat spreading out from it; through any wall, smaller and dimmer far off.
 	 */
 	private static void heart(GuiGraphicsExtractor g, Vec3 at, int w, int h, float partial) {
+		if (ClientVr.active()) {
+			VrMarks.add(at, "❤", 0xFFC01818, 3.2f * (1f + 0.18f * ClientUpsideDown.beat(partial)));
+			return;
+		}
 		Projection.Point p = Projection.toScreen(at, w, h);
 		if (p == null) {
 			return;
@@ -597,6 +615,10 @@ public final class HwHud {
 		float life = Math.max(1, ClientState.impulseUntil - ClientState.impulseStart);
 		int alpha = (int) (255 * Mth.clamp(1 - age / life, 0, 1));
 		for (Vec3 spot : ClientState.impulseSpots) {
+			if (ClientVr.active()) {
+				VrMarks.add(spot.add(0, 1.5, 0), "◎", (alpha << 24) | (ORANGE & 0xFFFFFF), 2.4f);
+				continue;
+			}
 			Projection.Point p = Projection.toScreen(spot.add(0, 1.5, 0), w, h);
 			if (p == null) {
 				continue;
@@ -619,6 +641,11 @@ public final class HwHud {
 			Vec3 spot = alert.pos().add(0, 1.6, 0);
 			int dist = (int) Math.round(mc.player.position().distanceTo(alert.pos()));
 			Component label = Component.translatable("halloween.hud.alert", dist);
+			if (ClientVr.active()) {
+				VrMarks.add(spot, "!", color, 3f);
+				VrMarks.add(spot.add(0, -0.35, 0), label, color, 1f);
+				continue;
+			}
 			Projection.Point p = Projection.toScreen(spot, w, h);
 			if (p != null && p.x() >= 0 && p.x() <= w && p.y() >= 0 && p.y() <= h) {
 				g.pose().pushMatrix();
@@ -652,6 +679,11 @@ public final class HwHud {
 					if ((info.popped() & 1 << i) != 0) {
 						continue;
 					}
+					if (ClientVr.active()) {
+						float crack = ((info.cracks() >> (i * 6)) & 63) / 63f;
+						VrMarks.add(FocusPoints.get(living, i, partial), "●", crack > 0.01f ? 0xFFDDEEFF : 0xFFF2F2F2, 0.9f + crack);
+						continue;
+					}
 					Projection.Point p = Projection.toScreen(FocusPoints.get(living, i, partial), w, h);
 					if (p != null) {
 						float crack = ((info.cracks() >> (i * 6)) & 63) / 63f;
@@ -660,6 +692,12 @@ public final class HwHud {
 				}
 			}
 			Vec3 head = living.getPosition(partial).add(0, living.getBbHeight() + 0.45, 0);
+			if (ClientVr.active()) {
+				int level = (int) info.stalk();
+				VrMarks.add(head.add(0, 0.25, 0), info.name(), info.marked() ? 0xFFE0261F : 0xFFDDDDDD, 1f);
+				VrMarks.add(head, "◆".repeat(level) + "◇".repeat(Math.max(0, 3 - level)), info.marked() ? 0xFFE0261F : 0xFFF2F2F2, 0.9f);
+				continue;
+			}
 			Projection.Point p = Projection.toScreen(head, w, h);
 			if (p == null) {
 				continue;
@@ -1360,6 +1398,10 @@ public final class HwHud {
 		}
 		if (cursed != null && cursed.stage() >= 4 && vh.anchorPhase() != dev.halloween.game.Vecna.ANCHOR_CHOOSING) {
 			// Broken by the curse: he sees them wherever they are.
+			if (ClientVr.active()) {
+				VrMarks.add(cursed.pos(), Component.literal("◆ ").append(Component.translatable("halloween.hud.vecna.mark", cursed.name(), cursed.stage(),
+					(int) mc.player.position().distanceTo(cursed.pos()))), 0xFFFF6060, 1.1f);
+			}
 			Projection.Point p = Projection.toScreen(cursed.pos(), w, h);
 			if (p != null) {
 				diamond(g, (int) p.x(), (int) p.y(), 5, 0xFF0C0C0C);
@@ -1397,6 +1439,11 @@ public final class HwHud {
 				}
 			}
 			for (HwNet.CurseMark m : vh.marks()) {
+				if (ClientVr.active()) {
+					VrMarks.add(m.pos(), Component.literal("◆ ").append(Component.translatable("halloween.hud.vecna.mark", m.name(), m.stage(),
+						(int) mc.player.position().distanceTo(m.pos()))), m == pick ? 0xFFFF4040 : 0xFF8A3A3A, m == pick ? 1.3f : 1f);
+					continue;
+				}
 				Projection.Point p = Projection.toScreen(m.pos(), w, h);
 				if (p == null) {
 					continue;
@@ -1452,8 +1499,11 @@ public final class HwHud {
 				float sec = (mc.level.getGameTime() % 20 + mc.getDeltaTracker().getGameTimeDeltaPartialTick(false)) / 20f;
 				a = 0.75f + 0.25f * (float) Math.exp(-sec * 6);
 			}
-			g.blit(net.minecraft.client.renderer.RenderPipelines.GUI_TEXTURED, CURSE_VEINS[stage - 1], 0, 0, 0, 0, w, h, 512, 288, 512, 288,
-				net.minecraft.util.ARGB.white(a));
+			if (!ClientVr.active()) {
+				// (In the headset the curse's colour on the world says it; veins on the panel would be a frame round it.)
+				g.blit(net.minecraft.client.renderer.RenderPipelines.GUI_TEXTURED, CURSE_VEINS[stage - 1], 0, 0, 0, 0, w, h, 512, 288, 512, 288,
+					net.minecraft.util.ARGB.white(a));
+			}
 		}
 		int cx = w / 2;
 		int y = 46;
@@ -1551,6 +1601,13 @@ public final class HwHud {
 			return;
 		}
 		Vec3 head = e.getPosition(partial).add(0, e.getBbHeight() + 0.35, 0);
+		if (ClientVr.active()) {
+			VrMarks.add(head, "◆", color, 1f + size * 0.15f);
+			if (label != null) {
+				VrMarks.add(head.add(0, 0.3, 0), label, color, 1f);
+			}
+			return;
+		}
 		Projection.Point p = Projection.toScreen(head, w, h);
 		if (p == null) {
 			return;
