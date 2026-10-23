@@ -22,7 +22,8 @@ import net.minecraft.world.entity.Entity;
  */
 public final class DogRenderer {
 	private static final Identifier TEXTURE = Halloween.id("textures/entity/dog.png");
-		public static float size = 0.82f;
+	/** The model is built a little over life size (16 units a block): drawn at this, about 0.9 blocks at the shoulder. */
+	public static float size = 0.82f;
 	/** For tests: hold a gait (walk speed 0..1) or the growl, whatever the dog does; negative to leave it be. */
 	public static float forceSpeed = -1f;
 	public static float forceGrowl = -1f;
