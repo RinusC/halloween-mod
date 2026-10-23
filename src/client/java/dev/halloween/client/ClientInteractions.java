@@ -78,7 +78,9 @@ public final class ClientInteractions {
 			return false;
 		}
 		BlockState state = mc.level.getBlockState(hit.getBlockPos());
-		return state.getBlock() instanceof DoorBlock || state.getBlock() instanceof dev.halloween.game.LockerBlock || Sight.isGlass(state) || matchObject(mc.level, hit.getBlockPos()) != 0;
+		return state.getBlock() instanceof DoorBlock || state.getBlock() instanceof dev.halloween.game.LockerBlock || Sight.isGlass(state) || matchObject(mc.level, hit.getBlockPos()) != 0
+			// Something to pull down on the run: the click is for it, not for what is in hand.
+			|| ClientState.myRole().survivor() && dev.halloween.game.Obstacles.kindOf(state) != null && mc.player.isSprinting();
 	}
 
 	public static InteractionResult onUseBlock(Player player, Level level, InteractionHand hand, BlockHitResult hit) {

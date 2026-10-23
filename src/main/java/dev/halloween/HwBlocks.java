@@ -42,6 +42,10 @@ public final class HwBlocks {
 	public static final Block BEAR_TRAP = trap("bear_trap", Blocks.IRON_BLOCK);
 	public static final Block TIN_CANS = trap("tin_cans", Blocks.TRIPWIRE);
 
+	/** Pulled down across the way in a chase (see game.Obstacles). */
+	public static final Block DEBRIS = Registry.register(BuiltInRegistries.BLOCK, key("debris"),
+		new dev.halloween.game.DebrisBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.OAK_PLANKS).noCollision().noOcclusion().strength(-1f, 3600000f).setId(key("debris"))));
+
 	private HwBlocks() {
 	}
 

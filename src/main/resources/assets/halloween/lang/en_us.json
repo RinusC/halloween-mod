@@ -853,5 +853,11 @@
 	"key.halloween.vr.orders": "Order the Runt",
 	"key.halloween.vr.perks": "Perks",
 	"key.halloween.vr.gift1": "Gift 1",
-	"key.halloween.vr.gift2": "Gift 2"
+	"key.halloween.vr.gift2": "Gift 2",
+	"halloween.chase.away": "You got away — he lost you",
+	"halloween.chase.lost": "Lost the trail: %s",
+	"halloween.obstacle.slam": "Door in his face!",
+	"halloween.obstacle.slammed": "A door slammed in your face",
+	"block.halloween.debris": "Debris",
+	"halloween.hud.prompt.knock": "%s while running (%s) — pull it down behind you"
 }

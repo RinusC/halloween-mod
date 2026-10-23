@@ -21,6 +21,8 @@ public final class ClientMusic {
 	private static final int FADE = 50;
 	private static final int FADE_LEVEL = 25;
 	private static final int FADE_SILENCE = 15;
+	/** Getting away from him: the chase music cut off, not faded. */
+	private static final int FADE_CUT = 3;
 
 	private static int mood = Music.OFF;
 	private static int variant;
@@ -125,7 +127,7 @@ public final class ClientMusic {
 		if (want == null && current == null) {
 			return;
 		}
-		int fade = mood == Music.SILENT ? FADE_SILENCE : current != null && current.mood == mood ? FADE_LEVEL : FADE;
+		int fade = mood == Music.SILENT ? (variant == 1 ? FADE_CUT : FADE_SILENCE) : current != null && current.mood == mood ? FADE_LEVEL : FADE;
 		if (current != null) {
 			current.fadeTo(0f, fade);
 			FADING.add(current);

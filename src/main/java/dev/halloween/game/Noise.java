@@ -90,8 +90,8 @@ public final class Noise {
 			}
 			double range = running ? (surface != null ? cfg.noiseLoudRunRange : cfg.noiseRunRange) : (surface != null ? cfg.noiseLoudWalkRange : 0);
 			range *= quiet;
-			// The party's music drowns footsteps round it (see Events).
-			if (range <= 0 || now < t.nextBurst || Events.muffled(p.position())) {
+			// The party's music drowns footsteps round it (see Events); just got away, they are not heard (Chase).
+			if (range <= 0 || now < t.nextBurst || Events.muffled(p.position()) || Chase.quiet(p)) {
 				continue;
 			}
 			t.nextBurst = now + cfg.noiseEveryTicks;

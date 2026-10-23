@@ -301,6 +301,8 @@ public final class MatchManager {
 		TickTimer.step("Holds", () -> Holds.tick(server));
 		TickTimer.step("Fight", () -> Fight.tick(server));
 		TickTimer.step("Gear", () -> Gear.tick(server));
+		TickTimer.step("Chase", () -> Chase.tick(server));
+		TickTimer.step("Obstacles", () -> Obstacles.tick(server));
 		TickTimer.step("Music", () -> Music.tick(server));
 		TickTimer.step("DoorLocks", () -> DoorLocks.tick(server));
 		TickTimer.step("Windows", () -> Windows.tick(server));

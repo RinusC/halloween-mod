@@ -239,6 +239,7 @@ public final class Match {
 		arrested = false;
 		Skins.clear();
 		Music.clear();
+		Chase.clear();
 		deputiesUsed = 0;
 		shapeId = shape == null ? null : shape.getUUID();
 		List<BlockPos> spawns = new ArrayList<>(points.list(MapPoints.Type.SPAWN_CIVILIAN));
@@ -372,6 +373,8 @@ public final class Match {
 		Weather.clear(server);
 		Perks.end();
 		Traps.clear(server);
+		Obstacles.clear(server);
+		Chase.clear();
 		Noise.clear();
 		Leftovers.end();
 		Panic.clear();

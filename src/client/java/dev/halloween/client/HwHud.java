@@ -1814,6 +1814,9 @@ public final class HwHud {
 			var base = ClientInteractions.doorBase(mc.level, pos);
 			line = Component.translatable(ClientState.BROKEN_LOCKS.contains(base) ? "halloween.hud.prompt.door_broken"
 				: ClientState.LOCKED_DOORS.contains(base) ? "halloween.hud.prompt.door_locked" : "halloween.hud.prompt.door");
+		} else if (dev.halloween.game.Obstacles.kindOf(state) != null && !ClientState.match.containers().contains(pos)) {
+			// Something to pull down behind you (game.Obstacles).
+			line = Component.translatable("halloween.hud.prompt.knock", mc.options.keyUse.getTranslatedKeyMessage(), mc.options.keySprint.getTranslatedKeyMessage());
 		} else if (dev.halloween.game.Sight.isGlass(state)) {
 			boolean low = mc.player.getHealth() <= mc.player.getMaxHealth() * HwConfig.get().vaultDamageFraction;
 			line = low ? Component.translatable("halloween.hud.prompt.window_low")

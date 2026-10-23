@@ -22,6 +22,8 @@ import net.minecraft.world.phys.Vec3;
  * <li>Survivors: Ambience when all is quiet, Being Stalked when he is close but not after them, Proximity
  * when he comes for them and they have seen him.</li>
  * <li>A kill silences everything for a moment.</li>
+ * <li>Seen by him in a chase (Chase), it is Proximity even without having looked back; getting away from him
+ * cuts the music off at once (a few seconds of silence, then on as before).</li>
  * </ul>
  */
 public final class Music {
@@ -37,6 +39,8 @@ public final class Music {
 	private static final Map<UUID, Integer> SAW_SHAPE = new HashMap<>();
 	private static final Map<UUID, Double> LAST_DISTANCE = new HashMap<>();
 	private static final Map<UUID, Integer> CHASED_UNTIL = new HashMap<>();
+	/** Just got away (Chase): silence, cut off at once, until then. */
+	private static final Map<UUID, Integer> ESCAPED_UNTIL = new HashMap<>();
 	private static int silentUntil;
 
 	private Music() {
@@ -46,6 +50,7 @@ public final class Music {
 		SAW_SHAPE.clear();
 		LAST_DISTANCE.clear();
 		CHASED_UNTIL.clear();
+		ESCAPED_UNTIL.clear();
 		silentUntil = 0;
 	}
 
@@ -85,7 +90,7 @@ public final class Music {
 				LAST_DISTANCE.put(player.getUUID(), dist);
 				boolean coming = before - dist >= 0.25 || dist <= 4;
 				boolean held = MatchManager.isGrabbed(player);
-				if (held || state.shadowTicks == 0 && noticed && dist <= cfg.musicChaseRange && coming) {
+				if (held || state.shadowTicks == 0 && (noticed && coming || Chase.hunted(player)) && dist <= cfg.musicChaseRange) {
 					CHASED_UNTIL.put(player.getUUID(), now + cfg.musicChaseLingerTicks);
 				}
 				chased = state.shadowTicks == 0 && now < CHASED_UNTIL.getOrDefault(player.getUUID(), 0) && dist <= cfg.musicChaseRange + 8 || held;
@@ -93,7 +98,8 @@ public final class Music {
 				shapeChasing |= chased;
 			}
 			if (!Bots.isBot(player)) {
-				moods.put(player.getUUID(), chased ? PROXIMITY * 10 + stunVariant(state) : near ? BEING_STALKED * 10 : AMBIENCE * 10);
+				boolean escaped = !chased && now < ESCAPED_UNTIL.getOrDefault(player.getUUID(), 0);
+				moods.put(player.getUUID(), chased ? PROXIMITY * 10 + stunVariant(state) : escaped ? SILENT * 10 + 1 : near ? BEING_STALKED * 10 : AMBIENCE * 10);
 			}
 		}
 		if (shape != null && !Bots.isBot(shape)) {
@@ -124,6 +130,13 @@ public final class Music {
 			return 4;
 		}
 		return state.stun < 0.34f ? 1 : state.stun < 0.67f ? 2 : 3;
+	}
+
+	/** Got away from him (Chase): the chase music is cut off at once, and silence for a few seconds. */
+	public static void escaped(ServerPlayer player, int now) {
+		CHASED_UNTIL.remove(player.getUUID());
+		SAW_SHAPE.remove(player.getUUID());
+		ESCAPED_UNTIL.put(player.getUUID(), now + 70);
 	}
 
 	/** A player left or joined: send their music afresh. */

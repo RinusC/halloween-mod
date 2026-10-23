@@ -257,7 +257,8 @@ public final class VrHands {
 	/** What a hand can work by touch: doors, windows, lockers, phones, breakers, and the match's own things. */
 	private static boolean touchable(Level level, BlockPos pos, BlockState state) {
 		return state.getBlock() instanceof DoorBlock || state.getBlock() instanceof LockerBlock || Sight.isGlass(state)
-			|| state.is(dev.halloween.HwBlocks.PHONE) || state.is(Blocks.LEVER) || ClientInteractions.matchObject(level, pos) != 0;
+			|| state.is(dev.halloween.HwBlocks.PHONE) || state.is(Blocks.LEVER) || ClientInteractions.matchObject(level, pos) != 0
+			|| dev.halloween.game.Obstacles.kindOf(state) != null && ClientState.myRole().survivor();
 	}
 
 	/** At client start: hand on and close it (Vivecraft's "interact", grip or trigger, while the hand is on something). */

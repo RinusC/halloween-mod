@@ -119,6 +119,8 @@ public class Halloween implements ModInitializer {
 			&& MatchManager.shapeState(sp) != null && MatchManager.shapeState(sp).shadowTicks > 0
 			? net.minecraft.world.InteractionResult.FAIL : net.minecraft.world.InteractionResult.PASS);
 		UseBlockCallback.EVENT.register(LightSystem::onUseBlock);
+		// In a chase: pulling things down behind you, a door in his face (game.Obstacles).
+		UseBlockCallback.EVENT.register(dev.halloween.game.Obstacles::onUse);
 		UseBlockCallback.EVENT.register((player, level, hand, hit) -> !level.isClientSide() && player instanceof net.minecraft.server.level.ServerPlayer sp
 			? dev.halloween.game.Lobby.onUse(sp, hit.getBlockPos()) : net.minecraft.world.InteractionResult.PASS);
 		UseBlockCallback.EVENT.register((player, level, hand, hit) -> {

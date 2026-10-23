@@ -853,5 +853,11 @@
 	"key.halloween.vr.orders": "Приказ уродцу",
 	"key.halloween.vr.perks": "Перки",
 	"key.halloween.vr.gift1": "Дар 1",
-	"key.halloween.vr.gift2": "Дар 2"
+	"key.halloween.vr.gift2": "Дар 2",
+	"halloween.chase.away": "Оторвался — он тебя потерял",
+	"halloween.chase.lost": "Потерял след: %s",
+	"halloween.obstacle.slam": "Дверью в лицо!",
+	"halloween.obstacle.slammed": "Тебе захлопнули дверь в лицо",
+	"block.halloween.debris": "Обломки",
+	"halloween.hud.prompt.knock": "%s на бегу (%s) — опрокинуть за собой"
 }
