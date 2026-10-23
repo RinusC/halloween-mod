@@ -4,8 +4,6 @@ import dev.halloween.Role;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
-import net.minecraft.ChatFormatting;
-import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -15,8 +13,8 @@ import net.minecraft.world.phys.Vec3;
  * Getting away. Once Michael (his player or the bot) has had a survivor in sight close by, they are in a chase, and
  * every moment out of his sight counts towards losing him: about four seconds, sooner crouched or standing still
  * (quiet), later running (footsteps), at once far off. In sight again it drains fast. When it fills, they are
- * clear: "You lost him" for them, their music cut off at once (Music), and for a few seconds their footsteps reach
- * nobody (Noise); he is told he lost the trail.
+ * clear: nothing is said, but their music is cut off at once (Music) and for a few seconds their footsteps reach
+ * nobody (Noise).
  */
 public final class Chase {
 	/** Seen this close, they are in a chase. */
@@ -100,22 +98,16 @@ public final class Chase {
 			}
 			r.lost += rate;
 			if (r.lost >= 1f) {
-				escape(p, shape, r, now);
+				escape(p, r, now);
 			}
 		}
 	}
 
-	private static void escape(ServerPlayer p, ServerPlayer shape, Run r, int now) {
+	private static void escape(ServerPlayer p, Run r, int now) {
 		r.on = false;
 		r.lost = 0f;
 		QUIET_UNTIL.put(p.getUUID(), now + QUIET_TICKS);
 		Music.escaped(p, now);
 		AiStats.add(p, "chase.escaped");
-		if (!Bots.isBot(p)) {
-			p.sendOverlayMessage(Component.translatable("halloween.chase.away").withStyle(ChatFormatting.GREEN));
-		}
-		if (!Bots.isBot(shape)) {
-			shape.sendOverlayMessage(Component.translatable("halloween.chase.lost", p.getDisplayName()).withStyle(ChatFormatting.GRAY));
-		}
 	}
 }

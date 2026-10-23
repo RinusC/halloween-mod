@@ -1,23 +1,18 @@
 package dev.halloween.game;
 
 import dev.halloween.HwBlocks;
-import dev.halloween.HwSounds;
 import dev.halloween.Role;
 import dev.halloween.net.HwNet;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
-import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.particles.BlockParticleOption;
 import net.minecraft.core.particles.ParticleTypes;
-import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -32,9 +27,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.block.DoorBlock;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
@@ -46,23 +39,14 @@ import net.minecraft.world.phys.Vec3;
  * it pulls it down behind them (walking, it is left be: some are searched). It lies across the way (DebrisBlock),
  * where they just ran; the first of Michael's side to run into it stumbles over it, slowed to a crawl for a moment
  * and kicking it aside, loud. Survivors step over it.</li>
- * <li><b>A door in his face.</b> Closing a door on him as he comes through it catches him in the face: dazed for a
- * moment (no blow, no grab, slowed), thrown back a little, and it counts on his stun meter. Each door does it once in
- * a while, and each survivor too.</li>
  * </ul>
  * Everything pulled down is put back when the match ends.
  */
 public final class Obstacles {
 	private static final int STUMBLE_TICKS = 24;
-	private static final int DAZE_TICKS = 26;
-	private static final int DOOR_WAIT = 300;
-	private static final int SLAMMER_WAIT = 160;
-	private static final float SLAM_STUN = 0.2f;
 
 	/** What stood where something was pulled down or now lies, to put back (the first state seen at each place). */
 	private static final Map<BlockPos, BlockState> ORIGINAL = new LinkedHashMap<>();
-	private static final Map<BlockPos, Integer> DOOR_READY = new HashMap<>();
-	private static final Map<UUID, Integer> SLAMMER_READY = new HashMap<>();
 
 	private Obstacles() {
 	}
@@ -88,11 +72,6 @@ public final class Obstacles {
 		}
 		BlockPos pos = hit.getBlockPos();
 		BlockState state = level.getBlockState(pos);
-		if (state.getBlock() instanceof DoorBlock && state.getValue(DoorBlock.OPEN)) {
-			// Closing it: whatever else happens, the door still shuts (vanilla).
-			slam(sp, (ServerLevel) level, state.getValue(DoorBlock.HALF) == DoubleBlockHalf.UPPER ? pos.below() : pos);
-			return InteractionResult.PASS;
-		}
 		DebrisBlock.Kind kind = kindOf(state);
 		if (kind != null && sp.isSprinting() && !Loot.isContainer(pos) && knock(sp, (ServerLevel) level, pos, state, kind)) {
 			return InteractionResult.SUCCESS;
@@ -206,44 +185,6 @@ public final class Obstacles {
 		AiStats.add(shape, "obstacle.stumble");
 	}
 
-	// ---------------------------------------------------------------- the door
-
-	private static void slam(ServerPlayer by, ServerLevel level, BlockPos door) {
-		int now = level.getServer().getTickCount();
-		if (now < DOOR_READY.getOrDefault(door, 0) || now < SLAMMER_READY.getOrDefault(by.getUUID(), 0)) {
-			return;
-		}
-		AABB doorway = new AABB(door).expandTowards(0, 1, 0).inflate(0.35, 0, 0.35);
-		Vec3 center = Vec3.atBottomCenterOf(door);
-		for (ServerPlayer shape : level.players()) {
-			ShapeState st = MatchManager.role(shape) == Role.SHAPE && !shape.isSpectator() ? MatchManager.shapeState(shape) : null;
-			if (st == null || st.shadowTicks > 0 || st.stunnedTicks > 0
-				|| !shape.getBoundingBox().intersects(doorway) && shape.position().distanceTo(center) > 1.2) {
-				continue;
-			}
-			DOOR_READY.put(door, now + DOOR_WAIT);
-			SLAMMER_READY.put(by.getUUID(), now + SLAMMER_WAIT);
-			st.recoverTicks = Math.max(st.recoverTicks, DAZE_TICKS);
-			st.attackCooldown = Math.max(st.attackCooldown, DAZE_TICKS);
-			shape.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, DAZE_TICKS, 4, false, false));
-			// Thrown back out of the doorway, away from whoever shut it.
-			Vec3 away = shape.position().subtract(by.position()).multiply(1, 0, 1);
-			away = away.lengthSqr() < 1e-4 ? shape.getLookAngle().scale(-1).multiply(1, 0, 1) : away;
-			shape.setDeltaMovement(away.normalize().scale(0.45).add(0, 0.1, 0));
-			shape.hurtMarked = true;
-			level.playSound(null, center.x, center.y + 1, center.z, HwSounds.DOOR_HIT, SoundSource.BLOCKS, 1.8f, 0.9f);
-			level.playSound(null, shape.getX(), shape.getY() + 1.6, shape.getZ(), SoundEvents.PLAYER_ATTACK_KNOCKBACK, SoundSource.HOSTILE, 1.4f, 0.6f);
-			level.sendParticles(ParticleTypes.CRIT, shape.getX(), shape.getY() + 1.8, shape.getZ(), 14, 0.25, 0.1, 0.25, 0.05);
-			Fight.stun(shape, SLAM_STUN, by);
-			Notices.send(by, Component.translatable("halloween.obstacle.slam").withStyle(ChatFormatting.GOLD));
-			if (!Bots.isBot(shape)) {
-				shape.sendOverlayMessage(Component.translatable("halloween.obstacle.slammed").withStyle(ChatFormatting.DARK_RED));
-			}
-			AiStats.add(by, "obstacle.slam");
-			return;
-		}
-	}
-
 	/** The match is over: everything pulled down stands where it stood. */
 	public static void clear(MinecraftServer server) {
 		ServerLevel level = server.overworld();
@@ -252,7 +193,5 @@ public final class Obstacles {
 			level.setBlock(back.get(i).getKey(), back.get(i).getValue(), Block.UPDATE_ALL);
 		}
 		ORIGINAL.clear();
-		DOOR_READY.clear();
-		SLAMMER_READY.clear();
 	}
 }
