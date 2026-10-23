@@ -21,11 +21,17 @@ public final class CameraAim {
 	private CameraAim() {
 	}
 
+	/** In the headset the aim is the hand's: where the main controller points, from the hand. */
 	public static Vec3 origin() {
-		return Minecraft.getInstance().gameRenderer.mainCamera().position();
+		dev.halloween.Vr.Ray hand = ClientVr.hand(true);
+		return hand != null ? hand.pos() : Minecraft.getInstance().gameRenderer.mainCamera().position();
 	}
 
 	public static Vec3 direction() {
+		dev.halloween.Vr.Ray hand = ClientVr.hand(true);
+		if (hand != null) {
+			return hand.dir();
+		}
 		Camera camera = Minecraft.getInstance().gameRenderer.mainCamera();
 		Vector3fc f = camera.forwardVector();
 		return new Vec3(f.x(), f.y(), f.z());

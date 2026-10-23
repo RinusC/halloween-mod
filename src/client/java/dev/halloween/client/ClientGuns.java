@@ -7,6 +7,7 @@ import dev.halloween.net.HwNet;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
 import net.minecraft.util.Mth;
+import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.item.ItemStack;
 
 /**
@@ -59,7 +60,14 @@ public final class ClientGuns {
 		}
 		HwConfig cfg = HwConfig.get();
 		ItemStack gun = mc.player.getMainHandItem();
-		ClientPlayNetworking.send(new HwNet.GunFire(mc.player.getYRot(), mc.player.getXRot()));
+		dev.halloween.Vr.Ray hand = ClientVr.hand(true);
+		if (hand != null) {
+			// In the headset the barrel is where the hand points.
+			Vec3 d = hand.dir();
+			ClientPlayNetworking.send(new HwNet.GunFire((float) Math.toDegrees(Math.atan2(-d.x, d.z)), (float) -Math.toDegrees(Math.asin(Mth.clamp(d.y, -1, 1)))));
+		} else {
+			ClientPlayNetworking.send(new HwNet.GunFire(mc.player.getYRot(), mc.player.getXRot()));
+		}
 		ViewArms.trigger(ViewArms.Act.RECOIL);
 		nextShotAt = now + Guns.shotTicks(kind);
 		if (Guns.loaded(gun) > 0 && ClientState.progress.label().isEmpty()) {
@@ -83,7 +91,9 @@ public final class ClientGuns {
 
 	public static void tick(Minecraft mc) {
 		HwItems.Kind kind = heldGun(mc);
-		boolean want = kind != null && mc.gui.screen() == null && mc.options.keyUse.isDown() && !ClientInteractions.aimsAtUsable(mc)
+		// In the headset: aimed when the gun is raised to the eye.
+		boolean raised = ClientVr.active() ? VrHands.gunRaised() : mc.options.keyUse.isDown();
+		boolean want = kind != null && mc.gui.screen() == null && raised && !ClientInteractions.aimsAtUsable(mc)
 			&& !(mc.hitResult instanceof net.minecraft.world.phys.EntityHitResult eh && ClientState.match.npcs().contains(eh.getEntity().getId()));
 		if (want != sentAim) {
 			sentAim = want;

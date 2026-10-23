@@ -45,6 +45,44 @@ public final class ClientVr {
 		return flat.lengthSqr() < 1e-4 ? new Vec3(0, 0, 1) : flat.normalize();
 	}
 
+	/** A hand in the world this tick: where it is and where it points; null without a headset. */
+	public static Vr.@Nullable Ray hand(boolean main) {
+		return active() ? Api.part(main ? VRBodyPart.MAIN_HAND : VRBodyPart.OFF_HAND, true) : null;
+	}
+
+	/** The headset in the world this tick; null without one. */
+	public static Vr.@Nullable Ray head() {
+		return active() ? Api.part(VRBodyPart.HEAD, true) : null;
+	}
+
+	/** A hand in the room (moving about with the stick does not move it): for how fast it swings. */
+	static @Nullable Vec3 roomHand(boolean main) {
+		Vr.Ray ray = active() ? Api.part(main ? VRBodyPart.MAIN_HAND : VRBodyPart.OFF_HAND, false) : null;
+		return ray == null ? null : ray.pos();
+	}
+
+	/** The radial menu's buttons (Vivecraft's own setting, in memory only): ours while in a match role, the player's back after. */
+	static void radial(String @Nullable [] items) {
+		if (Vr.LOADED) {
+			try {
+				Api.radial(items);
+			} catch (Throwable e) {
+				// Another Vivecraft than the one this was made for: the radial menu stays as it was.
+			}
+		}
+	}
+
+	/** Lets go of a key the radial menu holds down (it holds what it presses until pressed again). */
+	static void unhold(net.minecraft.client.KeyMapping key) {
+		if (active()) {
+			try {
+				Api.unhold(key);
+			} catch (Throwable e) {
+				// As above.
+			}
+		}
+	}
+
 	/** Buzz the local controller; strength 0..1. */
 	public static void buzz(boolean mainHand, float seconds, float strength) {
 		if (active()) {
@@ -97,6 +135,40 @@ public final class ClientVr {
 		static void buzz(boolean mainHand, float seconds, float strength) {
 			VRClientAPI.instance().triggerHapticPulse(mainHand ? VRBodyPart.MAIN_HAND : VRBodyPart.OFF_HAND,
 				seconds, 160f, strength, 0f);
+		}
+
+		static Vr.@Nullable Ray part(VRBodyPart part, boolean world) {
+			VRPose pose = world ? VRClientAPI.instance().getPostTickWorldPose() : VRClientAPI.instance().getPostTickRoomPose();
+			if (pose == null) {
+				return null;
+			}
+			var data = pose.getBodyPartData(part);
+			return data == null ? null : new Vr.Ray(data.getPos(), data.getDir());
+		}
+
+		/** The player's own radial buttons, kept while ours are shown. */
+		private static String[] saved;
+
+		static void radial(String @Nullable [] items) {
+			var settings = org.vivecraft.client_vr.ClientDataHolderVR.getInstance().vrSettings;
+			if (items == null) {
+				if (saved != null) {
+					settings.vrRadialItems = saved;
+					saved = null;
+				}
+				return;
+			}
+			if (saved == null) {
+				saved = settings.vrRadialItems;
+			}
+			settings.vrRadialItems = items;
+		}
+
+		static void unhold(net.minecraft.client.KeyMapping key) {
+			var action = org.vivecraft.client_vr.provider.MCVR.get().getInputAction(key);
+			if (action != null && key.isDown()) {
+				action.stopHoldingBinding(2);
+			}
 		}
 	}
 }

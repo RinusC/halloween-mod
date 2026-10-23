@@ -26,7 +26,8 @@
 		"SoundBufferLibraryMixin",
 		"SoundEngineAccessor",
 		"SoundManagerAccessor",
-		"VrFogMixin"
+		"VrFogMixin",
+		"KeyMappingAccessor"
 	],
 	"injectors": {
 		"defaultRequire": 1

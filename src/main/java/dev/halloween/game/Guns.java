@@ -180,12 +180,15 @@ public final class Guns {
 		HwConfig cfg = HwConfig.get();
 		NEXT_SHOT.put(player.getUUID(), now + shotTicks(kind));
 		// Trust the client's aim if it is close to where the server thinks the player looks (it is the newer of the two).
+		// In a headset the gun is in the hand: from there, along where the hand points (not where the eyes look).
+		dev.halloween.Vr.Ray hand = dev.halloween.Vr.hand(player, net.minecraft.world.InteractionHand.MAIN_HAND);
+		Vec3 seen = hand != null ? hand.dir() : player.getViewVector(1f);
 		Vec3 look = Vec3.directionFromRotation(pitch, yaw);
-		if (Math.toDegrees(Math.acos(Mth.clamp(look.dot(player.getViewVector(1f)), -1, 1))) > 25) {
-			look = player.getViewVector(1f);
+		if (Math.toDegrees(Math.acos(Mth.clamp(look.dot(seen), -1, 1))) > 25) {
+			look = seen;
 		}
 		AiStats.add(player, "shot." + kind.key());
-		shoot(player, kind, player.getEyePosition(), look, spread(player, kind, aiming(player)), player);
+		shoot(player, kind, hand != null ? hand.pos() : player.getEyePosition(), look, spread(player, kind, aiming(player)), player);
 	}
 
 	/** R with a gun in hand: load what the pockets have. */

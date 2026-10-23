@@ -84,7 +84,7 @@ public final class VecnaClient {
 
 	/** In place of the Impulse press: the Anchor key down and up (true while consumed here). */
 	static void tickAnchorKey(Minecraft mc) {
-		boolean held = HalloweenClient.KEY_IMPULSE.isDown() && mc.gui.screen() == null;
+		boolean held = HalloweenClient.down(HalloweenClient.KEY_IMPULSE) && mc.gui.screen() == null;
 		if (held != sentAnchor) {
 			sentAnchor = held;
 			ClientPlayNetworking.send(new HwNet.VecnaAnchorKey(held));

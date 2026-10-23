@@ -64,6 +64,9 @@ public class HalloweenClient implements ClientModInitializer {
 		net.fabricmc.fabric.api.client.particle.v1.ParticleProviderRegistry.getInstance().register(dev.halloween.HwParticles.BLOOD_POOL, BloodParticles.PoolProvider::new);
 		net.fabricmc.fabric.api.client.particle.v1.ParticleProviderRegistry.getInstance().register(dev.halloween.HwParticles.BLOOD_DRIP, BloodParticles.DripProvider::new);
 		VecnaParticles.register();
+		// In the headset: short buttons for the radial menu, and the hands (see VrKeys, VrHands).
+		VrKeys.register();
+		VrHands.register();
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.WorldSync.TYPE, (payload, ctx) -> {
 			ClientState.ROLES.clear();
 			for (HwNet.RoleEntry entry : payload.roles()) {
@@ -243,7 +246,7 @@ public class HalloweenClient implements ClientModInitializer {
 		if (ClientState.myRole() != Role.SHAPE) {
 			return false;
 		}
-		if (KEY_SENSE.isDown() && !MichaelRenderer.demogorgon() && !MichaelRenderer.vecna()) {
+		if (down(KEY_SENSE) && !MichaelRenderer.demogorgon() && !MichaelRenderer.vecna()) {
 			return true;
 		}
 		LivingEntity picked = CameraAim.pickLiving(HwConfig.get().grabRange);
@@ -274,6 +277,8 @@ public class HalloweenClient implements ClientModInitializer {
 		}
 		HeroScene.tick(mc);
 		ClientVr.tick(mc);
+		VrKeys.tick(mc);
+		VrHands.tick(mc);
 		ClientInteractions.tick(mc);
 		ShapeJumpAudio.tick(mc);
 		BloodParticles.tick(mc);
@@ -293,8 +298,8 @@ public class HalloweenClient implements ClientModInitializer {
 		// Michael from behind; the Runt too while it rides somebody's back (then straight back to its own eyes).
 		boolean riding = role == Role.RUNT && ClientState.runtHud != null && ClientState.runtHud.holding() > 0;
 		CameraType wanted = role == Role.SHAPE || riding ? CameraType.THIRD_PERSON_BACK : CameraType.FIRST_PERSON;
-		if (VecnaClient.eyesActive()) {
-			// Vecna's Eyes: through theirs.
+		if (VecnaClient.eyesActive() || ClientVr.active()) {
+			// Vecna's Eyes: through theirs. In the headset always one's own eyes.
 			wanted = CameraType.FIRST_PERSON;
 		}
 		if (role != Role.NONE && mc.options.getCameraType() != wanted) {
@@ -348,6 +353,15 @@ public class HalloweenClient implements ClientModInitializer {
 		if (held != null && held.melee() || mc.player.isInvisible()) {
 			return false;
 		}
+		shove(mc);
+		return false;
+	}
+
+	/** A survivor's shove (the left click with empty hands, or both hands thrust out in the headset). */
+	static void shove(Minecraft mc) {
+		if (mc.player.isInvisible()) {
+			return;
+		}
 		ClientPlayNetworking.send(new HwNet.ActionPress(HwNet.Action.PUSH));
 		ViewArms.trigger(ViewArms.Act.SHOVE);
 		// The cooldown on screen starts only when the Shape was really in reach.
@@ -356,7 +370,11 @@ public class HalloweenClient implements ClientModInitializer {
 			&& mc.player.getEyePosition().distanceTo(shape.getBoundingBox().getCenter()) <= HwConfig.get().survivorPushRange + 0.5) {
 			ClientState.pushReadyAt = mc.level.getGameTime() + HwConfig.get().survivorPushCooldownTicks;
 		}
-		return false;
+	}
+
+	/** A key held down: on the keyboard, by a VR button, or by a gesture standing for it. */
+	static boolean down(KeyMapping key) {
+		return key.isDown() || VrKeys.held(key) || VrHands.holds(key);
 	}
 
 	private static final boolean[] PICK_KEYS_DOWN = new boolean[2];
@@ -435,7 +453,7 @@ public class HalloweenClient implements ClientModInitializer {
 		mc.player.setSprinting(false);
 
 		// (The Demogorgon has no Killer Sense: he follows blood.)
-		boolean sense = KEY_SENSE.isDown() && !screenOpen && !MichaelRenderer.demogorgon();
+		boolean sense = down(KEY_SENSE) && !screenOpen && !MichaelRenderer.demogorgon();
 		boolean focus = sense && mc.options.keyUse.isDown();
 		if (sense != sentSense || focus != sentFocus) {
 			sentSense = sense;
@@ -465,8 +483,16 @@ public class HalloweenClient implements ClientModInitializer {
 				ClientPlayNetworking.send(new HwNet.ActionPress(HwNet.Action.QTE_PRESS));
 			}
 			chargeTicks = 0;
+		} else if (VrHands.killerSwing(mc, attackDown) instanceof VrHands.Swing swing) {
+			// In the headset: the blow is the swing of the hand, heavy when the trigger was held long enough first.
+			boolean heavy = attackDown && chargeTicks >= cfg.heavyChargeTicks;
+			mc.player.swing(InteractionHand.MAIN_HAND);
+			ClientPlayNetworking.send(new HwNet.ShapeAttack(swing.target() == null ? -1 : swing.target().getId(), heavy));
+			chargeTicks = 0;
 		} else if (attackDown) {
 			chargeTicks++;
+		} else if (attackWasDown && VrHands.swallowRelease()) {
+			chargeTicks = 0;
 		} else if (attackWasDown && chargeTicks > 0) {
 			boolean heavy = chargeTicks >= cfg.heavyChargeTicks;
 			// Hit whatever is under the reticle (centre of the screen), not what the eyes point at.

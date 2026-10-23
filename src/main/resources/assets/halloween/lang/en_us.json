@@ -838,5 +838,20 @@
 	"halloween.msg.curse.vecna_broken": "%s is broken: you see them everywhere",
 	"halloween.msg.curse.vecna_chosen": "Your curse fell on %s",
 	"halloween.msg.curse.vecna_passed": "The curse passed to %s",
-	"halloween.msg.ritual.ready": "The ritual is ready: now the cursed one"
+	"halloween.msg.ritual.ready": "The ritual is ready: now the cursed one",
+	"key.category.halloween.vr": "Halloween — VR",
+	"key.halloween.vr.dash": "Dash",
+	"key.halloween.vr.sense": "Killer Sense",
+	"key.halloween.vr.grip": "Grip",
+	"key.halloween.vr.reload": "Reload",
+	"key.halloween.vr.shape_jump": "Shape Jump",
+	"key.halloween.vr.upside_down": "Upside Down",
+	"key.halloween.vr.eyes": "Eyes",
+	"key.halloween.vr.runt_swap": "Swap with Michael",
+	"key.halloween.vr.impulse": "Impulse",
+	"key.halloween.vr.anchor": "Anchor",
+	"key.halloween.vr.orders": "Order the Runt",
+	"key.halloween.vr.perks": "Perks",
+	"key.halloween.vr.gift1": "Gift 1",
+	"key.halloween.vr.gift2": "Gift 2"
 }

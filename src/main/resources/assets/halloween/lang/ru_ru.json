@@ -838,5 +838,20 @@
 	"halloween.msg.curse.vecna_broken": "%s сломлен: ты видишь его повсюду",
 	"halloween.msg.curse.vecna_chosen": "Твоё проклятие легло на %s",
 	"halloween.msg.curse.vecna_passed": "Проклятие перешло на %s",
-	"halloween.msg.ritual.ready": "Ритуал готов: теперь — проклятый"
+	"halloween.msg.ritual.ready": "Ритуал готов: теперь — проклятый",
+	"key.category.halloween.vr": "Halloween — VR",
+	"key.halloween.vr.dash": "Рывок",
+	"key.halloween.vr.sense": "Чутьё",
+	"key.halloween.vr.grip": "Хватка",
+	"key.halloween.vr.reload": "Перезарядка",
+	"key.halloween.vr.shape_jump": "Поступь",
+	"key.halloween.vr.upside_down": "Изнанка",
+	"key.halloween.vr.eyes": "Глаза",
+	"key.halloween.vr.runt_swap": "Обмен с Майклом",
+	"key.halloween.vr.impulse": "Импульс",
+	"key.halloween.vr.anchor": "Якорь",
+	"key.halloween.vr.orders": "Приказ уродцу",
+	"key.halloween.vr.perks": "Перки",
+	"key.halloween.vr.gift1": "Дар 1",
+	"key.halloween.vr.gift2": "Дар 2"
 }
