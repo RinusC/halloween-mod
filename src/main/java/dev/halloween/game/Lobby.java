@@ -185,7 +185,7 @@ public final class Lobby extends SavedData {
 			p.setGameMode(GameType.ADVENTURE);
 		}
 		Vec3 at = spawn(o);
-		p.teleportTo(p.level().getServer().overworld(), at.x, at.y, at.z, Set.of(), 0f, 0f, false);
+		dev.halloween.Vr.place(p, p.level().getServer().overworld(), at.x, at.y, at.z, Set.of(), 0f, 0f);
 		p.setHealth(p.getMaxHealth());
 		p.getFoodData().setFoodLevel(20);
 		ShootingRange.stripGuns(p);
@@ -382,7 +382,7 @@ public final class Lobby extends SavedData {
 				BlockPos next = course.pads.get(Math.min(pad + 1, course.pads.size() - 1)).pos();
 				BlockPos from = course.pads.get(pad).pos();
 				float yaw = (float) (Mth.atan2(-(next.getX() - from.getX()), next.getZ() - from.getZ()) * Mth.RAD_TO_DEG);
-				p.teleportTo(server.overworld(), at.getX() + 0.5, at.getY() + 1, at.getZ() + 0.5, Set.of(), yaw, 10f, false);
+				dev.halloween.Vr.place(p, server.overworld(), at.getX() + 0.5, at.getY() + 1, at.getZ() + 0.5, Set.of(), yaw, 10f);
 				Notices.send(p, Component.translatable(run.checkpoint < 0 ? "halloween.lobby.parkour_fell" : "halloween.lobby.parkour_back").withStyle(ChatFormatting.GRAY));
 				if (run.checkpoint < 0) {
 					run.startTick = -1;

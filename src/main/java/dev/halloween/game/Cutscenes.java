@@ -152,7 +152,7 @@ public final class Cutscenes {
 			to = to.scale(-1);
 		}
 		float yaw = (float) Math.toDegrees(Math.atan2(-to.x, to.z));
-		p.teleportTo(level, at.x, at.y, at.z, java.util.Set.of(), yaw, 0f, false);
+		dev.halloween.Vr.place(p, level, at.x, at.y, at.z, java.util.Set.of(), yaw, 0f);
 	}
 
 	/** Bob and Eric: by a car (one of the cars on the map), Eric at its front, Bob leaning by its side. */
@@ -190,7 +190,7 @@ public final class Cutscenes {
 		Vec3 at = Vec3.atBottomCenterOf(stand);
 		Vec3 to = Vec3.atBottomCenterOf(best).subtract(at);
 		float yaw = (float) Math.toDegrees(Math.atan2(-to.x, to.z));
-		p.teleportTo(level, at.x, at.y, at.z, java.util.Set.of(), yaw, 0f, false);
+		dev.halloween.Vr.place(p, level, at.x, at.y, at.z, java.util.Set.of(), yaw, 0f);
 	}
 
 	/** Which of the survivors' scenes this player gets (their look), or -1. */
@@ -287,7 +287,7 @@ public final class Cutscenes {
 					// Too far for his screen to have that part of town: he waits out the countdown there himself, unseen, and is
 					// back in his lair when it starts.
 					shapeHome = new Home(shape, shape.position(), shape.getYRot());
-					shape.teleportTo(level, start.x, start.y - shape.getEyeHeight(), start.z, java.util.Set.of(), shape.getYRot(), 0f, false);
+					dev.halloween.Vr.place(shape, level, start.x, start.y - shape.getEyeHeight(), start.z, java.util.Set.of(), shape.getYRot(), 0f);
 					shape.setInvisible(true);
 				}
 				return new HwNet.Cutscene(SHAPE_HERO + heroOf(t), ticks, start, end, eye);
@@ -308,7 +308,7 @@ public final class Cutscenes {
 			Home h = shapeHome;
 			shapeHome = null;
 			if (!h.who().isRemoved()) {
-				h.who().teleportTo(h.who().level(), h.at().x, h.at().y, h.at().z, java.util.Set.of(), h.yaw(), 0f, false);
+				dev.halloween.Vr.place(h.who(), h.who().level(), h.at().x, h.at().y, h.at().z, java.util.Set.of(), h.yaw(), 0f);
 				h.who().setInvisible(false);
 			}
 		}

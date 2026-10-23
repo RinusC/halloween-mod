@@ -293,6 +293,15 @@ public final class HeroScene {
 		return new double[]{pos.x, pos.y, pos.z, yaw, pitch};
 	}
 
+	/** Their own scene in the headset (VrShots): one still shot of them a few steps off, then black into their own eyes. */
+	static VrShots.Shot vrShot(float f, float partial) {
+		if (f >= 0.86f) {
+			return VrShots.Shot.own(VrShots.fadeIn(f, 0.86f, 0.05f));
+		}
+		Vec3 eye = Minecraft.getInstance().player.getEyePosition(partial);
+		return new VrShots.Shot(1, eye.add(0, -0.15, 0), 3.0, 0.15, VrShots.cut(f, 0f, 0.86f, 0.05f), true);
+	}
+
 	private static float[] lookAt(Vec3 from, Vec3 to) {
 		Vec3 d = to.subtract(from);
 		return new float[]{(float) Math.toDegrees(Math.atan2(-d.x, d.z)), (float) -Math.toDegrees(Math.atan2(d.y, Math.sqrt(d.x * d.x + d.z * d.z)))};
@@ -302,8 +311,10 @@ public final class HeroScene {
 	static void overlay(GuiGraphicsExtractor g, Minecraft mc, float f) {
 		int w = g.guiWidth();
 		int h = g.guiHeight();
+		// In the headset only the titles (see Cutscene.overlay).
+		boolean vr = ClientVr.active();
 		float bars = f < 0.88f ? 1f : 1f - (f - 0.88f) / 0.12f;
-		int bar = Math.round(h * 0.11f * bars);
+		int bar = vr ? 0 : Math.round(h * 0.11f * bars);
 		g.fill(0, 0, w, bar, 0xFF000000);
 		g.fill(0, h - bar, w, h, 0xFF000000);
 		String name = Skins.SURVIVORS.get(Math.max(0, hero));
@@ -319,7 +330,7 @@ public final class HeroScene {
 		if (t3 > 0) {
 			Cutscene.bigText(g, mc, Component.translatable("halloween.cutscene.survivor"), w / 2, h - bar - 14, 1.0f, Cutscene.alpha(t3, 0xE8E2D4));
 		}
-		if (f < 0.05f) {
+		if (f < 0.05f && !vr) {
 			g.fill(0, 0, w, h, Cutscene.alpha(1 - f / 0.05f, 0x000000));
 		}
 	}

@@ -134,6 +134,35 @@ public final class Cutscene {
 		return new double[]{pos.x, pos.y, pos.z, yaw, pitch};
 	}
 
+	/**
+	 * The scene in the headset (VrShots): still shots, black between them. Michael stands at the window at once (no
+	 * walk up); survivors see the town from high up, then themselves outside their house, then their own eyes.
+	 */
+	static VrShots.Shot vrShot(float partial) {
+		float f = progress(partial);
+		if (f < 0) {
+			return null;
+		}
+		if (scene.kind() >= Cutscenes.HERO) {
+			return HeroScene.vrShot(f, partial);
+		}
+		if (scene.kind() == Cutscenes.SHAPE) {
+			float black = f < 0.05f ? 1 - f / 0.05f : f < 0.84f ? 0 : f < 0.92f ? (f - 0.84f) / 0.08f : 1 - (f - 0.92f) / 0.08f;
+			if (f >= 0.92f) {
+				return VrShots.Shot.own(black);
+			}
+			Vec3 to = scene.c().subtract(scene.b());
+			return new VrShots.Shot(1, scene.c(), Math.sqrt(to.x * to.x + to.z * to.z), -to.y, black, false);
+		}
+		if (f < 0.45f) {
+			return new VrShots.Shot(1, focus, 40, 22, VrShots.cut(f, 0f, 0.45f, 0.05f), false);
+		}
+		if (f < TIMES[2]) {
+			return new VrShots.Shot(2, focus, 5.5, 1.4, VrShots.cut(f, 0.45f, TIMES[2], 0.04f), true);
+		}
+		return VrShots.Shot.own(VrShots.fadeIn(f, TIMES[2], 0.05f));
+	}
+
 	private static void planFlight(Minecraft mc, Vec3 center) {
 		Vec3 eye = mc.player.getEyePosition();
 		Vec3 away = eye.subtract(center).multiply(1, 0, 1);
@@ -204,13 +233,17 @@ public final class Cutscene {
 		}
 		int w = g.guiWidth();
 		int h = g.guiHeight();
+		// In the headset only the titles: bars and black fills would hang before the face (the fog blacks the world).
+		boolean vr = ClientVr.active();
 		if (scene.kind() == Cutscenes.SHAPE) {
 			if (f < 0.92f) {
 				// Letterboxed, a dark vignette round the edges: a film shot through his eyes.
-				int bar = Math.round(h * 0.11f);
-				g.fill(0, 0, w, bar, 0xFF000000);
-				g.fill(0, h - bar, w, h, 0xFF000000);
-				vignette(g, w, h, bar);
+				int bar = vr ? 0 : Math.round(h * 0.11f);
+				if (!vr) {
+					g.fill(0, 0, w, bar, 0xFF000000);
+					g.fill(0, h - bar, w, h, 0xFF000000);
+					vignette(g, w, h, bar);
+				}
 				float title = fade(f, 0.32f, 0.8f, 0.06f);
 				if (title > 0) {
 					bigText(g, mc, Component.translatable("halloween.cutscene.shape"), w / 2, h * 3 / 4, 1.6f, alpha(title, 0xB01818));
@@ -218,12 +251,14 @@ public final class Cutscene {
 			}
 			// Black between the mask and his own eyes.
 			float black = f < 0.05f ? 1 - f / 0.05f : f < 0.84f ? 0 : f < 0.92f ? (f - 0.84f) / 0.08f : 1 - (f - 0.92f) / 0.08f;
-			g.fill(0, 0, w, h, alpha(Mth.clamp(black, 0, 1), 0x000000));
+			if (!vr) {
+				g.fill(0, 0, w, h, alpha(Mth.clamp(black, 0, 1), 0x000000));
+			}
 			return true;
 		}
 		// Letterbox, drawing back as the camera drops into their eyes.
 		float bars = f < 0.9f ? 1f : 1f - (f - 0.9f) / 0.1f;
-		int bar = Math.round(h * 0.11f * bars);
+		int bar = vr ? 0 : Math.round(h * 0.11f * bars);
 		g.fill(0, 0, w, bar, 0xFF000000);
 		g.fill(0, h - bar, w, h, 0xFF000000);
 		float t1 = fade(f, 0.08f, 0.45f, 0.06f);
@@ -235,7 +270,7 @@ public final class Cutscene {
 		if (t2 > 0) {
 			bigText(g, mc, Component.translatable("halloween.cutscene.survivor"), w / 2, h - bar - 22, 1.0f, alpha(t2, 0xE8E2D4));
 		}
-		if (f < 0.06f) {
+		if (f < 0.06f && !vr) {
 			g.fill(0, 0, w, h, alpha(1 - f / 0.06f, 0x000000));
 		}
 		return true;

@@ -648,7 +648,7 @@ public final class Runt {
 		}
 		// On their back, clinging.
 		Vec3 back = v.position().subtract(v.getLookAngle().multiply(1, 0, 1).normalize().scale(0.45));
-		runt.teleportTo(runt.level(), back.x, v.getY() + 0.8, back.z, java.util.Set.of(), v.getYRot(), 35f, false);
+		dev.halloween.Vr.place(runt, runt.level(), back.x, v.getY() + 0.8, back.z, java.util.Set.of(), v.getYRot(), 35f);
 		if (now % 20 == 0 && v instanceof ServerPlayer p) {
 			Panic.add(p, 0.03f);
 		}
@@ -680,7 +680,7 @@ public final class Runt {
 			}
 			// Off their back onto the ground behind.
 			Vec3 behind = v.position().subtract(v.getLookAngle().multiply(1, 0, 1).normalize().scale(0.9));
-			runt.teleportTo(runt.level(), behind.x, v.getY(), behind.z, java.util.Set.of(), runt.getYRot(), 0f, false);
+			dev.halloween.Vr.place(runt, runt.level(), behind.x, v.getY(), behind.z, java.util.Set.of(), runt.getYRot(), 0f);
 		}
 		if (cooldown) {
 			s.scareCooldown = s.scareCooldownMax = Math.max(s.scareCooldown, HwConfig.get().runtHoldCooldownTicks);
@@ -867,8 +867,8 @@ public final class Runt {
 		Vec3 b = shape.position();
 		float ya = runt.getYRot();
 		float yb = shape.getYRot();
-		runt.teleportTo(level, b.x, b.y, b.z, java.util.Set.of(), yb, 0f, false);
-		shape.teleportTo(level, a.x, a.y, a.z, java.util.Set.of(), ya, 0f, false);
+		dev.halloween.Vr.place(runt, level, b.x, b.y, b.z, java.util.Set.of(), yb, 0f);
+		dev.halloween.Vr.place(shape, level, a.x, a.y, a.z, java.util.Set.of(), ya, 0f);
 		for (Vec3 at : new Vec3[]{a, b}) {
 			level.sendParticles(ParticleTypes.SMOKE, at.x, at.y + 1, at.z, 30, 0.3, 0.6, 0.3, 0.01);
 			level.playSound(null, at.x, at.y, at.z, SoundEvents.ILLUSIONER_MIRROR_MOVE, SoundSource.HOSTILE, 0.7f, 0.6f);

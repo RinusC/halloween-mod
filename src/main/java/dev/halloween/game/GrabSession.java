@@ -173,7 +173,7 @@ public final class GrabSession {
 		spot = new Vec3(spot.x, this.shape.getY(), spot.z);
 		this.shapeSpot = level.noCollision(this.shape, this.shape.getBoundingBox().move(spot.subtract(this.shape.position()))) ? spot : this.shape.position();
 		this.pinYaw = this.lockerFacing.getOpposite().toYRot();
-		this.shape.teleportTo(level, this.shapeSpot.x, this.shapeSpot.y, this.shapeSpot.z, Set.of(), this.pinYaw, 10f, false);
+		dev.halloween.Vr.place(this.shape, level, this.shapeSpot.x, this.shapeSpot.y, this.shapeSpot.z, Set.of(), this.pinYaw, 10f);
 		this.sceneTick = 0;
 		// Caught hiding: as good as stalked to the second level (harder to tear free).
 		this.victimState.stalk = Math.max(this.victimState.stalk, 2f);
@@ -267,7 +267,7 @@ public final class GrabSession {
 					Math.max(v.x, head.x) + 0.3, v.y + 0.6, Math.max(v.z, head.z) + 0.3);
 				if (level.noCollision(this.shape, this.shape.getBoundingBox().move(stand.subtract(this.shape.position()))) && level.noCollision(body)) {
 					this.pinYaw = (float) Math.toDegrees(Math.atan2(-d.x, d.z));
-					this.shape.teleportTo(level, stand.x, stand.y, stand.z, Set.of(Relative.X_ROT), this.pinYaw, 0f, false);
+					dev.halloween.Vr.place(this.shape, level, stand.x, stand.y, stand.z, Set.of(Relative.X_ROT), this.pinYaw, 0f);
 					this.shapeSpot = stand;
 					feet = v;
 					break;
@@ -311,7 +311,7 @@ public final class GrabSession {
 	/** Michael doesn't leave the wardrobe: held where he stands (he may look about). */
 	private void holdShape() {
 		if (this.shape.position().distanceToSqr(this.shapeSpot) > 0.0025) {
-			this.shape.teleportTo(this.level(), this.shapeSpot.x, this.shapeSpot.y, this.shapeSpot.z, Set.of(Relative.X_ROT, Relative.Y_ROT), 0f, 0f, false);
+			dev.halloween.Vr.place(this.shape, this.level(), this.shapeSpot.x, this.shapeSpot.y, this.shapeSpot.z, Set.of(Relative.X_ROT, Relative.Y_ROT), 0f, 0f);
 		}
 		this.shape.setDeltaMovement(Vec3.ZERO);
 	}
@@ -777,12 +777,12 @@ public final class GrabSession {
 			this.throwDir = d.lengthSqr() < 1e-4 ? this.shape.getLookAngle().multiply(1, 0, 1).normalize() : d.normalize();
 			// Turned to the window, the one he holds before him.
 			float yaw = (float) Math.toDegrees(Math.atan2(-this.throwDir.x, this.throwDir.z));
-			this.shape.teleportTo(level, this.shape.getX(), this.shape.getY(), this.shape.getZ(), Set.of(Relative.X_ROT), yaw, 0f, false);
+			dev.halloween.Vr.place(this.shape, level, this.shape.getX(), this.shape.getY(), this.shape.getZ(), Set.of(Relative.X_ROT), yaw, 0f);
 		}
 		if (t > 1 && t <= this.flingAt() && t % 2 == 0 && this.throwDir != null) {
 			// Kept turned to the window through it all (whatever the player does with the mouse meanwhile).
 			float yaw = (float) Math.toDegrees(Math.atan2(-this.throwDir.x, this.throwDir.z));
-			this.shape.teleportTo(level, this.shape.getX(), this.shape.getY(), this.shape.getZ(), Set.of(Relative.X_ROT), yaw, 0f, false);
+			dev.halloween.Vr.place(this.shape, level, this.shape.getX(), this.shape.getY(), this.shape.getZ(), Set.of(Relative.X_ROT), yaw, 0f);
 		}
 		if (demo ? t == 6 || t == 12 || t == 18 : t == 8) {
 			this.stabEffects();
@@ -992,7 +992,7 @@ public final class GrabSession {
 				this.placeVictim(x, this.shape.getY(), z, victimYaw);
 				this.lastGood = this.shape.position();
 			} else if (this.lastGood != null && this.shape.position().distanceTo(this.lastGood) > 0.05) {
-				this.shape.teleportTo(this.level(), this.lastGood.x, this.lastGood.y, this.lastGood.z, Set.of(Relative.X_ROT, Relative.Y_ROT), 0f, 0f, false);
+				dev.halloween.Vr.place(this.shape, this.level(), this.lastGood.x, this.lastGood.y, this.lastGood.z, Set.of(Relative.X_ROT, Relative.Y_ROT), 0f, 0f);
 			}
 		} else {
 			this.lastGood = this.shape.position();
@@ -1002,7 +1002,7 @@ public final class GrabSession {
 
 	private void placeVictim(double x, double y, double z, float yaw) {
 		if (this.victim instanceof ServerPlayer player) {
-			player.teleportTo(this.level(), x, y, z, Set.of(), yaw, 0f, false);
+			dev.halloween.Vr.place(player, this.level(), x, y, z, Set.of(), yaw, 0f);
 		} else {
 			this.victim.teleportTo(x, y, z);
 			this.victim.setYRot(yaw);

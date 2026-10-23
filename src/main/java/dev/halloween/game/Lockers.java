@@ -301,7 +301,7 @@ public final class Lockers {
 
 	private static void place(LivingEntity who, Vec3 pos, float yaw) {
 		if (who instanceof ServerPlayer player) {
-			player.teleportTo(player.level(), pos.x, pos.y, pos.z, Set.of(), yaw, 0f, false);
+			dev.halloween.Vr.place(player, player.level(), pos.x, pos.y, pos.z, Set.of(), yaw, 0f);
 		} else {
 			who.teleportTo(pos.x, pos.y, pos.z);
 			who.setYRot(yaw);
@@ -334,7 +334,7 @@ public final class Lockers {
 			state.recoverTicks = Math.max(state.recoverTicks, cfg.lockerSearchTicks);
 			state.attackCooldown = Math.max(state.attackCooldown, cfg.lockerSearchTicks);
 			Direction facing = level.getBlockState(base).getValue(LockerBlock.FACING);
-			shape.teleportTo(level, shape.getX(), shape.getY(), shape.getZ(), Set.of(Relative.X_ROT), facing.getOpposite().toYRot(), 0f, false);
+			dev.halloween.Vr.place(shape, level, shape.getX(), shape.getY(), shape.getZ(), Set.of(Relative.X_ROT), facing.getOpposite().toYRot(), 0f);
 			if (Demogorgon.active()) {
 				// Not the door: his claw straight through it, feeling about inside.
 				// Squarely in front of it first, an arm's length off, so the claw goes in through the middle of the door.
@@ -344,7 +344,7 @@ public final class Lockers {
 					// His right shoulder (the claw he uses), not his middle, before the door: that far to his left.
 					stand = stand.add(facing.getStepZ() * -SHOULDER, 0, -facing.getStepX() * -SHOULDER);
 					if (off == 0.85 || level.noCollision(shape, shape.getBoundingBox().move(stand.subtract(shape.position())))) {
-						shape.teleportTo(level, stand.x, stand.y, stand.z, Set.of(Relative.X_ROT), facing.getOpposite().toYRot(), 0f, false);
+						dev.halloween.Vr.place(shape, level, stand.x, stand.y, stand.z, Set.of(Relative.X_ROT), facing.getOpposite().toYRot(), 0f);
 						break;
 					}
 				}
@@ -465,7 +465,7 @@ public final class Lockers {
 			Vec3 c = center(inside.base);
 			if (who.position().distanceToSqr(c) > 0.0025) {
 				if (who instanceof ServerPlayer player) {
-					player.teleportTo(player.level(), c.x, c.y, c.z, Set.of(Relative.X_ROT, Relative.Y_ROT), 0f, 0f, false);
+					dev.halloween.Vr.place(player, player.level(), c.x, c.y, c.z, Set.of(Relative.X_ROT, Relative.Y_ROT), 0f, 0f);
 				} else {
 					who.teleportTo(c.x, c.y, c.z);
 				}

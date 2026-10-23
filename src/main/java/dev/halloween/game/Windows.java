@@ -176,7 +176,7 @@ public final class Windows {
 			}
 			v.ticks++;
 			float t = Math.min(1f, v.ticks / (float) v.duration);
-			player.teleportTo(player.level(), pathX(v, t), pathY(v, t), pathZ(v, t), Relative.ROTATION, 0f, 0f, false);
+			dev.halloween.Vr.place(player, player.level(), pathX(v, t), pathY(v, t), pathZ(v, t), Relative.ROTATION, 0f, 0f);
 			player.setDeltaMovement(Vec3.ZERO);
 			player.fallDistance = 0;
 

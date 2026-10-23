@@ -347,7 +347,7 @@ public final class Match {
 	}
 
 	private static void teleport(ServerPlayer player, BlockPos pos) {
-		player.teleportTo(player.level(), pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, java.util.Set.of(), player.getYRot(), 0f, false);
+		dev.halloween.Vr.place(player, player.level(), pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, java.util.Set.of(), player.getYRot(), 0f);
 	}
 
 	public static void stop(MinecraftServer server) {

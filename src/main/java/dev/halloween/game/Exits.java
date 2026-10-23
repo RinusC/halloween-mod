@@ -461,7 +461,7 @@ public final class Exits {
 				break;
 			}
 		}
-		p.teleportTo(level, out.x, out.y, out.z, Set.of(net.minecraft.world.entity.Relative.X_ROT, net.minecraft.world.entity.Relative.Y_ROT), 0f, 0f, false);
+		dev.halloween.Vr.place(p, level, out.x, out.y, out.z, Set.of(net.minecraft.world.entity.Relative.X_ROT, net.minecraft.world.entity.Relative.Y_ROT), 0f, 0f);
 		level.playSound(null, car, SoundEvents.IRON_DOOR_OPEN, SoundSource.BLOCKS, 1f, 1.2f);
 		AiStats.add(p, "car.out");
 		Match.markDirty();
@@ -484,7 +484,7 @@ public final class Exits {
 		for (int i = 0; i < SEATED.size(); i++) {
 			ServerPlayer p = level.getServer().getPlayerList().getPlayer(SEATED.get(i));
 			if (p.position().distanceToSqr(seat) > 0.01) {
-				p.teleportTo(level, seat.x, seat.y, seat.z, Set.of(net.minecraft.world.entity.Relative.X_ROT, net.minecraft.world.entity.Relative.Y_ROT), 0f, 0f, false);
+				dev.halloween.Vr.place(p, level, seat.x, seat.y, seat.z, Set.of(net.minecraft.world.entity.Relative.X_ROT, net.minecraft.world.entity.Relative.Y_ROT), 0f, 0f);
 			}
 			p.setDeltaMovement(Vec3.ZERO);
 			if (Bots.isBot(p)) {

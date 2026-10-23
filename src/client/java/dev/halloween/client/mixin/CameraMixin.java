@@ -160,6 +160,25 @@ public abstract class CameraMixin {
 		this.setPosition(from.add(dir.scale(Math.min(halloween$shoulderLen, allowed))));
 	}
 
+	/**
+	 * In the headset Vivecraft puts the eyes where the head is (in place of alignWithEntity, so nothing above runs
+	 * there); a scene sets them down elsewhere for a still shot, the head still free (see VrShots).
+	 */
+	@Inject(method = "update", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Camera;alignWithEntity(F)V", shift = At.Shift.AFTER))
+	private void halloween$vrShot(net.minecraft.client.DeltaTracker delta, CallbackInfo ci) {
+		if (!dev.halloween.client.ClientVr.active()) {
+			return;
+		}
+		float partial = delta.getGameTimeDeltaPartialTick(true);
+		Vec3 eyes = dev.halloween.client.VrShots.eyes(this.position(), partial);
+		if (eyes != null) {
+			this.setPosition(eyes);
+			if (dev.halloween.client.VrShots.showsBody(partial)) {
+				this.detached = true;
+			}
+		}
+	}
+
 	@Inject(method = "calculateFov", at = @At("RETURN"), cancellable = true)
 	private void halloween$focusZoom(float partialTicks, CallbackInfoReturnable<Float> cir) {
 		float zoom = ClientState.fovMultiplier();

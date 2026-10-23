@@ -69,11 +69,24 @@ public final class KillCam {
 		return new double[]{pos.x, pos.y, pos.z, yaw, pitch};
 	}
 
+	/** The shot in the headset (VrShots): standing where the camera would be, still, black in and out. */
+	static VrShots.Shot vrShot(float partial) {
+		float f = progress(partial);
+		if (f < 0) {
+			return null;
+		}
+		Vec3 d = target.subtract(from);
+		return new VrShots.Shot(1, target, Math.sqrt(d.x * d.x + d.z * d.z), -d.y, VrShots.cut(f, 0f, 1f, 0.08f), false);
+	}
+
 	/** Bars top and bottom, sliding in and out; true while the shot plays (the HUD stays hidden). */
 	public static boolean overlay(GuiGraphicsExtractor g, DeltaTracker delta) {
 		float f = progress(delta.getGameTimeDeltaPartialTick(false));
 		if (f < 0) {
 			return false;
+		}
+		if (ClientVr.active()) {
+			return true;
 		}
 		float in = Mth.clamp(Math.min(f / 0.08f, (1f - f) / 0.08f), 0f, 1f);
 		int bar = Math.round(g.guiHeight() * 0.11f * in);

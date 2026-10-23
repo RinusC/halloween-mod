@@ -97,10 +97,28 @@ public final class VecnaDeathScene {
 		return new double[]{pos.x, pos.y, pos.z, yaw, pitch};
 	}
 
+	/** The scene in the headset (VrShots): standing still, low down a few steps from the body, black in and out. */
+	static VrShots.Shot vrShot(float partial) {
+		if (!cinematic()) {
+			return null;
+		}
+		Entity v = Minecraft.getInstance().level.getEntity(victim);
+		if (v != null && !v.isSpectator()) {
+			lastBody = v.getPosition(partial);
+		}
+		if (lastBody == null) {
+			return null;
+		}
+		return new VrShots.Shot(1, lastBody.add(0, 1.0, 0), 6.6, -1.3, VrShots.cut(time(partial) / ticks, 0f, 1f, 0.06f), false);
+	}
+
 	/** Bars top and bottom, sliding in and out; true while the shot plays (the HUD stays hidden). */
 	public static boolean overlay(GuiGraphicsExtractor g, DeltaTracker delta) {
 		if (!cinematic()) {
 			return false;
+		}
+		if (ClientVr.active()) {
+			return true;
 		}
 		float f = time(delta.getGameTimeDeltaPartialTick(false)) / ticks;
 		float in = Mth.clamp(Math.min(f / 0.06f, (1f - f) / 0.06f), 0f, 1f);

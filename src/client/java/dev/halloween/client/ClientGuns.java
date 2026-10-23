@@ -65,6 +65,12 @@ public final class ClientGuns {
 		if (Guns.loaded(gun) > 0 && ClientState.progress.label().isEmpty()) {
 			// The muzzle climbs; aimed, the hands hold it down a little better.
 			float kick = (kind == HwItems.Kind.RIFLE ? cfg.rifleRecoil : kind == HwItems.Kind.SHOTGUN ? cfg.shotgunRecoil : cfg.revolverRecoil) * (sentAim ? 0.7f : 1f);
+			bloom = 1f;
+			if (ClientVr.active()) {
+				// In the headset the view is never thrown: the kick goes into the hand holding it.
+				ClientVr.buzz(true, 0.09f, Math.min(1f, 0.5f + kick * 0.05f));
+				return true;
+			}
 			mc.player.setXRot(Mth.clamp(mc.player.getXRot() - kick, -90f, 90f));
 			mc.player.setYRot(mc.player.getYRot() + (mc.level.getRandom().nextFloat() - 0.5f) * kick * 0.35f);
 			recoverLeft += kick * cfg.recoilReturn;

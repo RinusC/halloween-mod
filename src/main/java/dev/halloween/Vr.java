@@ -1,8 +1,13 @@
 package dev.halloween;
 
+import java.util.EnumSet;
+import java.util.Set;
 import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.Relative;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
 import org.jspecify.annotations.Nullable;
@@ -42,6 +47,20 @@ public final class Vr {
 		if (LOADED) {
 			Api.buzz(player, mainHand, seconds);
 		}
+	}
+
+	/**
+	 * Entity.teleportTo with a rotation, except that a VR player keeps where their head looks: the server never turns a
+	 * headset (turning it under them, every tick in a hold, is what makes people sick). Everyone else is turned as asked.
+	 */
+	public static boolean place(Entity who, ServerLevel level, double x, double y, double z, Set<Relative> relative, float yaw, float pitch) {
+		if (who instanceof Player player && isVr(player)) {
+			Set<Relative> keep = EnumSet.noneOf(Relative.class);
+			keep.addAll(relative);
+			keep.addAll(Relative.ROTATION);
+			return who.teleportTo(level, x, y, z, keep, 0f, 0f, false);
+		}
+		return who.teleportTo(level, x, y, z, relative, yaw, pitch, false);
 	}
 
 	/** A point in the world and a unit direction. */

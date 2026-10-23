@@ -288,7 +288,7 @@ public final class Demogorgon {
 	private static void goDown(ServerPlayer p) {
 		ServerLevel level = p.level();
 		Vec3 to = UpsideDown.below(p.position());
-		p.teleportTo(level, to.x, to.y, to.z, java.util.Set.of(), p.getYRot(), p.getXRot(), false);
+		dev.halloween.Vr.place(p, level, to.x, to.y, to.z, java.util.Set.of(), p.getYRot(), p.getXRot());
 		p.addEffect(new MobEffectInstance(MobEffects.NIGHT_VISION, 20 * 60 * 30, 0, true, false));
 		root(p, false);
 		AttributeInstance speed = p.getAttribute(Attributes.MOVEMENT_SPEED);
@@ -307,7 +307,7 @@ public final class Demogorgon {
 		if (speed != null) {
 			speed.removeModifier(BELOW_SPEED_ID);
 		}
-		p.teleportTo(level, at.x, at.y, at.z, java.util.Set.of(), p.getYRot(), p.getXRot(), false);
+		dev.halloween.Vr.place(p, level, at.x, at.y, at.z, java.util.Set.of(), p.getYRot(), p.getXRot());
 		p.removeEffect(MobEffects.NIGHT_VISION);
 		p.setSilent(false);
 		root(p, true);
@@ -676,7 +676,7 @@ public final class Demogorgon {
 					shredTicks = 0;
 					return true;
 				}
-				d.teleportTo(level, land.x, land.y, land.z, java.util.Set.of(), d.getYRot(), d.getXRot(), false);
+				dev.halloween.Vr.place(d, level, land.x, land.y, land.z, java.util.Set.of(), d.getYRot(), d.getXRot());
 				d.setDeltaMovement(shredDir.x * 0.95, 0.15, shredDir.z * 0.95);
 				d.hurtMarked = true;
 				level.sendParticles(ParticleTypes.CRIT, c.x, c.y + 1, c.z, 20, 0.3, 0.5, 0.3, 0.2);

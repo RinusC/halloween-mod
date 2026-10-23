@@ -25,7 +25,8 @@
 		"RecipeToastMixin",
 		"SoundBufferLibraryMixin",
 		"SoundEngineAccessor",
-		"SoundManagerAccessor"
+		"SoundManagerAccessor",
+		"VrFogMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

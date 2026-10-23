@@ -234,7 +234,7 @@ public final class Vecna {
 		level.sendParticles(HwParticles.VECNA_SPARK, p.getX(), p.getY() + 1, p.getZ(), 12, 0.3, 0.8, 0.3, 0.12);
 		Vec3 d = target.position().subtract(to);
 		float yaw = (float) (Math.atan2(-d.x, d.z) * 180 / Math.PI);
-		p.teleportTo(level, to.x, to.y, to.z, java.util.Set.of(), yaw, 0f, false);
+		dev.halloween.Vr.place(p, level, to.x, to.y, to.z, java.util.Set.of(), yaw, 0f);
 		p.setInvisible(true);
 		level.playSound(null, to.x, to.y, to.z, HwSounds.VECNA_ANCHOR_ARRIVE, SoundSource.HOSTILE, 1.2f, 1f);
 		anchorPhase = ANCHOR_CHANNEL;

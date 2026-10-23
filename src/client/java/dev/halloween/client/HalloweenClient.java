@@ -273,6 +273,7 @@ public class HalloweenClient implements ClientModInitializer {
 			return;
 		}
 		HeroScene.tick(mc);
+		ClientVr.tick(mc);
 		ClientInteractions.tick(mc);
 		ShapeJumpAudio.tick(mc);
 		BloodParticles.tick(mc);

@@ -135,7 +135,7 @@ public final class VecnaDeath {
 		t++;
 		if (t <= KILL) {
 			Vec3 at = ground.add(0, height(t), 0);
-			victim.teleportTo(level, at.x, at.y, at.z, java.util.Set.of(), yaw, -20f, false);
+			dev.halloween.Vr.place(victim, level, at.x, at.y, at.z, java.util.Set.of(), yaw, -20f);
 			victim.setYBodyRot(yaw);
 			victim.setYHeadRot(yaw);
 			victim.setDeltaMovement(Vec3.ZERO);
