@@ -58,6 +58,7 @@ public class Halloween implements ModInitializer {
 		ServerPlayNetworking.registerGlobalReceiver(HwNet.PerkAction.TYPE, (payload, ctx) -> dev.halloween.game.Perks.act(ctx.player(), payload.perk(), payload.action()));
 		ServerPlayNetworking.registerGlobalReceiver(HwNet.NpcTalk.TYPE, (payload, ctx) -> dev.halloween.game.Talks.request(ctx.player(), payload.entityId(), payload.option()));
 		ServerPlayNetworking.registerGlobalReceiver(HwNet.MinigameResult.TYPE, (payload, ctx) -> dev.halloween.game.Minigames.result(ctx.player(), payload));
+		ServerPlayNetworking.registerGlobalReceiver(HwNet.Ping.TYPE, (payload, ctx) -> dev.halloween.game.Pings.onPing(ctx.player(), payload.pos(), payload.kind(), payload.entityId()));
 		ServerPlayNetworking.registerGlobalReceiver(HwNet.GunFire.TYPE, (payload, ctx) -> dev.halloween.game.Guns.fire(ctx.player(), payload.yaw(), payload.pitch()));
 		ServerPlayNetworking.registerGlobalReceiver(HwNet.GunAim.TYPE, (payload, ctx) -> dev.halloween.game.Guns.setAiming(ctx.player(), payload.aiming()));
 		ServerPlayNetworking.registerGlobalReceiver(HwNet.Aim.TYPE, (payload, ctx) -> MatchManager.onAim(ctx.player(), payload.origin(), payload.direction()));
@@ -78,6 +79,7 @@ public class Halloween implements ModInitializer {
 				case RUNT_LAUGH -> {
 					// (The Runt's laugh is gone.)
 				}
+				case SKILL -> dev.halloween.game.Heroes.use(ctx.player());
 			}
 		});
 
@@ -112,6 +114,7 @@ public class Halloween implements ModInitializer {
 			&& dev.halloween.game.HwItems.kindOf(player.getItemInHand(hand)) != null ? net.minecraft.world.InteractionResult.FAIL : net.minecraft.world.InteractionResult.PASS);
 		UseEntityCallback.EVENT.register((player, level, hand, entity, hit) -> level.isClientSide() ? net.minecraft.world.InteractionResult.PASS
 			: dev.halloween.game.Events.onUseEntity(player, entity));
+		UseEntityCallback.EVENT.register((player, level, hand, entity, hit) -> dev.halloween.game.SideJobs.onUseEntity(player, entity));
 		UseEntityCallback.EVENT.register((player, level, hand, entity, hit) -> MatchManager.onUseEntity(player, hand, entity));
 		// In Shape Jump the Shape is a shadow: he slips through doors but can't work them, nor the breakers.
 		UseBlockCallback.EVENT.register((player, level, hand, hit) -> !level.isClientSide()

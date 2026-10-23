@@ -406,11 +406,13 @@ public final class Fight {
 			}
 			Vec3 target = other.getEyePosition();
 			double dist = eye.distanceTo(target);
-			if (dist > cfg.flashlightRange || Sight.angleTo(eye, look, target) > cfg.flashlightConeDeg || !Sight.canSee(level, eye, target, player)) {
+			// Marcus's flashlight (Heroes) reaches further and blinds from wider.
+			double reach = Heroes.flashlightReach(player);
+			if (dist > cfg.flashlightRange * reach || Sight.angleTo(eye, look, target) > cfg.flashlightConeDeg * reach || !Sight.canSee(level, eye, target, player)) {
 				continue;
 			}
 			state.litTicks = 3;
-			if (Sight.angleTo(target, other.getViewVector(1f), eye) <= cfg.flashlightFaceDeg) {
+			if (Sight.angleTo(target, other.getViewVector(1f), eye) <= cfg.flashlightFaceDeg * reach) {
 				state.blindTicks = 3;
 				state.senseHeld = false;
 			}

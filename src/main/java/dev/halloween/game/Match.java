@@ -375,6 +375,9 @@ public final class Match {
 		Traps.clear(server);
 		Obstacles.clear(server);
 		Chase.clear();
+		Heroes.clear(server);
+		SideJobs.clear(server);
+		Pings.clear();
 		Noise.clear();
 		Leftovers.end();
 		Panic.clear();

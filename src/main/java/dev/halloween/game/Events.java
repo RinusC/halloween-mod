@@ -677,7 +677,7 @@ public final class Events {
 	}
 
 	/** A spot out on the street or in a yard (open sky, room to stand), not too near Michael. */
-	private static BlockPos outdoorSpot(ServerLevel level, double fromMichael) {
+	static BlockPos outdoorSpot(ServerLevel level, double fromMichael) {
 		BlockPos center = MapPoints.get(level).first(MapPoints.Type.CENTER);
 		if (center == null) {
 			return null;

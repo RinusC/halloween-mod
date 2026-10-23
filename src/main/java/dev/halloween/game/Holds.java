@@ -74,6 +74,9 @@ public final class Holds {
 		// A match event's object first (a ringing phone, the bag, the transformer, the crate in the fire).
 		Hold hold = Events.resolve(player, pos);
 		if (hold == null) {
+			hold = SideJobs.resolve(player, pos);
+		}
+		if (hold == null) {
 			hold = GunCase.resolve(player, pos);
 			if (hold == null && GunCase.isCase(pos)) {
 				return;

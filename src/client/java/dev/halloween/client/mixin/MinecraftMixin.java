@@ -15,7 +15,7 @@ public class MinecraftMixin {
 	/** Victims the Shape currently senses, has marked or caught with the impulse are outlined. */
 	@Inject(method = "shouldEntityAppearGlowing", at = @At("HEAD"), cancellable = true)
 	private void halloween$outlines(Entity entity, CallbackInfoReturnable<Boolean> cir) {
-		if (ClientState.outlineColor(entity) != -1) {
+		if (ClientState.outlineColor(entity) != -1 || dev.halloween.client.ClientHeroes.glows(entity)) {
 			cir.setReturnValue(true);
 		}
 	}

@@ -40,6 +40,8 @@ public final class VrKeys {
 	private static KeyMapping anchor;
 	private static KeyMapping orders;
 	private static KeyMapping perks;
+	private static KeyMapping skill;
+	private static KeyMapping ping;
 	private static KeyMapping gift1;
 	private static KeyMapping gift2;
 	/** What the radial menu was last set to (a role and form), so it is set only when that changes. */
@@ -66,6 +68,8 @@ public final class VrKeys {
 		anchor = alias("anchor", HalloweenClient.KEY_IMPULSE, true);
 		orders = alias("orders", HalloweenClient.KEY_RUNT_ORDER, false);
 		perks = alias("perks", HalloweenClient.KEY_PERKS, false);
+		skill = alias("skill", HalloweenClient.KEY_SKILL, false);
+		ping = alias("ping", HalloweenClient.KEY_PING, false);
 		gift1 = key("gift1");
 		gift2 = key("gift2");
 	}
@@ -139,7 +143,7 @@ public final class VrKeys {
 			case "demo" -> new KeyMapping[]{upsideDown, impulse, dash, orders, perks};
 			case "vecna" -> new KeyMapping[]{grip, eyes, anchor, dash, perks};
 			case "RUNT" -> new KeyMapping[]{runtSwap, gift1, gift2, perks};
-			default -> new KeyMapping[]{reload, perks};
+			default -> new KeyMapping[]{ping, skill, reload, perks};
 		};
 		// Eight places round the menu; the empty ones show nothing.
 		String[] items = new String[8];

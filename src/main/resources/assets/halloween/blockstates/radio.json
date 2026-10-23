@@ -1,0 +1,8 @@
+{
+  "variants": {
+    "facing=north": { "model": "halloween:block/radio" },
+    "facing=east": { "model": "halloween:block/radio", "y": 90 },
+    "facing=south": { "model": "halloween:block/radio", "y": 180 },
+    "facing=west": { "model": "halloween:block/radio", "y": 270 }
+  }
+}

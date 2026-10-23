@@ -151,6 +151,7 @@ public final class HwHud {
 				curseHud(g, mc, w, h);
 				int pushLeft = (int) Math.max(0, ClientState.pushReadyAt - mc.level.getGameTime());
 				smallAction(g, mc.font, w - 12, h - 84, Component.translatable("halloween.hud.shove"), mc.options.keyAttack.getTranslatedKeyMessage(), pushLeft);
+				ClientHeroes.hud(g, mc, w, h, partial);
 				inventoryBar(g, mc, w, h);
 				gunHud(g, mc, w, h);
 				prompts(g, mc, w, h);
@@ -1201,6 +1202,15 @@ public final class HwHud {
 		}
 		if (!m.cutPhones().isEmpty()) {
 			g.text(font, Component.translatable("halloween.hud.phones_cut", m.cutPhones().size()), 22, y, 0xFFE07070, true);
+			y += 11;
+		}
+		// The side jobs (game.SideJobs).
+		if (ClientJobs.count() > 0) {
+			header(g, font, 10, y + 2, Component.translatable("halloween.goal.jobs"), false);
+			y += 15;
+			for (int i = 0; i < ClientJobs.count(); i++) {
+				y = step(g, font, y, ClientJobs.line(i), ClientJobs.done(i));
+			}
 		}
 	}
 
@@ -1781,6 +1791,12 @@ public final class HwHud {
 			g.textWithBackdrop(mc.font, npc, w / 2 - mc.font.width(npc) / 2, h / 2 + 22, mc.font.width(npc), TEXT);
 			return;
 		}
+		if (ClientState.progress.label().isEmpty() && ClientState.myRole().survivor() && ClientJobs.dogWaiting()
+			&& mc.hitResult instanceof net.minecraft.world.phys.EntityHitResult eh && eh.getEntity() instanceof net.minecraft.world.entity.animal.wolf.Wolf) {
+			Component npc = Component.translatable("halloween.hud.prompt.dog");
+			g.textWithBackdrop(mc.font, npc, w / 2 - mc.font.width(npc) / 2, h / 2 + 22, mc.font.width(npc), TEXT);
+			return;
+		}
 		if (!ClientState.progress.label().isEmpty() || !(mc.hitResult instanceof net.minecraft.world.phys.BlockHitResult hit)
 			|| hit.getType() == net.minecraft.world.phys.HitResult.Type.MISS) {
 			return;
@@ -1800,6 +1816,8 @@ public final class HwHud {
 			second = Component.translatable("halloween.hud.prompt.case_how");
 		} else if (object == 3) {
 			line = Component.translatable("halloween.hud.prompt.exit");
+		} else if (object == 7 && !shape) {
+			line = Component.translatable("halloween.hud.prompt.radio");
 		} else if (shape) {
 			return;
 		} else if (dev.halloween.game.LightSystem.isBreaker(mc.level, pos)) {

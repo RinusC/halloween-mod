@@ -1210,7 +1210,9 @@ public final class HwNet {
 		/** The Runt's own key (trading places with Michael). */
 		RUNT_SPECIAL,
 		/** The Runt giggles or whispers. */
-		RUNT_LAUGH;
+		RUNT_LAUGH,
+		/** A survivor's own skill, by who they are (game.Heroes). */
+		SKILL;
 
 		static Action byId(int id) {
 			Action[] values = values();
@@ -1395,7 +1397,121 @@ public final class HwNet {
 		}
 	}
 
+	/** Who this survivor plays and their skill (game.Heroes): its cooldown (ticks left, of how many), Alexis's feeling of him. */
+	public record HeroSync(String hero, int skill, int cooldownLeft, int cooldownTotal, boolean alert) implements CustomPacketPayload {
+		public static final Type<HeroSync> TYPE = payloadType("hero_sync");
+		public static final StreamCodec<RegistryFriendlyByteBuf, HeroSync> CODEC = StreamCodec.of((buf, v) -> {
+			buf.writeUtf(v.hero);
+			buf.writeVarInt(v.skill);
+			buf.writeVarInt(v.cooldownLeft);
+			buf.writeVarInt(v.cooldownTotal);
+			buf.writeBoolean(v.alert);
+		}, buf -> new HeroSync(buf.readUtf(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt(), buf.readBoolean()));
+
+		@Override
+		public Type<HeroSync> type() {
+			return TYPE;
+		}
+	}
+
+	/** A skill shows something for a while: Laurie feels him (his entity), Jennifer sees what is hidden (spots). */
+	public record HeroReveal(int kind, int ticks, int entityId, List<Vec3> spots) implements CustomPacketPayload {
+		public static final int FEEL = 0;
+		public static final int KEEN = 1;
+		public static final Type<HeroReveal> TYPE = payloadType("hero_reveal");
+		public static final StreamCodec<RegistryFriendlyByteBuf, HeroReveal> CODEC = StreamCodec.of((buf, v) -> {
+			buf.writeVarInt(v.kind);
+			buf.writeVarInt(v.ticks);
+			buf.writeVarInt(v.entityId);
+			buf.writeVarInt(v.spots.size());
+			for (Vec3 p : v.spots) {
+				writeVec(buf, p);
+			}
+		}, buf -> {
+			int kind = buf.readVarInt();
+			int ticks = buf.readVarInt();
+			int id = buf.readVarInt();
+			int n = buf.readVarInt();
+			List<Vec3> spots = new ArrayList<>(n);
+			for (int i = 0; i < n; i++) {
+				spots.add(readVec(buf));
+			}
+			return new HeroReveal(kind, ticks, id, spots);
+		});
+
+		@Override
+		public Type<HeroReveal> type() {
+			return TYPE;
+		}
+	}
+
+	/** A survivor marks something for the others (game.Pings): where, what (Pings kinds), whom if Michael. */
+	public record Ping(Vec3 pos, int kind, int entityId) implements CustomPacketPayload {
+		public static final Type<Ping> TYPE = payloadType("ping");
+		public static final StreamCodec<RegistryFriendlyByteBuf, Ping> CODEC = StreamCodec.of((buf, v) -> {
+			writeVec(buf, v.pos);
+			buf.writeVarInt(v.kind);
+			buf.writeVarInt(v.entityId);
+		}, buf -> new Ping(readVec(buf), buf.readVarInt(), buf.readVarInt()));
+
+		@Override
+		public Type<Ping> type() {
+			return TYPE;
+		}
+	}
+
+	/** A mark from one of the team: where, what, whom (Michael, followed while seen), who marked it, for how long. */
+	public record TeamPing(Vec3 pos, int kind, int entityId, String from, int ticks) implements CustomPacketPayload {
+		public static final Type<TeamPing> TYPE = payloadType("team_ping");
+		public static final StreamCodec<RegistryFriendlyByteBuf, TeamPing> CODEC = StreamCodec.of((buf, v) -> {
+			writeVec(buf, v.pos);
+			buf.writeVarInt(v.kind);
+			buf.writeVarInt(v.entityId);
+			buf.writeUtf(v.from);
+			buf.writeVarInt(v.ticks);
+		}, buf -> new TeamPing(readVec(buf), buf.readVarInt(), buf.readVarInt(), buf.readUtf(), buf.readVarInt()));
+
+		@Override
+		public Type<TeamPing> type() {
+			return TYPE;
+		}
+	}
+
+	/** The side jobs of this match (game.SideJobs): which, done or not, where. */
+	public record SideJobs(List<String> jobs, List<Boolean> done, List<Vec3> where) implements CustomPacketPayload {
+		public static final Type<SideJobs> TYPE = payloadType("side_jobs");
+		public static final StreamCodec<RegistryFriendlyByteBuf, SideJobs> CODEC = StreamCodec.of((buf, v) -> {
+			buf.writeVarInt(v.jobs.size());
+			for (int i = 0; i < v.jobs.size(); i++) {
+				buf.writeUtf(v.jobs.get(i));
+				buf.writeBoolean(v.done.get(i));
+				writeVec(buf, v.where.get(i));
+			}
+		}, buf -> {
+			int n = buf.readVarInt();
+			List<String> jobs = new ArrayList<>(n);
+			List<Boolean> done = new ArrayList<>(n);
+			List<Vec3> where = new ArrayList<>(n);
+			for (int i = 0; i < n; i++) {
+				jobs.add(buf.readUtf());
+				done.add(buf.readBoolean());
+				where.add(readVec(buf));
+			}
+			return new SideJobs(jobs, done, where);
+		});
+
+		@Override
+		public Type<SideJobs> type() {
+			return TYPE;
+		}
+	}
+
 	public static void registerPayloads() {
+		PayloadTypeRegistry.clientboundPlay().register(SideJobs.TYPE, SideJobs.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(HeroSync.TYPE, HeroSync.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(HeroReveal.TYPE, HeroReveal.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(TeamPing.TYPE, TeamPing.CODEC);
+		PayloadTypeRegistry.serverboundPlay().register(Ping.TYPE, Ping.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(WorldSync.TYPE, WorldSync.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(DemoHud.TYPE, DemoHud.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(VecnaHud.TYPE, VecnaHud.CODEC);

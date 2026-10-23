@@ -158,7 +158,8 @@ public final class Perks extends SavedData {
 	/** Does this survivor play the current match with this perk? */
 	public static boolean has(net.minecraft.world.entity.Entity who, Perk perk) {
 		Set<Perk> set = ACTIVE.get(who.getUUID());
-		return set != null && set.contains(perk);
+		// Or by who they are (Heroes).
+		return set != null && set.contains(perk) || who instanceof ServerPlayer sp && Heroes.innate(sp) == perk;
 	}
 
 	public static boolean has(UUID id, Perk perk) {

@@ -55,6 +55,11 @@ public final class Skins {
 		return taken;
 	}
 
+	/** Which survivor this player plays (see Heroes), or null when not one. */
+	public static String heroOf(ServerPlayer player) {
+		return MatchManager.role(player) == Role.CIVILIAN ? survivor(player) : null;
+	}
+
 	/** The skin this player wears now, or null for their own. */
 	static String skinOf(ServerPlayer player) {
 		Role role = MatchManager.role(player);

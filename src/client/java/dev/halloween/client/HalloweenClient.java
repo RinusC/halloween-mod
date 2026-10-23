@@ -38,6 +38,11 @@ public class HalloweenClient implements ClientModInitializer {
 		new KeyMapping("key.halloween.impulse", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_B, CATEGORY));
 	public static final KeyMapping KEY_RUNT_ORDER = KeyMappingHelper.registerKeyMapping(
 		new KeyMapping("key.halloween.runt_order", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_G, CATEGORY));
+	/** A survivor's own skill (game.Heroes), and marking something for the team (game.Pings). */
+	public static final KeyMapping KEY_SKILL = KeyMappingHelper.registerKeyMapping(
+		new KeyMapping("key.halloween.skill", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_C, CATEGORY));
+	public static final KeyMapping KEY_PING = KeyMappingHelper.registerKeyMapping(
+		new KeyMapping("key.halloween.ping", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_Z, CATEGORY));
 	public static final KeyMapping KEY_PERKS = KeyMappingHelper.registerKeyMapping(
 		new KeyMapping("key.halloween.perks", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_P, CATEGORY));
 
@@ -68,6 +73,8 @@ public class HalloweenClient implements ClientModInitializer {
 		VrKeys.register();
 		VrHands.register();
 		VrMarks.register();
+		ClientHeroes.register();
+		ClientJobs.register();
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.WorldSync.TYPE, (payload, ctx) -> {
 			ClientState.ROLES.clear();
 			for (HwNet.RoleEntry entry : payload.roles()) {
@@ -206,6 +213,8 @@ public class HalloweenClient implements ClientModInitializer {
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
 			ClientState.reset();
 			MinigameScreen.forgetAll();
+			ClientHeroes.reset();
+			ClientJobs.reset();
 			ClientGuns.reset();
 			sentSense = false;
 			sentFocus = false;
@@ -280,6 +289,7 @@ public class HalloweenClient implements ClientModInitializer {
 		ClientVr.tick(mc);
 		VrKeys.tick(mc);
 		VrHands.tick(mc);
+		ClientHeroes.tick(mc);
 		ClientInteractions.tick(mc);
 		ShapeJumpAudio.tick(mc);
 		BloodParticles.tick(mc);

@@ -233,6 +233,11 @@ public final class Loot {
 	/** Searches since an escape item last turned up (see the search). */
 	private static int misses;
 
+	/** One of the things that get people out (bolt cutters, keys, fuse, petrol, repair kit). */
+	public static boolean escapeItem(HwItems.Kind k) {
+		return isEscape(k);
+	}
+
 	private static boolean isEscape(HwItems.Kind k) {
 		return k == HwItems.Kind.BOLT_CUTTERS || k == HwItems.Kind.PADLOCK_KEY || k == HwItems.Kind.FUSE || k == HwItems.Kind.GATE_KEY
 			|| k == HwItems.Kind.SEDAN_KEYS || k == HwItems.Kind.GAS_CAN || k == HwItems.Kind.REPAIR_KIT;
