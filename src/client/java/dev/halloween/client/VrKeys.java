@@ -23,7 +23,10 @@ import net.minecraft.client.Minecraft;
  * Anchor) work as switches there; the rest are let go again as soon as they are passed on.
  */
 public final class VrKeys {
-	private record Alias(KeyMapping vr, KeyMapping target, boolean held) {
+	private record Alias(KeyMapping vr, java.util.function.Supplier<KeyMapping> to, boolean held) {
+		KeyMapping target() {
+			return this.to.get();
+		}
 	}
 
 	private static final KeyMapping.Category CATEGORY = KeyMapping.Category.register(Halloween.id("vr"));
@@ -55,8 +58,8 @@ public final class VrKeys {
 		if (!Vr.LOADED) {
 			return;
 		}
-		Minecraft mc = Minecraft.getInstance();
-		dash = alias("dash", mc.options.keySprint, false);
+		// (The game's options are not there yet at start: the run key is looked up when pressed.)
+		dash = alias("dash", () -> Minecraft.getInstance().options.keySprint, false);
 		sense = alias("sense", HalloweenClient.KEY_SENSE, true);
 		grip = alias("grip", HalloweenClient.KEY_SENSE, true);
 		reload = alias("reload", HalloweenClient.KEY_SENSE, false);
@@ -80,6 +83,10 @@ public final class VrKeys {
 	}
 
 	private static KeyMapping alias(String name, KeyMapping target, boolean held) {
+		return alias(name, () -> target, held);
+	}
+
+	private static KeyMapping alias(String name, java.util.function.Supplier<KeyMapping> target, boolean held) {
 		KeyMapping vr = key(name);
 		ALIASES.add(new Alias(vr, target, held));
 		return vr;
