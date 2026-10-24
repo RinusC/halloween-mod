@@ -64,6 +64,9 @@ public final class Vecna {
 	private static Vec3 bolt;
 	private static Vec3 boltDir = Vec3.ZERO;
 	private static double boltLeft;
+	/** The rift open: the Grip's twin, flying mirrored to the first about the way it was thrown (null: none). */
+	private static Vec3 bolt2;
+	private static Vec3 boltBase = Vec3.ZERO;
 	/** The Eyes: when the next whisper comes to the one he looks through. */
 	private static int nextWhisper;
 	/** The Eyes: whose eyes he looks through (null: his own), the seconds of looking in reserve (ticks), ticks since the last refill. */
@@ -285,6 +288,8 @@ public final class Vecna {
 			anchorPhase = ANCHOR_IDLE;
 			gripAim = -1;
 			bolt = null;
+			bolt2 = null;
+			removeBars();
 			return;
 		}
 		HwConfig cfg = HwConfig.get();
@@ -505,9 +510,17 @@ public final class Vecna {
 	 * that the client draws as a beacon's beam (client.VecnaBeamRenderer).
 	 */
 	private static Display.ItemDisplay beam;
+	private static Display.ItemDisplay beam2;
 
 	private static void spawnBolt(ServerLevel level, Vec3 at, float yaw) {
 		removeBars();
+		beam = pillar(level, at);
+		if (bolt2 != null) {
+			beam2 = pillar(level, at);
+		}
+	}
+
+	private static Display.ItemDisplay pillar(ServerLevel level, Vec3 at) {
 		Display.ItemDisplay d = new Display.ItemDisplay(net.minecraft.world.entity.EntityTypes.ITEM_DISPLAY, level);
 		net.minecraft.world.item.ItemStack stack = new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.PAPER);
 		stack.set(net.minecraft.core.component.DataComponents.ITEM_MODEL, Halloween.id("vecna_beam"));
@@ -520,12 +533,15 @@ public final class Vecna {
 		d.setPos(at.x, at.y, at.z);
 		d.addTag(Leftovers.stamp());
 		level.addFreshEntity(d);
-		beam = d;
+		return d;
 	}
 
 	private static void moveBars(Vec3 at, float yaw) {
 		if (beam != null && !beam.isRemoved()) {
 			beam.setPos(at.x, at.y, at.z);
+		}
+		if (bolt2 != null && beam2 != null && !beam2.isRemoved()) {
+			beam2.setPos(bolt2.x, bolt2.y, bolt2.z);
 		}
 	}
 
@@ -533,7 +549,17 @@ public final class Vecna {
 		if (beam != null) {
 			beam.discard();
 		}
+		if (beam2 != null) {
+			beam2.discard();
+		}
 		beam = null;
+		beam2 = null;
+	}
+
+	/** The twin's way: the first one's turned to the other side of the way they were both thrown. */
+	private static Vec3 mirrored() {
+		double dot = boltDir.x * boltBase.x + boltDir.z * boltBase.z;
+		return new Vec3(2 * dot * boltBase.x - boltDir.x, boltDir.y, 2 * dot * boltBase.z - boltDir.z);
 	}
 
 	/** Its way as a facing (the membrane turned across it). */
@@ -563,6 +589,9 @@ public final class Vecna {
 		bolt = hand;
 		boltDir = dir.lengthSqr() < 4 ? look : dir.normalize();
 		boltLeft = gripRange();
+		// The rift open: two of them, one over the other until he turns it.
+		bolt2 = VecnaRitual.rift() ? hand : null;
+		boltBase = new Vec3(boltDir.x, 0, boltDir.z).normalize();
 		spawnBolt(level, hand, boltYaw());
 		// A low tearing groan as it leaves his hand, and a burst of the dark.
 		level.playSound(null, hand.x, hand.y, hand.z, HwSounds.VECNA_GRIP_CAST, SoundSource.HOSTILE, 1.6f, 1f);
@@ -599,37 +628,28 @@ public final class Vecna {
 		Vec3 flat = new Vec3(boltDir.x, 0, boltDir.z);
 		Vec3 along = flat.lengthSqr() < 1.0E-4 ? new Vec3(0, 0, 1) : flat.normalize();
 		Vec3 across = new Vec3(-along.z, 0, along.x);
+		Vec3 dir2 = bolt2 == null ? null : mirrored();
 		for (int i = 0; i < parts; i++) {
-			Vec3 next = bolt.add(boltDir.scale(step / parts));
-			bolt = next;
+			bolt = bolt.add(boltDir.scale(step / parts));
+			if (bolt2 != null) {
+				bolt2 = bolt2.add(dir2.scale(step / parts));
+			}
 			boltLeft -= step / parts;
-			AABB reach = new AABB(bolt.x - half - 1, bolt.y - tall - 1, bolt.z - half - 1, bolt.x + half + 1, bolt.y + 256, bolt.z + half + 1);
-			for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, reach, Vecna::grippable)) {
-				if (e == v) {
-					continue;
-				}
-				// Inside the pillar, at any height (it goes up to the sky): within its width, round its middle.
-				double dx = e.getX() - bolt.x;
-				double dz = e.getZ() - bolt.z;
-				double reachR = half + e.getBbWidth() / 2;
-				if (dx * dx + dz * dz <= reachR * reachR && e.getBoundingBox().maxY >= bolt.y - tall) {
-					catchHold(level, v, e, now);
-					return;
-				}
+			LivingEntity caught = touching(level, v, bolt, half, tall);
+			if (caught == null && bolt2 != null) {
+				caught = touching(level, v, bolt2, half, tall);
+			}
+			if (caught != null) {
+				catchHold(level, v, caught, now);
+				return;
 			}
 		}
 		moveBars(bolt, boltYaw());
-		// Sparks of red light drifting up the pillar.
-		for (int k = 0; k < 2; k++) {
-			double up = level.getRandom().nextDouble() * 20;
-			level.sendParticles(HwParticles.VECNA_EMBER, bolt.x, bolt.y + up, bolt.z, 1, half * 0.5, 0.3, half * 0.5, 0.01);
-		}
-		// It sheds the dark behind it: smoke, ash, red dust fading to black; whispers as it passes.
-		Vec3 back = bolt.subtract(along.scale(0.4));
-		level.sendParticles(HwParticles.VECNA_SMOKE, back.x, back.y, back.z, 2, across.x * half * 0.6, tall * 0.5, across.z * half * 0.6, 0.01);
-		level.sendParticles(HwParticles.VECNA_ASH, back.x, back.y, back.z, 2, half * 0.7, tall * 0.7, half * 0.7, 0.01);
-		if (now % 3 == 0) {
-			level.sendParticles(HwParticles.VECNA_MIST, back.x, back.y, back.z, 1, half * 0.4, tall * 0.4, half * 0.4, 0.005);
+		trail(level, bolt, along, across, half, tall, now);
+		if (bolt2 != null) {
+			Vec3 flat2 = new Vec3(dir2.x, 0, dir2.z);
+			Vec3 along2 = flat2.lengthSqr() < 1.0E-4 ? along : flat2.normalize();
+			trail(level, bolt2, along2, new Vec3(-along2.z, 0, along2.x), half, tall, now);
 		}
 		if (now % 20 == 0) {
 			level.playSound(null, bolt.x, bolt.y, bolt.z, HwSounds.VECNA_GRIP_HUM, SoundSource.HOSTILE, 1.4f, 1f);
@@ -640,20 +660,55 @@ public final class Vecna {
 		}
 	}
 
+	/** Whoever stands inside the pillar at {@code at}, at any height (it goes up to the sky): within its width, round its middle. */
+	private static LivingEntity touching(ServerLevel level, ServerPlayer v, Vec3 at, double half, double tall) {
+		AABB reach = new AABB(at.x - half - 1, at.y - tall - 1, at.z - half - 1, at.x + half + 1, at.y + 256, at.z + half + 1);
+		for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, reach, Vecna::grippable)) {
+			if (e == v) {
+				continue;
+			}
+			double dx = e.getX() - at.x;
+			double dz = e.getZ() - at.z;
+			double reachR = half + e.getBbWidth() / 2;
+			if (dx * dx + dz * dz <= reachR * reachR && e.getBoundingBox().maxY >= at.y - tall) {
+				return e;
+			}
+		}
+		return null;
+	}
+
+	private static void trail(ServerLevel level, Vec3 at, Vec3 along, Vec3 across, double half, double tall, int now) {
+		// Sparks of red light drifting up the pillar.
+		for (int k = 0; k < 2; k++) {
+			double up = level.getRandom().nextDouble() * 20;
+			level.sendParticles(HwParticles.VECNA_EMBER, at.x, at.y + up, at.z, 1, half * 0.5, 0.3, half * 0.5, 0.01);
+		}
+		// It sheds the dark behind it: smoke, ash, red dust fading to black; whispers as it passes.
+		Vec3 back = at.subtract(along.scale(0.4));
+		level.sendParticles(HwParticles.VECNA_SMOKE, back.x, back.y, back.z, 2, across.x * half * 0.6, tall * 0.5, across.z * half * 0.6, 0.01);
+		level.sendParticles(HwParticles.VECNA_ASH, back.x, back.y, back.z, 2, half * 0.7, tall * 0.7, half * 0.7, 0.01);
+		if (now % 3 == 0) {
+			level.sendParticles(HwParticles.VECNA_MIST, back.x, back.y, back.z, 1, half * 0.4, tall * 0.4, half * 0.4, 0.005);
+		}
+	}
+
 	/** The membrane coming apart where it stops: a puff of the dark, a hiss. */
 	private static void burst(ServerLevel level) {
-		if (bolt == null) {
-			return;
+		for (Vec3 at : new Vec3[]{bolt, bolt2}) {
+			if (at == null) {
+				continue;
+			}
+			double tall = HwConfig.get().vecnaGripHeight / 2;
+			level.sendParticles(HwParticles.VECNA_SMOKE, at.x, at.y, at.z, 14, 0.5, tall * 0.5, 0.5, 0.03);
+			level.sendParticles(HwParticles.VECNA_SPARK, at.x, at.y, at.z, 8, 0.3, tall * 0.4, 0.3, 0.1);
+			level.playSound(null, at.x, at.y, at.z, HwSounds.VECNA_GRIP_FIZZLE, SoundSource.HOSTILE, 1f, 1f);
 		}
-		double tall = HwConfig.get().vecnaGripHeight / 2;
-		level.sendParticles(HwParticles.VECNA_SMOKE, bolt.x, bolt.y, bolt.z, 14, 0.5, tall * 0.5, 0.5, 0.03);
-		level.sendParticles(HwParticles.VECNA_SPARK, bolt.x, bolt.y, bolt.z, 8, 0.3, tall * 0.4, 0.3, 0.1);
-		level.playSound(null, bolt.x, bolt.y, bolt.z, HwSounds.VECNA_GRIP_FIZZLE, SoundSource.HOSTILE, 1f, 1f);
 	}
 
 	/** Gone by, into a wall or out of reach: a short rest. */
 	private static void missed(ServerLevel level, ServerPlayer v) {
 		bolt = null;
+		bolt2 = null;
 		removeBars();
 		gripCooldown = HwConfig.get().vecnaGripMissCooldownTicks;
 		gripCooldownMax = gripCooldown;
@@ -669,6 +724,7 @@ public final class Vecna {
 
 	private static void catchHold(ServerLevel level, ServerPlayer v, LivingEntity target, int now) {
 		bolt = null;
+		bolt2 = null;
 		removeBars();
 		gripped = target;
 		gripSince = now;
@@ -825,6 +881,7 @@ public final class Vecna {
 		}
 		gripAim = -1;
 		bolt = null;
+		bolt2 = null;
 		gripCooldownMax = 1;
 		removeBars();
 		if (gripped != null) {
