@@ -73,6 +73,7 @@ public class HalloweenClient implements ClientModInitializer {
 		VrKeys.register();
 		VrHands.register();
 		VrMarks.register();
+		VrWrist.register();
 		ClientHeroes.register();
 		ClientJobs.register();
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.WorldSync.TYPE, (payload, ctx) -> {
@@ -293,6 +294,7 @@ public class HalloweenClient implements ClientModInitializer {
 		ClientVr.tick(mc);
 		VrKeys.tick(mc);
 		VrHands.tick(mc);
+		VrWrist.tick(mc);
 		ClientHeroes.tick(mc);
 		ClientObstacles.tick(mc);
 		ClientInteractions.tick(mc);
@@ -350,7 +352,7 @@ public class HalloweenClient implements ClientModInitializer {
 	 * A survivor's left click. During a reaction check (or breaking free) it is the answer and nothing else;
 	 * with no weapon in hand it shoves the Shape. Returns true when the vanilla attack must not run.
 	 */
-	private static boolean survivorAttack(Minecraft mc, int clickCount) {
+	static boolean survivorAttack(Minecraft mc, int clickCount) {
 		if (clickCount > 0 && mc.player != null && mc.level != null && !ClientState.inMatch() && ClientState.lobby.inLobby()) {
 			// The school's range: a gun fires, anything else as vanilla has it.
 			return ClientGuns.trigger(mc);

@@ -92,14 +92,71 @@ public final class VrKeys {
 		return vr;
 	}
 
-	/** Whether a VR button that holds {@code target} down is held now. */
+	/** Whether a VR button that holds {@code target} down is held now (on the controller, or switched on at the wrist). */
 	static boolean held(KeyMapping target) {
 		for (Alias a : ALIASES) {
-			if (a.held() && a.target() == target && a.vr().isDown()) {
+			if (a.held() && a.target() == target && (a.vr().isDown() || TOGGLED.contains(a.vr()))) {
 				return true;
 			}
 		}
 		return false;
+	}
+
+	/** Held buttons switched on from the wrist (VrWrist), until touched again or the role changes. */
+	private static final java.util.Set<KeyMapping> TOGGLED = new java.util.HashSet<>();
+
+	/** The buttons of this role and form, as the radial menu and the wrist show them (empty outside a match role). */
+	static KeyMapping[] keys() {
+		if (ALIASES.isEmpty()) {
+			return new KeyMapping[0];
+		}
+		return switch (form()) {
+			case "michael" -> new KeyMapping[]{sense, shapeJump, impulse, dash, orders, perks};
+			case "demo" -> new KeyMapping[]{upsideDown, impulse, dash, orders, perks};
+			case "vecna" -> new KeyMapping[]{grip, eyes, anchor, dash, perks};
+			case "RUNT" -> new KeyMapping[]{runtSwap, gift1, gift2, perks};
+			case "" -> new KeyMapping[0];
+			default -> new KeyMapping[]{ping, skill, reload, perks};
+		};
+	}
+
+	private static String form() {
+		Role role = ClientState.myRole();
+		return role == Role.NONE ? "" : role == Role.SHAPE ? (MichaelRenderer.vecna() ? "vecna" : MichaelRenderer.demogorgon() ? "demo" : "michael")
+			: role.name();
+	}
+
+	/** Touched at the wrist: a press passed on next tick, or a held one switched on or off. */
+	static void press(KeyMapping vr) {
+		for (Alias a : ALIASES) {
+			if (a.vr() == vr && a.held()) {
+				if (!TOGGLED.remove(vr)) {
+					TOGGLED.add(vr);
+				}
+				return;
+			}
+		}
+		KeyMappingAccessor acc = (KeyMappingAccessor) vr;
+		acc.halloween$setClickCount(acc.halloween$getClickCount() + 1);
+	}
+
+	private static KeyMapping[] testKeys;
+
+	/** For tests without Vivecraft (none of the VR buttons registered): a survivor's buttons to draw. */
+	static KeyMapping[] testKeys() {
+		if (testKeys == null) {
+			testKeys = new KeyMapping[]{
+				new KeyMapping("key.halloween.vr.ping", InputConstants.Type.KEYSYM, InputConstants.UNKNOWN.getValue(), CATEGORY),
+				new KeyMapping("key.halloween.vr.skill", InputConstants.Type.KEYSYM, InputConstants.UNKNOWN.getValue(), CATEGORY),
+				new KeyMapping("key.halloween.vr.reload", InputConstants.Type.KEYSYM, InputConstants.UNKNOWN.getValue(), CATEGORY),
+				new KeyMapping("key.halloween.vr.perks", InputConstants.Type.KEYSYM, InputConstants.UNKNOWN.getValue(), CATEGORY)};
+		}
+		return testKeys;
+	}
+
+	/** Switched on at the wrist (a held one). */
+	static boolean toggled(KeyMapping vr) {
+		return TOGGLED.contains(vr);
 	}
 
 	/** Every client tick, before the keys are read: presses passed on, the radial menu set for the role. */
@@ -133,25 +190,19 @@ public final class VrKeys {
 	}
 
 	private static void radial(Minecraft mc) {
-		Role role = ClientState.myRole();
-		boolean on = ClientVr.active() && role != Role.NONE;
-		String now = !on ? "" : role == Role.SHAPE ? (MichaelRenderer.vecna() ? "vecna" : MichaelRenderer.demogorgon() ? "demo" : "michael")
-			: role.name();
+		boolean on = ClientVr.active() && ClientState.myRole() != Role.NONE;
+		String now = !on ? "" : form();
 		if (now.equals(shown)) {
 			return;
 		}
 		shown = now;
+		// A new role or form: nothing left switched on at the wrist.
+		TOGGLED.clear();
 		if (!on) {
 			ClientVr.radial(null);
 			return;
 		}
-		KeyMapping[] keys = switch (now) {
-			case "michael" -> new KeyMapping[]{sense, shapeJump, impulse, dash, orders, perks};
-			case "demo" -> new KeyMapping[]{upsideDown, impulse, dash, orders, perks};
-			case "vecna" -> new KeyMapping[]{grip, eyes, anchor, dash, perks};
-			case "RUNT" -> new KeyMapping[]{runtSwap, gift1, gift2, perks};
-			default -> new KeyMapping[]{ping, skill, reload, perks};
-		};
+		KeyMapping[] keys = keys();
 		// Eight places round the menu; the empty ones show nothing.
 		String[] items = new String[8];
 		for (int i = 0; i < items.length; i++) {

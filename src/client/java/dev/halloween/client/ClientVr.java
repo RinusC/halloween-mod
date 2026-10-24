@@ -57,6 +57,16 @@ public final class ClientVr {
 		return active() ? Api.part(VRBodyPart.HEAD, true) : null;
 	}
 
+	/** A hand where it is drawn this frame (smoother than the tick's pose, for what hangs off it); null without a headset. */
+	public static Vr.@Nullable Ray renderHand(boolean main) {
+		return active() ? Api.renderPart(main ? VRBodyPart.MAIN_HAND : VRBodyPart.OFF_HAND) : null;
+	}
+
+	/** The headset where it is drawn this frame; null without one. */
+	public static Vr.@Nullable Ray renderHead() {
+		return active() ? Api.renderPart(VRBodyPart.HEAD) : null;
+	}
+
 	/** A hand in the room (moving about with the stick does not move it): for how fast it swings. */
 	static @Nullable Vec3 roomHand(boolean main) {
 		Vr.Ray ray = active() ? Api.part(main ? VRBodyPart.MAIN_HAND : VRBodyPart.OFF_HAND, false) : null;
@@ -120,6 +130,12 @@ public final class ClientVr {
 	/** Every client tick: panic as a heartbeat in the hands, the quake as a rumble. */
 	static void tick(Minecraft mc) {
 		ticks++;
+		if (!active()) {
+			described = false;
+		} else if (!described) {
+			described = true;
+			describe();
+		}
 		if (!active() || mc.level == null) {
 			return;
 		}
@@ -145,6 +161,44 @@ public final class ClientVr {
 		}
 	}
 
+	private static boolean described;
+
+	/**
+	 * Into the log as VR starts: the headset and controllers SteamVR reports (the controller type is what picks
+	 * Vivecraft's bindings: one it has none for leaves buttons unbound), so a report from a headset can be looked into.
+	 */
+	private static void describe() {
+		try {
+			Class<?> sys = Class.forName("org.lwjgl.openvr.VRSystem");
+			java.lang.reflect.Method role = sys.getMethod("VRSystem_GetTrackedDeviceIndexForControllerRole", int.class);
+			java.lang.reflect.Method prop = null;
+			for (java.lang.reflect.Method m : sys.getMethods()) {
+				if (m.getName().equals("VRSystem_GetStringTrackedDeviceProperty") && m.getParameterCount() == 3
+					&& m.getParameterTypes()[2] == java.nio.IntBuffer.class) {
+					prop = m;
+				}
+			}
+			StringBuilder out = new StringBuilder("VR devices:");
+			int[][] devices = {{0, -1}, {(int) role.invoke(null, 1), 1}, {(int) role.invoke(null, 2), 2}};
+			String[] names = {"headset", "left", "right"};
+			for (int i = 0; i < devices.length; i++) {
+				int index = devices[i][0];
+				if (index < 0 || index > 64 || prop == null) {
+					out.append(' ').append(names[i]).append("=none");
+					continue;
+				}
+				// Manufacturer, model, controller type.
+				String maker = (String) prop.invoke(null, index, 1005, null);
+				String model = (String) prop.invoke(null, index, 1001, null);
+				String type = (String) prop.invoke(null, index, 7037, null);
+				out.append(' ').append(names[i]).append("=[").append(maker).append(" / ").append(model).append(" / ").append(type).append(']');
+			}
+			dev.halloween.Halloween.LOGGER.info(out.toString());
+		} catch (Throwable e) {
+			dev.halloween.Halloween.LOGGER.info("VR devices: could not be read ({})", e.toString());
+		}
+	}
+
 	private static final class Api {
 		static boolean active() {
 			return VRClientAPI.instance().isVRActive();
@@ -166,6 +220,15 @@ public final class ClientVr {
 
 		static Vr.@Nullable Ray part(VRBodyPart part, boolean world) {
 			VRPose pose = world ? VRClientAPI.instance().getPostTickWorldPose() : VRClientAPI.instance().getPostTickRoomPose();
+			if (pose == null) {
+				return null;
+			}
+			var data = pose.getBodyPartData(part);
+			return data == null ? null : new Vr.Ray(data.getPos(), data.getDir());
+		}
+
+		static Vr.@Nullable Ray renderPart(VRBodyPart part) {
+			VRPose pose = VRClientAPI.instance().getWorldRenderPose();
 			if (pose == null) {
 				return null;
 			}

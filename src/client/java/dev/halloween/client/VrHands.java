@@ -124,15 +124,13 @@ public final class VrHands {
 			ClientVr.buzz(true, 0.06f, 0.7f);
 			ClientVr.buzz(false, 0.06f, 0.7f);
 		}
+		// (Reloading is the free hand on the gun and a press: see Reload. Just holding it in both hands loads nothing.)
+	}
+
+	/** The free hand on the gun held in the other: where a reload is done from. */
+	private static boolean onGun(Minecraft mc, Vec3 offHand) {
 		Vr.Ray main = ClientVr.hand(true);
-		Vr.Ray off = ClientVr.hand(false);
-		if (ClientGuns.heldGun(mc) != null && main != null && off != null && reloadWait == 0 && main.pos().distanceTo(off.pos()) < 0.16) {
-			// The free hand to the gun: load it.
-			reloadWait = 30;
-			ClientPlayNetworking.send(new HwNet.ActionPress(HwNet.Action.RELOAD));
-			ViewArms.trigger(ViewArms.Act.RELOAD);
-			ClientVr.buzz(false, 0.05f, 0.4f);
-		}
+		return main != null && ClientGuns.heldGun(mc) != null && main.pos().distanceTo(offHand) < 0.22;
 	}
 
 	private static void runt(Minecraft mc) {
@@ -276,7 +274,88 @@ public final class VrHands {
 	/** Only loaded when Vivecraft is there. */
 	private static final class Modules {
 		static void register() {
-			VRClientAPI.instance().addClientRegistrationHandler(event -> event.registerInteractModules(new Grab(), new Touch()));
+			VRClientAPI.instance().addClientRegistrationHandler(event -> event.registerInteractModules(new Grab(), new Touch(), new Gun(), new Reload()));
+		}
+	}
+
+	/**
+	 * A gun in the hand: its trigger fires it. Vivecraft gives a hand's trigger to "interact" whenever a module wants
+	 * that hand, and only otherwise to the game's attack, which some controllers (with no bindings of Vivecraft's own)
+	 * have nowhere: so the gun takes the hand itself, the last of all (a door or a window under the hand comes first),
+	 * and fires on interact, whatever the controller. Not while the wrist's buttons are up.
+	 */
+	private static final class Gun implements InteractModule {
+		@Override
+		public int getPriority() {
+			return -100;
+		}
+
+		@Override
+		public Identifier getId() {
+			return Halloween.id("gun");
+		}
+
+		@Override
+		public boolean isActive(LocalPlayer player, InteractionHand hand, Vec3 pos) {
+			Minecraft mc = Minecraft.getInstance();
+			return hand == InteractionHand.MAIN_HAND && mc.gui.screen() == null && !VrWrist.open() && ClientGuns.heldGun(mc) != null;
+		}
+
+		@Override
+		public boolean onPress(LocalPlayer player, InteractionHand hand) {
+			Minecraft mc = Minecraft.getInstance();
+			if (!HalloweenClient.survivorAttack(mc, 1)) {
+				return false;
+			}
+			if (!logged) {
+				logged = true;
+				Halloween.LOGGER.info("VR: the gun fired from Vivecraft's interact (the trigger works)");
+			}
+			return true;
+		}
+
+		@Override
+		public boolean swingsArm() {
+			return false;
+		}
+	}
+
+	private static boolean logged;
+
+	/** The free hand on the gun and a press (trigger or grip): it is loaded. */
+	private static final class Reload implements InteractModule {
+		@Override
+		public int getPriority() {
+			return -90;
+		}
+
+		@Override
+		public Identifier getId() {
+			return Halloween.id("reload");
+		}
+
+		@Override
+		public boolean isActive(LocalPlayer player, InteractionHand hand, Vec3 pos) {
+			Minecraft mc = Minecraft.getInstance();
+			return hand == InteractionHand.OFF_HAND && mc.gui.screen() == null && !VrWrist.open() && onGun(mc, pos);
+		}
+
+		@Override
+		public boolean onPress(LocalPlayer player, InteractionHand hand) {
+			if (reloadWait > 0) {
+				return true;
+			}
+			reloadWait = 10;
+			ClientPlayNetworking.send(new HwNet.ActionPress(HwNet.Action.RELOAD));
+			ViewArms.trigger(ViewArms.Act.RELOAD);
+			ClientVr.buzz(false, 0.05f, 0.5f);
+			ClientVr.buzz(true, 0.03f, 0.3f);
+			return true;
+		}
+
+		@Override
+		public boolean swingsArm() {
+			return false;
 		}
 	}
 

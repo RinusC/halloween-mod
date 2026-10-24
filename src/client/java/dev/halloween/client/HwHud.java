@@ -150,7 +150,7 @@ public final class HwHud {
 				healthBar(g, mc, w, h);
 				curseHud(g, mc, w, h);
 				int pushLeft = (int) Math.max(0, ClientState.pushReadyAt - mc.level.getGameTime());
-				smallAction(g, mc.font, w - 12, h - 84, Component.translatable("halloween.hud.shove"), mc.options.keyAttack.getTranslatedKeyMessage(), pushLeft);
+				smallAction(g, mc.font, w - 12, h - 84, Component.translatable("halloween.hud.shove"), ClientVr.active() ? Component.translatable("halloween.hud.vr.shove") : mc.options.keyAttack.getTranslatedKeyMessage(), pushLeft);
 				ClientHeroes.hud(g, mc, w, h, partial);
 				inventoryBar(g, mc, w, h);
 				gunHud(g, mc, w, h);
@@ -167,6 +167,7 @@ public final class HwHud {
 			feed(g, mc.font, w, h);
 		}
 		matchTimer(g, mc, w);
+		vrWristHint(g, mc, w, h);
 		ClientEvents.render(g, mc, w, h, partialTicks(delta));
 		int noticesTop = minimapAndWanted(g, mc, w, partialTicks(delta));
 		notices(g, mc.font, w, noticesTop);
@@ -198,6 +199,15 @@ public final class HwHud {
 	private static String clock(int ticks) {
 		int s = Math.max(0, (ticks + 19) / 20);
 		return String.format("%d:%02d", s / 60, s % 60);
+	}
+
+	/** In the headset, until the wrist's buttons have been brought up once: how to. */
+	private static void vrWristHint(GuiGraphicsExtractor g, Minecraft mc, int w, int h) {
+		if (!ClientVr.active() || VrWrist.used() || VrKeys.keys().length == 0 || mc.player.isSpectator()) {
+			return;
+		}
+		Component line = Component.translatable("halloween.hud.vr.wrist");
+		g.textWithBackdrop(mc.font, line, w / 2 - mc.font.width(line) / 2, h - 70, mc.font.width(line), 0xFFF0D08A);
 	}
 
 	private static void matchTimer(GuiGraphicsExtractor g, Minecraft mc, int w) {
@@ -438,6 +448,11 @@ public final class HwHud {
 		}
 		Component line = Component.translatable("halloween.hud.ammo", rounds.toString(), spare);
 		g.text(mc.font, line, w - 10 - mc.font.width(line), h - 48, loaded == 0 ? BLOOD : TEXT, true);
+		if (ClientVr.active()) {
+			// In the headset the hands do it: how, under the rounds.
+			Component how = Component.translatable(loaded == 0 ? "halloween.hud.vr.gun_empty" : "halloween.hud.vr.gun");
+			g.text(mc.font, how, w - 10 - mc.font.width(how), h - 59, loaded == 0 ? 0xFFF0D08A : 0xB0D8D2C4, true);
+		}
 	}
 
 	/** The Shape's stun meter, knock-down and the flashlight glare. */
