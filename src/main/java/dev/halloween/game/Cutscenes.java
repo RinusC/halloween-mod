@@ -75,7 +75,7 @@ public final class Cutscenes {
 				side = 1;
 			}
 			case "jennifer" -> {
-				what = s -> s.is(net.minecraft.world.level.block.Blocks.BOOKSHELF);
+				what = s -> s.is(net.minecraft.world.level.block.Blocks.BOOKSHELF) || PropBlock.is(s) && s.getValue(PropBlock.KIND) == PropBlock.Kind.BOOKCASE;
 				side = 1;
 			}
 			case "alexis" -> {

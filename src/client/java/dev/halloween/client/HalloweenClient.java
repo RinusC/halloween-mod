@@ -209,6 +209,10 @@ public class HalloweenClient implements ClientModInitializer {
 		UseBlockCallback.EVENT.register(ClientInteractions::onUseBlock);
 		// The local Shape walks through doors during Shape Jump (the server agrees, see DoorPass).
 		DoorPass.clientCheck = entity -> entity == Minecraft.getInstance().player && ClientState.shadowActive();
+		// What was pulled down across the way stops the local Michael (the server agrees, see DebrisBlock).
+		dev.halloween.game.DebrisBlock.clientBlocked = entity -> entity == Minecraft.getInstance().player && ClientObstacles.blocked();
+		ClientPlayNetworking.registerGlobalReceiver(HwNet.KnockAllowed.TYPE, (payload, ctx) -> ClientObstacles.allowed = payload.allowed());
+		ClientPlayNetworking.registerGlobalReceiver(HwNet.ObstacleFx.TYPE, (payload, ctx) -> ClientObstacles.effect(payload));
 
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
 			ClientState.reset();
@@ -290,6 +294,7 @@ public class HalloweenClient implements ClientModInitializer {
 		VrKeys.tick(mc);
 		VrHands.tick(mc);
 		ClientHeroes.tick(mc);
+		ClientObstacles.tick(mc);
 		ClientInteractions.tick(mc);
 		ShapeJumpAudio.tick(mc);
 		BloodParticles.tick(mc);

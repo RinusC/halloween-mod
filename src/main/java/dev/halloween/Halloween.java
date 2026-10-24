@@ -58,6 +58,8 @@ public class Halloween implements ModInitializer {
 		ServerPlayNetworking.registerGlobalReceiver(HwNet.PerkAction.TYPE, (payload, ctx) -> dev.halloween.game.Perks.act(ctx.player(), payload.perk(), payload.action()));
 		ServerPlayNetworking.registerGlobalReceiver(HwNet.NpcTalk.TYPE, (payload, ctx) -> dev.halloween.game.Talks.request(ctx.player(), payload.entityId(), payload.option()));
 		ServerPlayNetworking.registerGlobalReceiver(HwNet.MinigameResult.TYPE, (payload, ctx) -> dev.halloween.game.Minigames.result(ctx.player(), payload));
+		// Pulling something down behind you on the run (game.Obstacles).
+		ServerPlayNetworking.registerGlobalReceiver(HwNet.KnockRequest.TYPE, (payload, ctx) -> dev.halloween.game.Obstacles.request(ctx.player(), payload.pos(), payload.motion()));
 		ServerPlayNetworking.registerGlobalReceiver(HwNet.Ping.TYPE, (payload, ctx) -> dev.halloween.game.Pings.onPing(ctx.player(), payload.pos(), payload.kind(), payload.entityId()));
 		ServerPlayNetworking.registerGlobalReceiver(HwNet.GunFire.TYPE, (payload, ctx) -> dev.halloween.game.Guns.fire(ctx.player(), payload.yaw(), payload.pitch()));
 		ServerPlayNetworking.registerGlobalReceiver(HwNet.GunAim.TYPE, (payload, ctx) -> dev.halloween.game.Guns.setAiming(ctx.player(), payload.aiming()));
@@ -122,8 +124,6 @@ public class Halloween implements ModInitializer {
 			&& MatchManager.shapeState(sp) != null && MatchManager.shapeState(sp).shadowTicks > 0
 			? net.minecraft.world.InteractionResult.FAIL : net.minecraft.world.InteractionResult.PASS);
 		UseBlockCallback.EVENT.register(LightSystem::onUseBlock);
-		// In a chase: pulling things down behind you, a door in his face (game.Obstacles).
-		UseBlockCallback.EVENT.register(dev.halloween.game.Obstacles::onUse);
 		UseBlockCallback.EVENT.register((player, level, hand, hit) -> !level.isClientSide() && player instanceof net.minecraft.server.level.ServerPlayer sp
 			? dev.halloween.game.Lobby.onUse(sp, hit.getBlockPos()) : net.minecraft.world.InteractionResult.PASS);
 		UseBlockCallback.EVENT.register((player, level, hand, hit) -> {

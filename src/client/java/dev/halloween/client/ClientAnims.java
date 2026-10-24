@@ -116,6 +116,8 @@ public final class ClientAnims {
 			case HwNet.Anim.DEMO_ROAR -> 60;
 			case HwNet.Anim.DEMO_SEARCH -> 40;
 			case HwNet.Anim.WINDOW_THROW, HwNet.Anim.DEMO_TOSS -> 30;
+			case HwNet.Anim.KICK -> 20;
+			case HwNet.Anim.PULL -> 13;
 			default -> 0;
 		};
 	}
@@ -440,6 +442,31 @@ public final class ClientAnims {
 				m.rightArm.yRot = Mth.lerp(k, m.rightArm.yRot, 0);
 				m.leftArm.yRot = Mth.lerp(k, m.leftArm.yRot, 0);
 				m.head.xRot = Mth.lerp(k, m.head.xRot, 0.2f);
+			}
+			case HwNet.Anim.KICK -> {
+				// What lies across the way stamped apart: the knee up high, a stamp down through it, the head going
+				// down with it; the knife arm out for balance.
+				float up = smooth(t / 7f);
+				float stamp = smooth((t - 7f) / 2.5f);
+				float back = smooth((t - 12f) / 8f);
+				float leg = Mth.lerp(stamp, Mth.lerp(up, 0f, -1.45f), -0.3f);
+				m.rightLeg.xRot = Mth.lerp(back, leg, m.rightLeg.xRot);
+				m.rightLeg.zRot = Mth.lerp(back, 0.06f * up, m.rightLeg.zRot);
+				m.leftLeg.xRot = Mth.lerp(back, 0.15f * up * (1f - stamp), m.leftLeg.xRot);
+				m.leftArm.xRot = Mth.lerp(back, Mth.lerp(up, m.leftArm.xRot, -0.7f) + 0.5f * stamp, m.leftArm.xRot);
+				m.leftArm.zRot = Mth.lerp(back, -0.35f * up, m.leftArm.zRot);
+				m.rightArm.zRot = Mth.lerp(back, 0.45f * up, m.rightArm.zRot);
+				m.rightArm.xRot = Mth.lerp(back, Mth.lerp(up, m.rightArm.xRot, -0.35f), m.rightArm.xRot);
+				m.head.xRot = Mth.lerp(back, 0.25f * up + 0.3f * stamp, m.head.xRot);
+			}
+			case HwNet.Anim.PULL -> {
+				// An arm flung out to the side for it and yanked back hard as it goes over.
+				float out = smooth(t / 4f);
+				float yank = smooth((t - 4f) / 4f);
+				float back = smooth((t - 9f) / 4f);
+				m.rightArm.zRot = Mth.lerp(back, Mth.lerp(yank, Mth.lerp(out, m.rightArm.zRot, 1.25f), 0.5f), m.rightArm.zRot);
+				m.rightArm.xRot = Mth.lerp(back, Mth.lerp(yank, Mth.lerp(out, m.rightArm.xRot, -0.9f), 0.9f), m.rightArm.xRot);
+				m.head.yRot = Mth.lerp(back, m.head.yRot - 0.5f * out * (1f - yank), m.head.yRot);
 			}
 			case HwNet.Anim.STAGGER -> {
 				// Thrown back a step, arms flung out.

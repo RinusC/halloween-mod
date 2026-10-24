@@ -1797,6 +1797,12 @@ public final class HwHud {
 			g.textWithBackdrop(mc.font, npc, w / 2 - mc.font.width(npc) / 2, h / 2 + 22, mc.font.width(npc), TEXT);
 			return;
 		}
+		if (ClientState.progress.label().isEmpty() && ClientObstacles.candidate() != null && !ClientInteractions.aimsAtObject(mc)) {
+			// Running past something to pull down behind you (game.Obstacles): no aiming, the use key.
+			Component knock = Component.translatable("halloween.hud.prompt.knock", mc.options.keyUse.getTranslatedKeyMessage());
+			g.textWithBackdrop(mc.font, knock, w / 2 - mc.font.width(knock) / 2, h / 2 + 22, mc.font.width(knock), 0xFFF0D08A);
+			return;
+		}
 		if (!ClientState.progress.label().isEmpty() || !(mc.hitResult instanceof net.minecraft.world.phys.BlockHitResult hit)
 			|| hit.getType() == net.minecraft.world.phys.HitResult.Type.MISS) {
 			return;
@@ -1832,9 +1838,9 @@ public final class HwHud {
 			var base = ClientInteractions.doorBase(mc.level, pos);
 			line = Component.translatable(ClientState.BROKEN_LOCKS.contains(base) ? "halloween.hud.prompt.door_broken"
 				: ClientState.LOCKED_DOORS.contains(base) ? "halloween.hud.prompt.door_locked" : "halloween.hud.prompt.door");
-		} else if (dev.halloween.game.Obstacles.kindOf(state) != null && !ClientState.match.containers().contains(pos)) {
-			// Something to pull down behind you (game.Obstacles).
-			line = Component.translatable("halloween.hud.prompt.knock", mc.options.keyUse.getTranslatedKeyMessage(), mc.options.keySprint.getTranslatedKeyMessage());
+		} else if (dev.halloween.game.PropBlock.is(state)) {
+			// Something to pull down behind you, only with him after you (game.Obstacles).
+			line = Component.translatable("halloween.hud.prompt.knock_how", mc.options.keyUse.getTranslatedKeyMessage());
 		} else if (dev.halloween.game.Sight.isGlass(state)) {
 			boolean low = mc.player.getHealth() <= mc.player.getMaxHealth() * HwConfig.get().vaultDamageFraction;
 			line = low ? Component.translatable("halloween.hud.prompt.window_low")
@@ -1870,7 +1876,11 @@ public final class HwHud {
 			return;
 		}
 		var pos = hit.getBlockPos();
-		if (mc.level.getBlockState(pos).getBlock() instanceof net.minecraft.world.level.block.DoorBlock
+		if (dev.halloween.game.Obstacles.isCell(mc.level, pos) && !ClientState.shadowActive() && mc.player.getEyePosition().distanceTo(hit.getLocation()) <= 3.4) {
+			// Something pulled down across the way (game.Obstacles).
+			Component line = Component.translatable("halloween.hud.prompt.debris_shape");
+			g.textWithBackdrop(mc.font, line, w / 2 - mc.font.width(line) / 2, h / 2 + 30, mc.font.width(line), TEXT);
+		} else if (mc.level.getBlockState(pos).getBlock() instanceof net.minecraft.world.level.block.DoorBlock
 			&& ClientState.LOCKED_DOORS.contains(ClientInteractions.doorBase(mc.level, pos))) {
 			Component line = Component.translatable("halloween.hud.prompt.door_shape");
 			g.textWithBackdrop(mc.font, line, w / 2 - mc.font.width(line) / 2, h / 2 + 30, mc.font.width(line), TEXT);

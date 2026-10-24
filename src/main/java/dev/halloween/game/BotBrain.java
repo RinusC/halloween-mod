@@ -353,6 +353,10 @@ final class BotBrain {
 				AiStats.add(this.bot, "hit.cornered");
 			}
 		}
+		if (onUs != null && now % 4 == 0 && this.bot.isSprinting() && Obstacles.botKnock(this.bot, onUs.position())) {
+			// Something pulled down between us and him.
+			AiStats.add(this.bot, "flee.knock");
+		}
 		boolean seenRecently = now - this.threatTick < 40;
 		if (seenRecently || Senses.killerNear(this.bot, cfg.fleeSafeDistance)) {
 			// (Out of sight is not safe yet: not while he is close behind, heard on our heels.)

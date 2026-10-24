@@ -108,6 +108,10 @@ public final class Nav {
 		if (Windows.isWindow(state)) {
 			return 0;
 		}
+		if (Obstacles.lies(state)) {
+			// Something pulled down across the way: stepped over (Michael kicks it apart, see ShapeBrain).
+			return 1;
+		}
 		if (!state.getFluidState().isEmpty()) {
 			return 0;
 		}
@@ -116,6 +120,9 @@ public final class Nav {
 
 	static boolean floor(Level level, BlockPos pos) {
 		BlockState state = level.getBlockState(pos);
+		if (Obstacles.lies(state)) {
+			return false;
+		}
 		if (isDoor(state) || state.getBlock() instanceof FenceBlock || state.getBlock() instanceof WallBlock
 			|| state.getBlock() instanceof FenceGateBlock) {
 			return false;

@@ -1,0 +1,87 @@
+{
+ "elements" : [
+  {
+   "faces" : {
+    "down" : {
+     "texture" : "#books",
+     "uv" : [
+      1,
+      12,
+      2,
+      16
+     ]
+    },
+    "east" : {
+     "texture" : "#books",
+     "uv" : [
+      1,
+      8,
+      2,
+      12
+     ]
+    },
+    "north" : {
+     "texture" : "#books",
+     "uv" : [
+      1,
+      8,
+      2,
+      12
+     ]
+    },
+    "south" : {
+     "texture" : "#books",
+     "uv" : [
+      1,
+      8,
+      2,
+      12
+     ]
+    },
+    "up" : {
+     "texture" : "#books",
+     "uv" : [
+      1,
+      12,
+      2,
+      16
+     ]
+    },
+    "west" : {
+     "rotation" : 90,
+     "texture" : "#books",
+     "uv" : [
+      1,
+      0,
+      2,
+      8
+     ]
+    }
+   },
+   "from" : [
+    5,
+    0,
+    4.5
+   ],
+   "rotation" : {
+    "angle" : -22.5,
+    "axis" : "y",
+    "origin" : [
+     8,
+     0,
+     8
+    ]
+   },
+   "to" : [
+    10.5,
+    1.5,
+    11.5
+   ]
+  }
+ ],
+ "parent" : "minecraft:block/block",
+ "textures" : {
+  "books" : "halloween:block/prop/books",
+  "particle" : "halloween:block/prop/books"
+ }
+}

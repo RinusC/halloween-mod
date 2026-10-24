@@ -1,20 +1,34 @@
 {
-  "variants": {
-    "facing=north,kind=bin": { "model": "halloween:block/debris/bin" },
-    "facing=east,kind=bin": { "model": "halloween:block/debris/bin", "y": 90 },
-    "facing=south,kind=bin": { "model": "halloween:block/debris/bin", "y": 180 },
-    "facing=west,kind=bin": { "model": "halloween:block/debris/bin", "y": 270 },
-    "facing=north,kind=shelf": { "model": "halloween:block/debris/shelf" },
-    "facing=east,kind=shelf": { "model": "halloween:block/debris/shelf", "y": 90 },
-    "facing=south,kind=shelf": { "model": "halloween:block/debris/shelf", "y": 180 },
-    "facing=west,kind=shelf": { "model": "halloween:block/debris/shelf", "y": 270 },
-    "facing=north,kind=barrel": { "model": "halloween:block/debris/barrel" },
-    "facing=east,kind=barrel": { "model": "halloween:block/debris/barrel", "y": 90 },
-    "facing=south,kind=barrel": { "model": "halloween:block/debris/barrel", "y": 180 },
-    "facing=west,kind=barrel": { "model": "halloween:block/debris/barrel", "y": 270 },
-    "facing=north,kind=hay": { "model": "halloween:block/debris/hay" },
-    "facing=east,kind=hay": { "model": "halloween:block/debris/hay", "y": 90 },
-    "facing=south,kind=hay": { "model": "halloween:block/debris/hay", "y": 180 },
-    "facing=west,kind=hay": { "model": "halloween:block/debris/hay", "y": 270 }
+ "variants" : {
+  "piece=bag" : {
+   "model" : "halloween:block/prop/bag"
+  },
+  "piece=bin_body" : {
+   "model" : "halloween:block/prop/bin_body"
+  },
+  "piece=bin_lid" : {
+   "model" : "halloween:block/prop/bin_lid"
+  },
+  "piece=book_a" : {
+   "model" : "halloween:block/prop/book_a"
+  },
+  "piece=book_b" : {
+   "model" : "halloween:block/prop/book_b"
+  },
+  "piece=book_open" : {
+   "model" : "halloween:block/prop/book_open"
+  },
+  "piece=cell" : {
+   "model" : "halloween:block/prop/cell"
+  },
+  "piece=papers" : {
+   "model" : "halloween:block/prop/papers"
+  },
+  "piece=planks" : {
+   "model" : "halloween:block/prop/planks"
+  },
+  "piece=trash" : {
+   "model" : "halloween:block/prop/trash"
   }
+ }
 }

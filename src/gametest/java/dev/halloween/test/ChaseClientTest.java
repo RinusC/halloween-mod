@@ -4,8 +4,12 @@ import dev.halloween.HwBlocks;
 import dev.halloween.HwConfig;
 import dev.halloween.client.ClientDarkness;
 import dev.halloween.game.BotPlayer;
-import dev.halloween.game.DebrisBlock;
+import dev.halloween.game.MatchManager;
 import dev.halloween.game.Obstacles;
+import dev.halloween.game.PropBlock;
+import dev.halloween.game.Senses;
+import dev.halloween.game.ShapeBrain;
+import dev.halloween.game.ShapeState;
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestServerContext;
@@ -16,14 +20,18 @@ import net.minecraft.core.Direction;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.InteractionHand;
 import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.CollisionContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** What gets pulled down in a chase (game.Obstacles): the four kinds lying every way, and one pulled down for real and put back. */
+/**
+ * What gets pulled down in a chase (game.Obstacles): the town's bookshelves and bin made bookcases and cans, a bookcase
+ * and a can pulled down (mid-fall and lying, the lid and the spill), a wall to Michael and a step to the survivor,
+ * kicked apart by him, coming down on him, and all put back.
+ */
 public class ChaseClientTest implements FabricClientGameTest {
 	private static final Logger LOG = LoggerFactory.getLogger("halloween-chase");
 
@@ -44,79 +52,195 @@ public class ChaseClientTest implements FabricClientGameTest {
 				cfg.eventsEnabled = false;
 			});
 			dev.halloween.game.Weather.forced = dev.halloween.game.Weather.CLEAR;
+			ShapeBrain.paused = true;
+			Obstacles.testAllowed = true;
 			server.runCommand("hw start");
 			ctx.waitTicks(80);
+			// The player runs; a bot plays Michael (held still: ShapeBrain.paused).
+			String michael = server.computeOnServer(s -> s.getPlayerList().getPlayers().stream().filter(p -> p instanceof BotPlayer).findFirst().orElseThrow().getScoreboardName());
+			server.runCommand("hw role @p civilian");
+			server.runCommand("hw role " + michael + " shape");
+			ctx.waitTicks(10);
 			server.runCommand("time set noon");
 			ctx.runOnClient(mc -> {
 				ClientDarkness.enabled = false;
 				mc.options.setCameraType(CameraType.FIRST_PERSON);
 			});
+			// A room's corner up in the air: a wall to the south, two bookshelves two high against it, a cauldron bin.
 			int[] at = server.computeOnServer(s -> {
 				ServerPlayer p = player(s);
 				int x = (int) Math.floor(p.getX());
 				int z = (int) Math.floor(p.getZ());
 				ServerLevel level = s.overworld();
-				s.getCommands().performPrefixedCommand(s.createCommandSourceStack().withSuppressedOutput(),
-					"fill " + (x - 8) + " 150 " + (z - 8) + " " + (x + 8) + " 150 " + (z + 8) + " minecraft:smooth_stone");
-				s.getCommands().performPrefixedCommand(s.createCommandSourceStack().withSuppressedOutput(),
-					"fill " + (x - 8) + " 151 " + (z - 8) + " " + (x + 8) + " 154 " + (z + 8) + " minecraft:air");
-				// Each kind in a row, turned each way; what they were beside them.
-				DebrisBlock.Kind[] kinds = DebrisBlock.Kind.values();
-				Direction[] dirs = {Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST};
-				for (int k = 0; k < kinds.length; k++) {
-					for (int d = 0; d < dirs.length; d++) {
-						level.setBlock(new BlockPos(x - 3 + d * 2, 151, z + 3 + k * 2), HwBlocks.DEBRIS.defaultBlockState()
-							.setValue(DebrisBlock.KIND, kinds[k]).setValue(DebrisBlock.FACING, dirs[d]), 3);
-					}
+				cmd(s, "fill " + (x - 8) + " 150 " + (z - 8) + " " + (x + 8) + " 150 " + (z + 8) + " minecraft:oak_planks");
+				cmd(s, "fill " + (x - 8) + " 151 " + (z - 8) + " " + (x + 8) + " 155 " + (z + 8) + " minecraft:air");
+				cmd(s, "fill " + (x - 7) + " 151 " + (z + 6) + " " + (x + 7) + " 153 " + (z + 6) + " minecraft:stripped_spruce_wood");
+				for (int dx : new int[]{-3, 0}) {
+					level.setBlock(new BlockPos(x + dx, 151, z + 5), Blocks.BOOKSHELF.defaultBlockState(), 3);
+					level.setBlock(new BlockPos(x + dx, 152, z + 5), Blocks.BOOKSHELF.defaultBlockState(), 3);
 				}
-				level.setBlock(new BlockPos(x + 5, 151, z + 3), Blocks.CAULDRON.defaultBlockState(), 3);
-				level.setBlock(new BlockPos(x + 5, 151, z + 5), Blocks.BOOKSHELF.defaultBlockState(), 3);
-				level.setBlock(new BlockPos(x + 5, 152, z + 5), Blocks.BOOKSHELF.defaultBlockState(), 3);
-				level.setBlock(new BlockPos(x + 5, 151, z + 7), Blocks.BARREL.defaultBlockState(), 3);
-				level.setBlock(new BlockPos(x + 5, 151, z + 9), Blocks.HAY_BLOCK.defaultBlockState(), 3);
-				p.teleportTo(level, x + 0.5, 152.6, z + 0.5, java.util.Set.of(), 0f, 38f, false);
+				level.setBlock(new BlockPos(x + 3, 151, z + 4), Blocks.CAULDRON.defaultBlockState(), 3);
+				Obstacles.setup(level, new BlockPos(x, 151, z), 16);
+				look(p, new Vec3(x + 0.5, 152.0, z + 1.2), new Vec3(x + 0.5, 151.8, z + 5));
+				// Michael out of the way for now.
+				ServerPlayer shape = Senses.shape(level);
+				shape.teleportTo(level, x - 6.5, 151, z - 6.5, java.util.Set.of(), 0f, 0f, false);
 				return new int[]{x, z};
 			});
-			ctx.waitTicks(20);
-			ctx.takeScreenshot("chase_debris");
-			server.runOnServer(s -> player(s).teleportTo(s.overworld(), at[0] + 0.5, 152.4, at[1] + 4.5, java.util.Set.of(), 0f, 40f, false));
-			ctx.waitTicks(10);
-			ctx.takeScreenshot("chase_debris_near");
-			// Pulled down for real: running past the bookcase and using it.
-			boolean knocked = server.computeOnServer(s -> {
-				ServerPlayer p = player(s);
+			int x = at[0];
+			int z = at[1];
+			boolean made = server.computeOnServer(s -> {
 				ServerLevel level = s.overworld();
-				BlockPos shelf = new BlockPos(at[0] + 5, 151, at[1] + 5);
-				p.teleportTo(level, at[0] + 6.5, 151, at[1] + 5.5, java.util.Set.of(), 90f, 0f, false);
-				p.setSprinting(true);
-				Obstacles.onUse(p, level, InteractionHand.MAIN_HAND, new BlockHitResult(Vec3.atCenterOf(shelf), Direction.EAST, shelf, false));
-				boolean gone = level.getBlockState(shelf).isAir() && level.getBlockState(shelf.above()).isAir();
-				boolean lying = false;
-				for (BlockPos q : BlockPos.betweenClosed(shelf.offset(-2, 0, -2), shelf.offset(3, 0, 2))) {
-					lying |= level.getBlockState(q).is(HwBlocks.DEBRIS);
-				}
-				return gone && lying;
+				BlockState a = level.getBlockState(new BlockPos(x - 3, 151, z + 5));
+				BlockState b = level.getBlockState(new BlockPos(x + 3, 151, z + 4));
+				return PropBlock.is(a) && a.getValue(PropBlock.FACING) == Direction.NORTH && PropBlock.is(level.getBlockState(new BlockPos(x - 3, 152, z + 5)))
+					&& PropBlock.is(b) && b.getValue(PropBlock.KIND) == PropBlock.Kind.BIN;
 			});
-			if (!knocked) {
-				throw new AssertionError("The bookcase was not pulled down");
+			if (!made) {
+				throw new AssertionError("The bookshelves and the cauldron did not become a bookcase and a can");
 			}
-			server.runOnServer(s -> player(s).teleportTo(s.overworld(), at[0] + 7.5, 153.2, at[1] + 5.5, java.util.Set.of(), 90f, 40f, false));
-			ctx.waitTicks(15);
-			ctx.takeScreenshot("chase_knocked");
+			ctx.waitTicks(10);
+			ctx.takeScreenshot("chase_props");
+			server.runOnServer(s -> look(player(s), new Vec3(x - 1.2, 152.2, z + 3.6), new Vec3(x - 2.5, 151.7, z + 5.4)));
+			ctx.waitTicks(5);
+			ctx.takeScreenshot("chase_props_close");
+
+			// The bookcase pulled down by someone running past it, watched from the side.
+			knock(server, x - 1.4, z + 3.5, new BlockPos(x - 3, 151, z + 5), new Vec3(0.3, 0, 0));
+			server.runOnServer(s -> look(player(s), new Vec3(x + 1.6, 152.0, z + 2.6), new Vec3(x - 2.5, 151.6, z + 3.8)));
+			ctx.waitTicks(4);
+			ctx.takeScreenshot("chase_case_falling");
+			ctx.waitTicks(3);
+			ctx.takeScreenshot("chase_case_falling_2");
+			ctx.waitTicks(18);
+			ctx.takeScreenshot("chase_case_down");
+			boolean lying = server.computeOnServer(s -> Obstacles.isCell(s.overworld(), new BlockPos(x - 3, 151, z + 4))
+				&& Obstacles.isCell(s.overworld(), new BlockPos(x - 3, 151, z + 3)) && s.overworld().getBlockState(new BlockPos(x - 3, 151, z + 5)).isAir());
+			if (!lying) {
+				throw new AssertionError("The bookcase is not lying across the two blocks in front of it");
+			}
+
+			// The can: towards the one who pulled it, the lid off, the rubbish out.
+			knock(server, x + 4.6, z + 3.0, new BlockPos(x + 3, 151, z + 4), new Vec3(-0.3, 0, 0));
+			server.runOnServer(s -> look(player(s), new Vec3(x + 4.5, 152.4, z + 0.6), new Vec3(x + 4.0, 151.2, z + 4.2)));
+			ctx.waitTicks(4);
+			ctx.takeScreenshot("chase_bin_falling");
+			ctx.waitTicks(20);
+			ctx.takeScreenshot("chase_bin_down");
+			server.runOnServer(s -> look(player(s), new Vec3(x + 0.5, 155.2, z - 0.5), new Vec3(x + 0.5, 151, z + 3.6)));
+			ctx.waitTicks(5);
+			ctx.takeScreenshot("chase_down_above");
+
+			// A wall to Michael, a step to the survivor.
+			String walls = server.computeOnServer(s -> {
+				ServerLevel level = s.overworld();
+				BlockPos cell = new BlockPos(x - 3, 151, z + 4);
+				BlockState state = level.getBlockState(cell);
+				double him = state.getCollisionShape(level, cell, CollisionContext.of(Senses.shape(level))).max(Direction.Axis.Y);
+				double them = state.getCollisionShape(level, cell, CollisionContext.of(player(s))).max(Direction.Axis.Y);
+				return him > 1.2 && them < 0.6 ? null : "him " + him + ", them " + them;
+			});
+			if (walls != null) {
+				throw new AssertionError("The bookcase lying down is not a wall to him and a step to them: " + walls);
+			}
+
+			// Kicked apart: Michael beside it, facing it, strikes.
+			server.runOnServer(s -> {
+				ServerLevel level = s.overworld();
+				ServerPlayer shape = Senses.shape(level);
+				shape.teleportTo(level, x - 1.3, 151, z + 3.6, java.util.Set.of(), 90f, 30f, false);
+				look(player(s), new Vec3(x - 1.0, 152.3, z + 0.3), new Vec3(x - 2.0, 151.6, z + 3.8));
+			});
+			ctx.waitTicks(5);
+			server.runOnServer(s -> {
+				ServerPlayer shape = Senses.shape(s.overworld());
+				Vec3 eye = shape.getEyePosition();
+				MatchManager.onAim(shape, eye, Vec3.atCenterOf(new BlockPos(x - 3, 151, z + 4)).subtract(0, 0.3, 0).subtract(eye).normalize());
+				MatchManager.onShapeAttack(shape, -1, true);
+			});
+			ctx.waitTicks(7);
+			ctx.takeScreenshot("chase_kick");
+			ctx.waitTicks(5);
+			ctx.takeScreenshot("chase_kick_hit");
+			ctx.waitTicks(20);
+			ctx.takeScreenshot("chase_kicked");
+			boolean gone = server.computeOnServer(s -> !Obstacles.isCell(s.overworld(), new BlockPos(x - 3, 151, z + 4))
+				&& !Obstacles.isCell(s.overworld(), new BlockPos(x - 3, 151, z + 3)));
+			if (!gone) {
+				throw new AssertionError("Michael's kick did not clear the bookcase away");
+			}
+
+			// Coming down on him: stunned, thrown out from under it.
+			server.runOnServer(s -> {
+				ServerLevel level = s.overworld();
+				Senses.shape(level).teleportTo(level, x + 0.5, 151, z + 3.5, java.util.Set.of(), 180f, 0f, false);
+			});
+			ctx.waitTicks(30);
+			knock(server, x + 1.7, z + 3.4, new BlockPos(x, 151, z + 5), new Vec3(0.3, 0, 0));
+			server.runOnServer(s -> look(player(s), new Vec3(x + 3.2, 152.1, z + 1.8), new Vec3(x + 0.3, 151.6, z + 3.8)));
+			ctx.waitTicks(14);
+			ctx.takeScreenshot("chase_on_him");
+			String stunned = server.computeOnServer(s -> {
+				ServerPlayer shape = Senses.shape(s.overworld());
+				ShapeState st = MatchManager.shapeState(shape);
+				boolean out = shape.getX() < x - 0.05 || shape.getX() > x + 1.05;
+				return st != null && st.recoverTicks > 0 && out ? null : "recover " + (st == null ? -1 : st.recoverTicks) + " at " + shape.position();
+			});
+			if (stunned != null) {
+				throw new AssertionError("Coming down on him did not stun him and throw him clear: " + stunned);
+			}
+
+			// All put back.
 			boolean back = server.computeOnServer(s -> {
 				Obstacles.clear(s);
-				BlockPos shelf = new BlockPos(at[0] + 5, 151, at[1] + 5);
-				return s.overworld().getBlockState(shelf).is(Blocks.BOOKSHELF) && s.overworld().getBlockState(shelf.above()).is(Blocks.BOOKSHELF);
+				ServerLevel level = s.overworld();
+				return PropBlock.is(level.getBlockState(new BlockPos(x - 3, 151, z + 5))) && PropBlock.is(level.getBlockState(new BlockPos(x - 3, 152, z + 5)))
+					&& PropBlock.is(level.getBlockState(new BlockPos(x + 3, 151, z + 4))) && PropBlock.is(level.getBlockState(new BlockPos(x, 151, z + 5)))
+					&& !level.getBlockState(new BlockPos(x - 3, 151, z + 4)).is(HwBlocks.DEBRIS) && !level.getBlockState(new BlockPos(x, 151, z + 4)).is(HwBlocks.DEBRIS);
 			});
 			if (!back) {
-				throw new AssertionError("The bookcase was not put back");
+				throw new AssertionError("What was pulled down was not put back");
 			}
+			ctx.waitTicks(5);
+			ctx.takeScreenshot("chase_put_back");
+			server.runOnServer(s -> player(s).setNoGravity(false));
 			server.runCommand("hw stop");
 			ctx.waitTicks(5);
+		} finally {
+			ShapeBrain.paused = false;
+			Obstacles.testAllowed = false;
 			ctx.runOnClient(mc -> ClientDarkness.enabled = true);
 			dev.halloween.game.Weather.forced = -1;
 		}
 		LOG.info("Chase client test finished OK");
+	}
+
+	/** The player running past {@code prop} at (px, pz) along {@code motion} pulls it down. */
+	private static void knock(TestServerContext server, double px, double pz, BlockPos prop, Vec3 motion) {
+		boolean ok = server.computeOnServer(s -> {
+			ServerPlayer p = player(s);
+			p.setNoGravity(false);
+			p.teleportTo(s.overworld(), px, 151, pz, java.util.Set.of(), 0f, 0f, false);
+			p.setSprinting(true);
+			return Obstacles.request(p, prop, motion);
+		});
+		if (!ok) {
+			throw new AssertionError("Could not pull down the one at " + prop);
+		}
+	}
+
+	private static void look(ServerPlayer p, Vec3 from, Vec3 to) {
+		Vec3 d = to.subtract(from);
+		float yaw = (float) Math.toDegrees(Math.atan2(-d.x, d.z));
+		float pitch = (float) -Math.toDegrees(Math.atan2(d.y, Math.hypot(d.x, d.z)));
+		// (Floating where the camera should be.)
+		p.setNoGravity(true);
+		p.teleportTo(p.level(), from.x, from.y - 1.62, from.z, java.util.Set.of(), yaw, pitch, false);
+		p.setSprinting(false);
+	}
+
+	private static void cmd(MinecraftServer s, String c) {
+		s.getCommands().performPrefixedCommand(s.createCommandSourceStack().withSuppressedOutput(), c);
 	}
 
 	private static ServerPlayer player(MinecraftServer server) {

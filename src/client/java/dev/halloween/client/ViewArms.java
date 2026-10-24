@@ -34,8 +34,11 @@ import org.joml.Vector3f;
  */
 public final class ViewArms {
 	public enum Act {
-		NONE, SHOVE, DOOR, VAULT, THROW, SPRAY, RECOIL, RELOAD, STAB, KNOCK
+		NONE, SHOVE, DOOR, VAULT, THROW, SPRAY, RECOIL, RELOAD, STAB, KNOCK, PULL
 	}
+
+	/** Which hand the last pull went out with (the side the thing was on). */
+	public static boolean pullRight;
 
 	/** For tests: vanilla's hands instead. */
 	public static boolean enabled = true;
@@ -136,6 +139,7 @@ public final class ViewArms {
 			case RELOAD -> 20;
 			case STAB -> 8;
 			case KNOCK -> 8;
+			case PULL -> 13;
 			default -> 0;
 		};
 	}
@@ -158,6 +162,11 @@ public final class ViewArms {
 	/** Up and back down over 0..1 (a bump). */
 	private static float bump(float p) {
 		return p < 0 ? 0 : Mth.sin(p * Mth.PI);
+	}
+
+	private static float smooth(float x) {
+		x = Mth.clamp(x, 0f, 1f);
+		return x * x * (3 - 2 * x);
 	}
 
 	// ---------------------------------------------------------------- what is held, and how
@@ -482,6 +491,25 @@ public final class ViewArms {
 
 	/** What the hands do now and then: a swing, a shove, a throw, a spray, a stab, a door. */
 	private static void actions(Pose p, Grip grip, float t, float attack) {
+		float pull = actProgress(Act.PULL, t);
+		if (pull >= 0) {
+			// Flung out to the side for it, a grip on its edge, yanked back and down hard as it goes over.
+			float out = pull < 0.4f ? smooth(pull / 0.4f) : 1f;
+			float yank = pull < 0.4f ? 0f : smooth((pull - 0.4f) / 0.45f);
+			float s = pullRight ? 1f : -1f;
+			Vector3f hand = new Vector3f(0.3f * s, -0.33f, -0.5f).lerp(new Vector3f(0.62f * s, -0.16f, -0.44f), out).lerp(new Vector3f(0.42f * s, -0.62f, 0.02f), yank);
+			if (pullRight) {
+				Vector3f d = new Vector3f(hand).sub(p.right);
+				p.right.set(hand);
+				if (p.showItem) {
+					p.item.add(d);
+				}
+			} else {
+				p.left.set(hand);
+				p.showLeft = true;
+			}
+			return;
+		}
 		float shove = actProgress(Act.SHOVE, t);
 		if (shove >= 0) {
 			// Both palms out, hard.

@@ -215,6 +215,8 @@ public final class Match {
 		Loot.setup(level, center, level.getRandom());
 		StreetWeapons.setup(level, center, Loot.radius(), level.getRandom());
 		restoreTown(level, center, Loot.radius());
+		// The bookshelves and bins of the town become what survivors can pull down in a chase.
+		Obstacles.setup(level, center, Loot.radius());
 		// Telephone booths left standing from before (there are none now).
 		Booths.clear(level);
 		Minimap.bake(level, area(points), center);

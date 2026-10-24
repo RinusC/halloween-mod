@@ -1,0 +1,64 @@
+{
+ "variants" : {
+  "facing=east,half=lower,kind=bin" : {
+   "model" : "halloween:block/prop/bin",
+   "y" : 90
+  },
+  "facing=east,half=lower,kind=bookcase" : {
+   "model" : "halloween:block/prop/bookcase_lower",
+   "y" : 90
+  },
+  "facing=east,half=upper,kind=bin" : {
+   "model" : "halloween:block/prop/bookcase_upper",
+   "y" : 90
+  },
+  "facing=east,half=upper,kind=bookcase" : {
+   "model" : "halloween:block/prop/bookcase_upper",
+   "y" : 90
+  },
+  "facing=north,half=lower,kind=bin" : {
+   "model" : "halloween:block/prop/bin"
+  },
+  "facing=north,half=lower,kind=bookcase" : {
+   "model" : "halloween:block/prop/bookcase_lower"
+  },
+  "facing=north,half=upper,kind=bin" : {
+   "model" : "halloween:block/prop/bookcase_upper"
+  },
+  "facing=north,half=upper,kind=bookcase" : {
+   "model" : "halloween:block/prop/bookcase_upper"
+  },
+  "facing=south,half=lower,kind=bin" : {
+   "model" : "halloween:block/prop/bin",
+   "y" : 180
+  },
+  "facing=south,half=lower,kind=bookcase" : {
+   "model" : "halloween:block/prop/bookcase_lower",
+   "y" : 180
+  },
+  "facing=south,half=upper,kind=bin" : {
+   "model" : "halloween:block/prop/bookcase_upper",
+   "y" : 180
+  },
+  "facing=south,half=upper,kind=bookcase" : {
+   "model" : "halloween:block/prop/bookcase_upper",
+   "y" : 180
+  },
+  "facing=west,half=lower,kind=bin" : {
+   "model" : "halloween:block/prop/bin",
+   "y" : 270
+  },
+  "facing=west,half=lower,kind=bookcase" : {
+   "model" : "halloween:block/prop/bookcase_lower",
+   "y" : 270
+  },
+  "facing=west,half=upper,kind=bin" : {
+   "model" : "halloween:block/prop/bookcase_upper",
+   "y" : 270
+  },
+  "facing=west,half=upper,kind=bookcase" : {
+   "model" : "halloween:block/prop/bookcase_upper",
+   "y" : 270
+  }
+ }
+}

@@ -538,6 +538,10 @@ public final class HwNet {
 		public static final int DEAD = 26;
 		/** Vecna's Grip: one hand thrust out, fingers spread, shaking (held while he aims and while he pulls). */
 		public static final int VECNA_CAST = 27;
+		/** Michael's side kicking apart what lies across the way: the knee up, a stamp down through it. */
+		public static final int KICK = 28;
+		/** A survivor on the run pulling something down behind them: an arm flung out to it and yanked back. */
+		public static final int PULL = 29;
 
 		public static final Type<Anim> TYPE = payloadType("anim");
 		public static final StreamCodec<RegistryFriendlyByteBuf, Anim> CODEC = StreamCodec.of((buf, v) -> {
@@ -1506,7 +1510,54 @@ public final class HwNet {
 		}
 	}
 
+	/** A survivor on the run pulls this down behind them (see game.Obstacles); which way they were running. */
+	public record KnockRequest(BlockPos pos, Vec3 motion) implements CustomPacketPayload {
+		public static final Type<KnockRequest> TYPE = payloadType("knock");
+		public static final StreamCodec<RegistryFriendlyByteBuf, KnockRequest> CODEC = StreamCodec.of((buf, v) -> {
+			buf.writeBlockPos(v.pos);
+			writeVec(buf, v.motion);
+		}, buf -> new KnockRequest(buf.readBlockPos(), readVec(buf)));
+
+		@Override
+		public Type<KnockRequest> type() {
+			return TYPE;
+		}
+	}
+
+	/** Whether this survivor may pull things down now (only with Michael after them). */
+	public record KnockAllowed(boolean allowed) implements CustomPacketPayload {
+		public static final Type<KnockAllowed> TYPE = payloadType("knock_allowed");
+		public static final StreamCodec<RegistryFriendlyByteBuf, KnockAllowed> CODEC = StreamCodec.of((buf, v) -> buf.writeBoolean(v.allowed),
+			buf -> new KnockAllowed(buf.readBoolean()));
+
+		@Override
+		public Type<KnockAllowed> type() {
+			return TYPE;
+		}
+	}
+
+	/**
+	 * Something came down near this player, or was kicked apart: how hard the view jolts ({@code strength}, by how
+	 * near). {@code onHim}: it came down on Michael (the one who pulled it gets told).
+	 */
+	public record ObstacleFx(Vec3 pos, float strength, boolean onHim) implements CustomPacketPayload {
+		public static final Type<ObstacleFx> TYPE = payloadType("obstacle_fx");
+		public static final StreamCodec<RegistryFriendlyByteBuf, ObstacleFx> CODEC = StreamCodec.of((buf, v) -> {
+			writeVec(buf, v.pos);
+			buf.writeFloat(v.strength);
+			buf.writeBoolean(v.onHim);
+		}, buf -> new ObstacleFx(readVec(buf), buf.readFloat(), buf.readBoolean()));
+
+		@Override
+		public Type<ObstacleFx> type() {
+			return TYPE;
+		}
+	}
+
 	public static void registerPayloads() {
+		PayloadTypeRegistry.serverboundPlay().register(KnockRequest.TYPE, KnockRequest.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(KnockAllowed.TYPE, KnockAllowed.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(ObstacleFx.TYPE, ObstacleFx.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(SideJobs.TYPE, SideJobs.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(HeroSync.TYPE, HeroSync.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(HeroReveal.TYPE, HeroReveal.CODEC);

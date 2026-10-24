@@ -77,6 +77,19 @@ public abstract class CameraMixin {
 		}
 	}
 
+	/** Something pulled down came down close by, or on him: the view knocked (see ClientObstacles). */
+	@Inject(method = "alignWithEntity", at = @At("TAIL"))
+	private void halloween$obstacleJolt(float partialTicks, CallbackInfo ci) {
+		Minecraft mc = Minecraft.getInstance();
+		if (mc.level == null || dev.halloween.client.Cutscene.active()) {
+			return;
+		}
+		float[] jolt = dev.halloween.client.ClientObstacles.jolt(mc.level.getGameTime() + partialTicks);
+		if (jolt != null) {
+			this.setRotation(this.yRot() + jolt[0], this.xRot() + jolt[1]);
+		}
+	}
+
 	/** The Demogorgon on all fours, in first person: the eyes low to the ground too. */
 	@Inject(method = "alignWithEntity", at = @At("TAIL"))
 	private void halloween$demoLow(float partialTicks, CallbackInfo ci) {

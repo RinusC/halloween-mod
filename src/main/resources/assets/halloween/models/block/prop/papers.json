@@ -1,0 +1,124 @@
+{
+ "elements" : [
+  {
+   "faces" : {
+    "down" : {
+     "texture" : "#trash",
+     "uv" : [
+      8,
+      0,
+      16,
+      8
+     ]
+    },
+    "up" : {
+     "texture" : "#trash",
+     "uv" : [
+      8,
+      0,
+      16,
+      8
+     ]
+    }
+   },
+   "from" : [
+    3,
+    0.05,
+    3
+   ],
+   "rotation" : {
+    "angle" : 22.5,
+    "axis" : "y",
+    "origin" : [
+     6,
+     0,
+     6
+    ]
+   },
+   "to" : [
+    9,
+    0.15,
+    10
+   ]
+  },
+  {
+   "faces" : {
+    "down" : {
+     "texture" : "#trash",
+     "uv" : [
+      0,
+      0,
+      8,
+      8
+     ]
+    },
+    "up" : {
+     "texture" : "#trash",
+     "uv" : [
+      0,
+      0,
+      8,
+      8
+     ]
+    }
+   },
+   "from" : [
+    8,
+    0.2,
+    7
+   ],
+   "rotation" : {
+    "angle" : -45,
+    "axis" : "y",
+    "origin" : [
+     10,
+     0,
+     10
+    ]
+   },
+   "to" : [
+    13,
+    0.3,
+    13
+   ]
+  },
+  {
+   "faces" : {
+    "down" : {
+     "texture" : "#trash",
+     "uv" : [
+      10,
+      2,
+      14,
+      6
+     ]
+    },
+    "up" : {
+     "texture" : "#trash",
+     "uv" : [
+      10,
+      2,
+      14,
+      6
+     ]
+    }
+   },
+   "from" : [
+    5,
+    0.35,
+    9
+   ],
+   "to" : [
+    9,
+    0.45,
+    13
+   ]
+  }
+ ],
+ "parent" : "minecraft:block/block",
+ "textures" : {
+  "bag" : "halloween:block/prop/bag",
+  "particle" : "halloween:block/prop/trash",
+  "trash" : "halloween:block/prop/trash"
+ }
+}

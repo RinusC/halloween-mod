@@ -1,0 +1,253 @@
+{
+ "elements" : [
+  {
+   "faces" : {
+    "down" : {
+     "texture" : "#lid"
+    },
+    "east" : {
+     "texture" : "#side"
+    },
+    "north" : {
+     "texture" : "#side"
+    },
+    "south" : {
+     "texture" : "#side"
+    },
+    "up" : {
+     "texture" : "#lid"
+    },
+    "west" : {
+     "texture" : "#side"
+    }
+   },
+   "from" : [
+    5.266,
+    14,
+    1.4
+   ],
+   "to" : [
+    10.734,
+    15,
+    14.6
+   ]
+  },
+  {
+   "faces" : {
+    "down" : {
+     "texture" : "#lid"
+    },
+    "east" : {
+     "texture" : "#side"
+    },
+    "north" : {
+     "texture" : "#side"
+    },
+    "south" : {
+     "texture" : "#side"
+    },
+    "up" : {
+     "texture" : "#lid"
+    },
+    "west" : {
+     "texture" : "#side"
+    }
+   },
+   "from" : [
+    1.4,
+    14,
+    5.266
+   ],
+   "to" : [
+    14.6,
+    15,
+    10.734
+   ]
+  },
+  {
+   "faces" : {
+    "down" : {
+     "texture" : "#lid"
+    },
+    "east" : {
+     "texture" : "#side"
+    },
+    "north" : {
+     "texture" : "#side"
+    },
+    "south" : {
+     "texture" : "#side"
+    },
+    "up" : {
+     "texture" : "#lid"
+    },
+    "west" : {
+     "texture" : "#side"
+    }
+   },
+   "from" : [
+    5.266,
+    14,
+    1.4
+   ],
+   "rotation" : {
+    "angle" : 45,
+    "axis" : "y",
+    "origin" : [
+     8,
+     8,
+     8
+    ]
+   },
+   "to" : [
+    10.734,
+    15,
+    14.6
+   ]
+  },
+  {
+   "faces" : {
+    "down" : {
+     "texture" : "#lid"
+    },
+    "east" : {
+     "texture" : "#side"
+    },
+    "north" : {
+     "texture" : "#side"
+    },
+    "south" : {
+     "texture" : "#side"
+    },
+    "up" : {
+     "texture" : "#lid"
+    },
+    "west" : {
+     "texture" : "#side"
+    }
+   },
+   "from" : [
+    6.136,
+    15,
+    3.5
+   ],
+   "to" : [
+    9.864,
+    15.5,
+    12.5
+   ]
+  },
+  {
+   "faces" : {
+    "down" : {
+     "texture" : "#lid"
+    },
+    "east" : {
+     "texture" : "#side"
+    },
+    "north" : {
+     "texture" : "#side"
+    },
+    "south" : {
+     "texture" : "#side"
+    },
+    "up" : {
+     "texture" : "#lid"
+    },
+    "west" : {
+     "texture" : "#side"
+    }
+   },
+   "from" : [
+    3.5,
+    15,
+    6.136
+   ],
+   "to" : [
+    12.5,
+    15.5,
+    9.864
+   ]
+  },
+  {
+   "faces" : {
+    "down" : {
+     "texture" : "#lid"
+    },
+    "east" : {
+     "texture" : "#side"
+    },
+    "north" : {
+     "texture" : "#side"
+    },
+    "south" : {
+     "texture" : "#side"
+    },
+    "up" : {
+     "texture" : "#lid"
+    },
+    "west" : {
+     "texture" : "#side"
+    }
+   },
+   "from" : [
+    6.136,
+    15,
+    3.5
+   ],
+   "rotation" : {
+    "angle" : 45,
+    "axis" : "y",
+    "origin" : [
+     8,
+     8,
+     8
+    ]
+   },
+   "to" : [
+    9.864,
+    15.5,
+    12.5
+   ]
+  },
+  {
+   "faces" : {
+    "down" : {
+     "texture" : "#side"
+    },
+    "east" : {
+     "texture" : "#side"
+    },
+    "north" : {
+     "texture" : "#side"
+    },
+    "south" : {
+     "texture" : "#side"
+    },
+    "up" : {
+     "texture" : "#side"
+    },
+    "west" : {
+     "texture" : "#side"
+    }
+   },
+   "from" : [
+    6,
+    15.5,
+    7.5
+   ],
+   "to" : [
+    10,
+    16.5,
+    8.5
+   ]
+  }
+ ],
+ "parent" : "minecraft:block/block",
+ "textures" : {
+  "inside" : "halloween:block/prop/bin_inside",
+  "lid" : "halloween:block/prop/bin_lid",
+  "particle" : "halloween:block/prop/bin_side",
+  "side" : "halloween:block/prop/bin_side"
+ }
+}

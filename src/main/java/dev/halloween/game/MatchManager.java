@@ -994,6 +994,21 @@ public final class MatchManager {
 		return InteractionResult.PASS;
 	}
 
+	/** Something lying across the way under the reticle within striking reach, or right in front of him. */
+	private static BlockPos debrisInReach(ServerPlayer player, ShapeState state) {
+		Vec3 camera = aimOrigin(player, state);
+		Vec3 dir = aimDirection(player, state);
+		Vec3 eye = player.getEyePosition();
+		Vec3 from = camera.add(dir.scale(Math.max(0, eye.subtract(camera).dot(dir))));
+		Vec3 to = from.add(dir.scale(HwConfig.get().attackReach + 0.5));
+		var hit = player.level().clip(new net.minecraft.world.level.ClipContext(from, to,
+			net.minecraft.world.level.ClipContext.Block.OUTLINE, net.minecraft.world.level.ClipContext.Fluid.NONE, player));
+		if (hit.getType() != net.minecraft.world.phys.HitResult.Type.MISS && Obstacles.isCell(player.level(), hit.getBlockPos())) {
+			return hit.getBlockPos();
+		}
+		return Obstacles.inFront(player, dir);
+	}
+
 	/** Unbroken window glass under the reticle within striking reach, if any. */
 	private static BlockPos windowInReach(ServerPlayer player, ShapeState state) {
 		Vec3 camera = aimOrigin(player, state);
@@ -1035,6 +1050,13 @@ public final class MatchManager {
 		// No attacking from inside Shape Jump: the Shape has to come out first.
 		if (state.shadowTicks > 0) {
 			return;
+		}
+		if (!(targetId >= 0 && level.getEntity(targetId) instanceof LivingEntity)) {
+			// Something pulled down across the way: kicked apart (his foot, not the knife).
+			BlockPos debris = debrisInReach(player, state);
+			if (debris != null && Obstacles.kick(player, state, debris)) {
+				return;
+			}
 		}
 		state.dashTicks = 0;
 		player.swing(InteractionHand.MAIN_HAND, true);

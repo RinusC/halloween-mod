@@ -1478,8 +1478,9 @@ public final class ShapeBrain {
 		Nav.Options opt = shadow ? Nav.Options.climber().lockedDoors(0.5) : Nav.Options.walker().lockedDoors(3);
 		BlockPos fire = Events.fireHouse();
 		this.fireNear = fire != null && Vec3.atCenterOf(fire).distanceTo(this.body.position()) < 60;
-		if (!shadow && (!this.traps.isEmpty() || !this.trapsHeard.isEmpty() || this.fireNear)) {
-			// A shadow walks over traps and through fire unharmed; in his own form he keeps off them.
+		if (!shadow) {
+			// A shadow walks over traps and through fire unharmed; in his own form he keeps off them, and goes round
+			// what was pulled down across the way when that is short (else he kicks through it, see walk).
 			opt.cellCost(this::hazardCost);
 		}
 		this.walker.follow(Nav.to(this.level(), this.body.blockPosition(), to, within, opt.nodes(4000)));
@@ -1529,6 +1530,19 @@ public final class ShapeBrain {
 				this.bestAt = now;
 			} else if (now - this.bestAt > 80) {
 				this.stalled(st, now);
+			}
+		}
+		if (st.shadowTicks == 0 && st.attackCooldown == 0 && !st.busy() && !this.walker.idle()) {
+			// Something pulled down across his path: kicked apart.
+			Nav.Node next = this.walker.current();
+			Vec3 heading = next == null ? this.lastVelocity : Vec3.atBottomCenterOf(next.pos()).subtract(this.body.position());
+			BlockPos cell = Obstacles.inFront(this.body, heading);
+			if (cell != null) {
+				Vec3 at = Vec3.atCenterOf(cell).subtract(0, 0.3, 0);
+				this.walker.face(at);
+				MatchManager.onAim(this.body, this.body.getEyePosition(), at.subtract(this.body.getEyePosition()).normalize());
+				MatchManager.onShapeAttack(this.body, -1, true);
+				stat("obstacle.kick");
 			}
 		}
 		if (status == Walker.Status.LOCKED && st.shadowTicks == 0) {
@@ -2760,7 +2774,7 @@ public final class ShapeBrain {
 
 	/** What a step into this cell costs him in his own form: a trap he saw (beside one too), where he heard one set, flames. */
 	private double hazardCost(BlockPos p) {
-		double c = 0;
+		double c = Obstacles.shapeCost(p);
 		if (this.traps.containsKey(p)) {
 			c += 40;
 		} else {

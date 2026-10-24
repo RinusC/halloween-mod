@@ -132,6 +132,18 @@ public final class HwSounds {
 	public static final SoundEvent VECNA_RIFT_OPEN = register("vecna.rift_open");
 	public static final SoundEvent VECNA_THUNDER = register("vecna.thunder");
 	public static final SoundEvent VECNA_RIFT_DRONE = register("vecna.rift_drone");
+	/** Pulled down in a chase and kicked apart (game.Obstacles): Kenney's Impact Sounds (CC0), layered several at once. */
+	public static final SoundEvent OBSTACLE_CREAK = register("obstacle.creak");
+	public static final SoundEvent OBSTACLE_CRASH_WOOD = register("obstacle.crash_wood");
+	public static final SoundEvent OBSTACLE_SPLINTER = register("obstacle.splinter");
+	public static final SoundEvent OBSTACLE_PLANK = register("obstacle.plank");
+	public static final SoundEvent OBSTACLE_BOOK = register("obstacle.book");
+	public static final SoundEvent OBSTACLE_THUD = register("obstacle.thud");
+	public static final SoundEvent OBSTACLE_CRASH_METAL = register("obstacle.crash_metal");
+	public static final SoundEvent OBSTACLE_CLINK = register("obstacle.clink");
+	public static final SoundEvent OBSTACLE_RATTLE = register("obstacle.rattle");
+	public static final SoundEvent OBSTACLE_TRASH = register("obstacle.trash");
+	public static final SoundEvent OBSTACLE_KICK = register("obstacle.kick");
 
 	private HwSounds() {
 	}

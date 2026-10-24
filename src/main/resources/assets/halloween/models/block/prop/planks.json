@@ -1,0 +1,174 @@
+{
+ "elements" : [
+  {
+   "faces" : {
+    "down" : {
+     "texture" : "#planks"
+    },
+    "east" : {
+     "texture" : "#planks"
+    },
+    "north" : {
+     "texture" : "#planks"
+    },
+    "south" : {
+     "texture" : "#planks"
+    },
+    "up" : {
+     "texture" : "#planks"
+    },
+    "west" : {
+     "texture" : "#planks"
+    }
+   },
+   "from" : [
+    1,
+    0,
+    3
+   ],
+   "rotation" : {
+    "angle" : 22.5,
+    "axis" : "y",
+    "origin" : [
+     8,
+     0,
+     4
+    ]
+   },
+   "to" : [
+    15,
+    1,
+    5
+   ]
+  },
+  {
+   "faces" : {
+    "down" : {
+     "texture" : "#wood"
+    },
+    "east" : {
+     "texture" : "#wood"
+    },
+    "north" : {
+     "texture" : "#wood"
+    },
+    "south" : {
+     "texture" : "#wood"
+    },
+    "up" : {
+     "texture" : "#wood"
+    },
+    "west" : {
+     "texture" : "#wood"
+    }
+   },
+   "from" : [
+    2,
+    0.6,
+    7
+   ],
+   "rotation" : {
+    "angle" : -22.5,
+    "axis" : "y",
+    "origin" : [
+     7.5,
+     0,
+     8
+    ]
+   },
+   "to" : [
+    13,
+    1.6,
+    9
+   ]
+  },
+  {
+   "faces" : {
+    "down" : {
+     "texture" : "#planks"
+    },
+    "east" : {
+     "texture" : "#planks"
+    },
+    "north" : {
+     "texture" : "#planks"
+    },
+    "south" : {
+     "texture" : "#planks"
+    },
+    "up" : {
+     "texture" : "#planks"
+    },
+    "west" : {
+     "texture" : "#planks"
+    }
+   },
+   "from" : [
+    4,
+    0,
+    11
+   ],
+   "rotation" : {
+    "angle" : 45,
+    "axis" : "y",
+    "origin" : [
+     9,
+     0,
+     12
+    ]
+   },
+   "to" : [
+    14,
+    1,
+    13
+   ]
+  },
+  {
+   "faces" : {
+    "down" : {
+     "texture" : "#wood"
+    },
+    "east" : {
+     "texture" : "#wood"
+    },
+    "north" : {
+     "texture" : "#wood"
+    },
+    "south" : {
+     "texture" : "#wood"
+    },
+    "up" : {
+     "texture" : "#wood"
+    },
+    "west" : {
+     "texture" : "#wood"
+    }
+   },
+   "from" : [
+    3,
+    1.2,
+    9.5
+   ],
+   "rotation" : {
+    "angle" : 22.5,
+    "axis" : "y",
+    "origin" : [
+     6,
+     1,
+     10
+    ]
+   },
+   "to" : [
+    9,
+    2,
+    11
+   ]
+  }
+ ],
+ "parent" : "minecraft:block/block",
+ "textures" : {
+  "particle" : "halloween:block/prop/walnut",
+  "planks" : "halloween:block/prop/planks",
+  "wood" : "halloween:block/prop/walnut"
+ }
+}

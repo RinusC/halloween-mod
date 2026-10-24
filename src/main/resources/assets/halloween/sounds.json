@@ -148,5 +148,16 @@
 	"vecna.altar_kindle": {"sounds": [{"name": "halloween:vecna/altar_kindle"}]},
 	"vecna.rift_open": {"sounds": [{"name": "halloween:vecna/rift_open"}]},
 	"vecna.thunder": {"sounds": [{"name": "halloween:vecna/thunder_1"}, {"name": "halloween:vecna/thunder_2"}, {"name": "halloween:vecna/thunder_3"}]},
-	"vecna.rift_drone": {"sounds": [{"name": "halloween:vecna/rift_drone", "volume": 0.8}]}
+	"vecna.rift_drone": {"sounds": [{"name": "halloween:vecna/rift_drone", "volume": 0.8}]},
+	"obstacle.creak": {"sounds": [{"name": "halloween:impact/wood_light_0"}, {"name": "halloween:impact/wood_light_1"}, {"name": "halloween:impact/wood_light_2"}, {"name": "halloween:impact/wood_light_3"}, {"name": "halloween:impact/wood_light_4"}]},
+	"obstacle.crash_wood": {"sounds": [{"name": "halloween:impact/wood_heavy_0"}, {"name": "halloween:impact/wood_heavy_1"}, {"name": "halloween:impact/wood_heavy_2"}, {"name": "halloween:impact/wood_heavy_3"}, {"name": "halloween:impact/wood_heavy_4"}]},
+	"obstacle.splinter": {"sounds": [{"name": "halloween:impact/wood_medium_0"}, {"name": "halloween:impact/wood_medium_1"}, {"name": "halloween:impact/wood_medium_2"}, {"name": "halloween:impact/wood_medium_3"}, {"name": "halloween:impact/wood_medium_4"}]},
+	"obstacle.plank": {"sounds": [{"name": "halloween:impact/plank_0"}, {"name": "halloween:impact/plank_1"}, {"name": "halloween:impact/plank_2"}, {"name": "halloween:impact/plank_3"}, {"name": "halloween:impact/plank_4"}]},
+	"obstacle.book": {"sounds": [{"name": "halloween:impact/soft_0"}, {"name": "halloween:impact/soft_1"}, {"name": "halloween:impact/soft_2"}, {"name": "halloween:impact/soft_3"}, {"name": "halloween:impact/soft_4"}]},
+	"obstacle.thud": {"sounds": [{"name": "halloween:impact/soft_heavy_0"}, {"name": "halloween:impact/soft_heavy_1"}, {"name": "halloween:impact/soft_heavy_2"}, {"name": "halloween:impact/soft_heavy_3"}, {"name": "halloween:impact/soft_heavy_4"}]},
+	"obstacle.crash_metal": {"sounds": [{"name": "halloween:impact/metal_heavy_0"}, {"name": "halloween:impact/metal_heavy_1"}, {"name": "halloween:impact/metal_heavy_2"}, {"name": "halloween:impact/metal_heavy_3"}, {"name": "halloween:impact/metal_heavy_4"}]},
+	"obstacle.clink": {"sounds": [{"name": "halloween:impact/metal_light_0"}, {"name": "halloween:impact/metal_light_1"}, {"name": "halloween:impact/metal_light_2"}, {"name": "halloween:impact/metal_light_3"}, {"name": "halloween:impact/metal_light_4"}]},
+	"obstacle.rattle": {"sounds": [{"name": "halloween:impact/tin_0"}, {"name": "halloween:impact/tin_1"}, {"name": "halloween:impact/tin_2"}, {"name": "halloween:impact/tin_3"}, {"name": "halloween:impact/tin_4"}]},
+	"obstacle.trash": {"sounds": [{"name": "halloween:impact/generic_0"}, {"name": "halloween:impact/generic_1"}, {"name": "halloween:impact/generic_2"}, {"name": "halloween:impact/generic_3"}, {"name": "halloween:impact/generic_4"}]},
+	"obstacle.kick": {"sounds": [{"name": "halloween:impact/punch_0"}, {"name": "halloween:impact/punch_1"}, {"name": "halloween:impact/punch_2"}, {"name": "halloween:impact/punch_3"}, {"name": "halloween:impact/punch_4"}]}
 }

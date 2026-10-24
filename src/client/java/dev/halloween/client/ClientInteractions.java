@@ -73,6 +73,12 @@ public final class ClientInteractions {
 	}
 
 	static boolean aimsAtUsable(Minecraft mc) {
+		// Something to pull down on the run: the click is for it, not for what is in hand.
+		return aimsAtObject(mc) || ClientObstacles.candidate() != null;
+	}
+
+	/** A door, a window, a wardrobe, a match object under the crosshair. */
+	static boolean aimsAtObject(Minecraft mc) {
 		if (mc.hitResult instanceof net.minecraft.world.phys.EntityHitResult eh && eh.getEntity() instanceof net.minecraft.world.entity.Interaction) {
 			// A weapon left outside: use takes it.
 			return true;
@@ -81,9 +87,7 @@ public final class ClientInteractions {
 			return false;
 		}
 		BlockState state = mc.level.getBlockState(hit.getBlockPos());
-		return state.getBlock() instanceof DoorBlock || state.getBlock() instanceof dev.halloween.game.LockerBlock || Sight.isGlass(state) || matchObject(mc.level, hit.getBlockPos()) != 0
-			// Something to pull down on the run: the click is for it, not for what is in hand.
-			|| ClientState.myRole().survivor() && dev.halloween.game.Obstacles.kindOf(state) != null && mc.player.isSprinting();
+		return state.getBlock() instanceof DoorBlock || state.getBlock() instanceof dev.halloween.game.LockerBlock || Sight.isGlass(state) || matchObject(mc.level, hit.getBlockPos()) != 0;
 	}
 
 	public static InteractionResult onUseBlock(Player player, Level level, InteractionHand hand, BlockHitResult hit) {
@@ -113,6 +117,14 @@ public final class ClientInteractions {
 			return door ? InteractionResult.PASS : InteractionResult.FAIL;
 		}
 		if (role.survivor()) {
+			if (dev.halloween.game.PropBlock.is(state)) {
+				// Used straight on (or touched with a hand in VR): pulled down, if we are running with him after us.
+				if (ClientObstacles.allowed && player.isSprinting()) {
+					net.minecraft.world.phys.Vec3 motion = player.getDeltaMovement();
+					ClientPlayNetworking.send(new HwNet.KnockRequest(dev.halloween.game.PropBlock.base(level, pos), new net.minecraft.world.phys.Vec3(motion.x, 0, motion.z)));
+				}
+				return InteractionResult.FAIL;
+			}
 			if (state.getBlock() instanceof dev.halloween.game.LockerBlock) {
 				// Held like a search: slow and quiet, or at once (and loud) on the run. FAIL sends no vanilla
 				// click, which would be refused right after the teleport inside with a build-limit message.

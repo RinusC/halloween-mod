@@ -1,0 +1,124 @@
+{
+ "elements" : [
+  {
+   "faces" : {
+    "down" : {
+     "texture" : "#bag"
+    },
+    "east" : {
+     "texture" : "#bag"
+    },
+    "north" : {
+     "texture" : "#bag"
+    },
+    "south" : {
+     "texture" : "#bag"
+    },
+    "up" : {
+     "texture" : "#bag"
+    },
+    "west" : {
+     "texture" : "#bag"
+    }
+   },
+   "from" : [
+    4,
+    0,
+    4
+   ],
+   "rotation" : {
+    "angle" : 22.5,
+    "axis" : "y",
+    "origin" : [
+     8,
+     0,
+     8
+    ]
+   },
+   "to" : [
+    12,
+    5,
+    11
+   ]
+  },
+  {
+   "faces" : {
+    "down" : {
+     "texture" : "#bag"
+    },
+    "east" : {
+     "texture" : "#bag"
+    },
+    "north" : {
+     "texture" : "#bag"
+    },
+    "south" : {
+     "texture" : "#bag"
+    },
+    "up" : {
+     "texture" : "#bag"
+    },
+    "west" : {
+     "texture" : "#bag"
+    }
+   },
+   "from" : [
+    5,
+    4.5,
+    5
+   ],
+   "rotation" : {
+    "angle" : 22.5,
+    "axis" : "y",
+    "origin" : [
+     8,
+     0,
+     8
+    ]
+   },
+   "to" : [
+    11,
+    6.5,
+    10
+   ]
+  },
+  {
+   "faces" : {
+    "down" : {
+     "texture" : "#bag"
+    },
+    "east" : {
+     "texture" : "#bag"
+    },
+    "north" : {
+     "texture" : "#bag"
+    },
+    "south" : {
+     "texture" : "#bag"
+    },
+    "up" : {
+     "texture" : "#bag"
+    },
+    "west" : {
+     "texture" : "#bag"
+    }
+   },
+   "from" : [
+    7,
+    6.5,
+    6.5
+   ],
+   "to" : [
+    9,
+    8,
+    8.5
+   ]
+  }
+ ],
+ "parent" : "minecraft:block/block",
+ "textures" : {
+  "bag" : "halloween:block/prop/bag",
+  "particle" : "halloween:block/prop/trash",
+  "trash" : "halloween:block/prop/trash"
+ }
+}

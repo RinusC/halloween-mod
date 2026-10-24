@@ -1,0 +1,5 @@
+Things pulled down in a chase, and Michael kicking them apart (game.Obstacles): impact*_000..004 from "Impact Sounds" (1.0)
+by Kenney (www.kenney.nl), CC0 1.0 (http://creativecommons.org/publicdomain/zero/1.0/). Renamed to <kind>_<n>.ogg:
+wood_heavy, wood_medium, wood_light (impactWood_*), plank (impactPlank_medium), metal_heavy, metal_light (impactMetal_*),
+tin (impactTin_medium), soft, soft_heavy (impactSoft_medium, impactSoft_heavy), punch (impactPunch_heavy),
+generic (impactGeneric_light). Layered and pitched in the game, several at once.

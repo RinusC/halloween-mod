@@ -46,9 +46,14 @@ public final class HwBlocks {
 	public static final Block RADIO = Registry.register(BuiltInRegistries.BLOCK, key("radio"),
 		new dev.halloween.game.RadioBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.IRON_BLOCK).noOcclusion().strength(-1f, 3600000f).setId(key("radio"))));
 
-	/** Pulled down across the way in a chase (see game.Obstacles). */
+	/** What survivors pull down in a chase (see game.Obstacles): a tall bookcase, a street trash can. */
+	public static final Block PROP = Registry.register(BuiltInRegistries.BLOCK, key("prop"),
+		new dev.halloween.game.PropBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.DARK_OAK_PLANKS).noOcclusion().strength(-1f, 3600000f)
+			.isSuffocating((s, l, p) -> false).isViewBlocking((s, l, p) -> false).setId(key("prop"))));
+	/** Where one lies across the way, and the pieces it is drawn with (see game.DebrisBlock). */
 	public static final Block DEBRIS = Registry.register(BuiltInRegistries.BLOCK, key("debris"),
-		new dev.halloween.game.DebrisBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.OAK_PLANKS).noCollision().noOcclusion().strength(-1f, 3600000f).setId(key("debris"))));
+		new dev.halloween.game.DebrisBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.OAK_PLANKS).noOcclusion().dynamicShape().strength(-1f, 3600000f)
+			.isSuffocating((s, l, p) -> false).isViewBlocking((s, l, p) -> false).setId(key("debris"))));
 
 	private HwBlocks() {
 	}

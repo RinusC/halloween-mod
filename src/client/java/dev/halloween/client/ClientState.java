@@ -269,6 +269,7 @@ public final class ClientState {
 		runtHud = null;
 		runtInfo = null;
 		ClientEvents.reset();
+		ClientObstacles.reset();
 		ClientSkins.clear();
 		ClientMusic.reset();
 		ClientMinimap.clear();
