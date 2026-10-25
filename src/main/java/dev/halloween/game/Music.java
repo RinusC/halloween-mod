@@ -21,6 +21,7 @@ import net.minecraft.world.phys.Vec3;
  * he is down).</li>
  * <li>Survivors: Ambience when all is quiet, Being Stalked when he is close but not after them, Proximity
  * when he comes for them and they have seen him.</li>
+ * <li>Vecna: his own calm music; survivors hear their calm file, and near him the chase file by its marks (vecnaMood).</li>
  * <li>A kill silences everything for a moment.</li>
  * <li>Seen by him in a chase (Chase), it is Proximity even without having looked back; getting away from him
  * cuts the music off at once (a few seconds of silence, then on as before).</li>
@@ -34,6 +35,10 @@ public final class Music {
 	public static final int BEING_STALKED = 2;
 	public static final int PROXIMITY = 3;
 	public static final int STALKING = 4;
+	/** Vecna: survivors' calm music, his own, and the chase file by its marks (variant 1..7, see chaseMark). */
+	public static final int VECNA_SURVIVOR = 5;
+	public static final int VECNA_CALM = 6;
+	public static final int VECNA_CHASE = 7;
 
 	private static final Map<UUID, Integer> SENT = new HashMap<>();
 	private static final Map<UUID, Integer> SAW_SHAPE = new HashMap<>();
@@ -41,6 +46,10 @@ public final class Music {
 	private static final Map<UUID, Integer> CHASED_UNTIL = new HashMap<>();
 	/** Just got away (Chase): silence, cut off at once, until then. */
 	private static final Map<UUID, Integer> ESCAPED_UNTIL = new HashMap<>();
+	/** Vecna: the chase part each survivor hears now (0: none), until when the post-chase part lingers, who has been exposed in this chase. */
+	private static final Map<UUID, Integer> CHASE_MARK = new HashMap<>();
+	private static final Map<UUID, Integer> POST_UNTIL = new HashMap<>();
+	private static final java.util.Set<UUID> EXPOSED = new java.util.HashSet<>();
 	private static int silentUntil;
 
 	private Music() {
@@ -51,6 +60,9 @@ public final class Music {
 		LAST_DISTANCE.clear();
 		CHASED_UNTIL.clear();
 		ESCAPED_UNTIL.clear();
+		CHASE_MARK.clear();
+		POST_UNTIL.clear();
+		EXPOSED.clear();
 		silentUntil = 0;
 	}
 
@@ -98,12 +110,20 @@ public final class Music {
 				shapeChasing |= chased;
 			}
 			if (!Bots.isBot(player)) {
+				if (Vecna.active()) {
+					moods.put(player.getUUID(), vecnaMood(player, shape, state, now, chased));
+					continue;
+				}
 				boolean escaped = !chased && now < ESCAPED_UNTIL.getOrDefault(player.getUUID(), 0);
 				moods.put(player.getUUID(), chased ? PROXIMITY * 10 + stunVariant(state) : escaped ? SILENT * 10 + 1 : near ? BEING_STALKED * 10 : AMBIENCE * 10);
 			}
 		}
 		if (shape != null && !Bots.isBot(shape)) {
-			moods.put(shape.getUUID(), shapeChasing ? PROXIMITY * 10 + stunVariant(state) : STALKING * 10 + (state == null ? 1 : state.level()));
+			if (Vecna.active()) {
+				moods.put(shape.getUUID(), VECNA_CALM * 10);
+			} else {
+				moods.put(shape.getUUID(), shapeChasing ? PROXIMITY * 10 + stunVariant(state) : STALKING * 10 + (state == null ? 1 : state.level()));
+			}
 		}
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
 			if (Bots.isBot(player)) {
@@ -132,8 +152,55 @@ public final class Music {
 		return state.stun < 0.34f ? 1 : state.stun < 0.67f ? 2 : 3;
 	}
 
+	/**
+	 * Vecna's chase file by its marks: Terror Radius (1), Approaching (2), Proximity & Close (3), Chase (4), Exposed
+	 * Chase (5: held, or cursed), Chase again (6: after an exposed one), Post Chase Terror Radius (7: after the chase,
+	 * while he is still near). Each part loops until the state changes. Beyond his reach: the survivors' calm music.
+	 */
+	private static int vecnaMood(ServerPlayer player, ServerPlayer shape, ShapeState state, int now, boolean chased) {
+		UUID id = player.getUUID();
+		if (state == null || player.isSpectator() || shape.isSpectator()) {
+			return VECNA_SURVIVOR * 10;
+		}
+		HwConfig cfg = HwConfig.get();
+		double dist = player.distanceTo(shape);
+		int last = CHASE_MARK.getOrDefault(id, 0);
+		if (chased) {
+			if (MatchManager.isGrabbed(player) || VecnaCurse.cursed(player)) {
+				EXPOSED.add(id);
+				CHASE_MARK.put(id, 5);
+			} else {
+				CHASE_MARK.put(id, EXPOSED.contains(id) ? 6 : 4);
+			}
+			POST_UNTIL.put(id, now + 600);
+			return VECNA_CHASE * 10 + CHASE_MARK.get(id);
+		}
+		EXPOSED.remove(id);
+		boolean afterChase = last >= 4;
+		if (afterChase && now < POST_UNTIL.getOrDefault(id, 0) && dist <= cfg.musicStalkedRange + 8) {
+			CHASE_MARK.put(id, 7);
+			return VECNA_CHASE * 10 + 7;
+		}
+		if (state.shadowTicks > 0 || dist > cfg.musicStalkedRange) {
+			CHASE_MARK.remove(id);
+			return VECNA_SURVIVOR * 10;
+		}
+		// Bands by distance; moving out of a closer band takes two blocks more, so the music does not flicker.
+		double slack = 2;
+		int mark = dist <= 12 + (last == 3 ? slack : 0) ? 3 : dist <= 18 + (last == 2 ? slack : 0) ? 2 : 1;
+		CHASE_MARK.put(id, mark);
+		return VECNA_CHASE * 10 + mark;
+	}
+
 	/** Got away from him (Chase): the chase music is cut off at once, and silence for a few seconds. */
 	public static void escaped(ServerPlayer player, int now) {
+		if (Vecna.active()) {
+			CHASED_UNTIL.remove(player.getUUID());
+			SAW_SHAPE.remove(player.getUUID());
+			CHASE_MARK.put(player.getUUID(), 7);
+			POST_UNTIL.put(player.getUUID(), now + 600);
+			return;
+		}
 		CHASED_UNTIL.remove(player.getUUID());
 		SAW_SHAPE.remove(player.getUUID());
 		ESCAPED_UNTIL.put(player.getUUID(), now + 70);

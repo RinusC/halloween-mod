@@ -127,14 +127,14 @@ public final class ClientMusic {
 		if (want == null && current == null) {
 			return;
 		}
-		int fade = mood == Music.SILENT ? (variant == 1 ? FADE_CUT : FADE_SILENCE) : current != null && current.mood == mood ? FADE_LEVEL : FADE;
+		int fade = mood == Music.SILENT ? (variant == 1 ? FADE_CUT : FADE_SILENCE) : current != null && current.mood == mood || mood == Music.VECNA_CHASE ? FADE_LEVEL : FADE;
 		if (current != null) {
 			current.fadeTo(0f, fade);
 			FADING.add(current);
 			current = null;
 		}
 		if (want != null) {
-			boolean loop = mood == Music.STALKING || mood == Music.PROXIMITY;
+			boolean loop = mood == Music.STALKING || mood == Music.PROXIMITY || mood >= Music.VECNA_SURVIVOR;
 			current = new Track(want, mood, loop, fade);
 			mc.getSoundManager().play(current);
 		}
@@ -146,6 +146,9 @@ public final class ClientMusic {
 			case Music.BEING_STALKED -> HwSounds.MUSIC_BEING_STALKED[stalkedPart];
 			case Music.PROXIMITY -> HwSounds.MUSIC_PROXIMITY[clamp(variant, HwSounds.MUSIC_PROXIMITY.length)];
 			case Music.STALKING -> HwSounds.MUSIC_STALKING[clamp(variant, HwSounds.MUSIC_STALKING.length)];
+			case Music.VECNA_SURVIVOR -> HwSounds.MUSIC_VECNA_SURVIVOR;
+			case Music.VECNA_CALM -> HwSounds.MUSIC_VECNA_CALM;
+			case Music.VECNA_CHASE -> HwSounds.MUSIC_VECNA_CHASE[clamp(variant, HwSounds.MUSIC_VECNA_CHASE.length)];
 			default -> null;
 		};
 	}

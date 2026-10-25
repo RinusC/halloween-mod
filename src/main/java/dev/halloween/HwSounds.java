@@ -31,6 +31,10 @@ public final class HwSounds {
 	public static final SoundEvent[] MUSIC_BEING_STALKED = music("being_stalked", 3);
 	public static final SoundEvent[] MUSIC_PROXIMITY = music("proximity", 4);
 	public static final SoundEvent[] MUSIC_STALKING = music("stalking", 3);
+	/** Vecna's music: the owner's WAV files cut into loops (sounds/vecna/music_*, tools/split-vecna-music.sh). */
+	public static final SoundEvent MUSIC_VECNA_SURVIVOR = register("music.vecna_survivor");
+	public static final SoundEvent MUSIC_VECNA_CALM = register("music.vecna_calm");
+	public static final SoundEvent[] MUSIC_VECNA_CHASE = music("vecna_chase", 7);
 	public static final SoundEvent QTE_HIT = register("qte.hit");
 	public static final SoundEvent QTE_MISS = register("qte.miss");
 	public static final SoundEvent ESCAPE = register("qte.escape");
