@@ -14,8 +14,7 @@
 	},
 	"mixins": [
 		"halloween.mixins.json",
-		{ "config": "halloween.client.mixins.json", "environment": "client" },
-		{ "config": "halloween.compat.mixins.json", "environment": "client" }
+		{ "config": "halloween.client.mixins.json", "environment": "client" }
 	],
 	"depends": {
 		"fabricloader": ">=0.19.3",
