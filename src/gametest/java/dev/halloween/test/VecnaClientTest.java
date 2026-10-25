@@ -225,7 +225,10 @@ public class VecnaClientTest implements FabricClientGameTest {
 				bot.teleportTo(s.overworld(), bot.getX(), bot.getY(), bot.getZ(), java.util.Set.of(), (float) Math.toDegrees(Math.atan2(-d.x, d.z)), 5f, false);
 			});
 			server.runOnServer(s -> MatchManager.onShapeJump(player(s)));
-			ctx.waitTicks(10);
+			// On his way into them: flying at the bot.
+			ctx.waitTicks(6);
+			ctx.takeScreenshot("vecna_eyes_fly");
+			ctx.waitTicks(4);
 			check(ctx.computeOnClient(mc -> mc.getCameraEntity() != mc.player && dev.halloween.client.VecnaClient.eyesActive()), "the Eyes look through the bot's");
 			ctx.runOnClient(mc -> {
 				// Whoever he looks through, turned to face him.

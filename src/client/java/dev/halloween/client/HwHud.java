@@ -41,6 +41,8 @@ public final class HwHud {
 			return;
 		}
 		VrMarks.begin();
+		// Vecna flying into someone's eyes, and the blink as he gets there.
+		VecnaClient.eyesOverlay(g, delta.getGameTimeDeltaPartialTick(false));
 		if (VecnaDeathScene.overlay(g, delta)) {
 			// Vecna taking the cursed one, for the two of them.
 			return;

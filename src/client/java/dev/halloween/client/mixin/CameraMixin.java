@@ -136,6 +136,14 @@ public abstract class CameraMixin {
 			this.setRotation((float) cut[3], (float) cut[4]);
 			return;
 		}
+		// Vecna flying into someone's eyes.
+		cut = dev.halloween.client.VecnaClient.flightCamera(partialTicks);
+		if (cut != null) {
+			this.detached = dev.halloween.client.VecnaClient.flightShowsBody(partialTicks);
+			this.setPosition(new Vec3(cut[0], cut[1], cut[2]));
+			this.setRotation((float) cut[3], (float) cut[4]);
+			return;
+		}
 		float offset = ClientState.shoulderOffset();
 		Minecraft mc = Minecraft.getInstance();
 		if (!this.detached || offset == 0 || mc.level == null || mc.player == null) {
@@ -173,6 +181,18 @@ public abstract class CameraMixin {
 		this.setPosition(from.add(dir.scale(Math.min(halloween$shoulderLen, allowed))));
 	}
 
+	/** Vecna coming into these eyes (theirs, or his through them): the view jerks (see VecnaClient). */
+	@Inject(method = "alignWithEntity", at = @At("TAIL"))
+	private void halloween$eyesJolt(float partialTicks, CallbackInfo ci) {
+		if (this.detached || dev.halloween.client.Cutscene.active()) {
+			return;
+		}
+		float[] jolt = dev.halloween.client.VecnaClient.cameraJolt(partialTicks);
+		if (jolt != null) {
+			this.setRotation(this.yRot() + jolt[0], this.xRot() + jolt[1]);
+		}
+	}
+
 	/**
 	 * In the headset Vivecraft puts the eyes where the head is (in place of alignWithEntity, so nothing above runs
 	 * there); a scene sets them down elsewhere for a still shot, the head still free (see VrShots).
@@ -194,7 +214,7 @@ public abstract class CameraMixin {
 
 	@Inject(method = "calculateFov", at = @At("RETURN"), cancellable = true)
 	private void halloween$focusZoom(float partialTicks, CallbackInfoReturnable<Float> cir) {
-		float zoom = ClientState.fovMultiplier();
+		float zoom = ClientState.fovMultiplier() * dev.halloween.client.VecnaClient.flightFov(partialTicks);
 		if (zoom != 1f) {
 			cir.setReturnValue(cir.getReturnValueF() * zoom);
 		}

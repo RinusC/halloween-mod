@@ -53,6 +53,7 @@ public final class VecnaClient {
 		}
 		tickPhantoms(mc);
 		tickEyes(mc);
+		tickJolts(mc);
 		tickRift(mc);
 		tickTremble(mc);
 		VecnaLightning.tick(mc);
@@ -94,6 +95,209 @@ public final class VecnaClient {
 	/** Looking through someone's eyes right now? */
 	public static boolean eyesActive() {
 		return eyesCamera;
+	}
+
+	// ---------------------------------------------------------------- going into someone's eyes
+
+	/** His flight into them (ticks), and their head's jerk as he gets there (ticks). */
+	private static final float FLY = 11f;
+	private static final float JOLT = 20f;
+	/** Whose head jerks, from when (game time, after the flight). */
+	private static final java.util.Map<Integer, Float> JOLTS = new java.util.HashMap<>();
+	/** His flight: when it began (-1: none), into whom, and where his camera was. */
+	private static float flyStart = -1;
+	private static int flyTarget = -1;
+	private static Vec3 flyFrom = Vec3.ZERO;
+	private static float flyYaw;
+	private static float flyPitch;
+	/** When this client's own head jerks (to hear him come in then). */
+	private static float myJoltAt = -1;
+
+	private static float now(float partial) {
+		Minecraft mc = Minecraft.getInstance();
+		return mc.level == null ? 0 : mc.level.getGameTime() + partial;
+	}
+
+	private static float partial() {
+		return Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(false);
+	}
+
+	/** Vecna goes into this one's eyes (HwNet.VecnaEyesEnter): for him the flight, for everyone their head jerks as he gets there. */
+	public static void eyesEnter(int entity) {
+		Minecraft mc = Minecraft.getInstance();
+		if (mc.player == null || mc.level == null) {
+			return;
+		}
+		float now = now(partial());
+		JOLTS.put(entity, now + FLY);
+		if (entity == mc.player.getId()) {
+			myJoltAt = now + FLY;
+		}
+		if (MichaelRenderer.vecna() && ClientState.myRole() == Role.SHAPE && !ClientVr.active()) {
+			var cam = mc.gameRenderer.mainCamera();
+			flyFrom = cam.position();
+			flyYaw = cam.yRot();
+			flyPitch = cam.xRot();
+			flyStart = now;
+			flyTarget = entity;
+		}
+	}
+
+	private static void tickJolts(Minecraft mc) {
+		float now = mc.level.getGameTime();
+		JOLTS.values().removeIf(at -> now - at > JOLT);
+		if (myJoltAt >= 0 && now >= myJoltAt) {
+			myJoltAt = -1;
+			// Him coming in, right in their head.
+			mc.level.playLocalSound(mc.player.getX(), mc.player.getEyeY(), mc.player.getZ(), HwSounds.VECNA_EYES_OPEN, SoundSource.HOSTILE, 0.8f, 1.25f, false);
+		}
+	}
+
+	/** How far into the jerk this one's head is (ticks), or -1. */
+	private static float joltAge(int entity, float partial) {
+		Float at = JOLTS.get(entity);
+		if (at == null) {
+			return -1;
+		}
+		float age = now(partial) - at;
+		return age < 0 || age > JOLT ? -1 : age;
+	}
+
+	/**
+	 * The jerk, 0..1 parts: snap (thrown back at once, easing off), second (a smaller one a moment later), shiver (a
+	 * quick tremor dying away); and to which side the head twists.
+	 */
+	private static float[] jolt(int entity, float age) {
+		float snap = age < 1.5f ? age / 1.5f : (float) Math.exp(-(age - 1.5f) * 0.28f);
+		float second = Math.max(0f, 1f - Math.abs(age - 7f) / 1.4f);
+		float shiver = Mth.sin(age * 4.3f) * Math.max(0f, 1f - age / JOLT);
+		float side = (entity & 1) == 0 ? 1f : -1f;
+		return new float[] {snap, second, shiver, side};
+	}
+
+	/** Their model's head as he comes in: thrown back and twisted, a second jerk, a shiver (over the pose it has). */
+	public static void poseJolt(net.minecraft.client.model.HumanoidModel<?> m, int entity) {
+		float age = joltAge(entity, partial());
+		if (age < 0) {
+			return;
+		}
+		float[] j = jolt(entity, age);
+		m.head.xRot += -0.9f * j[0] - 0.4f * j[1] + 0.12f * j[2];
+		m.head.yRot += j[3] * (0.35f * j[0] - 0.2f * j[1]) + 0.1f * j[2];
+		m.head.zRot += j[3] * (0.45f * j[0] - 0.25f * j[1]) + 0.15f * j[2];
+	}
+
+	/** In first person, the eyes he came into (theirs, or his in them): the view jerks up and aside (yaw, pitch), or null. */
+	public static float[] cameraJolt(float partial) {
+		Minecraft mc = Minecraft.getInstance();
+		if (mc.getCameraEntity() == null || ClientVr.active()) {
+			return null;
+		}
+		int id = mc.getCameraEntity().getId();
+		float age = joltAge(id, partial);
+		if (age < 0) {
+			return null;
+		}
+		float[] j = jolt(id, age);
+		return new float[] {j[3] * (14f * j[0] - 6f * j[1]) + 2.5f * j[2], -26f * j[0] - 10f * j[1] + 2f * j[2]};
+	}
+
+	/** How far through his flight (0..1), or -1 when not flying (and the flight given up if they are gone). */
+	private static float flight(float partial) {
+		if (flyStart < 0) {
+			return -1;
+		}
+		Minecraft mc = Minecraft.getInstance();
+		float t = (now(partial) - flyStart) / FLY;
+		Entity target = mc.level == null ? null : mc.level.getEntity(flyTarget);
+		if (t >= 1f || target == null || t > 0.4f && ClientState.vecna.eyesTarget() != flyTarget) {
+			flyStart = -1;
+			return -1;
+		}
+		return Math.max(0f, t);
+	}
+
+	/** Mid-flight the body is seen (his left behind, theirs coming at him); the last frames already through their eyes. */
+	public static boolean flightShowsBody(float partial) {
+		float t = flight(partial);
+		return t >= 0 && t < 0.92f;
+	}
+
+	/**
+	 * His camera flying into them: drawn back a little as if gathering, then hurled at their head faster and faster,
+	 * over an arc, looking at them; at the end turning to look where they look. {x, y, z, yaw, pitch}, or null.
+	 */
+	public static double[] flightCamera(float partial) {
+		float t = flight(partial);
+		if (t < 0) {
+			return null;
+		}
+		Entity target = Minecraft.getInstance().level.getEntity(flyTarget);
+		Vec3 to = target.getEyePosition(partial);
+		Vec3 path = to.subtract(flyFrom);
+		double dist = path.length();
+		Vec3 dir = dist < 1.0E-4 ? Vec3.ZERO : path.scale(1 / dist);
+		float u = Mth.clamp((t - 0.15f) / 0.85f, 0f, 1f);
+		float ease = (float) Math.pow(u, 2.4);
+		float gather = t < 0.15f ? Mth.sin(t / 0.15f * Mth.HALF_PI) : 1f - Mth.clamp(u * 3f, 0f, 1f);
+		Vec3 at = flyFrom.add(path.scale(ease))
+			.add(dir.scale(-0.6 * gather))
+			.add(0, 0.25 * gather + Mth.sin(ease * Mth.PI) * Math.min(1.8, dist * 0.12), 0);
+		// Looking at them; first turned from where he looked, last to where they look.
+		Vec3 look = to.subtract(at);
+		float lookYaw = look.lengthSqr() < 1.0E-6 ? flyYaw : (float) (Math.atan2(-look.x, look.z) * 180 / Math.PI);
+		float lookPitch = look.lengthSqr() < 1.0E-6 ? flyPitch : (float) (-Math.atan2(look.y, Math.sqrt(look.x * look.x + look.z * look.z)) * 180 / Math.PI);
+		float in = smooth(Mth.clamp(t / 0.3f, 0f, 1f));
+		float out = smooth(Mth.clamp((u - 0.7f) / 0.3f, 0f, 1f));
+		float yaw = flyYaw + Mth.wrapDegrees(lookYaw - flyYaw) * in;
+		float pitch = Mth.lerp(in, flyPitch, lookPitch);
+		yaw += Mth.wrapDegrees(target.getViewYRot(partial) - yaw) * out;
+		pitch = Mth.lerp(out, pitch, target.getViewXRot(partial));
+		return new double[] {at.x, at.y, at.z, yaw, pitch};
+	}
+
+	/** The view widening as he picks up speed, back again as he gets there. */
+	public static float flightFov(float partial) {
+		float t = flight(partial);
+		if (t < 0) {
+			return 1f;
+		}
+		float u = Mth.clamp((t - 0.15f) / 0.85f, 0f, 1f);
+		return 1f + 0.4f * Mth.sin(Mth.PI * (float) Math.pow(u, 1.6));
+	}
+
+	private static float smooth(float x) {
+		return x * x * (3 - 2 * x);
+	}
+
+	/** Over the screen: the edges closing in dark as he flies, a dark red blink as he comes into someone's head (his or theirs). */
+	public static void eyesOverlay(net.minecraft.client.gui.GuiGraphicsExtractor g, float partial) {
+		Minecraft mc = Minecraft.getInstance();
+		if (ClientVr.active() || mc.getCameraEntity() == null) {
+			return;
+		}
+		float t = flight(partial);
+		float tunnel = t < 0 ? 0f : (float) Math.pow(Mth.clamp((t - 0.15f) / 0.85f, 0f, 1f), 1.5);
+		float age = joltAge(mc.getCameraEntity().getId(), partial);
+		float blink = age < 0 ? (t > 0.75f ? (t - 0.75f) / 0.25f : 0f) : Math.max(0f, 1f - age / 9f);
+		int w = g.guiWidth();
+		int h = g.guiHeight();
+		if (tunnel > 0) {
+			// Rings of dark, thicker towards the edge.
+			for (int i = 0; i < 6; i++) {
+				int inset = Math.round((i + 1) * 0.045f * Math.min(w, h) * tunnel);
+				int a = Math.round(40 * tunnel);
+				int c = a << 24 | 0x0A0004;
+				g.fill(0, 0, w, inset, c);
+				g.fill(0, h - inset, w, h, c);
+				g.fill(0, inset, inset, h - inset, c);
+				g.fill(w - inset, inset, w, h - inset, c);
+			}
+		}
+		if (blink > 0) {
+			int a = Math.round(200 * blink * blink);
+			g.fill(0, 0, w, h, a << 24 | 0x1A0002);
+		}
 	}
 
 	private static void tickEyes(Minecraft mc) {
@@ -355,5 +559,8 @@ public final class VecnaClient {
 		}
 		eyesCamera = false;
 		sentAnchor = false;
+		JOLTS.clear();
+		flyStart = -1;
+		myJoltAt = -1;
 	}
 }

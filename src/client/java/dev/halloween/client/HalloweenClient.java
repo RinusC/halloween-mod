@@ -90,6 +90,7 @@ public class HalloweenClient implements ClientModInitializer {
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.CurseHud.TYPE, (payload, ctx) -> ClientState.curse = payload);
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.VecnaRitual.TYPE, (payload, ctx) -> ClientState.ritual = payload);
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.VecnaDeath.TYPE, (payload, ctx) -> VecnaDeathScene.begin(payload));
+		ClientPlayNetworking.registerGlobalReceiver(HwNet.VecnaEyesEnter.TYPE, (payload, ctx) -> VecnaClient.eyesEnter(payload.entity()));
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.DemoPose.TYPE, (payload, ctx) -> DemogorgonModel.receive(payload));
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.GunPose.TYPE, (payload, ctx) -> GunPoses.receive(payload));
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.DemoHouses.TYPE, (payload, ctx) -> ClientState.demoHouses = payload.corners());

@@ -200,6 +200,18 @@ public final class HwNet {
 		}
 	}
 
+	/** Vecna goes into someone's eyes (the Eyes): he flies into them, their head jerks. To everyone in the level. */
+	public record VecnaEyesEnter(int entity) implements CustomPacketPayload {
+		public static final Type<VecnaEyesEnter> TYPE = payloadType("vecna_eyes_enter");
+		public static final StreamCodec<RegistryFriendlyByteBuf, VecnaEyesEnter> CODEC = StreamCodec.of(
+			(buf, v) -> buf.writeVarInt(v.entity), buf -> new VecnaEyesEnter(buf.readVarInt()));
+
+		@Override
+		public Type<VecnaEyesEnter> type() {
+			return TYPE;
+		}
+	}
+
 	/** Vecna's Anchor key held down (true) or let go. */
 	public record VecnaAnchorKey(boolean held) implements CustomPacketPayload {
 		public static final Type<VecnaAnchorKey> TYPE = payloadType("vecna_anchor_key");
@@ -1569,6 +1581,7 @@ public final class HwNet {
 		PayloadTypeRegistry.clientboundPlay().register(CurseHud.TYPE, CurseHud.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(VecnaRitual.TYPE, VecnaRitual.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(VecnaDeath.TYPE, VecnaDeath.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(VecnaEyesEnter.TYPE, VecnaEyesEnter.CODEC);
 		PayloadTypeRegistry.serverboundPlay().register(VecnaAnchorKey.TYPE, VecnaAnchorKey.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(DemoPose.TYPE, DemoPose.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(DemoHouses.TYPE, DemoHouses.CODEC);

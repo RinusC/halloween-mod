@@ -202,6 +202,8 @@ public final class ClientAnims {
 			// In their opening scene, at what they do.
 			return;
 		}
+		// Vecna coming into their eyes: the head jerks.
+		VecnaClient.poseJolt(m, entityId);
 		State s = STATES.get(entityId);
 		if (s != null && s.hold == HwNet.Anim.PINNED) {
 			// On their back under him (the body laid over by fallAngle): arms up pushing at him, legs kicking,

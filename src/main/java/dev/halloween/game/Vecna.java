@@ -170,6 +170,10 @@ public final class Vecna {
 		eyesOn = nearest;
 		nextWhisper = 0;
 		p.level().playSound(null, p.getX(), p.getY(), p.getZ(), HwSounds.VECNA_EYES_OPEN, SoundSource.HOSTILE, 1f, 1f);
+		// He flies into them; their head jerks as he gets there.
+		for (ServerPlayer s : ((net.minecraft.server.level.ServerLevel) p.level()).players()) {
+			ServerPlayNetworking.send(s, new HwNet.VecnaEyesEnter(nearest.getId()));
+		}
 		AiStats.add(p, "vecna.eyes");
 	}
 
