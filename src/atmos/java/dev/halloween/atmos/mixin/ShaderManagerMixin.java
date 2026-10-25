@@ -1,4 +1,4 @@
-package dev.halloween.client.mixin;
+package dev.halloween.atmos.mixin;
 
 import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
 import java.util.HashMap;

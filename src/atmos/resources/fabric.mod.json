@@ -1,0 +1,20 @@
+{
+	"schemaVersion": 1,
+	"id": "halloween_atmos",
+	"version": "${version}",
+	"name": "Halloween Atmosphere",
+	"description": "Halloween's fog, screen and shaders: kept apart from the game's mod so they can be changed without its sounds. Private build.",
+	"authors": ["RinusC"],
+	"license": "All-Rights-Reserved",
+	"environment": "client",
+	"mixins": [
+		"halloween_atmos.mixins.json",
+		"halloween_atmos.compat.mixins.json"
+	],
+	"depends": {
+		"fabricloader": ">=0.19.3",
+		"minecraft": "~26.2",
+		"java": ">=25",
+		"halloween": "*"
+	}
+}

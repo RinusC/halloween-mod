@@ -1,7 +1,7 @@
 {
 	"required": true,
-	"package": "dev.halloween.client.mixin.compat",
-	"plugin": "dev.halloween.client.mixin.compat.HwCompatPlugin",
+	"package": "dev.halloween.atmos.mixin.compat",
+	"plugin": "dev.halloween.atmos.mixin.compat.HwCompatPlugin",
 	"compatibilityLevel": "JAVA_25",
 	"client": [
 		"SodiumChunkShaderMixin",

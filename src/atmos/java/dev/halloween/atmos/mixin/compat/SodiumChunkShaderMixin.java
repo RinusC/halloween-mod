@@ -1,4 +1,4 @@
-package dev.halloween.client.mixin.compat;
+package dev.halloween.atmos.mixin.compat;
 
 import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
 import com.mojang.blaze3d.pipeline.RenderPipeline;

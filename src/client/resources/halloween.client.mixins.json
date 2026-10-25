@@ -4,7 +4,6 @@
 	"compatibilityLevel": "JAVA_25",
 	"client": [
 		"AbstractClientPlayerMixin",
-		"AtmosphericFogMixin",
 		"BiomeRainMixin",
 		"LocalPlayerSprintMixin",
 		"LightmapExtractorMixin",
@@ -23,8 +22,6 @@
 		"PlayerModelMixin",
 		"ChannelAccessor",
 		"RecipeToastMixin",
-		"ShaderManagerMixin",
-		"SkyRendererMixin",
 		"SoundBufferLibraryMixin",
 		"SoundEngineAccessor",
 		"SoundManagerAccessor",
