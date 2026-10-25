@@ -130,10 +130,10 @@ public final class VecnaClient {
 		}
 		float now = now(partial());
 		JOLTS.put(entity, now + FLY);
-		if (entity == mc.player.getId()) {
+		if (entity == mc.player.getId() || MichaelRenderer.vecna() && ClientState.myRole() == Role.SHAPE) {
 			myJoltAt = now + FLY;
 		}
-		if (MichaelRenderer.vecna() && ClientState.myRole() == Role.SHAPE && !ClientVr.active()) {
+		if (MichaelRenderer.vecna() && ClientState.myRole() == Role.SHAPE) {
 			var cam = mc.gameRenderer.mainCamera();
 			flyFrom = cam.position();
 			flyYaw = cam.yRot();
@@ -148,6 +148,9 @@ public final class VecnaClient {
 		JOLTS.values().removeIf(at -> now - at > JOLT);
 		if (myJoltAt >= 0 && now >= myJoltAt) {
 			myJoltAt = -1;
+			// In the headset a jolt through both hands too.
+			ClientVr.buzz(true, 0.25f, 1f);
+			ClientVr.buzz(false, 0.25f, 1f);
 			// Him coming in, right in their head.
 			mc.level.playLocalSound(mc.player.getX(), mc.player.getEyeY(), mc.player.getZ(), HwSounds.VECNA_EYES_OPEN, SoundSource.HOSTILE, 0.8f, 1.25f, false);
 		}
@@ -200,6 +203,48 @@ public final class VecnaClient {
 		}
 		float[] j = jolt(id, age);
 		return new float[] {j[3] * (14f * j[0] - 6f * j[1]) + 2.5f * j[2], -26f * j[0] - 10f * j[1] + 2f * j[2]};
+	}
+
+	/**
+	 * In the headset the view can't be turned against the head: the eyes carried along his flight (the head still
+	 * free), and at the jerk thrown back and up with a shiver. Where the eyes go, or null.
+	 */
+	public static Vec3 vrEyes(Vec3 headset, float partial) {
+		Minecraft mc = Minecraft.getInstance();
+		if (mc.player == null) {
+			return null;
+		}
+		Vec3 eyes = null;
+		double[] fly = flightCamera(partial);
+		if (fly != null) {
+			// Where he stands in the room is kept: the flight carries the room along.
+			eyes = new Vec3(fly[0], fly[1], fly[2]).add(headset.subtract(mc.player.getEyePosition(partial)));
+		}
+		Entity cam = mc.getCameraEntity();
+		float age = cam == null ? -1 : joltAge(cam.getId(), partial);
+		if (age >= 0) {
+			float[] j = jolt(cam.getId(), age);
+			Vec3 fwd = ClientVr.headForward();
+			Vec3 side = new Vec3(-fwd.z, 0, fwd.x);
+			double back = 0.28 * j[0] + 0.12 * j[1];
+			eyes = (eyes != null ? eyes : headset).add(fwd.scale(-back)).add(0, 0.12 * j[0] + 0.05 * j[1], 0)
+				.add(side.scale(j[3] * (0.12 * j[0] - 0.05 * j[1]) + 0.04 * j[2]));
+		}
+		return eyes;
+	}
+
+	/** In the headset the darkening and the red blink are the fog's (a fill on the HUD would hang before the face): {strength, r, g, b, distance}. */
+	public static float[] vrTint(float partial) {
+		Minecraft mc = Minecraft.getInstance();
+		if (mc.getCameraEntity() == null) {
+			return null;
+		}
+		float t = flight(partial);
+		float tunnel = t < 0 ? 0f : 0.55f * (float) Math.pow(Mth.clamp((t - 0.15f) / 0.85f, 0f, 1f), 1.5);
+		float age = joltAge(mc.getCameraEntity().getId(), partial);
+		float blink = age < 0 ? (t > 0.75f ? (t - 0.75f) / 0.25f : 0f) : Math.max(0f, 1f - age / 9f);
+		float k = Math.max(tunnel, 0.85f * blink * blink);
+		return k > 0.01f ? new float[] {k, 0.12f, 0f, 0.01f, Mth.lerp(k, 48f, 3f)} : null;
 	}
 
 	/** How far through his flight (0..1), or -1 when not flying (and the flight given up if they are gone). */

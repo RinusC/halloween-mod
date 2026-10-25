@@ -203,7 +203,14 @@ public abstract class CameraMixin {
 			return;
 		}
 		float partial = delta.getGameTimeDeltaPartialTick(true);
-		Vec3 eyes = dev.halloween.client.VrShots.eyes(this.position(), partial);
+		// Vecna flying into someone's eyes, and the jerk as he gets there.
+		Vec3 vecna = dev.halloween.client.VecnaClient.vrEyes(this.position(), partial);
+		if (vecna != null) {
+			this.setPosition(vecna);
+			this.detached = dev.halloween.client.VecnaClient.flightShowsBody(partial);
+			return;
+		}
+		Vec3 eyes =dev.halloween.client.VrShots.eyes(this.position(), partial);
 		if (eyes != null) {
 			this.setPosition(eyes);
 			if (dev.halloween.client.VrShots.showsBody(partial)) {

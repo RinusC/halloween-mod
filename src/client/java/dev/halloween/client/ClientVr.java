@@ -111,6 +111,11 @@ public final class ClientVr {
 		if (hud != null && hud.stunnedTicks() > 0) {
 			return new float[]{0.35f, 0f, 0f, 0f, 24f};
 		}
+		float[] vecna = VecnaClient.vrTint(partial);
+		if (vecna != null) {
+			// Vecna going into someone's eyes: dark as he flies, a dark red blink as he gets there.
+			return vecna;
+		}
 		float flash = MichaelRenderer.demogorgon() && ClientState.demo.below() ? ClientUpsideDown.flash(partial) : 0f;
 		return flash > 0.01f ? new float[]{flash * 0.5f, 1f, 0.25f, 0.19f, 64f} : null;
 	}
