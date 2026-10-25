@@ -1,4 +1,4 @@
-package dev.halloween.atmos.mixin.compat;
+package dev.halloween.client.mixin.compat;
 
 import java.util.List;
 import java.util.Set;

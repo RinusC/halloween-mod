@@ -21,23 +21,6 @@ loom {
 	}
 }
 
-// Halloween's atmosphere (fog, the screen's pass, shaders) is a mod of its own, halloween_atmos: a small jar
-// (build/libs/halloween-atmos-*.jar) that can be changed and put in without the game's 180 MB of sounds.
-sourceSets {
-	atmos {
-		compileClasspath += sourceSets.client.compileClasspath + sourceSets.main.output + sourceSets.client.output
-		runtimeClasspath += sourceSets.client.runtimeClasspath + sourceSets.main.output + sourceSets.client.output
-	}
-}
-
-loom {
-	mods {
-		"halloween_atmos" {
-			sourceSet sourceSets.atmos
-		}
-	}
-}
-
 dependencies {
 	// To change the versions see the gradle.properties file
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
@@ -100,27 +83,4 @@ if (project.hasProperty("hw_sodium")) {
 	dependencies {
 		gametestRuntimeOnly files(project.sodium_jar)
 	}
-}
-
-processAtmosResources {
-	def version = project.version
-	inputs.property "version", version
-
-	filesMatching("fabric.mod.json") {
-		expand "version": version
-	}
-}
-
-def atmosJar = tasks.register("atmosJar", Jar) {
-	archiveBaseName = "halloween-atmos"
-	from sourceSets.atmos.output
-}
-
-tasks.named("build") {
-	dependsOn atmosJar
-}
-
-// The test client runs with the atmosphere too.
-dependencies {
-	gametestImplementation sourceSets.atmos.output
 }

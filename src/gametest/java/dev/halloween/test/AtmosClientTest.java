@@ -2,7 +2,6 @@ package dev.halloween.test;
 
 import dev.halloween.HwConfig;
 import dev.halloween.client.ClientMusic;
-import dev.halloween.atmos.Fog;
 import dev.halloween.client.ClientWeather;
 import dev.halloween.game.BotPlayer;
 import dev.halloween.game.Music;
@@ -75,14 +74,14 @@ public class AtmosClientTest implements FabricClientGameTest {
 			ctx.waitTicks(60);
 			for (int round = 0; round < 2; round++) {
 				for (boolean on : new boolean[] {false, true}) {
-					ctx.runOnClient(mc -> Fog.enabled = on);
+					ctx.runOnClient(mc -> ClientWeather.enabled = on);
 					ctx.waitTicks(20);
 					double ms = ctx.computeOnClient(AtmosClientTest::frameMs);
 					LOG.info("Atmos frame time round {} atmosphere {}: {} ms", round, on ? "on" : "off", String.format(java.util.Locale.ROOT, "%.3f", ms));
 				}
 			}
 			ctx.runOnClient(mc -> {
-				Fog.enabled = true;
+				ClientWeather.enabled = true;
 				if (mc.gui.hud.isHidden()) {
 					mc.gui.hud.toggle();
 				}
@@ -109,12 +108,12 @@ public class AtmosClientTest implements FabricClientGameTest {
 		});
 		ctx.waitTicks(40);
 		ctx.runOnClient(mc -> {
-			Fog.enabled = false;
+			ClientWeather.enabled = false;
 			ClientWeather.kind = Weather.CLEAR;
 		});
 		ctx.waitTicks(5);
 		ctx.takeScreenshot("atmos_" + name + "_0off");
-		ctx.runOnClient(mc -> Fog.enabled = true);
+		ctx.runOnClient(mc -> ClientWeather.enabled = true);
 		ctx.waitTicks(60);
 		ctx.takeScreenshot("atmos_" + name + "_1clear");
 		ctx.runOnClient(mc -> ClientWeather.kind = Weather.FOG);

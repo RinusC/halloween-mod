@@ -1,6 +1,6 @@
-package dev.halloween.atmos.mixin;
+package dev.halloween.client.mixin;
 
-import dev.halloween.atmos.Fog;
+import dev.halloween.client.ClientWeather;
 import net.minecraft.client.Camera;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -11,11 +11,11 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/** The match night's fog over the vanilla one (see Fog). */
+/** A foggy match night: the fog closes in (see ClientWeather). */
 @Mixin(AtmosphericFogEnvironment.class)
 public class AtmosphericFogMixin {
 	@Inject(method = "setupFog", at = @At("TAIL"))
 	private void halloween$fog(FogData data, Camera camera, ClientLevel level, float renderDistance, DeltaTracker delta, CallbackInfo ci) {
-		Fog.apply(data);
+		ClientWeather.apply(data);
 	}
 }
