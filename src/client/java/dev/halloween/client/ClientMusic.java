@@ -91,6 +91,11 @@ public final class ClientMusic {
 		return current;
 	}
 
+	/** The mood the server asked for (Music.*): whether a chase is on, for the fog and the screen. */
+	public static int mood() {
+		return mood;
+	}
+
 	public static void set(int newMood, int newVariant) {
 		mood = newMood;
 		variant = newVariant;

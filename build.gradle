@@ -77,3 +77,10 @@ fabricApi {
 		eula = true
 	}
 }
+
+// Sodium in the test client too, with -Phw_sodium: the terrain then goes through its shaders, as in the game.
+if (project.hasProperty("hw_sodium")) {
+	dependencies {
+		gametestRuntimeOnly files(project.sodium_jar)
+	}
+}

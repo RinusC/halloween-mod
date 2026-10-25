@@ -23,6 +23,8 @@
 		"PlayerModelMixin",
 		"ChannelAccessor",
 		"RecipeToastMixin",
+		"ShaderManagerMixin",
+		"SkyRendererMixin",
 		"SoundBufferLibraryMixin",
 		"SoundEngineAccessor",
 		"SoundManagerAccessor",
