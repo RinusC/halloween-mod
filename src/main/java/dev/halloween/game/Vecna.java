@@ -28,7 +28,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * Vecna (Stranger Things), the third killer (/hw killer vecna): played by a person (a bot always plays Michael). As
+ * Vecna (Stranger Things), the third killer (/hw killer vecna): played by a person, or by the server (/hw shape bot, see ShapeBrain). As
  * slow as Michael and without his dash, Sense or Impulse: he wins with his head. Grabbing, the struggle and the kill
  * are Michael's; his own powers take Michael's keys.
  * <ul>
@@ -96,12 +96,12 @@ public final class Vecna {
 		return HwConfig.get().killerVecna;
 	}
 
-	/** At a match's start: Vecna this match if he is chosen and a person plays the killer (a bot plays Michael). */
-	public static void begin(boolean personKiller) {
-		thisMatch = chosen() && personKiller;
+	/** At a match's start: Vecna this match if he is chosen and someone (a person or the bot) plays the killer. */
+	public static void begin(boolean killer) {
+		thisMatch = chosen() && killer;
 	}
 
-	/** Is the killer Vecna (chosen, and a person plays him)? */
+	/** Is the killer Vecna (chosen, and someone plays him)? */
 	public static boolean active() {
 		return thisMatch;
 	}
@@ -140,6 +140,51 @@ public final class Vecna {
 	/** Is this one held by the Grip? */
 	public static boolean held(LivingEntity e) {
 		return gripping() && gripped == e;
+	}
+
+	// ---------------------------------------------------------------- what his screen shows him (for the bot, ShapeBrain)
+
+	/** The Grip's rest left. */
+	static int gripRest() {
+		return gripCooldown;
+	}
+
+	/** Ticks aimed so far (-1: not aiming). */
+	static int gripAimed() {
+		return gripAim;
+	}
+
+	/** Whom the Grip draws in (null: nobody). */
+	static LivingEntity gripHolds() {
+		return gripped;
+	}
+
+	/** How far and how fast the Grip flies now (further and faster in the rift). */
+	static double gripReach() {
+		return gripRange();
+	}
+
+	static double gripPace() {
+		return gripSpeed();
+	}
+
+	/** Whose eyes he looks through (null: his own). */
+	static LivingEntity eyesTarget() {
+		return eyesOn;
+	}
+
+	/** The Eyes' reserve, of its most. */
+	static float eyesFill() {
+		return eyesReserve / (float) eyesMax();
+	}
+
+	/** The Anchor: its rest left, and its phase (ANCHOR_*). */
+	static int anchorRestLeft() {
+		return anchorCooldown;
+	}
+
+	static int anchorStage() {
+		return anchorPhase;
 	}
 
 	// ---------------------------------------------------------------- the keys

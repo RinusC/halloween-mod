@@ -201,10 +201,10 @@ public final class Match {
 		Guns.clear();
 		GunCase.clear(server.overworld());
 		Nav.setArea(area(points));
-		// (Who plays the killer decides it, not whether a bot was ever asked for: /hw start @p with the Demogorgon chosen is him.)
+		// (Who plays the killer decides it, not whether a bot was ever asked for: /hw start @p with the Demogorgon chosen is him. The bot plays Michael or Vecna, never the Demogorgon.)
 		Demogorgon.begin(shapeBot == null && shape != null);
 		Demogorgon.clear(level);
-		Vecna.begin(shapeBot == null && shape != null);
+		Vecna.begin(shape != null);
 		Vecna.clear(level);
 		VecnaRitual.clear(server);
 		if (Demogorgon.active()) {

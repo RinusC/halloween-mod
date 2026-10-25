@@ -35,9 +35,17 @@ import net.minecraft.world.phys.Vec3;
  * throwing them through a window when there is one), strikes when he can't grab, breaks the locked doors in his
  * way. Lost: he goes where they were heading, listens, throws open the wardrobes there. Townsfolk he kills when
  * there is nobody better.
+ *
+ * <p>With Vecna chosen (/hw killer vecna) the bot plays him: the same eyes, ears and legs, none of Michael's shadow,
+ * Sense, dash or Impulse, his own powers in their place (see vecnaPowers). The Grip thrown at whom he is after, aimed
+ * where they will be when it gets there, and let go before a wall between them snaps it; the Eyes where Michael would
+ * use the Impulse, to learn where the one nearest him is; the Anchor to the cursed one far off once the ritual wants
+ * them (with the rift open, to anyone far off while he has nobody). Townsfolk count for his ritual as much as anyone,
+ * so he does not pass them by; the cursed one he leaves for last, then goes for above all.
  */
 public final class ShapeBrain {
 	public static final String NAME = "Michael";
+	public static final String VECNA_NAME = "Vecna";
 	private static boolean chosen;
 	private static ShapeBrain brain;
 
@@ -233,10 +241,25 @@ public final class ShapeBrain {
 	private int stunnedWas;
 	private int pushedWas;
 
+	/** Vecna plays (his powers in place of Michael's), not Michael. */
+	private final boolean vecna;
+	/** The Grip: whom he aims it at, when it caught them, since when a wall has stood between them (-1: none). */
+	private LivingEntity gripFor;
+	private int gripCaughtAt = -1;
+	private int gripBlockedAt = -1;
+	/** The Eyes: until when he looks (0: not looking), and when he opened them. */
+	private int eyesUntil;
+	private int eyesAt;
+	/** The Anchor: whom he goes to, when he pressed it, and no new try before this. */
+	private ServerPlayer anchorFor;
+	private int anchorPressAt;
+	private int anchorTryAt;
+
 	private ShapeBrain(BotPlayer body) {
 		this.body = body;
 		this.walker = new Walker(body);
 		this.walker.closeDoors = false;
+		this.vecna = Vecna.active();
 	}
 
 	// ---------------------------------------------------------------- who plays him
@@ -256,7 +279,7 @@ public final class ShapeBrain {
 
 	/** The bot's body for a new match. */
 	static BotPlayer spawn(MinecraftServer server, BlockPos at) {
-		return Bots.spawnLoose(server, NAME, at);
+		return Bots.spawnLoose(server, Vecna.chosen() ? VECNA_NAME : NAME, at);
 	}
 
 	/** His mind, once the body has his role. */
@@ -298,7 +321,9 @@ public final class ShapeBrain {
 			+ String.format(" pos %.2f %.2f %.2f", b.body.getX(), b.body.getY(), b.body.getZ()) + " status " + b.lastStatus + " aim " + (b.aim == null ? "-" : b.aim.toShortString())
 			+ " best " + String.format("%.1f", b.bestDist) + " unstick " + b.unstick + " tokens " + String.format("%.1f", b.searches) + " zza " + b.body.zza
 			+ " raid " + (b.raid == null ? "-" : b.raidRoom + "/" + b.raidRooms.size()) + " clues " + b.clues.size()
-			+ " traps " + b.traps.size() + " runt " + b.runtStatus + (b.runtHolding >= 0 ? " holding " + b.runtHolding : "");
+			+ " traps " + b.traps.size() + " runt " + b.runtStatus + (b.runtHolding >= 0 ? " holding " + b.runtHolding : "")
+			+ (b.vecna ? " grip " + Vecna.gripRest() + "/" + Vecna.gripAimed() + (Vecna.gripHolds() != null ? " holds" : "") + (Vecna.flying() ? " flying" : "")
+				+ " eyes " + String.format("%.2f", Vecna.eyesFill()) + " anchor " + Vecna.anchorRestLeft() + " ritual " + VecnaRitual.kills() : "");
 	}
 
 	/** How far he stalks this survivor before going for them: 2, or 3 once they got out of his hands. */
@@ -368,6 +393,11 @@ public final class ShapeBrain {
 			b.campFor = null;
 			b.stalkSpot = null;
 			b.hurtBy.clear();
+			b.gripFor = null;
+			b.gripCaughtAt = -1;
+			b.eyesUntil = 0;
+			b.anchorFor = null;
+			b.anchorTryAt = 0;
 			b.mode = Mode.PATROL;
 			b.walker.stop();
 		}
@@ -400,7 +430,7 @@ public final class ShapeBrain {
 	}
 
 	private static void stat(String event) {
-		AiStats.add("~michael", event);
+		AiStats.add(brain != null && brain.vecna ? "~vecna" : "~michael", event);
 	}
 
 	// ---------------------------------------------------------------- what he hears and is shown
@@ -665,6 +695,13 @@ public final class ShapeBrain {
 			boolean shown = this.revealed.getOrDefault(e.getId(), 0) > now;
 			// Shown by the Impulse: where they are is known (he makes for it), but stalking or a chase needs them in plain view.
 			boolean inView = Sight.canSee(level, eye, c, this.body) || Sight.canSee(level, eye, e.getEyePosition(), this.body);
+			if (this.vecna && !inView && VecnaCurse.broken(e)) {
+				// The cursed one broken: his screen shows them through walls (worth most once the ritual wants them).
+				if (now % 20 == 0) {
+					this.lead(e.position(), now, this.ritualReady() ? 7 : 2.5, "broken");
+				}
+				continue;
+			}
 			if (shown && !inView) {
 				if (now % 20 == 0) {
 					this.lead(e.position(), now, 6, "shown");
@@ -755,6 +792,16 @@ public final class ShapeBrain {
 		}
 		if (e.getId() == this.runtHolding && this.runtFresh(now)) {
 			s -= 30;
+		}
+		if (this.vecna && !VecnaRitual.rift()) {
+			if (VecnaCurse.cursed(e)) {
+				// Killed too soon the cursed one only counts as one of the kills and the curse passes on, lighter; once the
+				// kills are made, their death opens the rift.
+				s += this.ritualReady() ? -30 : 15;
+			} else if (Townsfolk.isNpc(e)) {
+				// A townsperson's death counts for the ritual as much as a survivor's.
+				s -= 15;
+			}
 		}
 		return s;
 	}
@@ -876,9 +923,9 @@ public final class ShapeBrain {
 		}
 		this.trappedWas = st.trappedTicks;
 		if (st.trappedTicks > 0 && st.shadowTicks == 0 && !st.busy() && !this.strikeNear(st, now)
-			&& MatchManager.jumpBlockReason(this.body, st) == 0) {
+			&& this.jumpBlock(st) == 0) {
 			// Held by the jaws: a blow at anyone in reach, else out as a shadow (a shadow walks free of it).
-			MatchManager.onShapeJump(this.body);
+			this.shapeJump();
 			stat("shadow.out_of_trap");
 		}
 		if (st.busy() || st.trappedTicks > 0 && st.shadowTicks == 0 || Windows.isVaulting(this.body)) {
@@ -912,6 +959,9 @@ public final class ShapeBrain {
 				this.lookAroundUntil = 0;
 				stat("lost");
 			}
+		}
+		if (this.vecna && this.vecnaPowers(st, now)) {
+			return;
 		}
 		this.rushToRunt(now);
 		if (this.threat != null && (this.mode == Mode.CHASE || this.mode == Mode.STALK || this.mode == Mode.RETREAT)) {
@@ -956,7 +1006,8 @@ public final class ShapeBrain {
 	 * goes for them.
 	 */
 	private Mode decide(ShapeState st, LivingEntity e, int now) {
-		if (!(e instanceof ServerPlayer p) || !MatchManager.role(p).survivor()) {
+		if (this.vecna || !(e instanceof ServerPlayer p) || !MatchManager.role(p).survivor()) {
+			// (Vecna stalks by his curse, his Eyes and his Grip, not by looking: nothing to wait for.)
 			return Mode.CHASE;
 		}
 		if (!p.getUUID().equals(this.reactionFor)) {
@@ -1013,7 +1064,7 @@ public final class ShapeBrain {
 		if (st.shadowTicks == 0 && d <= range && Sight.angleTo(eye, e.getViewVector(1f), me) <= cfg.civilianSightFovDeg && Sight.canSee(this.level(), eye, me, e)) {
 			return true;
 		}
-		if (st.shadowTicks == 0 && MatchManager.jumpBlockReason(this.body, st) == 2 && this.watchedBy(e)) {
+		if (st.shadowTicks == 0 && this.jumpBlock(st) == 2 && this.watchedBy(e)) {
 			// His screen says someone has eyes on him (dark or not), and these are turned his way.
 			return true;
 		}
@@ -1237,9 +1288,9 @@ public final class ShapeBrain {
 			}
 		}
 		boolean watched = t != null && MatchManager.exposed(t) && this.watchedBy(t);
-		if (st.shadowTicks == 0 && !watched && MatchManager.jumpBlockReason(this.body, st) == 0) {
+		if (st.shadowTicks == 0 && !watched && this.jumpBlock(st) == 0) {
 			// Out of their eyes and in the dark: gone.
-			MatchManager.onShapeJump(this.body);
+			this.shapeJump();
 			stat("shadow.in_retreat");
 		}
 		if (now < this.retreatUntil) {
@@ -1331,8 +1382,277 @@ public final class ShapeBrain {
 
 	/** Killer Sense (and focus) held or let go. */
 	private void sense(ShapeState st, boolean on, boolean focus) {
-		st.senseHeld = on && st.shadowTicks == 0;
+		// (Vecna has no Sense: the key is his Grip's, see vecnaPowers.)
+		st.senseHeld = on && st.shadowTicks == 0 && !this.vecna;
 		st.focusHeld = st.senseHeld && focus;
+	}
+
+	// ---------------------------------------------------------------- Vecna's powers (the bot playing him)
+
+	/** Shape Jump as his screen shows it; Vecna has none (that key opens his Eyes), so it is never to be had. */
+	private int jumpBlock(ShapeState st) {
+		return this.vecna ? 4 : MatchManager.jumpBlockReason(this.body, st);
+	}
+
+	private void shapeJump() {
+		if (!this.vecna) {
+			MatchManager.onShapeJump(this.body);
+		}
+	}
+
+	/** The Impulse ready; for Vecna his Eyes in its place (most of their reserve there, no other power at work). */
+	private boolean impulseReady(ShapeState st) {
+		if (this.vecna) {
+			return !st.busy() && Vecna.eyesTarget() == null && Vecna.eyesFill() >= 0.6f && Vecna.gripAimed() < 0 && !Vecna.flying()
+				&& Vecna.gripHolds() == null && Vecna.anchorStage() == Vecna.ANCHOR_IDLE;
+		}
+		return st.impulseCooldown == 0 && !st.busy();
+	}
+
+	private void impulse(int now) {
+		if (!this.vecna) {
+			MatchManager.onImpulse(this.body);
+			return;
+		}
+		// A look through the eyes of the one nearest him (his Shape Jump key): where they are is something to go and see.
+		MatchManager.onShapeJump(this.body);
+		this.eyesAt = now;
+		this.eyesUntil = now + 40 + this.random.nextInt(20);
+		this.walker.halt();
+	}
+
+	/** The ritual's kills made: the cursed one's death opens the rift now. */
+	private boolean ritualReady() {
+		return VecnaRitual.kills() >= HwConfig.get().vecnaRitualKills;
+	}
+
+	/**
+	 * Vecna's own powers, before what else he would do: taking shape after the Anchor, looking through the Eyes, the
+	 * Grip aimed, in flight or drawing someone in; else whether to aim the Grip at whom he is after, or to go by the
+	 * Anchor. True while one of them has him (the rest of his mind waits).
+	 */
+	private boolean vecnaPowers(ShapeState st, int now) {
+		if (VecnaDeath.active() || Vecna.anchorStage() == Vecna.ANCHOR_CHANNEL) {
+			// Taking shape after the Anchor (rooted, unseen at first), or the cursed one's death: eyes on them.
+			st.senseHeld = false;
+			this.walker.halt();
+			LivingEntity t = this.anchorFor != null && !gone(this.anchorFor) ? this.anchorFor : this.target;
+			if (t != null && !gone(t)) {
+				this.walker.face(t.getEyePosition());
+			}
+			this.aimAlong();
+			return true;
+		}
+		if (Vecna.anchorStage() == Vecna.ANCHOR_CHOOSING) {
+			this.anchorChoose(st, now);
+			return true;
+		}
+		if (this.anchorFor != null) {
+			// There beside them (or it took him nowhere): after them.
+			this.lead(this.anchorFor.position(), now, 8, "anchor");
+			this.anchorFor = null;
+		}
+		LivingEntity looking = Vecna.eyesTarget();
+		if (looking != null) {
+			st.senseHeld = false;
+			this.walker.halt();
+			if (now % 10 == 0) {
+				// What they see tells him the place.
+				this.lead(looking.position(), now, looking instanceof ServerPlayer ? 7 : 4, "eyes");
+			}
+			if (now >= this.eyesUntil) {
+				MatchManager.onShapeJump(this.body);
+				this.eyesUntil = 0;
+				stat("eyes." + (looking instanceof ServerPlayer ? "survivor" : "npc"));
+			}
+			this.aimAlong();
+			return true;
+		}
+		this.eyesUntil = 0;
+		LivingEntity held = Vecna.gripHolds();
+		if (held != null) {
+			this.drawIn(st, held, now);
+			return true;
+		}
+		this.gripCaughtAt = -1;
+		if (Vecna.flying()) {
+			st.senseHeld = false;
+			this.walker.halt();
+			LivingEntity t = this.gripFor;
+			if (t != null && !gone(t)) {
+				// Eyes on where they are going (with the rift open it bends that way).
+				this.walker.face(FocusPoints.bodyCenter(t).add(this.lastVelocity.multiply(8, 0, 8)));
+			}
+			this.aimAlong();
+			return true;
+		}
+		if (Vecna.gripAimed() >= 0) {
+			this.aimGrip(st, now);
+			return true;
+		}
+		st.senseHeld = false;
+		return this.tryGrip(st, now) || this.tryAnchor(st, now);
+	}
+
+	/** His camera along his face (the Grip, the Anchor and grabs read it). */
+	private void aimAlong() {
+		MatchManager.onAim(this.body, this.body.getEyePosition(), this.body.getViewVector(1f));
+	}
+
+	/**
+	 * Whom he is after in sight, out of his hands' reach but in the Grip's: he takes aim (his hand thrust out, a second,
+	 * barely moving). Not at officers: in a grab they nearly always break free (he strikes them down).
+	 */
+	private boolean tryGrip(ShapeState st, int now) {
+		HwConfig cfg = HwConfig.get();
+		LivingEntity t = this.target;
+		if (this.mode != Mode.CHASE || t == null || gone(t) || Police.isOfficer(t) || !MatchManager.exposed(t) || MatchManager.grabHolding(t) != null
+			|| now - this.lastSeenAt > 2 || Vecna.gripRest() > 0 || st.busy() || st.stunnedTicks > 0 || st.grab != null) {
+			return false;
+		}
+		double d = this.body.distanceTo(t);
+		Vec3 at = this.gripPoint(t, cfg.vecnaGripAimTicks);
+		if (d < cfg.grabRange + 1.5 && st.grabCooldown == 0 || at.distanceTo(this.body.getEyePosition()) > Vecna.gripReach() - 1.5) {
+			// In reach of his hands (a grab is quicker), or where it couldn't get to.
+			return false;
+		}
+		this.gripFor = t;
+		st.senseHeld = true;
+		this.walker.halt();
+		this.walker.face(at);
+		this.aimAlong();
+		stat("grip.aim");
+		return true;
+	}
+
+	/** Aiming: his hand on where they will be; ready and they are in sight, he lets go and it flies. */
+	private void aimGrip(ShapeState st, int now) {
+		HwConfig cfg = HwConfig.get();
+		LivingEntity t = this.gripFor;
+		int aimed = Vecna.gripAimed();
+		this.walker.halt();
+		if (t == null || gone(t) || !MatchManager.exposed(t) || this.target != t || now - this.lastSeenAt > 30 && aimed < cfg.vecnaGripAimTicks) {
+			// Gone before it was ready: let go (let go too soon, it throws nothing and costs nothing).
+			st.senseHeld = false;
+			this.gripFor = null;
+			stat("grip.abort");
+			return;
+		}
+		boolean seen = now - this.lastSeenAt <= 2;
+		Vec3 at = seen ? this.gripPoint(t, Math.max(0, cfg.vecnaGripAimTicks - aimed)) : this.lastSeen.add(this.lastVelocity.scale(now - this.lastSeenAt)).add(0, 1, 0);
+		this.walker.face(at);
+		this.aimAlong();
+		// (Out of sight a while after it was ready: it goes after where they were heading, through the wall.)
+		boolean go = aimed >= cfg.vecnaGripAimTicks && (seen || aimed >= cfg.vecnaGripAimTicks + 30);
+		st.senseHeld = !go;
+		if (go) {
+			stat("grip.throw");
+		}
+	}
+
+	/**
+	 * Where to throw the Grip at them: where they will be when it gets there (after {@code wait} more ticks of aiming),
+	 * going as they go now.
+	 */
+	private Vec3 gripPoint(LivingEntity t, int wait) {
+		Vec3 eye = this.body.getEyePosition();
+		Vec3 c = FocusPoints.bodyCenter(t);
+		Vec3 v = this.lastVelocity.multiply(1, 0, 1);
+		double pace = Vecna.gripPace() / 20.0;
+		Vec3 p = c;
+		for (int i = 0; i < 2; i++) {
+			p = c.add(v.scale(Math.min(60, wait + p.distanceTo(eye) / pace)));
+		}
+		return p;
+	}
+
+	/**
+	 * The Grip has them: drawn in by itself while he creeps their way (round the wall, if one stands between them).
+	 * A wall between them a good while, or the bond about to snap and throw him down: he lets go himself first.
+	 */
+	private void drawIn(ShapeState st, LivingEntity held, int now) {
+		if (this.gripCaughtAt < 0) {
+			this.gripCaughtAt = now;
+			this.gripBlockedAt = -1;
+			stat("grip.caught." + (held instanceof ServerPlayer ? "survivor" : "npc"));
+		}
+		Vec3 at = FocusPoints.bodyCenter(held);
+		if (Sight.canSee(this.level(), this.body.getEyePosition(), at, this.body)) {
+			this.gripBlockedAt = -1;
+		} else if (this.gripBlockedAt < 0) {
+			this.gripBlockedAt = now;
+		}
+		boolean letGo = this.gripBlockedAt >= 0 && now - this.gripBlockedAt > 20 * 4 || now - this.gripCaughtAt > HwConfig.get().vecnaGripPullTicks - 30;
+		// (The key pressed anew lets go: up one tick, down the next.)
+		st.senseHeld = letGo && !st.senseHeld;
+		if (st.senseHeld) {
+			stat("grip.let_go");
+		}
+		if (now >= this.repathAt || this.walker.idle()) {
+			this.repathAt = now + 10;
+			this.follow(st, held.blockPosition(), 1.2);
+		}
+		this.walk(st, now);
+		this.walker.face(at);
+		this.aimAlong();
+	}
+
+	/** The Anchor, when it is worth its long rest (see anchorPick): held, he turns to whom he wants. */
+	private boolean tryAnchor(ShapeState st, int now) {
+		if (Vecna.anchorRestLeft() > 0 || st.busy() || now < this.anchorTryAt || this.mode == Mode.LEAVE
+			|| this.mode == Mode.CHASE && now - this.lastSeenAt < 60) {
+			return false;
+		}
+		this.anchorTryAt = now + 40;
+		ServerPlayer to = this.anchorPick(now);
+		if (to == null) {
+			return false;
+		}
+		this.anchorFor = to;
+		this.anchorPressAt = now;
+		Vecna.anchorKey(this.body, true);
+		this.walker.halt();
+		stat("anchor.choose");
+		return true;
+	}
+
+	/**
+	 * Whom the Anchor is worth taking him to, thirty blocks off or more (his screen shows him the cursed one, and with
+	 * the rift open everyone, while he holds it): the cursed one, once the ritual wants them or when he has had nobody
+	 * for long (the others are seldom far); with the rift open, the nearest survivor while he has nobody.
+	 */
+	private ServerPlayer anchorPick(int now) {
+		boolean rift = VecnaRitual.rift();
+		int idle = now - Math.max(this.lastSeenAt, Match.startTick());
+		ServerPlayer best = null;
+		double bestD = Double.MAX_VALUE;
+		for (ServerPlayer s : this.level().players()) {
+			if (!MatchManager.role(s).survivor() || s.isSpectator() || !s.isAlive()) {
+				continue;
+			}
+			boolean worth = rift ? idle > 20 * 15 : VecnaCurse.stage(s) >= 1 && (this.ritualReady() || idle > 20 * 40);
+			double d = s.distanceTo(this.body);
+			if (worth && d >= 30 && d < bestD) {
+				bestD = d;
+				best = s;
+			}
+		}
+		return best;
+	}
+
+	/** Holding the Anchor: turned to whom he wants, a moment, then let go (he is there at once, taking shape). */
+	private void anchorChoose(ShapeState st, int now) {
+		st.senseHeld = false;
+		this.walker.halt();
+		ServerPlayer t = this.anchorFor;
+		if (t != null && !gone(t)) {
+			this.walker.face(FocusPoints.bodyCenter(t));
+		}
+		this.aimAlong();
+		if (now - this.anchorPressAt >= 8) {
+			Vecna.anchorKey(this.body, false);
+			stat(Vecna.anchorStage() == Vecna.ANCHOR_CHANNEL ? "anchor" : "anchor.none");
+		}
 	}
 
 	// ---------------------------------------------------------------- the chase
@@ -1375,9 +1695,9 @@ public final class ShapeBrain {
 				this.walker.face(aim);
 				return;
 			}
-		} else if ((d > 14 || armed && d > 6 || d > 8 && this.lastVelocity.horizontalDistance() > 0.2) && !this.watchedBy(t) && !this.lit(t.blockPosition()) && MatchManager.jumpBlockReason(this.body, st) == 0
+		} else if ((d > 14 || armed && d > 6 || d > 8 && this.lastVelocity.horizontalDistance() > 0.2) && !this.watchedBy(t) && !this.lit(t.blockPosition()) && this.jumpBlock(st) == 0
 			&& st.jumpCooldown == 0) {
-			MatchManager.onShapeJump(this.body);
+			this.shapeJump();
 			stat(armed ? "shadow.in_approach.armed" : "shadow.in_approach");
 		} else {
 			// No Sense on the run: it slows him to a walk.
@@ -1403,7 +1723,7 @@ public final class ShapeBrain {
 				MatchManager.onShapeAttack(this.body, t.getId(), this.lastVelocity.horizontalDistance() < 0.05);
 				stat("strike");
 			}
-			if (d > 3.5 && d < 11 && st.dashCooldown == 0 && st.dashTicks == 0) {
+			if (!this.vecna && d > 3.5 && d < 11 && st.dashCooldown == 0 && st.dashTicks == 0) {
 				this.walker.face(aim);
 				MatchManager.onDash(this.body);
 				stat("dash");
@@ -1455,7 +1775,8 @@ public final class ShapeBrain {
 		if (!fixed) {
 			this.aim = null;
 		} else if (!to.equals(this.aim)) {
-			if (st.shadowTicks == 0 && this.lightJob == null && !to.equals(this.lightJob)) {
+			// (Vecna has no shadow to keep to the dark for.)
+			if (st.shadowTicks == 0 && !this.vecna && this.lightJob == null && !to.equals(this.lightJob)) {
 				BlockPos breaker = this.breakerFor(to);
 				if (breaker != null && !breaker.equals(to)) {
 					this.lightJob = breaker;
@@ -1502,9 +1823,9 @@ public final class ShapeBrain {
 		boolean soonOut = this.mode == Mode.WORK || this.mode == Mode.CAMP || testGoal != null
 			|| this.mode == Mode.CHASE && this.target != null && this.body.distanceTo(this.target) < 6;
 		if (soonOut && st.shadowTicks > 0 && !this.escaping && this.litAhead(5) && !this.lit(this.body.blockPosition())
-			&& MatchManager.jumpBlockReason(this.body, st) == 0) {
+			&& this.jumpBlock(st) == 0) {
 			// Light ahead: out of the shadow while it is still dark here, and on in his own form.
-			MatchManager.onShapeJump(this.body);
+			this.shapeJump();
 			stat("shadow.out_before_light");
 		}
 		this.walker.throughDoors = st.shadowTicks > 0;
@@ -1583,8 +1904,8 @@ public final class ShapeBrain {
 		this.bestAt = now;
 		this.unstick++;
 		stat("stall");
-		if (this.unstick == 1 && st.shadowTicks == 0 && MatchManager.jumpBlockReason(this.body, st) == 0 && !this.litAhead(6)) {
-			MatchManager.onShapeJump(this.body);
+		if (this.unstick == 1 && st.shadowTicks == 0 && this.jumpBlock(st) == 0 && !this.litAhead(6)) {
+			this.shapeJump();
 			this.walker.stop();
 			this.repathAt = now;
 			stat("unstick.shadow");
@@ -1632,9 +1953,9 @@ public final class ShapeBrain {
 		if (st.shadowTicks == 0) {
 			return true;
 		}
-		int reason = MatchManager.jumpBlockReason(this.body, st);
+		int reason = this.jumpBlock(st);
 		if (reason == 0) {
-			MatchManager.onShapeJump(this.body);
+			this.shapeJump();
 			this.walker.stop();
 			this.repathAt = now;
 			return true;
@@ -1662,9 +1983,9 @@ public final class ShapeBrain {
 			this.escaping = false;
 			return false;
 		}
-		int reason = MatchManager.jumpBlockReason(this.body, st);
+		int reason = this.jumpBlock(st);
 		if (reason == 0) {
-			MatchManager.onShapeJump(this.body);
+			this.shapeJump();
 			this.escaping = false;
 			this.walker.stop();
 			this.repathAt = now;
@@ -1833,9 +2154,9 @@ public final class ShapeBrain {
 		}
 		if (this.lookAroundUntil == 0) {
 			this.lookAroundUntil = now + 60;
-			if (st.impulseCooldown == 0 && !st.busy()) {
+			if (this.impulseReady(st)) {
 				// Lost them: the Impulse, if he has it.
-				MatchManager.onImpulse(this.body);
+				this.impulse(now);
 				stat("impulse.lost");
 			}
 		}
@@ -2198,16 +2519,16 @@ public final class ShapeBrain {
 		if (!this.raidShadowTried) {
 			// Through the house unseen, as a shadow (through its doors, through walls of light).
 			this.raidShadowTried = true;
-			if (st.shadowTicks == 0 && MatchManager.jumpBlockReason(this.body, st) == 0) {
-				MatchManager.onShapeJump(this.body);
+			if (st.shadowTicks == 0 && this.jumpBlock(st) == 0) {
+				this.shapeJump();
 				stat("raid.shadow");
 			}
 		}
 		if (!this.raidImpulse) {
 			this.raidImpulse = true;
-			if (st.impulseCooldown == 0 && !st.busy()) {
+			if (this.impulseReady(st)) {
 				// Whoever is in there shows as a blur: that room first.
-				MatchManager.onImpulse(this.body);
+				this.impulse(now);
 				stat("impulse.raid");
 			}
 		}
@@ -2652,8 +2973,8 @@ public final class ShapeBrain {
 			this.evadeUntil = 0;
 			return false;
 		}
-		if (MatchManager.jumpBlockReason(this.body, st) == 0) {
-			MatchManager.onShapeJump(this.body);
+		if (this.jumpBlock(st) == 0) {
+			this.shapeJump();
 			stat("evade.shadow");
 			this.evadeUntil = 0;
 			return false;
@@ -2698,8 +3019,8 @@ public final class ShapeBrain {
 		Vec3 eye = this.body.getEyePosition();
 		Vec3 bang = c.add(0, 0.3, 0);
 		boolean safe = eye.distanceTo(bang) > 6.5 || !Sight.canSee(level, bang, eye, this.body);
-		if (!safe && MatchManager.jumpBlockReason(this.body, st) == 0) {
-			MatchManager.onShapeJump(this.body);
+		if (!safe && this.jumpBlock(st) == 0) {
+			this.shapeJump();
 			stat("cracker.shadow");
 			this.crackerUntil = 0;
 			return false;
@@ -2735,8 +3056,8 @@ public final class ShapeBrain {
 		if (car == null || heading == null || now - this.patrolAtTick > 60 || st.shadowTicks > 0 || !this.inPatrolCone(car, heading)) {
 			return false;
 		}
-		if (MatchManager.jumpBlockReason(this.body, st) == 0) {
-			MatchManager.onShapeJump(this.body);
+		if (this.jumpBlock(st) == 0) {
+			this.shapeJump();
 			stat("patrol.shadow");
 			return false;
 		}
@@ -2948,9 +3269,9 @@ public final class ShapeBrain {
 			this.lightsOff();
 		}
 		// Nobody seen for a long while (they keep to the far end of town): the Impulse before any job.
-		if (now - Math.max(this.lastSeenAt, Match.startTick()) > 20 * 45 && st.impulseCooldown == 0 && !st.busy() && now >= this.impulseAt) {
+		if (now - Math.max(this.lastSeenAt, Match.startTick()) > 20 * 45 && this.impulseReady(st) && now >= this.impulseAt) {
 			this.impulseAt = now + 40;
-			MatchManager.onImpulse(this.body);
+			this.impulse(now);
 			stat("impulse.long");
 			return;
 		}
@@ -3035,9 +3356,9 @@ public final class ShapeBrain {
 			}
 		}
 		// Nothing to go by: the Impulse, when he has it (whoever it shows becomes something to go and see).
-		if (st.impulseCooldown == 0 && !st.busy() && now >= this.impulseAt) {
+		if (this.impulseReady(st) && now >= this.impulseAt) {
 			this.impulseAt = now + 40;
-			MatchManager.onImpulse(this.body);
+			this.impulse(now);
 			stat("impulse");
 			return;
 		}
@@ -3090,8 +3411,8 @@ public final class ShapeBrain {
 
 	private boolean go(ShapeState st, int now, BlockPos to, double within, boolean out) {
 		double d = this.body.position().distanceTo(Vec3.atBottomCenterOf(to));
-		if (st.shadowTicks == 0 && d > 25 && st.jumpCooldown == 0 && MatchManager.jumpBlockReason(this.body, st) == 0) {
-			MatchManager.onShapeJump(this.body);
+		if (st.shadowTicks == 0 && d > 25 && st.jumpCooldown == 0 && this.jumpBlock(st) == 0) {
+			this.shapeJump();
 			this.repathAt = now;
 			stat("shadow.in_travel");
 		} else if (out && st.shadowTicks > 0 && d < 8) {
