@@ -80,6 +80,8 @@
 	"music.stalking_3": {"sounds": [{"name": "halloween:music/stalking_3", "stream": true}]},
 	"music.vecna_survivor": {"sounds": [{"name": "halloween:vecna/music_survivor"}]},
 	"music.vecna_calm": {"sounds": [{"name": "halloween:vecna/music_calm"}]},
+	"music.vecna_clock_loop": {"sounds": [{"name": "halloween:vecna/music_clock_loop"}]},
+	"music.vecna_clock_chime": {"sounds": [{"name": "halloween:vecna/music_clock_chime"}]},
 	"music.vecna_chase_1": {"sounds": [{"name": "halloween:vecna/music_chase_1"}]},
 	"music.vecna_chase_2": {"sounds": [{"name": "halloween:vecna/music_chase_2"}]},
 	"music.vecna_chase_3": {"sounds": [{"name": "halloween:vecna/music_chase_3"}]},

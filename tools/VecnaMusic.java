@@ -9,6 +9,7 @@ import javax.sound.sampled.AudioSystem;
 
 /**
  * Cuts Vecna's music into loops: java tools/VecnaMusic.java in.wav out_prefix [from to]... (seconds; no pairs: the whole file).
+ * -Dxfade=0 cuts without the blend (a part already periodic), -Dfadeout=s fades the end out (and the start in) for one-shots.
  * Every part is written as a 16-bit WAV under an .ogg name (loaded by client.WavSounds) that loops without a seam:
  * the last stretch is blended into the start (equal power), so the end flows into the beginning.
  */
@@ -30,10 +31,11 @@ public class VecnaMusic {
 			if (args.length > 2) {
 				a = (int) (Double.parseDouble(args[2 + p * 2]) * rate);
 				b = Math.min(frames, (int) (Double.parseDouble(args[3 + p * 2]) * rate));
-				name = args[1] + "_" + (p + 1);
+				name = parts > 1 ? args[1] + "_" + (p + 1) : args[1];
 			}
 			int len = b - a;
-			int x = (int) Math.min(2.0 * rate, len * 0.1);
+			int x = (int) Math.min(Double.parseDouble(System.getProperty("xfade", "2")) * rate, len * 0.1);
+			double fadeOut = Double.parseDouble(System.getProperty("fadeout", "0")) * rate;
 			int outLen = len - x;
 			short[] out = new short[outLen * ch];
 			for (int i = 0; i < outLen; i++) {
@@ -42,6 +44,9 @@ public class VecnaMusic {
 					if (i < x) {
 						double w = (double) i / x;
 						v = v * Math.sin(w * Math.PI / 2) + pcm[(b - x + i) * ch + c] * Math.cos(w * Math.PI / 2);
+					}
+					if (fadeOut > 0) {
+						v *= Math.min(1.0, Math.min(i / (0.02 * rate), (outLen - i) / fadeOut));
 					}
 					out[i * ch + c] = (short) Math.max(-32768, Math.min(32767, Math.round(v)));
 				}

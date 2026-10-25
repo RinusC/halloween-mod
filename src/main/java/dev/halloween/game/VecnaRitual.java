@@ -69,6 +69,7 @@ public final class VecnaRitual {
 		if (wasCursed && victim instanceof ServerPlayer p) {
 			VecnaCurse.killed(p);
 		}
+		chime(level);
 		kills++;
 		AiStats.add(v, "vecna.ritual.kill");
 		if (kills < needed) {
@@ -80,6 +81,16 @@ public final class VecnaRitual {
 				SoundSource.MASTER, v.getX(), v.getEyeY(), v.getZ(), 1f, 1f, v.getRandom().nextLong()));
 		}
 		sync(level.getServer());
+	}
+
+	/** The grandfather clock strikes for everyone in the match: someone has died to the ritual and the rift is not yet open. */
+	private static void chime(ServerLevel level) {
+		for (ServerPlayer p : level.getServer().getPlayerList().getPlayers()) {
+			if (MatchManager.role(p) != dev.halloween.Role.NONE) {
+				p.connection.send(new net.minecraft.network.protocol.game.ClientboundSoundPacket(net.minecraft.core.Holder.direct(HwSounds.VECNA_KILL_CHIME),
+					SoundSource.MASTER, p.getX(), p.getEyeY(), p.getZ(), 1f, 1f, p.getRandom().nextLong()));
+			}
+		}
 	}
 
 	// ---------------------------------------------------------------- the rift

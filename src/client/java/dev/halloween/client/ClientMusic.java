@@ -27,6 +27,9 @@ public final class ClientMusic {
 	private static int mood = Music.OFF;
 	private static int variant;
 	private static Track current;
+	/** The grandfather clock over the music while the rift is open. */
+	private static Track clock;
+	private static final float CLOCK_GAIN = 0.3f;
 	private static final List<Track> FADING = new ArrayList<>();
 	private static final RandomSource RANDOM = RandomSource.create();
 	private static int ambiencePart = RANDOM.nextInt(4);
@@ -42,6 +45,7 @@ public final class ClientMusic {
 		float level;
 		float target;
 		float step;
+		float gain = 1f;
 		int age;
 
 		Track(SoundEvent event, int mood, boolean loop, int fadeTicks) {
@@ -70,7 +74,7 @@ public final class ClientMusic {
 			} else if (this.level > this.target) {
 				this.level = Math.max(this.target, this.level - this.step);
 			}
-			this.volume = Math.max(0.001f, this.level);
+			this.volume = Math.max(0.001f, this.level * this.gain);
 			if (this.target <= 0 && this.level <= 0.001f) {
 				this.stop();
 			}
@@ -99,6 +103,10 @@ public final class ClientMusic {
 			mc.getSoundManager().stop(current);
 			current = null;
 		}
+		if (clock != null) {
+			mc.getSoundManager().stop(clock);
+			clock = null;
+		}
 		FADING.forEach(t -> mc.getSoundManager().stop(t));
 		FADING.clear();
 	}
@@ -119,6 +127,20 @@ public final class ClientMusic {
 				stalkedPart = (stalkedPart + 1) % HwSounds.MUSIC_BEING_STALKED.length;
 			}
 			current = null;
+		}
+		// The rift open: the clock ticks on, quietly, under whatever else plays (not through a kill's silence).
+		boolean clockWanted = VecnaClient.riftOpen() && mood > Music.SILENT;
+		if (clock != null && (clock.isStopped() || !clockWanted && clock.target > 0)) {
+			if (!clock.isStopped()) {
+				clock.fadeTo(0f, FADE);
+				FADING.add(clock);
+			}
+			clock = null;
+		}
+		if (clock == null && clockWanted) {
+			clock = new Track(HwSounds.MUSIC_VECNA_CLOCK, mood, true, FADE);
+			clock.gain = CLOCK_GAIN;
+			mc.getSoundManager().play(clock);
 		}
 		SoundEvent want = wanted();
 		if (want != null && current != null && current.event == want) {

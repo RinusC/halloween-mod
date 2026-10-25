@@ -34,6 +34,9 @@ public final class HwSounds {
 	/** Vecna's music: the owner's WAV files cut into loops (sounds/vecna/music_*, tools/split-vecna-music.sh). */
 	public static final SoundEvent MUSIC_VECNA_SURVIVOR = register("music.vecna_survivor");
 	public static final SoundEvent MUSIC_VECNA_CALM = register("music.vecna_calm");
+	/** The grandfather clock: a quiet loop over the music while the rift is open, one chime per kill before it. */
+	public static final SoundEvent MUSIC_VECNA_CLOCK = register("music.vecna_clock_loop");
+	public static final SoundEvent VECNA_KILL_CHIME = register("music.vecna_clock_chime");
 	public static final SoundEvent[] MUSIC_VECNA_CHASE = music("vecna_chase", 7);
 	public static final SoundEvent QTE_HIT = register("qte.hit");
 	public static final SoundEvent QTE_MISS = register("qte.miss");
