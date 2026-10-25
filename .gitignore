@@ -53,3 +53,9 @@ src/main/resources/assets/halloween/sounds/crow/
 
 # Vecna music: the owner's WAV files cut into loops (tools/split-vecna-music.sh), not ours to share
 src/main/resources/assets/halloween/sounds/vecna/music_*
+
+# Obsidian vault (docs/): personal UI state stays local, shared settings are committed
+docs/.obsidian/workspace.json
+docs/.obsidian/workspaces.json
+docs/.obsidian/cache
+docs/.trash/
