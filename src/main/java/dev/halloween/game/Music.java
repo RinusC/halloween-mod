@@ -51,6 +51,10 @@ public final class Music {
 	private static final Map<UUID, Integer> POST_UNTIL = new HashMap<>();
 	private static final java.util.Set<UUID> EXPOSED = new java.util.HashSet<>();
 	private static int silentUntil;
+	/** Vecna himself: until when the post-chase part lingers, and whether the chase has been exposed. */
+	private static int killerPostUntil;
+	private static int killerMark;
+	private static boolean killerExposed;
 
 	private Music() {
 	}
@@ -64,6 +68,9 @@ public final class Music {
 		POST_UNTIL.clear();
 		EXPOSED.clear();
 		silentUntil = 0;
+		killerPostUntil = 0;
+		killerMark = 0;
+		killerExposed = false;
 	}
 
 	/** Someone is being killed: all music falls silent for {@code ticks}. */
@@ -81,6 +88,7 @@ public final class Music {
 		ServerPlayer shape = Senses.shape(level);
 		ShapeState state = shape == null ? null : MatchManager.shapeState(shape);
 		boolean shapeChasing = state != null && state.grab != null;
+		boolean exposedNow = false;
 		Map<UUID, Integer> moods = new HashMap<>();
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
 			Role role = MatchManager.role(player);
@@ -108,6 +116,7 @@ public final class Music {
 				chased = state.shadowTicks == 0 && now < CHASED_UNTIL.getOrDefault(player.getUUID(), 0) && dist <= cfg.musicChaseRange + 8 || held;
 				near = state.shadowTicks == 0 && dist <= cfg.musicStalkedRange;
 				shapeChasing |= chased;
+				exposedNow |= chased && (MatchManager.isGrabbed(player) || VecnaCurse.cursed(player));
 			}
 			if (!Bots.isBot(player)) {
 				if (Vecna.active()) {
@@ -120,7 +129,7 @@ public final class Music {
 		}
 		if (shape != null && !Bots.isBot(shape)) {
 			if (Vecna.active()) {
-				moods.put(shape.getUUID(), VECNA_CALM * 10);
+				moods.put(shape.getUUID(), vecnaKillerMood(now, shapeChasing, exposedNow));
 			} else {
 				moods.put(shape.getUUID(), shapeChasing ? PROXIMITY * 10 + stunVariant(state) : STALKING * 10 + (state == null ? 1 : state.level()));
 			}
@@ -139,6 +148,23 @@ public final class Music {
 				ServerPlayNetworking.send(player, new HwNet.MusicMood(Math.floorDiv(mood, 10), Math.floorMod(mood, 10)));
 			}
 		}
+	}
+
+	/** Vecna hears the chase file's chase parts while he hunts (Chase, Exposed Chase, Chase again), then Post Chase Terror Radius; otherwise his own calm music. */
+	private static int vecnaKillerMood(int now, boolean chasing, boolean exposed) {
+		if (chasing) {
+			killerExposed |= exposed;
+			killerMark = exposed ? 5 : killerExposed ? 6 : 4;
+			killerPostUntil = now + 400;
+			return VECNA_CHASE * 10 + killerMark;
+		}
+		killerExposed = false;
+		if (killerMark != 0 && now < killerPostUntil) {
+			killerMark = 7;
+			return VECNA_CHASE * 10 + 7;
+		}
+		killerMark = 0;
+		return VECNA_CALM * 10;
 	}
 
 	/** Which of the four Proximity compositions: by how close he is to being knocked down, the last while he is. */
