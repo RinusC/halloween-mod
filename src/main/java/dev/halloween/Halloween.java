@@ -119,6 +119,7 @@ public class Halloween implements ModInitializer {
 		UseEntityCallback.EVENT.register((player, level, hand, entity, hit) -> level.isClientSide() ? net.minecraft.world.InteractionResult.PASS
 			: dev.halloween.game.Events.onUseEntity(player, entity));
 		UseEntityCallback.EVENT.register((player, level, hand, entity, hit) -> dev.halloween.game.SideJobs.onUseEntity(player, entity));
+		UseEntityCallback.EVENT.register((player, level, hand, entity, hit) -> dev.halloween.game.Errands.onUseEntity(player, entity));
 		UseEntityCallback.EVENT.register((player, level, hand, entity, hit) -> MatchManager.onUseEntity(player, hand, entity));
 		// In Shape Jump the Shape is a shadow: he slips through doors but can't work them, nor the breakers.
 		UseBlockCallback.EVENT.register((player, level, hand, hit) -> !level.isClientSide()

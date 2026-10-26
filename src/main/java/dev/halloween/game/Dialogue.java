@@ -47,6 +47,17 @@ public final class Dialogue {
 		say(npc, Mood.REFUSE, listener, "no", false);
 	}
 
+	/** A townsperson says something of its own (a favour asked, thanks): its voice, and the words to {@code listener}. */
+	public static void speak(LivingEntity npc, ServerPlayer listener, Mood mood, Component words) {
+		if (!(npc.level() instanceof ServerLevel level) || npc.isRemoved() || !npc.isAlive()) {
+			return;
+		}
+		level.playSound(null, npc.getX(), npc.getEyeY(), npc.getZ(), HwSounds.talk(voice(npc), mood.ordinal()), SoundSource.NEUTRAL, 1f, 1f);
+		if (listener != null && !Bots.isBot(listener)) {
+			Notices.send(listener, Component.translatable("halloween.say.format", npc.getDisplayName(), words).withStyle(ChatFormatting.WHITE));
+		}
+	}
+
 	private static String key(int option) {
 		return option == Townsfolk.HIDE ? "hide" : option == Townsfolk.CALL ? "call" : "follow";
 	}

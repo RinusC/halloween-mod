@@ -203,6 +203,7 @@ public final class HwHud {
 				int pushLeft = (int) Math.max(0, ClientState.pushReadyAt - mc.level.getGameTime());
 				smallAction(g, mc.font, w - 12, h - 84, Component.translatable("halloween.hud.shove"), ClientVr.active() ? Component.translatable("halloween.hud.vr.shove") : mc.options.keyAttack.getTranslatedKeyMessage(), pushLeft);
 				ClientHeroes.hud(g, mc, w, h, partial);
+				ClientErrands.hud(g, mc, w, h, partial);
 				inventoryBarAtHudSize(g, mc, w, h);
 				gunHud(g, mc, w, h);
 				prompts(g, mc, w, h);
@@ -1297,6 +1298,15 @@ public final class HwHud {
 				y = step(g, font, y, ClientJobs.line(i), ClientJobs.done(i));
 			}
 		}
+		// A townsperson's favour taken on (game.Errands).
+		java.util.List<Component> errands = ClientErrands.goalLines();
+		if (!errands.isEmpty()) {
+			header(g, font, 10, y + 2, Component.translatable("halloween.goal.errands"), false);
+			y += 15;
+			for (Component line : errands) {
+				y = step(g, font, y, line, false);
+			}
+		}
 	}
 
 	private static int needs(GuiGraphicsExtractor g, Font font, int y, String key) {
@@ -1876,6 +1886,12 @@ public final class HwHud {
 			g.textWithBackdrop(mc.font, npc, w / 2 - mc.font.width(npc) / 2, h / 2 + 22, mc.font.width(npc), TEXT);
 			return;
 		}
+		if (ClientState.progress.label().isEmpty() && ClientState.myRole().survivor()
+			&& mc.hitResult instanceof net.minecraft.world.phys.EntityHitResult eh && ClientErrands.isLostDog(eh.getEntity())) {
+			Component npc = Component.translatable("halloween.hud.prompt.lost_dog");
+			g.textWithBackdrop(mc.font, npc, w / 2 - mc.font.width(npc) / 2, h / 2 + 22, mc.font.width(npc), TEXT);
+			return;
+		}
 		if (ClientState.progress.label().isEmpty() && ClientState.myRole().survivor() && ClientJobs.dogWaiting()
 			&& mc.hitResult instanceof net.minecraft.world.phys.EntityHitResult eh && eh.getEntity() instanceof net.minecraft.world.entity.animal.wolf.Wolf) {
 			Component npc = Component.translatable("halloween.hud.prompt.dog");
@@ -1909,6 +1925,8 @@ public final class HwHud {
 			line = Component.translatable("halloween.hud.prompt.exit");
 		} else if (object == 7 && !shape) {
 			line = Component.translatable("halloween.hud.prompt.radio");
+		} else if (object == 8 && !shape) {
+			line = Component.translatable("halloween.hud.prompt.errand_radio");
 		} else if (shape) {
 			return;
 		} else if (dev.halloween.game.LightSystem.isBreaker(mc.level, pos)) {

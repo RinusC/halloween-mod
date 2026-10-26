@@ -409,6 +409,10 @@ public class HwConfig {
 	public java.util.Map<String, Integer> eventWeights = defaultEventWeights();
 	/** Points for answering Loomis, emptying the bag, mending the transformer, the find in the fire (half for waving the patrol down). */
 	public int scoreEvent = 100;
+	/** Townsfolk's favours (game.Errands): points for one done, at most this many asked at once, about how often one asks. */
+	public int scoreErrand = 150;
+	public int errandMax = 2;
+	public int errandEveryTicks = 1200;
 	/** Loomis's call: how long the phone rings, how far from Michael it is, how long answering takes, then how long he shows and the find is marked. */
 	public int loomisSeconds = 60;
 	public double loomisMinDistance = 40;

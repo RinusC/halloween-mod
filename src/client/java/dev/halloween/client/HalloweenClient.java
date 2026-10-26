@@ -80,6 +80,7 @@ public class HalloweenClient implements ClientModInitializer {
 		VrWrist.register();
 		ClientHeroes.register();
 		ClientJobs.register();
+		ClientErrands.register();
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.WorldSync.TYPE, (payload, ctx) -> {
 			ClientState.ROLES.clear();
 			for (HwNet.RoleEntry entry : payload.roles()) {
@@ -238,6 +239,7 @@ public class HalloweenClient implements ClientModInitializer {
 			MinigameScreen.forgetAll();
 			ClientHeroes.reset();
 			ClientJobs.reset();
+			ClientErrands.reset();
 			ClientGuns.reset();
 			sentSense = false;
 			sentFocus = false;

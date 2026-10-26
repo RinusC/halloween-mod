@@ -48,6 +48,10 @@ public final class ClientInteractions {
 		if (ClientJobs.isRadio(pos)) {
 			return 7;
 		}
+		if (ClientErrands.isRadio(pos)) {
+			// A townsperson's broken radio (game.Errands).
+			return 8;
+		}
 		if (ClientEvents.isObject(pos)) {
 			// A match event's object: the ringing phone, the bag, the transformer, the crate in the fire.
 			return 5;

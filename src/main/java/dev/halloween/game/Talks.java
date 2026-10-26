@@ -48,6 +48,11 @@ public final class Talks {
 			cancel(player, true);
 			return;
 		}
+		if (option == Townsfolk.ERRAND) {
+			// A favour (Errands): taken on, or the medicine handed over, at once.
+			Errands.talk(player, player.level().getEntity(entityId));
+			return;
+		}
 		start(player, player.level().getEntity(entityId), option);
 	}
 

@@ -1616,6 +1616,41 @@ public final class HwNet {
 		}
 	}
 
+	/**
+	 * Townsfolk's favours (game.Errands): who asks, what ({@code kind}), who took it on (entity id, -1 nobody yet), where
+	 * to go for it and what to follow there ({@code targetId}, -1 a place), its name, and whether the dog is found.
+	 */
+	public record Errands(List<Entry> list) implements CustomPacketPayload {
+		public record Entry(int npc, int kind, int taker, Vec3 target, int targetId, String name, boolean found) {
+		}
+
+		public static final Type<Errands> TYPE = payloadType("errands");
+		public static final StreamCodec<RegistryFriendlyByteBuf, Errands> CODEC = StreamCodec.of((buf, v) -> {
+			buf.writeVarInt(v.list.size());
+			for (Entry e : v.list) {
+				buf.writeVarInt(e.npc);
+				buf.writeVarInt(e.kind);
+				buf.writeVarInt(e.taker);
+				writeVec(buf, e.target);
+				buf.writeVarInt(e.targetId);
+				buf.writeUtf(e.name);
+				buf.writeBoolean(e.found);
+			}
+		}, buf -> {
+			int n = buf.readVarInt();
+			List<Entry> list = new ArrayList<>(n);
+			for (int i = 0; i < n; i++) {
+				list.add(new Entry(buf.readVarInt(), buf.readVarInt(), buf.readVarInt(), readVec(buf), buf.readVarInt(), buf.readUtf(), buf.readBoolean()));
+			}
+			return new Errands(list);
+		});
+
+		@Override
+		public Type<Errands> type() {
+			return TYPE;
+		}
+	}
+
 	/** A survivor on the run pulls this down behind them (see game.Obstacles); which way they were running. */
 	public record KnockRequest(BlockPos pos, Vec3 motion) implements CustomPacketPayload {
 		public static final Type<KnockRequest> TYPE = payloadType("knock");
@@ -1665,6 +1700,7 @@ public final class HwNet {
 		PayloadTypeRegistry.clientboundPlay().register(KnockAllowed.TYPE, KnockAllowed.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(ObstacleFx.TYPE, ObstacleFx.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(SideJobs.TYPE, SideJobs.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(Errands.TYPE, Errands.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(HeroSync.TYPE, HeroSync.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(HeroReveal.TYPE, HeroReveal.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(TeamPing.TYPE, TeamPing.CODEC);

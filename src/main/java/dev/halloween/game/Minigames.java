@@ -77,7 +77,10 @@ public final class Minigames {
 	private static void finish(ServerPlayer player, Session session) {
 		ServerLevel level = player.level();
 		if (session.kind == HwNet.Minigame.WIRES) {
-			if (Events.wired(player, session.pos)) {
+			if (Errands.repaired(player, session.pos)) {
+				// A townsperson's broken radio (see Errands).
+				AiStats.add(player, "errand.radio");
+			} else if (Events.wired(player, session.pos)) {
 				// The transformer of a blackout (see Events).
 				AiStats.add(player, "power.transformer");
 			} else if (LightSystem.isBreaker(level, session.pos) && !LightSystem.isOn(level, session.pos) && !Events.blackout()) {

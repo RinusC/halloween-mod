@@ -254,6 +254,8 @@ public final class Townsfolk {
 	public static final int FOLLOW = 0;
 	public static final int HIDE = 1;
 	public static final int CALL = 2;
+	/** The talk menu's fourth choice, when it has a favour to ask (Errands). */
+	public static final int ERRAND = 3;
 
 	/** Can {@code player} start talking to this townsperson now? */
 	public static boolean canTalk(ServerPlayer player, Entity target) {
@@ -644,6 +646,68 @@ public final class Townsfolk {
 	public static boolean follows(Entity npc, Entity leader) {
 		Npc n = npc == null ? null : NPCS.get(npc.getUUID());
 		return n != null && n.state == State.FOLLOW && leader.getUUID().equals(n.leader);
+	}
+
+	// ---------------------------------------------------------------- favours (Errands)
+
+	public static String nameOf(Entity entity) {
+		Npc npc = entity == null ? null : NPCS.get(entity.getUUID());
+		return npc == null ? "" : npc.name;
+	}
+
+	/** At home with nothing on its mind (or just being spoken to): one that could ask a favour. */
+	public static boolean idle(Entity entity) {
+		Npc npc = entity == null ? null : NPCS.get(entity.getUUID());
+		return npc != null && (npc.state == State.HOME || npc.state == State.TALK) && !npc.body.isRemoved()
+			&& !Lockers.isInside(npc.body) && !MatchManager.isHeld(npc.body);
+	}
+
+	/** "Walk me home": it follows {@code leader} like when told to. */
+	public static void escort(Entity entity, ServerPlayer leader) {
+		Npc npc = entity == null ? null : NPCS.get(entity.getUUID());
+		if (npc == null) {
+			return;
+		}
+		npc.walker.stop();
+		npc.pathSet = false;
+		npc.body.setPose(Pose.STANDING);
+		npc.state = State.FOLLOW;
+		npc.leader = leader.getUUID();
+		npc.hider = null;
+		npc.repathAt = leader.level().getServer().getTickCount();
+	}
+
+	/** Stops following and stays where it is now, its new home ({@code home}). */
+	public static void settle(Entity entity, BlockPos home) {
+		Npc npc = entity == null ? null : NPCS.get(entity.getUUID());
+		if (npc == null) {
+			return;
+		}
+		npc.walker.stop();
+		npc.state = State.HOME;
+		npc.home = home;
+		npc.leader = null;
+		setSpeed(npc, HwConfig.get().npcWalkSpeed);
+	}
+
+	/** Michael close while it is out on a favour: it screams and runs, even from beside whoever it was following. */
+	public static void spook(Entity entity, int now) {
+		Npc npc = entity == null ? null : NPCS.get(entity.getUUID());
+		if (npc == null || MatchManager.isHeld(npc.body)) {
+			return;
+		}
+		if (npc.state == State.FOLLOW) {
+			npc.state = State.HOME;
+			npc.leader = null;
+		}
+		if (npc.threat == null) {
+			npc.threat = npc.body.position();
+		}
+		npc.threatTick = now;
+		if (now >= npc.screamReadyAt) {
+			scream(npc, now, null);
+		}
+		panic(npc, now);
 	}
 
 	private static void panic(Npc npc, int now) {

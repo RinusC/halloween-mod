@@ -77,6 +77,12 @@ public final class Holds {
 			hold = SideJobs.resolve(player, pos);
 		}
 		if (hold == null) {
+			hold = Errands.resolve(player, pos);
+			if (hold == null && Errands.isRadio(pos)) {
+				return;
+			}
+		}
+		if (hold == null) {
 			hold = GunCase.resolve(player, pos);
 			if (hold == null && GunCase.isCase(pos)) {
 				return;

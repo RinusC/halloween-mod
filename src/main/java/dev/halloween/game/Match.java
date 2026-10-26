@@ -385,6 +385,7 @@ public final class Match {
 		Chase.clear();
 		Heroes.clear(server);
 		SideJobs.clear(server);
+		Errands.clear(server);
 		Pings.clear();
 		Noise.clear();
 		Leftovers.end();
