@@ -176,6 +176,11 @@ public final class Match {
 		if (players.isEmpty()) {
 			return Component.translatable("halloween.cmd.no_players");
 		}
+		// Someone who asked for the killer in the character select (drawn among them), unless someone was named for him.
+		ServerPlayer keen = HeroPicks.drawKiller(shape == null ? players : List.of(), new java.util.Random(level.getRandom().nextLong()));
+		if (keen != null) {
+			shape = keen;
+		}
 		// Michael played by the server (/hw shape bot), unless someone was named for him.
 		BotPlayer shapeBot = null;
 		if (shape == null && ShapeBrain.chosen()) {
@@ -187,6 +192,7 @@ public final class Match {
 		if (shape == null && players.size() > 1) {
 			shape = players.get(level.getRandom().nextInt(players.size()));
 		}
+		HeroPicks.noteKiller(shape);
 		MatchManager.reset(server);
 		DoorLocks.clear(server);
 		Windows.clear(server);
@@ -639,6 +645,22 @@ public final class Match {
 					scores.merge(id, pts, Integer::sum);
 				}
 			});
+			// Each hero's record (the character select's card): survivors by escape, the killer by a win.
+			PEOPLE.forEach((id, p) -> {
+				String hero = Skins.dealt(id);
+				if (hero != null && !(server.getPlayerList().getPlayer(id) instanceof BotPlayer)) {
+					Perks.record(server, id, hero, p.escaped, p.score);
+				}
+			});
+			if (theState != null && !(theShape instanceof BotPlayer)) {
+				int survivors = 0;
+				for (Participant p : PEOPLE.values()) {
+					survivors += p.score;
+				}
+				boolean won = !arrested && theState.score + Runt.totalScore() > survivors;
+				Perks.record(server, shapeId, Vecna.active() ? "vecna" : Demogorgon.active() ? "demogorgon" : "michael", won, theState.score);
+			}
+			HeroPicks.bonus(scores);
 			Perks.award(server, scores);
 		}
 		state = State.ENDED;

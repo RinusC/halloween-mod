@@ -43,7 +43,9 @@ import net.minecraft.world.phys.Vec3;
  */
 public final class Heroes {
 	public enum Skill {
-		NONE, FEEL, DECOY, KEEN_EYE, WARN
+		NONE, FEEL, DECOY, KEEN_EYE, WARN,
+		// (Added after the first four: the client knows them by number.)
+		GOSSIP, CALM, FULL_BAG, LULLABY, RAM, TINKER, FLASH, LIE_LOW
 	}
 
 	private static final int FEEL_TICKS = 100;
@@ -51,6 +53,22 @@ public final class Heroes {
 	private static final int KEEN_TICKS = 160;
 	private static final double KEEN_RANGE = 32;
 	private static final int WARN_TICKS = 120;
+	private static final int GOSSIP_TICKS = 120;
+	private static final int CALM_TICKS = 100;
+	/** Tanya's full bag: the next search is near instant, if done within this long. */
+	private static final int FULL_BAG_TICKS = 600;
+	private static final int FULL_BAG_SEARCH_TICKS = 6;
+	private static final int LULLABY_TICKS = 160;
+	private static final int RAM_TICKS = 8;
+	private static final double RAM_SPEED = 0.9;
+	private static final int TINKER_TICKS = 300;
+	private static final int FLASH_TICKS = 60;
+	private static final double FLASH_RANGE = 12;
+	private static final int LIE_LOW_TICKS = 200;
+	/** Until when each one's skill is at work (the ones that last), and Bob's way while he rams. */
+	private static final Map<UUID, Integer> ACTIVE_UNTIL = new HashMap<>();
+	private static final Map<UUID, Vec3> RAM_DIR = new HashMap<>();
+	private static final Map<UUID, Vec3> LIE_AT = new HashMap<>();
 
 	/** Until when each can use their skill again, and what the client was last told. */
 	private static final Map<UUID, Integer> READY_AT = new HashMap<>();
@@ -71,7 +89,11 @@ public final class Heroes {
 
 	/** The perk this survivor always has by who they are, or null. */
 	public static Perks.Perk innate(ServerPlayer player) {
-		String h = hero(player);
+		return innate(hero(player));
+	}
+
+	/** The perk this survivor always has, by name (see HeroInfo). */
+	public static Perks.Perk innate(String h) {
 		return h == null ? null : switch (h) {
 			case "laurie" -> Perks.Perk.ELUSORY;
 			case "annie" -> Perks.Perk.SMOOTH_TALKER;
@@ -90,22 +112,60 @@ public final class Heroes {
 			case "rachel" -> Skill.DECOY;
 			case "jennifer" -> Skill.KEEN_EYE;
 			case "richard" -> Skill.WARN;
+			case "annie" -> Skill.GOSSIP;
+			case "lynda" -> Skill.CALM;
+			case "tanya" -> Skill.FULL_BAG;
+			case "alexis" -> Skill.LULLABY;
+			case "bob" -> Skill.RAM;
+			case "eric" -> Skill.TINKER;
+			case "marcus" -> Skill.FLASH;
+			case "thomas" -> Skill.LIE_LOW;
 			default -> Skill.NONE;
 		};
 	}
 
-	private static int cooldown(Skill skill) {
+	/** How long the skill shows what it shows (ticks; 0 for none). */
+	public static int duration(Skill skill) {
+		return switch (skill) {
+			case FEEL -> FEEL_TICKS;
+			case DECOY -> DECOY_TICKS;
+			case KEEN_EYE -> KEEN_TICKS;
+			case WARN -> WARN_TICKS;
+			case GOSSIP -> GOSSIP_TICKS;
+			case CALM -> CALM_TICKS;
+			case FULL_BAG -> FULL_BAG_TICKS;
+			case LULLABY -> LULLABY_TICKS;
+			case RAM -> RAM_TICKS;
+			case TINKER -> TINKER_TICKS;
+			case FLASH -> FLASH_TICKS;
+			case LIE_LOW -> LIE_LOW_TICKS;
+			default -> 0;
+		};
+	}
+
+	public static int cooldown(Skill skill) {
 		return switch (skill) {
 			case FEEL -> 20 * 75;
 			case DECOY -> 20 * 90;
 			case KEEN_EYE -> 20 * 60;
 			case WARN -> 20 * 60;
+			case GOSSIP, FULL_BAG -> 20 * 60;
+			case CALM, TINKER, FLASH -> 20 * 75;
+			case LULLABY, RAM, LIE_LOW -> 20 * 90;
 			default -> 0;
 		};
 	}
 
 	public static void clear(MinecraftServer server) {
 		READY_AT.clear();
+		ACTIVE_UNTIL.clear();
+		RAM_DIR.clear();
+		for (UUID id : LIE_AT.keySet()) {
+			if (server.getPlayerList().getPlayer(id) instanceof ServerPlayer p) {
+				p.setInvisible(false);
+			}
+		}
+		LIE_AT.clear();
 		SENT.clear();
 		ServerLevel level = server.overworld();
 		for (BlockPos pos : DECOYS.keySet()) {
@@ -131,6 +191,12 @@ public final class Heroes {
 			case DECOY -> decoy(player, now);
 			case KEEN_EYE -> keenEye(player);
 			case WARN -> warn(player);
+			case GOSSIP -> gossip(player);
+			case CALM -> calm(player, now);
+			case FULL_BAG, LULLABY, TINKER -> start(player, skill, now);
+			case RAM -> ram(player, now);
+			case FLASH -> flash(player);
+			case LIE_LOW -> lieLow(player, now);
 			default -> false;
 		};
 		if (done) {
@@ -228,6 +294,7 @@ public final class Heroes {
 				}
 			}
 		}
+		tickActive(server, now);
 		if (now % 10 != 0) {
 			return;
 		}
@@ -248,6 +315,158 @@ public final class Heroes {
 			if (!state.equals(SENT.get(p.getUUID()))) {
 				SENT.put(p.getUUID(), state);
 				ServerPlayNetworking.send(p, new HwNet.HeroSync(hero == null ? "" : hero, skill.ordinal(), left, cooldown(skill), alert));
+			}
+		}
+	}
+
+	/** A skill that works for a while (Tanya's bag, Alexis's lullaby, Eric's tinkering): from now on. */
+	private static boolean start(ServerPlayer player, Skill skill, int now) {
+		ACTIVE_UNTIL.put(player.getUUID(), now + duration(skill));
+		player.level().playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.AMETHYST_BLOCK_CHIME, SoundSource.PLAYERS, 0.7f, 1.2f);
+		return true;
+	}
+
+	/** Is this one's skill at work now? */
+	public static boolean active(net.minecraft.world.entity.Entity who, Skill skill) {
+		if (!(who instanceof ServerPlayer p) || skill(hero(p)) != skill) {
+			return false;
+		}
+		Integer until = ACTIVE_UNTIL.get(p.getUUID());
+		return until != null && p.level().getServer().getTickCount() < until;
+	}
+
+	/** Used up before its time (Tanya's bag on the search it sped up). */
+	static void spend(ServerPlayer player) {
+		ACTIVE_UNTIL.remove(player.getUUID());
+	}
+
+	/** Tanya's search while the bag is full: near instant (null: as usual). */
+	static Integer searchTicks(ServerPlayer player) {
+		return active(player, Skill.FULL_BAG) ? FULL_BAG_SEARCH_TICKS : null;
+	}
+
+	/** Thomas lying low: not there for anyone hunting (see MatchManager.exposed). */
+	public static boolean lyingLow(net.minecraft.world.entity.Entity who) {
+		return LIE_AT.containsKey(who.getUUID()) && active(who, Skill.LIE_LOW);
+	}
+
+	/** Annie's gossip: every survivor sees every other through walls for a while. */
+	private static boolean gossip(ServerPlayer player) {
+		List<ServerPlayer> team = new ArrayList<>();
+		for (ServerPlayer p : player.level().players()) {
+			if (MatchManager.role(p).survivor() && !p.isSpectator()) {
+				team.add(p);
+			}
+		}
+		for (ServerPlayer viewer : team) {
+			if (Bots.isBot(viewer)) {
+				continue;
+			}
+			for (ServerPlayer other : team) {
+				if (other != viewer) {
+					ServerPlayNetworking.send(viewer, new HwNet.HeroReveal(HwNet.HeroReveal.ALLY, GOSSIP_TICKS, other.getId(), List.of()));
+				}
+			}
+			if (viewer != player) {
+				Notices.send(viewer, Component.translatable("halloween.hero.gossip.heard", player.getDisplayName()).withStyle(ChatFormatting.AQUA));
+			}
+		}
+		player.level().playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.NOTE_BLOCK_CHIME.value(), SoundSource.PLAYERS, 0.8f, 1.4f);
+		return true;
+	}
+
+	/** Lynda: "totally fine" — no panic, full breath, running free for a few seconds. */
+	private static boolean calm(ServerPlayer player, int now) {
+		Panic.set(player, 0f);
+		Stamina.set(player, 1f);
+		return start(player, Skill.CALM, now);
+	}
+
+	/** Bob: a charge with his shoulder the way he looks; Michael in the way goes down, a door in the way gives. */
+	private static boolean ram(ServerPlayer player, int now) {
+		Vec3 look = player.getLookAngle().multiply(1, 0, 1);
+		if (look.lengthSqr() < 1e-4 || !player.onGround()) {
+			return false;
+		}
+		RAM_DIR.put(player.getUUID(), look.normalize());
+		player.level().playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.RAVAGER_ROAR, SoundSource.PLAYERS, 0.35f, 1.6f);
+		return start(player, Skill.RAM, now);
+	}
+
+	/** Marcus: his flashlight full on under his chin, in Michael's face: blinds him in a cone ahead, a light in hand or not. */
+	private static boolean flash(ServerPlayer player) {
+		ServerLevel level = player.level();
+		Vec3 eye = player.getEyePosition();
+		for (ServerPlayer p : level.players()) {
+			ShapeState st = MatchManager.shapeState(p);
+			if (st == null || p.isSpectator() || p.distanceTo(player) > FLASH_RANGE
+				|| Sight.angleTo(eye, player.getViewVector(1f), p.getEyePosition()) > 30 || !Sight.canSee(level, eye, p.getEyePosition(), player)) {
+				continue;
+			}
+			st.blindTicks = Math.max(st.blindTicks, FLASH_TICKS);
+			st.litTicks = Math.max(st.litTicks, FLASH_TICKS);
+			st.senseHeld = false;
+		}
+		Vec3 at = eye.add(player.getLookAngle().scale(1.5));
+		level.sendParticles(net.minecraft.core.particles.ParticleTypes.END_ROD, at.x, at.y, at.z, 12, 0.2, 0.2, 0.2, 0.15);
+		level.playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.FIREWORK_ROCKET_BLAST, SoundSource.PLAYERS, 0.6f, 1.8f);
+		return true;
+	}
+
+	/** Thomas: down among the leaves, still — gone for Michael and the bots while he doesn't move. */
+	private static boolean lieLow(ServerPlayer player, int now) {
+		if (!player.onGround()) {
+			return false;
+		}
+		LIE_AT.put(player.getUUID(), player.position());
+		player.setInvisible(true);
+		player.level().playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.AZALEA_LEAVES_BREAK, SoundSource.PLAYERS, 0.8f, 0.8f);
+		return start(player, Skill.LIE_LOW, now);
+	}
+
+	/** Every tick: Bob's charge carrying him on, Thomas giving himself away by moving, skills running out. */
+	private static void tickActive(MinecraftServer server, int now) {
+		var rams = RAM_DIR.entrySet().iterator();
+		while (rams.hasNext()) {
+			var e = rams.next();
+			ServerPlayer p = server.getPlayerList().getPlayer(e.getKey());
+			if (p == null || !active(p, Skill.RAM) || MatchManager.isGrabbed(p)) {
+				rams.remove();
+				continue;
+			}
+			Vec3 dir = e.getValue();
+			p.setDeltaMovement(dir.x * RAM_SPEED, p.getDeltaMovement().y, dir.z * RAM_SPEED);
+			p.hurtMarked = true;
+			ServerLevel level = p.level();
+			boolean hit = false;
+			for (ServerPlayer shape : level.players()) {
+				if (MatchManager.shapeState(shape) != null && !shape.isSpectator() && shape.distanceTo(p) < 1.6) {
+					Fight.stun(shape, 1.5f, p);
+					level.playSound(null, shape.getX(), shape.getY(), shape.getZ(), SoundEvents.PLAYER_ATTACK_KNOCKBACK, SoundSource.PLAYERS, 1.2f, 0.7f);
+					hit = true;
+				}
+			}
+			BlockPos ahead = BlockPos.containing(p.position().add(dir.scale(0.9)));
+			if (!hit && (DoorLocks.ram(level, ahead) || DoorLocks.ram(level, ahead.above()))) {
+				hit = true;
+			}
+			if (hit) {
+				rams.remove();
+				spend(p);
+			}
+		}
+		var lows = LIE_AT.entrySet().iterator();
+		while (lows.hasNext()) {
+			var e = lows.next();
+			ServerPlayer p = server.getPlayerList().getPlayer(e.getKey());
+			if (p == null) {
+				lows.remove();
+				continue;
+			}
+			Vec3 at = e.getValue();
+			if (!active(p, Skill.LIE_LOW) || Math.hypot(p.getX() - at.x, p.getZ() - at.z) > 0.25 || p.isSpectator()) {
+				p.setInvisible(false);
+				lows.remove();
 			}
 		}
 	}

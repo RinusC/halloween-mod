@@ -123,6 +123,10 @@ public final class Holds {
 				continue;
 			}
 			work.ticks++;
+			if (Heroes.active(player, Heroes.Skill.TINKER)) {
+				// Eric's tinkering (Heroes): long jobs go twice as fast.
+				work.ticks++;
+			}
 			if (work.hold.checks()) {
 				work.ticks += SkillChecks.tick(player, SkillChecks.kindFor(work.hold.label()));
 			}

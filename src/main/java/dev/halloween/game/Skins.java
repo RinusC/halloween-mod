@@ -33,26 +33,55 @@ public final class Skins {
 		CHOSEN.clear();
 	}
 
-	/**
-	 * A new match: the people (not the bots) each get a survivor at random, any of them; the bots are named after the
-	 * rest. Returns the ones taken.
-	 */
-	/** Tests: the survivor the first person gets (null: at random). */
+	/** Tests: the survivor the first person gets (null: as picked or at random). */
 	public static String forced;
 
+	/**
+	 * A new match: the people (not the bots) each get the survivor they picked in the character select (HeroPicks),
+	 * if it is theirs and nobody got it first; the others one at random of those they have (open or bought). The bots
+	 * are named after the rest. Returns the ones taken.
+	 */
 	public static java.util.Set<String> deal(List<ServerPlayer> people, java.util.Random random) {
 		List<String> free = new java.util.ArrayList<>(SURVIVORS);
 		java.util.Collections.shuffle(free, random);
 		java.util.Set<String> taken = new java.util.HashSet<>();
+		List<ServerPlayer> left = new ArrayList<>();
 		for (ServerPlayer p : people) {
+			String want = p == people.getFirst() && forced != null ? forced : HeroPicks.survivor(p.getUUID());
+			if (want != null && free.contains(want) && (want.equals(forced) || Perks.ownsHero(p.level().getServer(), p.getUUID(), want))) {
+				free.remove(want);
+				CHOSEN.put(p.getUUID(), want);
+				taken.add(want);
+			} else {
+				left.add(p);
+			}
+		}
+		for (ServerPlayer p : left) {
 			if (free.isEmpty()) {
 				break;
 			}
-			String name = forced != null && free.remove(forced) ? forced : free.removeFirst();
+			String name = null;
+			for (String s : free) {
+				if (Perks.ownsHero(p.level().getServer(), p.getUUID(), s)) {
+					name = s;
+					break;
+				}
+			}
+			// None of theirs left (more people than open survivors): whoever is.
+			name = name != null ? name : free.getFirst();
+			free.remove(name);
 			CHOSEN.put(p.getUUID(), name);
 			taken.add(name);
+			if (HeroPicks.RANDOM.equals(HeroPicks.survivor(p.getUUID()))) {
+				HeroPicks.dealtByChance(p.getUUID());
+			}
 		}
 		return taken;
+	}
+
+	/** The survivor this person was dealt this match, or null. */
+	public static String dealt(UUID id) {
+		return CHOSEN.get(id);
 	}
 
 	/** Which survivor this player plays (see Heroes), or null when not one. */

@@ -33,6 +33,20 @@ public final class HwNet {
 		return new Vec3(buf.readDouble(), buf.readDouble(), buf.readDouble());
 	}
 
+	private static void writeStrings(RegistryFriendlyByteBuf buf, List<String> list) {
+		buf.writeVarInt(list.size());
+		list.forEach(buf::writeUtf);
+	}
+
+	private static List<String> readStrings(RegistryFriendlyByteBuf buf) {
+		int n = buf.readVarInt();
+		List<String> out = new ArrayList<>(n);
+		for (int i = 0; i < n; i++) {
+			out.add(buf.readUtf());
+		}
+		return out;
+	}
+
 	// ---------------------------------------------------------------- S2C
 
 	/** Broadcast to everyone: who plays what, and whether the Shape is currently hidden in Shape Jump. */
@@ -686,32 +700,109 @@ public final class HwNet {
 	}
 
 	/** This player's purse, the perks they own and the ones in their build, and how many the build holds (see game.Perks). */
-	public record PerkSync(int points, List<String> owned, List<String> equipped, int slots) implements CustomPacketPayload {
+	/**
+	 * Also the heroes they bought, what one costs, and each hero's record (played, escapes, best score; see
+	 * game.HeroPicks).
+	 */
+	public record PerkSync(int points, List<String> owned, List<String> equipped, int slots, List<String> heroes, int heroPrice,
+		java.util.Map<String, List<Integer>> records) implements CustomPacketPayload {
 		public static final Type<PerkSync> TYPE = payloadType("perk_sync");
 		public static final StreamCodec<RegistryFriendlyByteBuf, PerkSync> CODEC = StreamCodec.of((buf, v) -> {
 			buf.writeVarInt(v.points);
-			buf.writeVarInt(v.owned.size());
-			v.owned.forEach(buf::writeUtf);
-			buf.writeVarInt(v.equipped.size());
-			v.equipped.forEach(buf::writeUtf);
+			writeStrings(buf, v.owned);
+			writeStrings(buf, v.equipped);
 			buf.writeVarInt(v.slots);
+			writeStrings(buf, v.heroes);
+			buf.writeVarInt(v.heroPrice);
+			buf.writeVarInt(v.records.size());
+			v.records.forEach((hero, r) -> {
+				buf.writeUtf(hero);
+				buf.writeVarInt(r.size());
+				r.forEach(buf::writeVarInt);
+			});
 		}, buf -> {
 			int points = buf.readVarInt();
+			List<String> owned = readStrings(buf);
+			List<String> equipped = readStrings(buf);
+			int slots = buf.readVarInt();
+			List<String> heroes = readStrings(buf);
+			int price = buf.readVarInt();
 			int n = buf.readVarInt();
-			List<String> owned = new ArrayList<>(n);
+			java.util.Map<String, List<Integer>> records = new java.util.HashMap<>();
 			for (int i = 0; i < n; i++) {
-				owned.add(buf.readUtf());
+				String hero = buf.readUtf();
+				int m = buf.readVarInt();
+				List<Integer> r = new ArrayList<>(m);
+				for (int j = 0; j < m; j++) {
+					r.add(buf.readVarInt());
+				}
+				records.put(hero, r);
 			}
-			int m = buf.readVarInt();
-			List<String> equipped = new ArrayList<>(m);
-			for (int i = 0; i < m; i++) {
-				equipped.add(buf.readUtf());
-			}
-			return new PerkSync(points, owned, equipped, buf.readVarInt());
+			return new PerkSync(points, owned, equipped, slots, heroes, price, records);
 		});
 
 		@Override
 		public Type<PerkSync> type() {
+			return TYPE;
+		}
+	}
+
+	/**
+	 * The character select as the lobby stands (game.HeroPicks): each person in it, the survivor they picked ("" none,
+	 * "random" left to chance), the killer they want to be ("" none), whether they are ready; and the start's
+	 * countdown in seconds (-1: not counting).
+	 */
+	public record HeroLobby(List<String> names, List<String> survivors, List<String> killers, List<Boolean> ready, int countdown)
+		implements CustomPacketPayload {
+		public static final HeroLobby EMPTY = new HeroLobby(List.of(), List.of(), List.of(), List.of(), -1);
+		public static final Type<HeroLobby> TYPE = payloadType("hero_lobby");
+		public static final StreamCodec<RegistryFriendlyByteBuf, HeroLobby> CODEC = StreamCodec.of((buf, v) -> {
+			writeStrings(buf, v.names);
+			writeStrings(buf, v.survivors);
+			writeStrings(buf, v.killers);
+			buf.writeVarInt(v.ready.size());
+			v.ready.forEach(buf::writeBoolean);
+			buf.writeVarInt(v.countdown + 1);
+		}, buf -> {
+			List<String> names = readStrings(buf);
+			List<String> survivors = readStrings(buf);
+			List<String> killers = readStrings(buf);
+			int n = buf.readVarInt();
+			List<Boolean> ready = new ArrayList<>(n);
+			for (int i = 0; i < n; i++) {
+				ready.add(buf.readBoolean());
+			}
+			return new HeroLobby(names, survivors, killers, ready, buf.readVarInt() - 1);
+		});
+
+		@Override
+		public Type<HeroLobby> type() {
+			return TYPE;
+		}
+	}
+
+	/** Server: open the character select (the stand's button in the gym). */
+	public record HeroOpen(int tab) implements CustomPacketPayload {
+		public static final Type<HeroOpen> TYPE = payloadType("hero_open");
+		public static final StreamCodec<RegistryFriendlyByteBuf, HeroOpen> CODEC = StreamCodec.of((buf, v) -> buf.writeVarInt(v.tab),
+			buf -> new HeroOpen(buf.readVarInt()));
+
+		@Override
+		public Type<HeroOpen> type() {
+			return TYPE;
+		}
+	}
+
+	/** Client, from the character select: pick, buy, ready, practice (game.HeroPicks.SURVIVOR ... PRACTICE). */
+	public record HeroPick(int action, String hero) implements CustomPacketPayload {
+		public static final Type<HeroPick> TYPE = payloadType("hero_pick");
+		public static final StreamCodec<RegistryFriendlyByteBuf, HeroPick> CODEC = StreamCodec.of((buf, v) -> {
+			buf.writeVarInt(v.action);
+			buf.writeUtf(v.hero);
+		}, buf -> new HeroPick(buf.readVarInt(), buf.readUtf()));
+
+		@Override
+		public Type<HeroPick> type() {
 			return TYPE;
 		}
 	}
@@ -1434,6 +1525,8 @@ public final class HwNet {
 	public record HeroReveal(int kind, int ticks, int entityId, List<Vec3> spots) implements CustomPacketPayload {
 		public static final int FEEL = 0;
 		public static final int KEEN = 1;
+		/** Annie's gossip: this survivor shows through walls to the others. */
+		public static final int ALLY = 2;
 		public static final Type<HeroReveal> TYPE = payloadType("hero_reveal");
 		public static final StreamCodec<RegistryFriendlyByteBuf, HeroReveal> CODEC = StreamCodec.of((buf, v) -> {
 			buf.writeVarInt(v.kind);
@@ -1609,6 +1702,9 @@ public final class HwNet {
 		PayloadTypeRegistry.clientboundPlay().register(Roster.TYPE, Roster.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(PerkSync.TYPE, PerkSync.CODEC);
 		PayloadTypeRegistry.serverboundPlay().register(PerkAction.TYPE, PerkAction.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(HeroLobby.TYPE, HeroLobby.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(HeroOpen.TYPE, HeroOpen.CODEC);
+		PayloadTypeRegistry.serverboundPlay().register(HeroPick.TYPE, HeroPick.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(MinimapSync.TYPE, MinimapSync.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(MatchSync.TYPE, MatchSync.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(MatchEnd.TYPE, MatchEnd.CODEC);

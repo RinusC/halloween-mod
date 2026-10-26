@@ -51,6 +51,11 @@ public final class ClientState {
 	public static java.util.List<String> perkOwned = java.util.List.of();
 	public static java.util.List<String> perkEquipped = java.util.List.of();
 	public static int perkSlots = 3;
+	/** The heroes bought, what one costs, each hero's record (played, escapes or wins, best score); the lobby's picks. */
+	public static java.util.List<String> heroesOwned = java.util.List.of();
+	public static int heroPrice = 3000;
+	public static java.util.Map<String, java.util.List<Integer>> heroRecords = java.util.Map.of();
+	public static HwNet.HeroLobby heroLobby = HwNet.HeroLobby.EMPTY;
 	/** Footsteps Michael heard (see game.Noise), newest last. */
 	public static final java.util.List<NoiseMark> NOISES = new java.util.ArrayList<>();
 

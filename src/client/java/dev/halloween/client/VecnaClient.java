@@ -23,26 +23,11 @@ import net.minecraft.world.phys.Vec3;
  * gone when looked at, come too close to, or after a few seconds.
  */
 public final class VecnaClient {
-	private static final class Phantom {
-		final Mannequin body;
-		final int born;
-
-		Phantom(Mannequin body, int born) {
-			this.body = body;
-			this.born = born;
-		}
-	}
-
-	private static final List<Phantom> PHANTOMS = new ArrayList<>();
-	private static int nextPhantom = -1;
-	private static int phantomIds = -7_000_000;
 	private static boolean sentAnchor;
 	/** The camera was put on someone else for the Eyes (and must come back). */
 	private static boolean eyesCamera;
 	/** For tests: frames he was drawn while looking through someone's eyes. */
 	public static int selfDrawn;
-	/** A test's phantom stands this long whoever this client is. */
-	private static int testUntil = -1;
 
 	private VecnaClient() {
 	}
@@ -51,7 +36,7 @@ public final class VecnaClient {
 		if (mc.player == null || mc.level == null) {
 			return;
 		}
-		tickPhantoms(mc);
+		CurseVisions.tick(mc);
 		tickEyes(mc);
 		tickJolts(mc);
 		tickRift(mc);
@@ -199,7 +184,7 @@ public final class VecnaClient {
 		int id = mc.getCameraEntity().getId();
 		float age = joltAge(id, partial);
 		if (age < 0) {
-			return null;
+			return id == mc.player.getId() ? CurseVisions.startle(partial) : null;
 		}
 		float[] j = jolt(id, age);
 		return new float[] {j[3] * (14f * j[0] - 6f * j[1]) + 2.5f * j[2], -26f * j[0] - 10f * j[1] + 2f * j[2]};
@@ -445,160 +430,25 @@ public final class VecnaClient {
 		}
 	}
 
-	// ---------------------------------------------------------------- phantoms
+	// ---------------------------------------------------------------- phantoms (CurseVisions)
 
 	public static boolean isPhantomId(int id) {
-		for (Phantom p : PHANTOMS) {
-			if (p.body.getId() == id) {
-				return true;
-			}
-		}
-		return false;
-	}
-
-	/** How solid a phantom is drawn now: wavering, gone for a frame or two now and then, faded in when it appears. */
-	public static float phantomAlpha(int id) {
-		Minecraft mc = Minecraft.getInstance();
-		float now = mc.level.getGameTime() + mc.getDeltaTracker().getGameTimeDeltaPartialTick(false);
-		for (Phantom p : PHANTOMS) {
-			if (p.body.getId() == id) {
-				float age = now - p.born;
-				int slot = (int) (now / 2);
-				if (Math.floorMod(slot * 1103515245 + id * 12345, 11) == 0) {
-					return 0f;
-				}
-				return Mth.clamp(age / 12f, 0f, 1f) * (0.74f + 0.12f * Mth.sin(age * 0.9f) + 0.06f * Mth.sin(age * 2.7f));
-			}
-		}
-		return 1f;
+		return CurseVisions.isPhantomId(id);
 	}
 
 	public static boolean isPhantom(Entity e) {
-		for (Phantom p : PHANTOMS) {
-			if (p.body == e) {
-				return true;
-			}
-		}
-		return false;
-	}
-
-	private static void tickPhantoms(Minecraft mc) {
-		int now = (int) mc.level.getGameTime();
-		if (now < testUntil) {
-			return;
-		}
-		boolean cursed = ClientState.curse.stage() >= 2 && ClientState.myRole().survivor() && !mc.player.isSpectator();
-		java.util.Iterator<Phantom> it = PHANTOMS.iterator();
-		while (it.hasNext()) {
-			Phantom p = it.next();
-			Vec3 eye = mc.player.getEyePosition();
-			Vec3 at = p.body.position().add(0, 1.2, 0);
-			double angle = Math.toDegrees(Math.acos(Mth.clamp(mc.player.getViewVector(1f).dot(at.subtract(eye).normalize()), -1, 1)));
-			int age = now - p.born;
-			// Gone the moment it is looked at (after a beat to be glimpsed), come close to, or after a few seconds.
-			boolean seen = age > 8 && angle < 14 && dev.halloween.game.Sight.canSee(mc.level, eye, at, mc.player);
-			if (!cursed || seen || age > 120 || eye.distanceTo(at) < 4.5) {
-				if (seen) {
-					mc.level.playLocalSound(at.x, at.y, at.z, HwSounds.VECNA_PHANTOM_VANISH, SoundSource.HOSTILE, 1.2f, 1f, false);
-				}
-				// It comes apart into smoke and ash.
-				var r = mc.level.getRandom();
-				for (int i = 0; i < 14; i++) {
-					double y = p.body.getY() + r.nextDouble() * 2.3;
-					mc.level.addParticle(i % 3 == 0 ? dev.halloween.HwParticles.VECNA_ASH : dev.halloween.HwParticles.VECNA_SMOKE,
-						p.body.getX() + (r.nextDouble() - 0.5) * 0.7, y, p.body.getZ() + (r.nextDouble() - 0.5) * 0.7,
-						(r.nextDouble() - 0.5) * 0.06, 0.02 + r.nextDouble() * 0.03, (r.nextDouble() - 0.5) * 0.06);
-				}
-				mc.level.removeEntity(p.body.getId(), Entity.RemovalReason.DISCARDED);
-				it.remove();
-			} else if (age % 3 == 0) {
-				// A dark smoke curling off it, low down.
-				var r = mc.level.getRandom();
-				mc.level.addParticle(dev.halloween.HwParticles.VECNA_SMOKE, p.body.getX() + (r.nextDouble() - 0.5) * 0.6, p.body.getY() + 0.2 + r.nextDouble() * 0.6,
-					p.body.getZ() + (r.nextDouble() - 0.5) * 0.6, 0, 0.01, 0);
-			}
-		}
-		if (!cursed) {
-			nextPhantom = -1;
-			return;
-		}
-		HwConfig cfg = HwConfig.get();
-		if (nextPhantom < 0) {
-			nextPhantom = now + 100 + mc.level.getRandom().nextInt(200);
-		}
-		if (now >= nextPhantom && PHANTOMS.isEmpty()) {
-			nextPhantom = now + cfg.vecnaPhantomMinTicks + mc.level.getRandom().nextInt(Math.max(1, cfg.vecnaPhantomMaxTicks - cfg.vecnaPhantomMinTicks));
-			spawnPhantom(mc, now);
-		}
-	}
-
-	/** Off to one side or behind, ten-odd blocks away, standing where it can be seen from here, facing them. */
-	private static void spawnPhantom(Minecraft mc, int now) {
-		var random = mc.level.getRandom();
-		Vec3 eye = mc.player.getEyePosition();
-		float yaw = mc.player.getYRot();
-		for (int tries = 0; tries < 24; tries++) {
-			float a = yaw + (random.nextBoolean() ? 1 : -1) * (60 + random.nextInt(100));
-			double dist = 9 + random.nextInt(8);
-			Vec3 dir = Vec3.directionFromRotation(0, a);
-			BlockPos base = BlockPos.containing(mc.player.getX() + dir.x * dist, mc.player.getY(), mc.player.getZ() + dir.z * dist);
-			for (int dy = 2; dy >= -2; dy--) {
-				BlockPos feet = base.above(dy);
-				if (!mc.level.getBlockState(feet).getCollisionShape(mc.level, feet).isEmpty()
-					|| !mc.level.getBlockState(feet.above()).getCollisionShape(mc.level, feet.above()).isEmpty()
-					|| !mc.level.getBlockState(feet.below()).isCollisionShapeFullBlock(mc.level, feet.below())) {
-					continue;
-				}
-				Vec3 at = Vec3.atBottomCenterOf(feet);
-				if (!dev.halloween.game.Sight.canSee(mc.level, eye, at.add(0, 1.4, 0), mc.player)) {
-					continue;
-				}
-				// (Through create: on the client that is the client's own kind, with a skin and a renderer.)
-				Mannequin m = Mannequin.create(EntityTypes.MANNEQUIN, mc.level);
-				if (m == null) {
-					return;
-				}
-				// No "NPC" line under it, and it stays where it is put.
-				net.minecraft.nbt.CompoundTag tag = new net.minecraft.nbt.CompoundTag();
-				tag.putBoolean("hide_description", true);
-				tag.putBoolean("immovable", true);
-				tag.putBoolean("NoGravity", true);
-				m.load(net.minecraft.world.level.storage.TagValueInput.create(net.minecraft.util.ProblemReporter.DISCARDING, mc.level.registryAccess(), tag));
-				m.setId(phantomIds--);
-				Vec3 to = eye.subtract(at);
-				float face = (float) (Math.atan2(-to.x, to.z) * 180 / Math.PI);
-				m.snapTo(at.x, at.y, at.z, face, 0f);
-				m.setYHeadRot(face);
-				m.setYBodyRot(face);
-				m.setNoGravity(true);
-				mc.level.addEntity(m);
-				PHANTOMS.add(new Phantom(m, now));
-				// A tick of the clock where it stands.
-				mc.level.playLocalSound(at.x, at.y + 1, at.z, HwSounds.VECNA_CLOCK_TICK, SoundSource.HOSTILE, 1f, 1f, false);
-				return;
-			}
-		}
+		return CurseVisions.isPhantom(e);
 	}
 
 	/** For tests: a phantom now, wherever this client is (not only for the cursed); true if one stands. */
 	public static boolean testPhantom() {
-		Minecraft mc = Minecraft.getInstance();
-		int now = (int) mc.level.getGameTime();
-		testUntil = now + 100;
-		spawnPhantom(mc, now);
-		return !PHANTOMS.isEmpty();
+		return CurseVisions.testPhantom();
 	}
 
 	public static void reset() {
 		VecnaLightning.clear();
 		Minecraft mc = Minecraft.getInstance();
-		for (Phantom p : PHANTOMS) {
-			if (mc.level != null) {
-				mc.level.removeEntity(p.body.getId(), Entity.RemovalReason.DISCARDED);
-			}
-		}
-		PHANTOMS.clear();
-		nextPhantom = -1;
+		CurseVisions.reset();
 		if (eyesCamera && mc.player != null) {
 			mc.setCameraEntity(mc.player);
 		}

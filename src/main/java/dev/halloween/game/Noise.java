@@ -76,7 +76,8 @@ public final class Noise {
 			double moved = Math.hypot(p.getX() - t.x, p.getZ() - t.z);
 			t.x = p.getX();
 			t.z = p.getZ();
-			if (moved < 0.05 || p.isCrouching()) {
+			// Alexis's lullaby (Heroes): her steps make no sound.
+			if (moved < 0.05 || p.isCrouching() || Heroes.active(p, Heroes.Skill.LULLABY)) {
 				continue;
 			}
 			boolean running = p.isSprinting();

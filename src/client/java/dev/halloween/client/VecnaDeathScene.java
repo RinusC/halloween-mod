@@ -49,6 +49,96 @@ public final class VecnaDeathScene {
 
 	public static void clear() {
 		victim = -1;
+		restoreWalls();
+	}
+
+	/** Walls swapped for see-through ones for the shot (this client only): where, and what they were. */
+	private static final java.util.Map<net.minecraft.core.BlockPos, net.minecraft.world.level.block.state.BlockState> GHOSTED = new java.util.HashMap<>();
+	private static net.minecraft.world.level.Level ghostLevel;
+	private static final int WALL_LIMIT = 220;
+
+	/**
+	 * Every tick: while the shot plays, whatever solid stands between the camera and the body turns see-through (a pale
+	 * ghost of the wall, set on this client only); when it is over, or the camera moves on, the walls come back.
+	 */
+	public static void tick(Minecraft mc) {
+		if (mc.level == null || ghostLevel != null && ghostLevel != mc.level) {
+			GHOSTED.clear();
+			ghostLevel = null;
+		}
+		if (!cinematic()) {
+			restoreWalls();
+			return;
+		}
+		if (mc.level.getGameTime() % 3 != 0) {
+			return;
+		}
+		double[] cam = camera(1f);
+		if (cam == null || lastBody == null) {
+			return;
+		}
+		Vec3 from = new Vec3(cam[0], cam[1], cam[2]);
+		Vec3 to = lastBody.add(0, 1.0, 0);
+		int floor = (int) Math.floor(lastBody.y);
+		java.util.Set<net.minecraft.core.BlockPos> want = new java.util.HashSet<>();
+		Vec3 line = to.subtract(from);
+		double len = line.length();
+		net.minecraft.world.level.block.state.BlockState ghost = dev.halloween.HwBlocks.GHOST_WALL.defaultBlockState();
+		for (double s = 0; s <= len && want.size() < WALL_LIMIT; s += 0.5) {
+			Vec3 p = from.add(line.scale(s / len));
+			net.minecraft.core.BlockPos c = net.minecraft.core.BlockPos.containing(p);
+			for (int dx = -2; dx <= 2; dx++) {
+				for (int dy = -2; dy <= 2; dy++) {
+					for (int dz = -2; dz <= 2; dz++) {
+						net.minecraft.core.BlockPos pos = c.offset(dx, dy, dz);
+						if (want.contains(pos) || GHOSTED.containsKey(pos) && want.size() >= WALL_LIMIT) {
+							continue;
+						}
+						// The ground under them stays; the rest of the tube round the line of sight goes.
+						if (pos.getY() < floor && Math.abs(pos.getX() + 0.5 - to.x) < 1.6 && Math.abs(pos.getZ() + 0.5 - to.z) < 1.6) {
+							continue;
+						}
+						Vec3 mid = Vec3.atCenterOf(pos);
+						double t = Mth.clamp(mid.subtract(from).dot(line) / (len * len), 0.0, 1.0);
+						if (mid.distanceToSqr(from.add(line.scale(t))) > 1.7 * 1.7) {
+							continue;
+						}
+						net.minecraft.world.level.block.state.BlockState state = mc.level.getBlockState(pos);
+						if (!state.isAir() && !state.is(dev.halloween.HwBlocks.GHOST_WALL) && state.canOcclude()
+								&& state.isCollisionShapeFullBlock(mc.level, pos)) {
+							want.add(pos);
+						}
+					}
+				}
+			}
+		}
+		ghostLevel = mc.level;
+		for (var it = GHOSTED.entrySet().iterator(); it.hasNext();) {
+			var e = it.next();
+			if (!want.contains(e.getKey())) {
+				mc.level.setBlock(e.getKey(), e.getValue(), 18);
+				it.remove();
+			}
+		}
+		for (net.minecraft.core.BlockPos pos : want) {
+			if (!GHOSTED.containsKey(pos)) {
+				GHOSTED.put(pos, mc.level.getBlockState(pos));
+				mc.level.setBlock(pos, ghost, 18);
+			}
+		}
+	}
+
+	private static void restoreWalls() {
+		Minecraft mc = Minecraft.getInstance();
+		if (mc.level != null && mc.level == ghostLevel) {
+			for (var e : GHOSTED.entrySet()) {
+				if (mc.level.getBlockState(e.getKey()).is(dev.halloween.HwBlocks.GHOST_WALL)) {
+					mc.level.setBlock(e.getKey(), e.getValue(), 18);
+				}
+			}
+		}
+		GHOSTED.clear();
+		ghostLevel = null;
 	}
 
 	/** Ticks into the scene (with the frame's share of a tick), or -1 when there is none. */

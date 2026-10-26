@@ -45,6 +45,8 @@ public class HalloweenClient implements ClientModInitializer {
 		new KeyMapping("key.halloween.ping", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_Z, CATEGORY));
 	public static final KeyMapping KEY_PERKS = KeyMappingHelper.registerKeyMapping(
 		new KeyMapping("key.halloween.perks", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_P, CATEGORY));
+	public static final KeyMapping KEY_HEROES = KeyMappingHelper.registerKeyMapping(
+		new KeyMapping("key.halloween.heroes", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_H, CATEGORY));
 
 	private static final Identifier FX_SHAPE_JUMP = Halloween.id("shape_jump");
 	private static final Identifier FX_SENSE = Halloween.id("killer_sense");
@@ -179,10 +181,22 @@ public class HalloweenClient implements ClientModInitializer {
 			ClientState.perkOwned = payload.owned();
 			ClientState.perkEquipped = payload.equipped();
 			ClientState.perkSlots = payload.slots();
+			ClientState.heroesOwned = payload.heroes();
+			ClientState.heroPrice = payload.heroPrice();
+			ClientState.heroRecords = payload.records();
 			Minecraft mc = Minecraft.getInstance();
 			mc.execute(() -> {
 				if (mc.gui.screen() instanceof PerkScreen perks) {
 					perks.refresh();
+				}
+			});
+		});
+		ClientPlayNetworking.registerGlobalReceiver(HwNet.HeroLobby.TYPE, (payload, ctx) -> ClientState.heroLobby = payload);
+		ClientPlayNetworking.registerGlobalReceiver(HwNet.HeroOpen.TYPE, (payload, ctx) -> {
+			Minecraft mc = Minecraft.getInstance();
+			mc.execute(() -> {
+				if (!(mc.gui.screen() instanceof CharacterSelectScreen)) {
+					mc.gui.setScreen(new CharacterSelectScreen());
 				}
 			});
 		});
@@ -300,6 +314,7 @@ public class HalloweenClient implements ClientModInitializer {
 		ClientObstacles.tick(mc);
 		ClientInteractions.tick(mc);
 		ShapeJumpAudio.tick(mc);
+		VecnaDeathScene.tick(mc);
 		BloodParticles.tick(mc);
 		DashSteps.tick(mc);
 		ShapeBreath.tick(mc);
@@ -311,6 +326,12 @@ public class HalloweenClient implements ClientModInitializer {
 		while (KEY_PERKS.consumeClick()) {
 			if (mc.gui.screen() == null) {
 				mc.gui.setScreen(new PerkScreen());
+			}
+		}
+		while (KEY_HEROES.consumeClick()) {
+			// Between matches only: the character select is the lobby's.
+			if (mc.gui.screen() == null && ClientState.match.state() == 0) {
+				mc.gui.setScreen(new CharacterSelectScreen());
 			}
 		}
 		Role role = ClientState.myRole();

@@ -107,7 +107,8 @@ public final class MatchManager {
 
 	/** A victim the Shape can learn about and reach: not hiding in a locker. */
 	public static boolean exposed(Entity entity) {
-		return isVictim(entity) && !Lockers.isInside(entity) && !Exits.isSeated(entity);
+		// Thomas lying low (Heroes) is as good as hidden.
+		return isVictim(entity) && !Lockers.isInside(entity) && !Exits.isSeated(entity) && !Heroes.lyingLow(entity);
 	}
 
 	public static boolean isStunned(ServerPlayer player) {
@@ -285,6 +286,7 @@ public final class MatchManager {
 		TickTimer.step("Match", () -> Match.tick(server));
 		TickTimer.step("Tutorial", () -> Tutorial.tick(server));
 		TickTimer.step("Lobby", () -> Lobby.tick(server));
+		HeroPicks.tick(server);
 		TickTimer.step("Leftovers", () -> Leftovers.tick(server));
 		TickTimer.step("Noise", () -> Noise.tick(server));
 		TickTimer.step("Traps", () -> Traps.tick(server));
@@ -446,8 +448,8 @@ public final class MatchManager {
 			tickCorpses(player, state);
 		}
 
-		// Standing in light drains Bloodthirst.
-		if (inLight(player)) {
+		// Standing in light drains Bloodthirst (not Vecna's: his drains on a Grip that misses).
+		if (!Vecna.active() && inLight(player)) {
 			state.addBloodthirst(-cfg.bloodthirstLightLossPerSecond / 20f);
 		}
 
@@ -588,6 +590,10 @@ public final class MatchManager {
 				if (state.focusActive()) {
 					multiplier *= cfg.focusMultiplier;
 				}
+			}
+			if (Heroes.active(target, Heroes.Skill.LULLABY)) {
+				// Alexis's lullaby: not to be stalked meanwhile.
+				multiplier = 0f;
 			}
 			if (Perks.has(target, Perks.Perk.ELUSORY)) {
 				multiplier *= cfg.perkElusoryFactor;

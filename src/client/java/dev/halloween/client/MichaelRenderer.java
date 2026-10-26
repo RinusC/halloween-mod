@@ -105,6 +105,17 @@ public final class MichaelRenderer {
 		return model;
 	}
 
+	/** The Demogorgon here: the character select's model of him, or this match's killer. */
+	private static boolean demogorgon(EntityRenderState s) {
+		String kind = HeroPreview.killerKind(((HwRenderState) s).halloween$entityId());
+		return kind != null ? kind.equals("demogorgon") : demogorgon();
+	}
+
+	private static boolean vecna(EntityRenderState s) {
+		String kind = HeroPreview.killerKind(((HwRenderState) s).halloween$entityId());
+		return kind != null ? kind.equals("vecna") : vecna();
+	}
+
 	/** Is this match's killer the Demogorgon? */
 	public static boolean demogorgon() {
 		return forceDemo || ClientState.killer == 1;
@@ -134,6 +145,11 @@ public final class MichaelRenderer {
 	}
 
 	public static boolean isMichael(EntityRenderState state) {
+		int id = ((HwRenderState) state).halloween$entityId();
+		if (HeroPreview.is(id)) {
+			// The character select's model of a killer.
+			return HeroPreview.killerKind(id) != null;
+		}
 		Minecraft mc = Minecraft.getInstance();
 		return mc.level != null && isMichael(mc.level.getEntity(((HwRenderState) state).halloween$entityId()));
 	}
@@ -146,11 +162,11 @@ public final class MichaelRenderer {
 		if (!enabled || !isMichael(s)) {
 			return;
 		}
-		if (demogorgon()) {
+		if (demogorgon(s)) {
 			// His own skeleton and animations (DemogorgonModel); the player model keeps its pose for his grabs.
 			return;
 		}
-		if (vecna()) {
+		if (vecna(s)) {
 			// Vecna too (VecnaModel).
 			return;
 		}
@@ -203,10 +219,10 @@ public final class MichaelRenderer {
 			return false;
 		}
 		Model<AvatarRenderState> m;
-		if (demogorgon()) {
+		if (demogorgon(avatar)) {
 			demoModel().source = humanoid;
 			m = demoModel();
-		} else if (vecna()) {
+		} else if (vecna(avatar)) {
 			vecnaModel().source = humanoid;
 			m = vecnaModel();
 		} else {
@@ -215,22 +231,11 @@ public final class MichaelRenderer {
 		}
 		// As the player model would be: whole; see-through (invisible, to those who see the invisible); or only his
 		// outline (invisible but glowing).
-		Identifier texture = demogorgon() ? DEMO_TEXTURE : vecna() ? VECNA_TEXTURE : TEXTURE;
-		if (vecna() && VecnaClient.isPhantomId(((HwRenderState) avatar).halloween$entityId())) {
-			// A phantom: a dark shade of him, see-through and wavering, gone for a frame now and then; the eyes burn.
-			float a = VecnaClient.phantomAlpha(((HwRenderState) avatar).halloween$entityId());
-			if (a > 0.02f) {
-				int argb = net.minecraft.util.ARGB.color((int) (a * 255), 70, 42, 50);
-				collector.submitModel(m, avatar, pose, RenderTypes.entityTranslucent(texture), light, overlay, argb, null, 0, null);
-				collector.submitModel(m, avatar, pose, RenderTypes.entityTranslucentEmissive(VECNA_GLOW), 0xF000F0, overlay,
-					net.minecraft.util.ARGB.color((int) (Math.min(1f, a * 1.6f) * 255), 255, 255, 255), null, 0, null);
-			}
-			return true;
-		}
+		Identifier texture = demogorgon(avatar) ? DEMO_TEXTURE : vecna(avatar) ? VECNA_TEXTURE : TEXTURE;
 		net.minecraft.client.renderer.rendertype.RenderType type = tint != -1 ? RenderTypes.entityTranslucentCullItemTarget(texture)
 			: avatar.isInvisible ? RenderTypes.outline(texture) : RenderTypes.entityCutout(texture);
 		collector.submitModel(m, avatar, pose, type, light, overlay, tint, null, outline, null);
-		if (vecna() && !avatar.isInvisible && tint == -1) {
+		if (vecna(avatar) && !avatar.isInvisible && tint == -1) {
 			collector.submitModel(m, avatar, pose, RenderTypes.entityTranslucentEmissive(VECNA_GLOW), 0xF000F0, overlay, -1, null, 0, null);
 		}
 		return true;

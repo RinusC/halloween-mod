@@ -265,8 +265,16 @@ public final class Loot {
 		BlockPos at = pos.immutable();
 		int ticks = Perks.has(player, Perks.Perk.QUICK_SEARCH) ? Math.round(HwConfig.get().searchTicks * HwConfig.get().perkQuickSearchFactor)
 			: HwConfig.get().searchTicks;
+		// Tanya's full bag (Heroes): near instant, once.
+		Integer bag = Heroes.searchTicks(player);
+		if (bag != null) {
+			ticks = bag;
+		}
 		return new Holds.Hold(at, "halloween.hud.progress.search", false, ticks, p -> !SEARCHED.contains(at), p -> {
 			SEARCHED.add(at);
+			if (Heroes.searchTicks(p) != null) {
+				Heroes.spend(p);
+			}
 			HwItems.Kind kind = HIDDEN.get(at);
 			if (!isEscape(kind)) {
 				// The longer the town goes without one, the likelier the next search turns one up: an escape item

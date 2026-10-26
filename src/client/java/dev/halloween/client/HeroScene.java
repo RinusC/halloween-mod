@@ -129,7 +129,11 @@ public final class HeroScene {
 
 	/** What they hold. */
 	private static ItemStack prop(int i) {
-		return switch (Skins.SURVIVORS.get(i)) {
+		return prop(Skins.SURVIVORS.get(i));
+	}
+
+	static ItemStack prop(String who) {
+		return switch (who) {
 			case "laurie", "jennifer" -> new ItemStack(Items.BOOK);
 			case "lynda" -> new ItemStack(Items.HONEY_BOTTLE);
 			case "rachel" -> new ItemStack(Items.CARVED_PUMPKIN);
@@ -143,7 +147,7 @@ public final class HeroScene {
 		};
 	}
 
-	private static ItemStack ours(String model) {
+	static ItemStack ours(String model) {
 		ItemStack s = new ItemStack(Items.PAPER);
 		s.set(DataComponents.ITEM_MODEL, Halloween.id(model));
 		return s;
@@ -151,13 +155,21 @@ public final class HeroScene {
 
 	/** Their pose in the scene, over the model's own; true if one was laid on. */
 	static boolean pose(HumanoidModel<?> m, int entityId) {
+		if (HeroPreview.is(entityId)) {
+			// The character select's model.
+			return HeroPreview.pose(m, entityId);
+		}
 		if (hero < 0 || entityId != subject || !Cutscene.active()) {
 			return false;
 		}
-		float t = time(Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(false));
+		return pose(m, Skins.SURVIVORS.get(hero), time(Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(false)));
+	}
+
+	/** This survivor's pose from their scene, {@code t} ticks in. */
+	static boolean pose(HumanoidModel<?> m, String who, float t) {
 		float a = Mth.sin(t * 0.25f);
 		float b = Mth.sin(t * 0.11f);
-		switch (Skins.SURVIVORS.get(hero)) {
+		switch (who) {
 			case "laurie" -> {
 				// Books hugged to her chest, walking; now and then a look back over her shoulder.
 				m.rightArm.xRot = -0.95f;

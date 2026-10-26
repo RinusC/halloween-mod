@@ -18,7 +18,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-/** Our voice clips, Shape Jump sounds and talk babble are WAV, not Ogg: load them with {@link WavSounds} instead of the Vorbis decoder. */
+/** Any of our clips still stored as WAV under an .ogg name loads with {@link WavSounds}; real Ogg takes the vanilla decoder. */
 @Mixin(SoundBufferLibrary.class)
 public abstract class SoundBufferLibraryMixin {
 	@Shadow
@@ -35,6 +35,9 @@ public abstract class SoundBufferLibraryMixin {
 			&& !location.getPath().startsWith("sounds/talk/") && !location.getPath().startsWith("sounds/crow/") && !location.getPath().startsWith("sounds/vecna/")) {
 			return;
 		}
+		if (this.cache.containsKey(location) || !halloween$isWav(location)) {
+			return;
+		}
 		cir.setReturnValue(this.cache.computeIfAbsent(location, l -> CompletableFuture.supplyAsync(() -> {
 			try (InputStream is = this.resourceManager.open(l)) {
 				return WavSounds.load(is);
@@ -42,5 +45,15 @@ public abstract class SoundBufferLibraryMixin {
 				throw new CompletionException(e);
 			}
 		}, Util.nonCriticalIoPool())));
+	}
+
+	/** Real Ogg files (the compressed ones) go to the vanilla decoder; only a RIFF header means WAV. */
+	private boolean halloween$isWav(Identifier location) {
+		try (InputStream is = this.resourceManager.open(location)) {
+			byte[] head = is.readNBytes(4);
+			return head.length == 4 && head[0] == 'R' && head[1] == 'I' && head[2] == 'F' && head[3] == 'F';
+		} catch (IOException e) {
+			return true;
+		}
 	}
 }

@@ -242,6 +242,23 @@ public final class DoorLocks {
 		return true;
 	}
 
+	/** Bob's charge into a door: a shut one flies open, a locked one is broken. False if there is no shut door there. */
+	static boolean ram(ServerLevel level, BlockPos pos) {
+		BlockState state = level.getBlockState(pos);
+		if (!isDoor(state) || state.getValue(DoorBlock.OPEN)) {
+			return false;
+		}
+		BlockPos door = base(level, pos);
+		boolean locked = LOCKED.contains(door);
+		if (locked) {
+			knockedOut(level, door);
+		}
+		setOpen(level, door, true);
+		level.playSound(null, door, locked ? HwSounds.DOOR_BREAK : HwSounds.DOOR_HIT, SoundSource.BLOCKS, 2f, 1f);
+		Bots.alert(Vec3.atCenterOf(door), level.getServer().getTickCount());
+		return true;
+	}
+
 	/** A door the earthquake knocks off its hinges: no lock on it any more, nor anyone working one. */
 	static void knockedOut(ServerLevel level, BlockPos pos) {
 		BlockPos door = base(level, pos);

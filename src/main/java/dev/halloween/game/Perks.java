@@ -98,11 +98,25 @@ public final class Perks extends SavedData {
 	public static final int EQUIP = 1;
 	public static final int UNEQUIP = 2;
 
-	private record Profile(int points, List<String> owned, List<String> equipped) {
+	/**
+	 * A purse and what was bought with it: perks, and heroes (see HeroPicks); and each hero's record (matches played,
+	 * escapes, best score).
+	 */
+	private record Profile(int points, List<String> owned, List<String> equipped, List<String> heroes, Map<String, List<Integer>> records) {
 		static final Codec<Profile> CODEC = RecordCodecBuilder.create(i -> i.group(
 			Codec.INT.fieldOf("points").forGetter(Profile::points),
 			Codec.STRING.listOf().optionalFieldOf("owned", List.of()).forGetter(Profile::owned),
-			Codec.STRING.listOf().optionalFieldOf("equipped", List.of()).forGetter(Profile::equipped)).apply(i, Profile::new));
+			Codec.STRING.listOf().optionalFieldOf("equipped", List.of()).forGetter(Profile::equipped),
+			Codec.STRING.listOf().optionalFieldOf("heroes", List.of()).forGetter(Profile::heroes),
+			Codec.unboundedMap(Codec.STRING, Codec.INT.listOf()).optionalFieldOf("records", Map.of()).forGetter(Profile::records)).apply(i, Profile::new));
+
+		Profile(int points, List<String> owned, List<String> equipped) {
+			this(points, owned, equipped, List.of(), Map.of());
+		}
+
+		Profile withPerks(int points, List<String> owned, List<String> equipped) {
+			return new Profile(points, owned, equipped, this.heroes, this.records);
+		}
 	}
 
 	private static final Codec<Perks> CODEC = Codec.unboundedMap(Codec.STRING, Profile.CODEC).xmap(Perks::fromMap, p -> Map.copyOf(p.profiles));
@@ -247,7 +261,7 @@ public final class Perks extends SavedData {
 				return;
 			}
 		}
-		data.put(player.getUUID(), new Profile(points, owned, equipped));
+		data.put(player.getUUID(), p.withPerks(points, owned, equipped));
 		sync(player);
 	}
 
@@ -261,7 +275,7 @@ public final class Perks extends SavedData {
 			}
 			Profile before = data.profile(e.getKey());
 			int total = before.points() + e.getValue();
-			data.put(e.getKey(), new Profile(total, before.owned(), before.equipped()));
+			data.put(e.getKey(), before.withPerks(total, before.owned(), before.equipped()));
 			Notices.send(player, Component.translatable("halloween.perk.points", total, e.getValue()).withStyle(ChatFormatting.GOLD));
 			sync(player);
 		}
@@ -271,7 +285,41 @@ public final class Perks extends SavedData {
 	public static void give(MinecraftServer server, UUID id, int points) {
 		Perks data = get(server);
 		Profile p = data.profile(id);
-		data.put(id, new Profile(p.points() + points, p.owned(), p.equipped()));
+		data.put(id, p.withPerks(p.points() + points, p.owned(), p.equipped()));
+	}
+
+	/** Is this hero theirs to play (open to everyone, or bought)? */
+	public static boolean ownsHero(MinecraftServer server, UUID id, String hero) {
+		return HeroInfo.free(hero) || get(server).profile(id).heroes().contains(hero);
+	}
+
+	/** Buys a hero for {@link HwConfig#heroPrice}; false if they have it already or the purse is short. */
+	public static boolean buyHero(ServerPlayer player, String hero) {
+		MinecraftServer server = player.level().getServer();
+		Perks data = get(server);
+		Profile p = data.profile(player.getUUID());
+		int price = HwConfig.get().heroPrice;
+		if (!HeroInfo.known(hero) || ownsHero(server, player.getUUID(), hero) || p.points() < price) {
+			sync(player);
+			return false;
+		}
+		List<String> heroes = new ArrayList<>(p.heroes());
+		heroes.add(hero);
+		data.put(player.getUUID(), new Profile(p.points() - price, p.owned(), p.equipped(), heroes, p.records()));
+		Notices.send(player, Component.translatable("halloween.select.bought", Component.translatable("halloween.hero.name." + hero))
+			.withStyle(ChatFormatting.GREEN));
+		sync(player);
+		return true;
+	}
+
+	/** A match played as this hero: one more played, maybe an escape, maybe a new best. */
+	public static void record(MinecraftServer server, UUID id, String hero, boolean escaped, int score) {
+		Perks data = get(server);
+		Profile p = data.profile(id);
+		Map<String, List<Integer>> records = new HashMap<>(p.records());
+		List<Integer> r = records.getOrDefault(hero, List.of(0, 0, 0));
+		records.put(hero, List.of(r.get(0) + 1, r.get(1) + (escaped ? 1 : 0), Math.max(r.get(2), score)));
+		data.put(id, new Profile(p.points(), p.owned(), p.equipped(), p.heroes(), records));
 	}
 
 	public static void sync(ServerPlayer player) {
@@ -280,6 +328,6 @@ public final class Perks extends SavedData {
 		}
 		Profile profile = get(player.level().getServer()).profile(player.getUUID());
 		ServerPlayNetworking.send(player, new HwNet.PerkSync(profile.points(), List.copyOf(profile.owned()), List.copyOf(profile.equipped()),
-			HwConfig.get().perkSlots));
+			HwConfig.get().perkSlots, List.copyOf(profile.heroes()), HwConfig.get().heroPrice, Map.copyOf(profile.records())));
 	}
 }

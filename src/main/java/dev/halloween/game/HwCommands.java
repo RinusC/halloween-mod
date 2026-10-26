@@ -66,7 +66,10 @@ public final class HwCommands {
 					ctx.getSource().sendSuccess(() -> Component.translatable("halloween.cmd.killer_vecna"), true);
 					return 1;
 				})))
-			.then(Commands.literal("runt")
+			.then(Commands.literal("curse")
+					.executes(ctx -> curse(ctx, 1))
+					.then(Commands.argument("stage", IntegerArgumentType.integer(1, 4)).executes(ctx -> curse(ctx, IntegerArgumentType.getInteger(ctx, "stage")))))
+				.then(Commands.literal("runt")
 				.then(Commands.literal("bot").executes(ctx -> {
 					Runt.chooseBot();
 					ctx.getSource().sendSuccess(() -> Component.translatable("halloween.cmd.runt_bot"), true);
@@ -260,6 +263,17 @@ public final class HwCommands {
 		}
 		ctx.getSource().sendFailure(Component.literal("? " + key));
 		return 0;
+	}
+
+	private static int curse(CommandContext<CommandSourceStack> ctx, int stage) throws CommandSyntaxException {
+		ServerPlayer player = ctx.getSource().getPlayerOrException();
+		if (!Vecna.active() || !Match.running() || !MatchManager.role(player).survivor()) {
+			ctx.getSource().sendFailure(Component.translatable("halloween.cmd.curse_no"));
+			return 0;
+		}
+		VecnaCurse.testSet(player, stage);
+		ctx.getSource().sendSuccess(() -> Component.translatable("halloween.cmd.curse", stage), true);
+		return 1;
 	}
 
 	private static int bloodthirst(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {

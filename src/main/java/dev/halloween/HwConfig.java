@@ -106,6 +106,8 @@ public class HwConfig {
 	public int corpseAdmireTicks = 200;
 	public double corpseAdmireRange = 8;
 	public float bloodthirstLightLossPerSecond = 3f;
+	/** Vecna doesn't lose it in light; a Grip that misses costs him this much. */
+	public float bloodthirstGripMissLoss = 15f;
 	public float bloodthirstDamageLoss = 15f;
 	public float bloodthirstFallLoss = 20f;
 	public double bloodthirstFallDistance = 3.5;
@@ -681,6 +683,10 @@ public class HwConfig {
 	/** Perks a survivor takes into a match, and what each costs (points over all matches, spent; see game.Perks). */
 	public int perkSlots = 3;
 	public java.util.Map<String, Integer> perkCosts = defaultPerkCosts();
+	/** What a hero who is not open from the start costs (survivor or killer, the same for all; see game.HeroInfo). */
+	public int heroPrice = 3000;
+	/** Points on top of the match's for whoever left their hero to chance in the character select. */
+	public int heroRandomBonus = 150;
 	public float perkQuickSearchFactor = 0.6f;
 	public double perkStaminaFactor = 1.2;
 	public double perkQuietNoiseFactor = 0.5;

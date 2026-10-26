@@ -34,6 +34,11 @@ public final class ClientSkins {
 		return key == null ? null : SKINS.computeIfAbsent(key, ClientSkins::load);
 	}
 
+	/** A match skin by its key (a survivor's name, "police"). */
+	public static PlayerSkin skin(String key) {
+		return SKINS.computeIfAbsent(key, ClientSkins::load);
+	}
+
 	private static PlayerSkin load(String key) {
 		String path = key.equals("police") ? "entity/police" : "entity/skin/" + key;
 		int index = Skins.SURVIVORS.indexOf(key);

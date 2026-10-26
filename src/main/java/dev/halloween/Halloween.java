@@ -56,6 +56,7 @@ public class Halloween implements ModInitializer {
 		ServerPlayNetworking.registerGlobalReceiver(HwNet.RuntOrder.TYPE, (payload, ctx) -> dev.halloween.game.Runt.order(ctx.player(), payload.kind(), payload.targetId(), payload.pos()));
 		ServerPlayNetworking.registerGlobalReceiver(HwNet.RuntPick.TYPE, (payload, ctx) -> dev.halloween.game.Runt.pick(ctx.player(), payload.level(), payload.option()));
 		ServerPlayNetworking.registerGlobalReceiver(HwNet.PerkAction.TYPE, (payload, ctx) -> dev.halloween.game.Perks.act(ctx.player(), payload.perk(), payload.action()));
+		ServerPlayNetworking.registerGlobalReceiver(HwNet.HeroPick.TYPE, (payload, ctx) -> dev.halloween.game.HeroPicks.act(ctx.player(), payload.action(), payload.hero()));
 		ServerPlayNetworking.registerGlobalReceiver(HwNet.NpcTalk.TYPE, (payload, ctx) -> dev.halloween.game.Talks.request(ctx.player(), payload.entityId(), payload.option()));
 		ServerPlayNetworking.registerGlobalReceiver(HwNet.MinigameResult.TYPE, (payload, ctx) -> dev.halloween.game.Minigames.result(ctx.player(), payload));
 		// Pulling something down behind you on the run (game.Obstacles).
@@ -101,6 +102,7 @@ public class Halloween implements ModInitializer {
 			dev.halloween.game.Skins.syncTo(handler.player);
 			dev.halloween.game.Weather.syncTo(handler.player);
 			dev.halloween.game.Perks.sync(handler.player);
+			dev.halloween.game.HeroPicks.syncTo(handler.player);
 			dev.halloween.game.Music.forget(handler.player);
 			dev.halloween.game.Minimap.syncTo(handler.player);
 			dev.halloween.game.Match.markDirty();
