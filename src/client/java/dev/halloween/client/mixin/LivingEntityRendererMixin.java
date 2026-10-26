@@ -81,6 +81,10 @@ public abstract class LivingEntityRendererMixin {
 	@Inject(method = "extractRenderState(Lnet/minecraft/world/entity/LivingEntity;Lnet/minecraft/client/renderer/entity/state/LivingEntityRenderState;F)V", at = @At("TAIL"))
 	private void halloween$vecnaKill(net.minecraft.world.entity.LivingEntity entity, LivingEntityRenderState state, float partialTicks, CallbackInfo ci) {
 		float yaw = dev.halloween.client.VecnaKillScene.bodyYaw(entity.getId());
+		if (Float.isNaN(yaw)) {
+			// Michael's too (MichaelKillScene).
+			yaw = dev.halloween.client.MichaelKillScene.bodyYaw(entity.getId());
+		}
 		if (!Float.isNaN(yaw)) {
 			state.bodyRot = yaw;
 			state.yRot = 0f;

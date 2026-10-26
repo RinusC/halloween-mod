@@ -789,14 +789,23 @@ public final class VecnaKill {
 	 * {@code rise} above it), drifting {@code orbit} degrees round it; from whichever side has the room.
 	 */
 	private void camera(int ticks, Vec3 look, double dist, double rise, float orbit) {
-		ServerLevel level = this.level();
-		Vec3 side = this.ahead.cross(new Vec3(0, 1, 0));
+		sideCamera(this.vecna, this.victim, this.ahead, ticks, look, dist, rise, orbit);
+	}
+
+	/**
+	 * A killer and the one he kills see it from the side (KillCam) for {@code ticks}: looking at {@code look} from
+	 * {@code dist} away (and {@code rise} above it), drifting {@code orbit} degrees round it; from whichever side has the
+	 * room. {@code ahead}: from him towards them. (Michael's kills too, see MichaelKill.)
+	 */
+	static void sideCamera(ServerPlayer killer, LivingEntity victim, Vec3 ahead, int ticks, Vec3 look, double dist, double rise, float orbit) {
+		ServerLevel level = killer.level();
+		Vec3 side = ahead.cross(new Vec3(0, 1, 0));
 		Vec3 best = null;
 		float bestOrbit = 0;
 		double bestScore = -1;
 		// Side on, a little in front of or behind the line between them; each way round.
-		for (Vec3 dir : new Vec3[]{side.add(this.ahead.scale(0.35)), side.scale(-1).add(this.ahead.scale(0.35)), side.subtract(this.ahead.scale(0.45)),
-			side.scale(-1).subtract(this.ahead.scale(0.45)), this.ahead.scale(1.0)}) {
+		for (Vec3 dir : new Vec3[]{side.add(ahead.scale(0.35)), side.scale(-1).add(ahead.scale(0.35)), side.subtract(ahead.scale(0.45)),
+			side.scale(-1).subtract(ahead.scale(0.45)), ahead.scale(1.0)}) {
 			Vec3 d = dir.normalize();
 			for (int sign : new int[]{1, -1}) {
 				double score = Double.MAX_VALUE;
@@ -805,7 +814,7 @@ public final class VecnaKill {
 					float a = orbit * sign * f * Mth.DEG_TO_RAD;
 					Vec3 r = new Vec3(d.x * Math.cos(a) - d.z * Math.sin(a), 0, d.x * Math.sin(a) + d.z * Math.cos(a));
 					Vec3 want = look.add(r.scale(dist)).add(0, rise, 0);
-					Vec3 got = this.clip(level, look, want);
+					Vec3 got = clip(level, killer, look, want);
 					if (first == null) {
 						first = got;
 					}
@@ -823,15 +832,15 @@ public final class VecnaKill {
 		}
 		// Not so close that it only shows a wall: if there is no room anywhere, the orbit stops.
 		HwNet.Cutscene cam = new HwNet.Cutscene(Cutscenes.KILLCAM, ticks, best, look, new Vec3(bestScore > dist * 0.7 ? bestOrbit : 0, 0, 0.1));
-		for (LivingEntity who : new LivingEntity[]{this.vecna, this.victim}) {
+		for (LivingEntity who : new LivingEntity[]{killer, victim}) {
 			if (who instanceof ServerPlayer p && !Bots.isBot(p)) {
 				ServerPlayNetworking.send(p, cam);
 			}
 		}
 	}
 
-	private Vec3 clip(ServerLevel level, Vec3 from, Vec3 to) {
-		HitResult hit = level.clip(new ClipContext(from, to, ClipContext.Block.VISUAL, ClipContext.Fluid.NONE, this.vecna));
+	private static Vec3 clip(ServerLevel level, ServerPlayer killer, Vec3 from, Vec3 to) {
+		HitResult hit = level.clip(new ClipContext(from, to, ClipContext.Block.VISUAL, ClipContext.Fluid.NONE, killer));
 		if (hit.getType() == HitResult.Type.MISS) {
 			return to;
 		}

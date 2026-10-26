@@ -154,6 +154,8 @@ public final class GrabSession {
 	private Display.ItemDisplay stuckKnife;
 	/** Vecna's scene (VecnaKill): at a wardrobe from the start, else from the finish on; and whether it is his kill playing now. */
 	private VecnaKill vecnaKill;
+	/** Michael's kill after the struggle (MichaelKill): pinned to a wall or lifted on the knife. */
+	private MichaelKill michaelKill;
 	private boolean vecnaFinishing;
 
 	/** Is this Michael's grab at a wardrobe (he stays put by it, then smashes their head against it)? */
@@ -714,6 +716,11 @@ public final class GrabSession {
 		} else if (this.victimState.level() >= this.cfg().windowFinisherStalkLevel) {
 			this.windowPos = this.findWindow();
 		}
+		if (!Demogorgon.active() && !this.vecnaFinishing && !this.atLocker() && this.windowPos == null) {
+			// Michael's own kills (in place of three blows of the knife).
+			this.michaelKill = MichaelKill.start(this, this.shape, this.victim);
+			Music.killing(this.level().getServer(), 140);
+		}
 		HwNet.Qte off = HwNet.Qte.INACTIVE;
 		if (this.victim instanceof ServerPlayer player) {
 			ServerPlayNetworking.send(player, off);
@@ -755,6 +762,14 @@ public final class GrabSession {
 			anim(this.shape, HwNet.Anim.NONE);
 			anim(this.victim, HwNet.Anim.NONE);
 			VecnaDeath.start(this.shape, cursed);
+			return;
+		}
+		if (this.michaelKill != null) {
+			if (this.michaelKill.tick()) {
+				this.done = true;
+				anim(this.shape, HwNet.Anim.NONE);
+				MatchManager.kill(this.shape, this.state, this.victim, MatchManager.KillKind.EXECUTION, this.bloody, false);
+			}
 			return;
 		}
 		if (this.vecnaFinishing) {
@@ -933,7 +948,7 @@ public final class GrabSession {
 			this.tickScene();
 			return;
 		}
-		if (!(this.finishing && (this.windowPos != null || this.vecnaFinishing))) {
+		if (!(this.finishing && (this.windowPos != null || this.vecnaFinishing || this.michaelKill != null))) {
 			this.pinVictim();
 		}
 		if (Demogorgon.active() && this.level().getGameTime() % 2 == 0) {
@@ -1079,6 +1094,9 @@ public final class GrabSession {
 		if (this.vecnaKill != null) {
 			// The vines let go.
 			this.vecnaKill.stop();
+		}
+		if (this.michaelKill != null) {
+			this.michaelKill.stop();
 		}
 		if (!this.animated) {
 			anim(this.shape, HwNet.Anim.NONE);

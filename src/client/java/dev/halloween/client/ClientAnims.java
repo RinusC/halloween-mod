@@ -198,6 +198,10 @@ public final class ClientAnims {
 			// Vecna taking them: lifted, the bones breaking.
 			return;
 		}
+		if (MichaelKillScene.pose(m, entityId)) {
+			// One of Michael's kills: pinned to a wall, lifted on the knife.
+			return;
+		}
 		if (VecnaKillScene.pose(m, entityId)) {
 			// One of Vecna's kills: lifted and run through, dragged under, bound to a wardrobe.
 			return;

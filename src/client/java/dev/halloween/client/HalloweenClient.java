@@ -97,6 +97,7 @@ public class HalloweenClient implements ClientModInitializer {
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.VecnaRitual.TYPE, (payload, ctx) -> ClientState.ritual = payload);
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.VecnaDeath.TYPE, (payload, ctx) -> VecnaDeathScene.begin(payload));
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.VecnaKill.TYPE, (payload, ctx) -> VecnaKillScene.receive(payload));
+		ClientPlayNetworking.registerGlobalReceiver(HwNet.MichaelKill.TYPE, (payload, ctx) -> MichaelKillScene.receive(payload));
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.VecnaEyesEnter.TYPE, (payload, ctx) -> VecnaClient.eyesEnter(payload.entity()));
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.DemoPose.TYPE, (payload, ctx) -> DemogorgonModel.receive(payload));
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.GunPose.TYPE, (payload, ctx) -> GunPoses.receive(payload));
@@ -324,6 +325,7 @@ public class HalloweenClient implements ClientModInitializer {
 		ShapeJumpAudio.tick(mc);
 		VecnaDeathScene.tick(mc);
 		VecnaKillScene.tick(mc);
+		MichaelKillScene.tick(mc);
 		BloodParticles.tick(mc);
 		DashSteps.tick(mc);
 		ShapeBreath.tick(mc);

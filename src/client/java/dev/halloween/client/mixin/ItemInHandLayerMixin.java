@@ -47,7 +47,9 @@ public abstract class ItemInHandLayerMixin {
 		HumanoidArm arm, PoseStack pose, net.minecraft.client.renderer.SubmitNodeCollector collector, int light, CallbackInfo ci) {
 		if (arm == HumanoidArm.RIGHT && ((RenderLayer<?, ?>) (Object) this).getParentModel() instanceof HumanoidModel<?> m
 			&& dev.halloween.client.MichaelRenderer.isMichael(state)) {
-			pose.mulPose(Axis.XP.rotation(dev.halloween.client.MichaelRenderer.WRIST * m.rightArm.xRot));
+			// In one of his kills the knife goes in point first, along the arm (MichaelKillScene).
+			float wrist = state instanceof dev.halloween.client.HwRenderState hw ? dev.halloween.client.MichaelKillScene.wrist(hw.halloween$entityId()) : Float.NaN;
+			pose.mulPose(Axis.XP.rotation((Float.isNaN(wrist) ? dev.halloween.client.MichaelRenderer.WRIST : wrist) * m.rightArm.xRot));
 		}
 	}
 }
