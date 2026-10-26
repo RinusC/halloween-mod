@@ -40,6 +40,10 @@ public final class LevelScreen extends Screen {
 	private float scrollTo = -1;
 	private int maxScroll;
 	private final List<Hit> hits = new ArrayList<>();
+	/** The level whose card is under the mouse (0: none). */
+	private int hoverLevel;
+	/** For tests: this level's window shown as if hovered. */
+	public int testHover;
 
 	private record Hit(int x0, int y0, int x1, int y1, Runnable action) {
 		boolean in(double x, double y) {
@@ -71,7 +75,13 @@ public final class LevelScreen extends Screen {
 	}
 
 	@Override
+	public void removed() {
+		CosmeticRenderer.tryOn = null;
+	}
+
+	@Override
 	public void onClose() {
+		CosmeticRenderer.tryOn = null;
 		Minecraft.getInstance().gui.setScreen(this.parent);
 	}
 
@@ -130,6 +140,7 @@ public final class LevelScreen extends Screen {
 	@Override
 	public void extractRenderState(GuiGraphicsExtractor g, int mouseX, int mouseY, float partial) {
 		this.hits.clear();
+		this.hoverLevel = 0;
 		this.partial = partial;
 		int m = 8;
 		int earned = ClientState.earned;
@@ -139,6 +150,13 @@ public final class LevelScreen extends Screen {
 		this.road(g, m, y + 4, this.height - 40, earned, level, mouseX, mouseY);
 		this.bottomBar(g, m, mouseX, mouseY);
 		super.extractRenderState(g, mouseX, mouseY, partial);
+		if (this.testHover > 0) {
+			this.tooltip(g, this.testHover, this.width / 3, this.height / 2, partial);
+		} else if (this.hoverLevel > 0) {
+			this.tooltip(g, this.hoverLevel, mouseX, mouseY, partial);
+		} else {
+			CosmeticRenderer.tryOn = null;
+		}
 		// Film grain over it all, as on the select.
 		int seed = this.ticks / 2;
 		g.blit(RenderPipelines.GUI_TEXTURED, GRAIN.id(), 0, 0, rnd(seed, 7) * GRAIN.w(), rnd(seed, 8) * GRAIN.h(), this.width, this.height,
@@ -329,6 +347,9 @@ public final class LevelScreen extends Screen {
 			boolean next = lv == level + 1;
 			boolean hover = mouseX >= Math.max(cx0, ix0) && mouseX < Math.min(cx1, ix1) && mouseY >= cy0 && mouseY < cy1;
 			this.card(g, cx0, cy0 + lift, cx1, cy1 + lift, lv, got, next, hover, pulse, in);
+			if (hover) {
+				this.hoverLevel = lv;
+			}
 			// The node on the track.
 			int ns = got ? 9 : next ? 9 : 7;
 			int nx = cx0 + cw / 2 - ns / 2;
@@ -439,12 +460,87 @@ public final class LevelScreen extends Screen {
 			}
 		}
 		// Under it: what kind (legendary at the top), and its state.
-		Component what = caps(LABEL, Component.translatable(lv == PlayerLevel.MAX ? "halloween.cosmetic.legendary" : "halloween.level.reward_two"));
+		Component what = caps(LABEL, Component.translatable("halloween.level.reward_two"));
 		String cut = this.font.plainSubstrByWidth(what.getString(), w - 6);
 		Component line = in(LABEL, Component.literal(cut));
 		g.text(this.font, line, x0 + (w - this.font.width(line)) / 2, y1 - 19, fade(got ? TEXT : TEXT2, a), false);
 		Component state = caps(LABEL, Component.translatable(got ? "halloween.level.got" : next ? "halloween.level.next" : "halloween.level.locked"));
 		g.text(this.font, state, x0 + (w - this.font.width(state)) / 2, y1 - 10, fade(got ? COOL : next ? ACC2 : TEXT3, a), false);
+	}
+
+	/**
+	 * The level under the mouse: a small window by the cursor with its two things on the one wearing them (a
+	 * survivor and Michael), turning slowly, each named in its colour (gold for the legendary) with its slot.
+	 */
+	private void tooltip(GuiGraphicsExtractor g, int lv, int mouseX, int mouseY, float partial) {
+		dev.halloween.game.Cosmetics.Item si = dev.halloween.game.Cosmetics.at(dev.halloween.game.Cosmetics.SURVIVOR, lv);
+		dev.halloween.game.Cosmetics.Item ki = dev.halloween.game.Cosmetics.at(dev.halloween.game.Cosmetics.KILLER, lv);
+		if (si == null || ki == null) {
+			return;
+		}
+		CosmeticRenderer.tryOn = List.of(si.id(), ki.id());
+		boolean legend = lv == PlayerLevel.MAX;
+		int gold = 0xFFF2C14E;
+		int cw = 84;
+		int w = cw * 2 + 12;
+		int h = 128;
+		int x0 = mouseX + 12;
+		int y0 = mouseY - h / 2;
+		if (x0 + w > this.width - 4) {
+			x0 = mouseX - 12 - w;
+		}
+		y0 = Mth.clamp(y0, 30, this.height - h - 4);
+		g.pose().pushMatrix();
+		blitAt(g, GLOW, x0 - 10, y0 - 10, w + 20, h + 20, ARGB.color(0.35f, legend ? gold : ACC));
+		g.fill(x0 + 2, y0 + 2, x0 + w - 2, y0 + h - 2, 0xFF0A0C12);
+		nine(g, PANEL_FILL, x0, y0, w, h, 9, 0xF40C0E16);
+		nine(g, PANEL_LINE, x0, y0, w, h, 9, legend ? gold : LN2);
+		nine(g, PANEL_CORNER, x0, y0, w, h, 9, legend ? gold : ACC);
+		String head = Component.translatable("halloween.level.card", lv).getString().toUpperCase(Locale.ROOT);
+		this.tracked(g, head, LABEL, x0 + 8, y0 + 6, legend ? gold : TEXT3, 0.6f);
+		float now = this.now();
+		dev.halloween.game.Cosmetics.Item[] items = {si, ki};
+		for (int i = 0; i < 2; i++) {
+			dev.halloween.game.Cosmetics.Item it = items[i];
+			int cx0 = x0 + 6 + i * (cw + 0);
+			int cy0 = y0 + 16;
+			int cy1 = y0 + h - 28;
+			int col = it.legendary() ? gold : it.track() == 0 ? ACC2 : ACCENT2[1];
+			g.fill(cx0, cy0, cx0 + cw - 2, cy1, 0x90000000);
+			blitAt(g, GLOW, cx0, cy1 - 30, cw - 2, 34, ARGB.color(0.25f, it.track() == 0 ? ACC : ACCENT[1]));
+			String who = it.track() == 0 ? "laurie" : "michael";
+			// Turned to show it: the back for what goes on the back.
+			boolean behind = it.slot() == dev.halloween.game.Cosmetics.Slot.BACK || it.slot() == dev.halloween.game.Cosmetics.Slot.CLOAK;
+			float yaw = (behind ? 150f : 30f) + Mth.sin(now * 0.04f) * 35f;
+			net.minecraft.client.renderer.entity.state.AvatarRenderState s = HeroPreview.state(2 + i, who, yaw, false, now, -1,
+				HeroPreview.item(who, who.equals("michael") ? 0 : 3), partial);
+			if (s != null) {
+				float height = who.equals("michael") ? 2.1f : 1.8f;
+				int bh = cy1 - cy0;
+				float scale = (bh - 8) / (height * 1.3f);
+				org.joml.Quaternionf tilt = new org.joml.Quaternionf().rotateX(-6f * Mth.DEG_TO_RAD);
+				g.entity(s, scale, new org.joml.Vector3f(0f, (bh / 2f - 3f) / scale, 0f), new org.joml.Quaternionf().rotateZ(Mth.PI).mul(tilt), tilt,
+					cx0, cy0, cx0 + cw - 2, cy1);
+			}
+			List<net.minecraft.util.FormattedCharSequence> rows = this.font.split(caps(LABEL, Component.translatable("halloween.cosmetic." + it.id())),
+				Math.round((cw - 6) / 0.75f));
+			int ny = cy1 + 3;
+			for (int r = 0; r < Math.min(2, rows.size()); r++) {
+				g.pose().pushMatrix();
+				g.pose().translate(cx0 + (cw - 2) / 2f, ny);
+				g.pose().scale(0.75f, 0.75f);
+				g.centeredText(this.font, rows.get(r), 0, 0, col);
+				g.pose().popMatrix();
+				ny += 7;
+			}
+			Component slot = caps(LABEL, Component.translatable(it.legendary() ? "halloween.cosmetic.legendary" : "halloween.cosmetic.slot." + it.slot().key()));
+			g.pose().pushMatrix();
+			g.pose().translate(cx0 + (cw - 2) / 2f, y0 + h - 9);
+			g.pose().scale(0.7f, 0.7f);
+			g.centeredText(this.font, slot, 0, 0, it.legendary() ? gold : TEXT3);
+			g.pose().popMatrix();
+		}
+		g.pose().popMatrix();
 	}
 
 	private void bottomBar(GuiGraphicsExtractor g, int m, int mouseX, int mouseY) {

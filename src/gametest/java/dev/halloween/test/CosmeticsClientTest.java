@@ -85,6 +85,16 @@ public class CosmeticsClientTest implements FabricClientGameTest {
 				ctx.waitTicks(30);
 				ctx.takeScreenshot("cosmetic_try_" + it.id());
 			}
+			// The level road: a level's window with its two things.
+			for (int lv : new int[] {1, 8, 10}) {
+				ctx.runOnClient(mc -> {
+					dev.halloween.client.LevelScreen l = new dev.halloween.client.LevelScreen(null);
+					l.testHover = lv;
+					mc.gui.setScreen(l);
+				});
+				ctx.waitTicks(25);
+				ctx.takeScreenshot("cosmetic_level_tip_" + lv);
+			}
 			ctx.runOnClient(mc -> mc.gui.setScreen(null));
 			ctx.getInput().resizeWindow(854, 480);
 
