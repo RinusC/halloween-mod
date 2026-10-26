@@ -375,6 +375,8 @@
 	"halloween.cmd.reset": "Match reset",
 	"halloween.cmd.reloaded": "Config reloaded",
 	"halloween.cmd.not_shape": "You are not the Shape",
+	"halloween.cmd.curse": "Vecna has cursed you (stage %s)",
+	"halloween.cmd.curse_no": "Only a survivor in a Vecna match can be cursed",
 	"halloween.msg.tier_up": "Bloodthirst: level %s",
 	"halloween.msg.jump_blocked.1": "Too bright for Shape Jump",
 	"halloween.msg.jump_blocked.2": "Someone is watching",

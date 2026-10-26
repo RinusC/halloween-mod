@@ -375,6 +375,8 @@
 	"halloween.cmd.reset": "Матч сброшен",
 	"halloween.cmd.reloaded": "Конфиг перечитан",
 	"halloween.cmd.not_shape": "Вы не Майкл",
+	"halloween.cmd.curse": "Вас прокляла Векна (стадия %s)",
+	"halloween.cmd.curse_no": "Проклясть можно только выжившего в матче с Векной",
 	"halloween.msg.tier_up": "Кровожадность: уровень %s",
 	"halloween.msg.jump_blocked.1": "Слишком светло для Поступи Призрака",
 	"halloween.msg.jump_blocked.2": "На вас смотрят",
