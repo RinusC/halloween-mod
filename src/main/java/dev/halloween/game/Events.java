@@ -552,6 +552,15 @@ public final class Events {
 					glows.add(g.entityId);
 				}
 			}
+			if (role.survivor() && Match.running() && Match.ticksLeft() <= HwConfig.get().townsfolkRevealLastSeconds * 20) {
+				// The last minutes: the neighbours near you show through walls.
+				for (int id : Townsfolk.ids()) {
+					net.minecraft.world.entity.Entity npc = p.level().getEntity(id);
+					if (npc != null && npc.isAlive() && npc.distanceTo(p) <= HwConfig.get().townsfolkRevealRange) {
+						glows.add(id);
+					}
+				}
+			}
 			ServerPlayNetworking.send(p, new HwNet.EventSync(shown == null ? "" : shown.id, phase, Math.max(0, left), Math.max(1, total), mine, glows,
 				role.survivor() ? objects : List.of(), flags));
 		}

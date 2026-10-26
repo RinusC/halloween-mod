@@ -1,5 +1,6 @@
 package dev.halloween.game;
 
+import dev.halloween.HwConfig;
 import dev.halloween.Role;
 import dev.halloween.net.HwNet;
 import java.util.HashMap;
@@ -26,12 +27,16 @@ public final class Pings {
 	private static final int TICKS = 160;
 	private static final int WAIT = 30;
 	private static final Map<UUID, Integer> READY_AT = new HashMap<>();
+	/** The latest mark a real player put down, and until when the bots heed it. */
+	private static Vec3 lastPos;
+	private static int lastUntil;
 
 	private Pings() {
 	}
 
 	public static void clear() {
 		READY_AT.clear();
+		lastPos = null;
 	}
 
 	public static void onPing(ServerPlayer player, Vec3 pos, int kind, int entityId) {
@@ -54,6 +59,10 @@ public final class Pings {
 			kind = PLACE;
 		}
 		send(level, new HwNet.TeamPing(pos, kind, -1, name(player), TICKS));
+		if (!Bots.isBot(player)) {
+			lastPos = pos;
+			lastUntil = now + HwConfig.get().botFollowMarkSeconds * 20;
+		}
 		AiStats.add(player, "ping");
 	}
 
@@ -65,6 +74,11 @@ public final class Pings {
 	/** A mark from something other than a survivor (the radio, the dog): {@code from} "#radio", "#dog". */
 	public static void mark(ServerLevel level, net.minecraft.world.phys.Vec3 pos, int kind, int entityId, String from, int ticks) {
 		send(level, new HwNet.TeamPing(pos, kind, entityId, from, ticks));
+	}
+
+	/** Where a player last marked, while the bots still heed it, or null. */
+	public static Vec3 playerMark(int now) {
+		return lastPos != null && now < lastUntil ? lastPos : null;
 	}
 
 	private static String name(ServerPlayer player) {

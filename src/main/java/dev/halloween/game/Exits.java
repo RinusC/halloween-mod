@@ -232,7 +232,7 @@ public final class Exits {
 		HwConfig cfg = HwConfig.get();
 		ServerLevel level = player.level();
 		Role role = MatchManager.role(player);
-		boolean civilian = role == Role.CIVILIAN && !VecnaCurse.cursed(player);
+		boolean civilian = role == Role.CIVILIAN && (!VecnaCurse.cursed(player) || VecnaCurse.mayEscape(player));
 
 		if (isPhone(level, pos)) {
 			return phone(player, pos, role);

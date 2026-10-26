@@ -191,6 +191,13 @@ public class HwConfig {
 	public int countdownSeconds = 15;
 	/** Back gates can be opened only during the last this many seconds (0: any time, as in the original). */
 	public int gateOpenLastSeconds = 0;
+	/** Bots head for an open way out a player marked, for this long after the mark. */
+	public int botFollowMarkSeconds = 60;
+	/** The last this many seconds: survivors see the townsfolk within townsfolkRevealRange through walls. */
+	public int townsfolkRevealLastSeconds = 300;
+	public double townsfolkRevealRange = 52;
+	/** The last this many seconds, with no other survivor alive, Vecna's cursed one may escape. */
+	public int curseEscapeLastSeconds = 300;
 	public int policeArriveSeconds = 120;
 	public int policeStaySeconds = 90;
 

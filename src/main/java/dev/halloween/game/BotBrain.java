@@ -1298,9 +1298,18 @@ final class BotBrain {
 				}
 			}
 		}
-		if (VecnaCurse.cursed(this.bot)) {
+		if (VecnaCurse.cursed(this.bot) && !VecnaCurse.mayEscape(this.bot)) {
 			// Vecna's cursed one: no way out takes them (they still help open them for the others).
 			out.keySet().removeIf(t -> t.key.equals("exit"));
+		}
+		// A player marked an open way out: that is where we go (with a neighbour in tow if one is near, see plan).
+		Vec3 mark = Pings.playerMark(now);
+		if (mark != null) {
+			for (Map.Entry<Task, Double> e : out.entrySet()) {
+				if (e.getKey().key.equals("exit") && Vec3.atCenterOf(e.getKey().target).distanceTo(mark) < 6) {
+					e.setValue(e.getValue() + 300);
+				}
+			}
 		}
 		if (phonesMatter) {
 			List<BlockPos> cut = Exits.cutPhones();

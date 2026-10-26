@@ -97,6 +97,10 @@ public final class ClientEvents {
 			// A deputy just arrived: the survivors to go to.
 			return 0x6FB7FF;
 		}
+		if (entity instanceof net.minecraft.world.entity.decoration.Mannequin) {
+			// A neighbour in the last minutes: someone to save, not a danger.
+			return 0x7CE38B;
+		}
 		return ClientState.myRole().survivor() ? 0xE0261F : 0xFFC94A;
 	}
 

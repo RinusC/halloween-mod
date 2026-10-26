@@ -51,6 +51,19 @@ public final class VecnaCurse {
 		return e != null && cursed != null && Vecna.active() && cursed.equals(e.getUUID());
 	}
 
+	/** The cursed one gets out after all: the last minutes, with no other survivor left alive. */
+	public static boolean mayEscape(Entity e) {
+		if (!cursed(e) || !(e instanceof ServerPlayer self) || Match.ticksLeft() > HwConfig.get().curseEscapeLastSeconds * 20) {
+			return false;
+		}
+		for (ServerPlayer p : self.level().getServer().getPlayerList().getPlayers()) {
+			if (p != self && MatchManager.role(p).survivor() && !p.isSpectator()) {
+				return false;
+			}
+		}
+		return true;
+	}
+
 	public static int stage(ServerPlayer p) {
 		return cursed(p) ? stage : 0;
 	}
