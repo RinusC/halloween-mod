@@ -88,13 +88,12 @@ public final class Lobby extends SavedData {
 		// The character select, in the gym on the way to "Ready", facing the doors.
 		new Station("heroes", 30, 50, Direction.NORTH));
 
-	private record Saved(Optional<BlockPos> origin, Map<String, Integer> records, Map<String, Integer> rangeRecords, int layout, Map<String, Integer> farm) {
+	private record Saved(Optional<BlockPos> origin, Map<String, Integer> records, Map<String, Integer> rangeRecords, int layout) {
 		static final Codec<Saved> CODEC = RecordCodecBuilder.create(i -> i.group(
 			BlockPos.CODEC.optionalFieldOf("origin").forGetter(Saved::origin),
 			Codec.unboundedMap(Codec.STRING, Codec.INT).optionalFieldOf("records", Map.of()).forGetter(Saved::records),
 			Codec.unboundedMap(Codec.STRING, Codec.INT).optionalFieldOf("range_records", Map.of()).forGetter(Saved::rangeRecords),
-			Codec.INT.optionalFieldOf("layout", 1).forGetter(Saved::layout),
-			Codec.unboundedMap(Codec.STRING, Codec.INT).optionalFieldOf("farm", Map.of()).forGetter(Saved::farm)).apply(i, Saved::new));
+			Codec.INT.optionalFieldOf("layout", 1).forGetter(Saved::layout)).apply(i, Saved::new));
 	}
 
 	public static final SavedDataType<Lobby> TYPE = new SavedDataType<>(Halloween.id("lobby"), Lobby::new,
@@ -103,7 +102,6 @@ public final class Lobby extends SavedData {
 	private BlockPos origin;
 	private final Map<String, Integer> records = new HashMap<>();
 	private final Map<String, Integer> rangeRecords = new HashMap<>();
-	private final Map<String, Integer> farm = new HashMap<>();
 	private int layout = LAYOUT;
 
 	private static final class Run {
@@ -125,13 +123,12 @@ public final class Lobby extends SavedData {
 		l.origin = s.origin().orElse(null);
 		l.records.putAll(s.records());
 		l.rangeRecords.putAll(s.rangeRecords());
-		l.farm.putAll(s.farm());
 		l.layout = s.layout();
 		return l;
 	}
 
 	private Saved toSaved() {
-		return new Saved(Optional.ofNullable(this.origin), Map.copyOf(this.records), Map.copyOf(this.rangeRecords), this.layout, Map.copyOf(this.farm));
+		return new Saved(Optional.ofNullable(this.origin), Map.copyOf(this.records), Map.copyOf(this.rangeRecords), this.layout);
 	}
 
 	private static Lobby get(MinecraftServer server) {
@@ -474,17 +471,10 @@ public final class Lobby extends SavedData {
 	}
 
 	/** For tests: a player's best range score, or null. */
-	/** Farm earnings, kept per player name across restarts; returns the new total. */
-	int addFarmPoints(String name, int points) {
-		int total = this.farm.merge(name, points, Integer::sum);
-		this.setDirty();
-		return total;
-	}
-
 	/** A left click in the lobby: a farm crop is picked. */
 	public static boolean onAttack(ServerPlayer p, BlockPos pos) {
 		MinecraftServer server = p.level().getServer();
-		return origin(server) != null && !Match.running() && !Match.frozen() && Farm.harvest(p, pos, get(server));
+		return origin(server) != null && !Match.running() && !Match.frozen() && Farm.harvest(p, pos);
 	}
 
 	public static Integer rangeRecord(MinecraftServer server, String name) {

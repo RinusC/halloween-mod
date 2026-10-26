@@ -104,7 +104,7 @@ public final class Farm {
 	}
 
 	/** A hit on a farm crop: ripe ones are sold and replanted. Returns whether it was ours. */
-	static boolean harvest(ServerPlayer player, BlockPos pos, Lobby data) {
+	static boolean harvest(ServerPlayer player, BlockPos pos) {
 		Plot p = PLOTS.get(pos);
 		if (p == null) {
 			return false;
@@ -115,7 +115,10 @@ public final class Farm {
 			player.sendOverlayMessage(Component.translatable("halloween.lobby.farm_unripe").withStyle(ChatFormatting.GRAY));
 			return true;
 		}
-		int total = data.addFarmPoints(player.getScoreboardName(), p.crop.points);
+		// The same purse as the match rewards: perks and heroes are bought with it.
+		Perks.give(level.getServer(), player.getUUID(), p.crop.points);
+		Perks.sync(player);
+		int total = Perks.points(level.getServer(), player.getUUID());
 		level.playSound(null, pos, SoundEvents.CROP_BREAK, SoundSource.BLOCKS, 1f, 1f);
 		level.playSound(null, pos, SoundEvents.EXPERIENCE_ORB_PICKUP, SoundSource.PLAYERS, 0.5f, 1.2f);
 		level.sendParticles(ParticleTypes.HAPPY_VILLAGER, pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, 6, 0.3, 0.3, 0.3, 0);

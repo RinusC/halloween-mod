@@ -281,7 +281,7 @@ public final class Perks extends SavedData {
 		}
 	}
 
-	/** For tests: puts points into a purse. */
+	/** Puts points into a purse (the lobby farm, tests). */
 	public static void give(MinecraftServer server, UUID id, int points) {
 		Perks data = get(server);
 		Profile p = data.profile(id);
