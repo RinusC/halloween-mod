@@ -4,14 +4,14 @@
 #   Дизайн/<тема>.md            a contents note per topic (its sections, oldest first);
 #   Код/<пакет>.md              each source file with the first sentence of its class comment;
 #   00 Карта проекта.md         the way in: topics, code, the notes kept by hand.
-# Notes written by hand (Рабочий процесс, anything outside these folders) are left alone. Run again after
+# Notes written by hand (Рабочий процесс, anything else it did not write, in these folders too) are left alone. Run again after
 # DESIGN.md or the code changes; it rewrites only what it owns.
 #
 #   perl tools/obsidian_export.pl D:/obsidian/obs_halloween/Halloween
 use strict;
 use warnings;
 use utf8;
-use File::Path qw(make_path remove_tree);
+use File::Path qw(make_path);
 use File::Find;
 
 my $vault = shift or die "usage: obsidian_export.pl <vault>\n";
@@ -48,7 +48,24 @@ for my $i (0 .. $#lines) {
 	}
 }
 
-remove_tree("$vault/Дизайн");
+# Removes the notes an earlier run wrote under $dir (known by their opening lines) and the folders left
+# empty; notes kept by hand beside them stay.
+sub clearOwn {
+	my $dir = shift;
+	return unless -d $dir;
+	finddepth(sub {
+		if (-f $_ && /\.md$/) {
+			open my $f, '<:encoding(UTF-8)', $_ or return;
+			read $f, my $head, 400;
+			close $f;
+			unlink $_ if $head =~ /\A---\r?\ntopic:|Разделы дизайна по порядку|Обновляется tools\/obsidian_export\.pl/;
+		} elsif (-d $_ && $_ ne '.') {
+			rmdir $_;    # only if empty
+		}
+	}, $dir);
+}
+
+clearOwn("$vault/Дизайн");
 my %byTopic;
 my @vrElsewhere;    # sections of other topics that also touch VR, listed in the VR contents note
 my $n = 0;
@@ -115,7 +132,7 @@ find(sub {
 	(my $rel = $path) =~ s{^\./}{};
 	push @{$pkg{$pk // '?'}}, [$rel, $lines, $doc];
 }, 'src');
-remove_tree("$vault/Код");
+clearOwn("$vault/Код");
 make_path("$vault/Код");
 for my $p (sort keys %pkg) {
 	open my $o, '>:encoding(UTF-8)', "$vault/Код/$p.md" or die;

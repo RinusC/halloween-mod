@@ -21,5 +21,3 @@
 - **VrWristClientTest** ([[Код/dev.halloween.test|dev.halloween.test]]) — The role's buttons on the wrist (client.VrWrist), drawn as the headset would show them over the free hand, here hung before the camera (the test client has no Vivecraft): as they come up, one hovered by the other hand.
 
 ## Заметки
-- [[shaders-plan]]
-- [[shaders-recon]]
