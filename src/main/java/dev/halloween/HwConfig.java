@@ -847,6 +847,8 @@ public class HwConfig {
 	// --- HUD ---
 	/** Size of the match HUD relative to the GUI scale. */
 	public double hudScale = 0.85;
+	/** The same in the headset (the inventory bar keeps hudScale): smaller, its text nearer the panel's edges. */
+	public double hudScaleVr = 0.6;
 
 	// --- Lights ---
 	public int breakerRadius = 14;

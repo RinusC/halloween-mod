@@ -63,7 +63,8 @@ public final class HwHud {
 			}
 		}
 		// The whole match HUD is drawn a little smaller than the GUI scale.
-		float scale = (float) HwConfig.get().hudScale;
+		// In the headset it is smaller still and hugs the panel's edges (anchors are to w/h, which grow as the scale shrinks).
+		float scale = (float) (ClientVr.active() ? HwConfig.get().hudScaleVr : HwConfig.get().hudScale);
 		g.pose().pushMatrix();
 		g.pose().scale(scale, scale);
 		try {
@@ -154,7 +155,7 @@ public final class HwHud {
 				int pushLeft = (int) Math.max(0, ClientState.pushReadyAt - mc.level.getGameTime());
 				smallAction(g, mc.font, w - 12, h - 84, Component.translatable("halloween.hud.shove"), ClientVr.active() ? Component.translatable("halloween.hud.vr.shove") : mc.options.keyAttack.getTranslatedKeyMessage(), pushLeft);
 				ClientHeroes.hud(g, mc, w, h, partial);
-				inventoryBar(g, mc, w, h);
+				inventoryBarAtHudSize(g, mc, w, h);
 				gunHud(g, mc, w, h);
 				prompts(g, mc, w, h);
 				skillCheck(g, mc, w, h, partial);
@@ -390,6 +391,24 @@ public final class HwHud {
 		String[] arrows = {"↑", "↗", "→", "↘", "↓", "↙", "←", "↖"};
 		int sector = (int) Math.floorMod(Math.round(angle / 45.0), 8);
 		return Component.translatable("halloween.hud.meters", dist).getString() + " " + arrows[sector];
+	}
+
+	/** The bar keeps its flat-screen size in the headset, where the rest of the HUD is drawn smaller. */
+	private static void inventoryBarAtHudSize(GuiGraphicsExtractor g, Minecraft mc, int w, int h) {
+		if (!ClientVr.active()) {
+			inventoryBar(g, mc, w, h);
+			return;
+		}
+		float flat = (float) HwConfig.get().hudScale;
+		float shrunk = (float) HwConfig.get().hudScaleVr;
+		float undo = flat / shrunk;
+		g.pose().pushMatrix();
+		g.pose().scale(undo, undo);
+		try {
+			inventoryBar(g, mc, Math.round(w / undo), Math.round(h / undo));
+		} finally {
+			g.pose().popMatrix();
+		}
 	}
 
 	/** A hand and three pockets, bottom centre. */
