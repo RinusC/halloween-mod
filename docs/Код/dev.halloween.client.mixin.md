@@ -7,7 +7,7 @@
 - **BiomeRainMixin** (`src/client/java/dev/halloween/client/mixin/BiomeRainMixin.java`, 23) — Haddonfield is filled with the badlands biome (for its autumn grass and leaves), where it never rains: on a rainy match night it rains there too.
 - **CameraMixin** (`src/client/java/dev/halloween/client/mixin/CameraMixin.java`, 229) — Over-the-shoulder camera for the Shape, and the zoom while focusing in Killer Sense.
 - **ChannelAccessor** (`src/client/java/dev/halloween/client/mixin/ChannelAccessor.java`, 11) — 
-- **EntityMixin** (`src/client/java/dev/halloween/client/mixin/EntityMixin.java`, 32) — Outline colour per victim as the Shape sees it (see below); and while Michael speeds up, his own plain step sounds give way to dev.halloween.client.DashSteps.
+- **EntityMixin** (`src/client/java/dev/halloween/client/mixin/EntityMixin.java`, 41) — Outline colour per victim as the Shape sees it (see below); and while Michael speeds up, his own plain step sounds give way to dev.halloween.client.DashSteps.
 - **EntityRenderDispatcherMixin** (`src/client/java/dev/halloween/client/mixin/EntityRenderDispatcherMixin.java`, 21) — The Shape vanishes completely (body, held item, shadow) during Shape Jump.
 - **EntityRenderStateMixin** (`src/client/java/dev/halloween/client/mixin/EntityRenderStateMixin.java`, 23) — Render states remember whose they are (for the grab animations, see ClientAnims).
 - **EntityRendererMixin** (`src/client/java/dev/halloween/client/mixin/EntityRendererMixin.java`, 19) — Each render state learns its entity's id as it is filled in.
@@ -23,9 +23,7 @@
 - **MinecraftMixin** (`src/client/java/dev/halloween/client/mixin/MinecraftMixin.java`, 30) — 
 - **PlayerModelMixin** (`src/client/java/dev/halloween/client/mixin/PlayerModelMixin.java`, 22) — Michael's own walk and knife hand, then the grab animations (ClientAnims), go over the pose of players and townsfolk last.
 - **RecipeToastMixin** (`src/client/java/dev/halloween/client/mixin/RecipeToastMixin.java`, 18) — No "new recipe" pop-ups: the items are props, nothing gets crafted (and the Shape gets his knife before the client knows a match is on).
-- **ShaderManagerMixin** (`src/client/java/dev/halloween/client/mixin/ShaderManagerMixin.java`, 32) — Sodium's terrain fog is ours (halloween:shaders/include/sodium_fog.glsl, see atmos.glsl): put in place of its sodium:fog.glsl as the shaders load, so it wins whatever order the mods' resources come in.
-- **SkyRendererMixin** (`src/client/java/dev/halloween/client/mixin/SkyRendererMixin.java`, 22) — The stars and the moon fade behind a match's fog (they are drawn with none of their own, see ClientWeather.skyClarity).
-- **SoundBufferLibraryMixin** (`src/client/java/dev/halloween/client/mixin/SoundBufferLibraryMixin.java`, 46) — Our voice clips, Shape Jump sounds and talk babble are WAV, not Ogg: load them with WavSounds instead of the Vorbis decoder.
+- **SoundBufferLibraryMixin** (`src/client/java/dev/halloween/client/mixin/SoundBufferLibraryMixin.java`, 59) — Any of our clips still stored as WAV under an .ogg name loads with WavSounds; real Ogg takes the vanilla decoder.
 - **SoundEngineAccessor** (`src/client/java/dev/halloween/client/mixin/SoundEngineAccessor.java`, 17) — 
 - **SoundManagerAccessor** (`src/client/java/dev/halloween/client/mixin/SoundManagerAccessor.java`, 12) — 
 - **VrFogMixin** (`src/client/java/dev/halloween/client/mixin/VrFogMixin.java`, 46) — Black between the scenes' shots in the headset: the fog closes in to the eyes and goes black (see VrShots).

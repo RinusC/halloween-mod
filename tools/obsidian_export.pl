@@ -4,14 +4,14 @@
 #   Дизайн/<тема>.md            a contents note per topic (its sections, oldest first);
 #   Код/<пакет>.md              each source file with the first sentence of its class comment;
 #   00 Карта проекта.md         the way in: topics, code, the notes kept by hand.
-# Notes written by hand (Рабочий процесс, anything outside these folders) are left alone. Run again after
+# Notes written by hand (Рабочий процесс, anything else it did not write, in these folders too) are left alone. Run again after
 # DESIGN.md or the code changes; it rewrites only what it owns.
 #
 #   perl tools/obsidian_export.pl D:/obsidian/obs_halloween/Halloween
 use strict;
 use warnings;
 use utf8;
-use File::Path qw(make_path remove_tree);
+use File::Path qw(make_path);
 use File::Find;
 
 my $vault = shift or die "usage: obsidian_export.pl <vault>\n";
@@ -19,6 +19,7 @@ binmode STDOUT, ':encoding(UTF-8)';
 
 # ---------------------------------------------------------------- DESIGN.md by topic
 my @topics = (
+	['VR', qr/VR|Vivecraft/],
 	['Демогоргон', qr/Демогоргон/],
 	['Уродец', qr/Уродец|уродц/],
 	['Майкл', qr/Майкл|Shape Jump|Поступ/],
@@ -47,8 +48,26 @@ for my $i (0 .. $#lines) {
 	}
 }
 
-remove_tree("$vault/Дизайн");
+# Removes the notes an earlier run wrote under $dir (known by their opening lines) and the folders left
+# empty; notes kept by hand beside them stay.
+sub clearOwn {
+	my $dir = shift;
+	return unless -d $dir;
+	finddepth(sub {
+		if (-f $_ && /\.md$/) {
+			open my $f, '<:encoding(UTF-8)', $_ or return;
+			read $f, my $head, 400;
+			close $f;
+			unlink $_ if $head =~ /\A---\r?\ntopic:|Разделы дизайна по порядку|Обновляется tools\/obsidian_export\.pl/;
+		} elsif (-d $_ && $_ ne '.') {
+			rmdir $_;    # only if empty
+		}
+	}, $dir);
+}
+
+clearOwn("$vault/Дизайн");
 my %byTopic;
+my @vrElsewhere;    # sections of other topics that also touch VR, listed in the VR contents note
 my $n = 0;
 for my $s (@sections) {
 	$n++;
@@ -77,11 +96,16 @@ for my $s (@sections) {
 	print $o "# $title\n\nТема: [[Дизайн/$topic|$topic]]\n\n$body\n";
 	close $o;
 	push @{$byTopic{$topic}}, $file;
+	push @vrElsewhere, "$topic/$file" if $topic ne 'VR' && $body =~ /\bVR\b|Vivecraft/;
 }
 for my $topic (sort keys %byTopic) {
 	open my $o, '>:encoding(UTF-8)', "$vault/Дизайн/$topic.md" or die;
 	print $o "# $topic\n\nРазделы дизайна по порядку (старые сверху; поздние правят ранние).\n\n";
 	print $o "- [[Дизайн/$topic/$_|$_]]\n" for @{$byTopic{$topic}};
+	if ($topic eq 'VR') {
+		print $o "\n## VR в разделах других тем\n";
+		print $o "- [[Дизайн/$_|" . (split m{/}, $_)[1] . "]]\n" for @vrElsewhere;
+	}
 	close $o;
 }
 
@@ -108,7 +132,7 @@ find(sub {
 	(my $rel = $path) =~ s{^\./}{};
 	push @{$pkg{$pk // '?'}}, [$rel, $lines, $doc];
 }, 'src');
-remove_tree("$vault/Код");
+clearOwn("$vault/Код");
 make_path("$vault/Код");
 for my $p (sort keys %pkg) {
 	open my $o, '>:encoding(UTF-8)', "$vault/Код/$p.md" or die;
@@ -117,6 +141,21 @@ for my $p (sort keys %pkg) {
 		my ($name) = $f->[0] =~ m{([^/]+)\.java$};
 		print $o "- **$name** (`$f->[0]`, $f->[1]) — $f->[2]\n";
 	}
+	close $o;
+}
+
+# the VR topic also gathers its code and the shader notes (hand-written, they plan for the headset too)
+if ($byTopic{VR}) {
+	open my $o, '>>:encoding(UTF-8)', "$vault/Дизайн/VR.md" or die;
+	print $o "\n## Код VR\n";
+	for my $p (sort keys %pkg) {
+		for my $f (sort { $a->[0] cmp $b->[0] } @{$pkg{$p}}) {
+			my ($name) = $f->[0] =~ m{([^/]+)\.java$};
+			print $o "- **$name** ([[Код/$p|$p]]) — $f->[2]\n" if $name =~ /^Vr|Vr(?:[A-Z]|$)/;
+		}
+	}
+	print $o "\n## Заметки\n";
+	print $o "- [[$_]]\n" for grep { -e "$vault/$_.md" } 'shaders-plan', 'shaders-recon';
 	close $o;
 }
 

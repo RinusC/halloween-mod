@@ -2,4 +2,4 @@
 
 Файл — строк — о чём (первая фраза комментария класса). Обновляется tools/obsidian_export.pl.
 
-- **HwNet** (`src/main/java/dev/halloween/net/HwNet.java`, 1676) — All custom packets.
+- **HwNet** (`src/main/java/dev/halloween/net/HwNet.java`, 1772) — All custom packets.
