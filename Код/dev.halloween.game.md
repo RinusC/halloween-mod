@@ -16,9 +16,10 @@
 - **Cutscenes** (`src/main/java/dev/halloween/game/Cutscenes.java`, 471) — The opening scenes, played while the match counts down (client.Cutscene draws them).
 - **DebrisBlock** (`src/main/java/dev/halloween/game/DebrisBlock.java`, 93) — Where something a survivor pulled down lies across the way (see Obstacles).
 - **Demogorgon** (`src/main/java/dev/halloween/game/Demogorgon.java`, 772) — The Demogorgon (Stranger Things), the other killer (/hw killer demogorgon): played by a person (a bot always plays Michael).
-- **Dialogue** (`src/main/java/dev/halloween/game/Dialogue.java`, 73) — What people say when a survivor talks a townsperson round: the words come as subtitles (to the survivor talking), the voices are short spoken lines (the Coqui voice pack): asking for something, a question, agreeing, r...
+- **Dialogue** (`src/main/java/dev/halloween/game/Dialogue.java`, 84) — What people say when a survivor talks a townsperson round: the words come as subtitles (to the survivor talking), the voices are short spoken lines (the Coqui voice pack): asking for something, a question, agreeing, r...
 - **DoorLocks** (`src/main/java/dev/halloween/game/DoorLocks.java`, 319) — Door locks.
 - **DoorPass** (`src/main/java/dev/halloween/game/DoorPass.java`, 25) — Who walks through doors: the Shape while in Shape Jump.
+- **Errands** (`src/main/java/dev/halloween/game/Errands.java`, 581) — Townsfolk asking for a hand: now and then one at home, well away from Michael, has a favour to ask (a mark over its head, at most HwConfig#errandMax at a time).
 - **Events** (`src/main/java/dev/halloween/game/Events.java`, 1703) — Match events (DESIGN.md, "Ивенты"): now and then something happens in town that one side can use.
 - **ExitProps** (`src/main/java/dev/halloween/game/ExitProps.java`, 68) — The blocks the exits (cellar hatches, the gate, the police car's barriers) took the place of, and what stood there, kept with the world: put back at the next match even if the game was closed in the middle of one (or ...
 - **Exits** (`src/main/java/dev/halloween/game/Exits.java`, 1054) — The four ways out, one of each in a random spot of its kind.
@@ -34,9 +35,9 @@
 - **HeroInfo** (`src/main/java/dev/halloween/game/HeroInfo.java`, 149) — Who one can play, as the character select shows them (client.CharacterSelectScreen): the twelve survivors and the three killers.
 - **HeroPicks** (`src/main/java/dev/halloween/game/HeroPicks.java`, 223) — Who wants to play whom next match, picked in the character select (client.CharacterSelectScreen) between matches.
 - **Heroes** (`src/main/java/dev/halloween/game/Heroes.java`, 478) — Each survivor plays a little differently by who they are (Skins).
-- **Holds** (`src/main/java/dev/halloween/game/Holds.java`, 168) — Hold-use interactions with match objects (search, repair, call, open, escape...).
+- **Holds** (`src/main/java/dev/halloween/game/Holds.java`, 174) — Hold-use interactions with match objects (search, repair, call, open, escape...).
 - **Houses** (`src/main/java/dev/halloween/game/Houses.java`, 370) — Buildings and their rooms as one finds them on the spot, on any map (the town's houses, the school, a hand-built one): the floor under a roof one can walk to from a point, cut into rooms at doors and doorways (a gap o...
-- **HwCommands** (`src/main/java/dev/halloween/game/HwCommands.java`, 289) — 
+- **HwCommands** (`src/main/java/dev/halloween/game/HwCommands.java`, 333) — 
 - **HwItems** (`src/main/java/dev/halloween/game/HwItems.java`, 261) — Match items, as in the original game: escape tools, knives that break a grab, melee weapons, things to throw, first aid, light, rare relics and firearms.
 - **Inventory** (`src/main/java/dev/halloween/game/Inventory.java`, 201) — Survivors carry one item in hand plus four in pockets (hotbar slots 0-4), and a separate pocket for rounds (slot 5, not selectable).
 - **Landmarks** (`src/main/java/dev/halloween/game/Landmarks.java`, 41) — Names a spot the way a teammate would call it out: "by the car", "in a house", "on the street".
@@ -48,12 +49,13 @@
 - **LookAround** (`src/main/java/dev/halloween/game/LookAround.java`, 60) — Someone standing about or hiding doesn't stare at one spot: now and then they turn their head, and their body after it, to look somewhere else, without hurry.
 - **Loot** (`src/main/java/dev/halloween/game/Loot.java`, 365) — Furniture to search (SearchBlock: dressers, nightstands, kitchen cabinets, boxes, crates, tool chests, filing cabinets), and chests and barrels on other maps, around the map centre are containers.
 - **MapBoards** (`src/main/java/dev/halloween/game/MapBoards.java`, 464) — Town map boards in the street (on Main Street and on Lampkin Lane, see the map_board points): twelve maps in glow frames, 4 across and 3 down.
-- **MapJob** (`src/main/java/dev/halloween/game/MapJob.java`, 191) — Lays a MapPlan into the world around an origin, a few milliseconds a tick so the server keeps running: column by column (ground, buildings, air above), then fixing fence and pane shapes, then the signs, the map points...
-- **MapPlan** (`src/main/java/dev/halloween/game/MapPlan.java`, 189) — A map drawn in memory before it is put into the world: blocks in local coordinates (the origin is the map centre at ground level, y 0 = feet on the ground), map points, and sign texts.
+- **MapJob** (`src/main/java/dev/halloween/game/MapJob.java`, 199) — Lays a MapPlan into the world around an origin, a few milliseconds a tick so the server keeps running: column by column (ground, buildings, air above), then fixing fence and pane shapes, then the signs, the map points...
+- **MapPlan** (`src/main/java/dev/halloween/game/MapPlan.java`, 191) — A map drawn in memory before it is put into the world: blocks in local coordinates (the origin is the map centre at ground level, y 0 = feet on the ground), map points, and sign texts.
 - **MapPoints** (`src/main/java/dev/halloween/game/MapPoints.java`, 123) — Named spots of the map, saved with the world: spawns, possible exit locations, phones and the centre (containers are searched for around it).
-- **Match** (`src/main/java/dev/halloween/game/Match.java`, 782) — One match: countdown, 20-minute timer, civilian score, escapes, deputies and the final tally.
-- **MatchManager** (`src/main/java/dev/halloween/game/MatchManager.java`, 1493) — Server-side match state: roles, the Shape's abilities, stalking, Bloodthirst, grabs, kills, corpses and score.
-- **Minigames** (`src/main/java/dev/halloween/game/Minigames.java`, 136) — Hands-on jobs played on a panel over the world: joining the wires of a breaker box to switch the power back on, and guiding the tool along a line to fix the car with a repair kit.
+- **MapSaveJob** (`src/main/java/dev/halloween/game/MapSaveJob.java`, 142) — Reads the town around the CENTER map point into a file (see SavedMap), a few milliseconds a tick so the server keeps running: every block of the square, the block entities (containers, signs) and the map points.
+- **Match** (`src/main/java/dev/halloween/game/Match.java`, 783) — One match: countdown, 20-minute timer, civilian score, escapes, deputies and the final tally.
+- **MatchManager** (`src/main/java/dev/halloween/game/MatchManager.java`, 1495) — Server-side match state: roles, the Shape's abilities, stalking, Bloodthirst, grabs, kills, corpses and score.
+- **Minigames** (`src/main/java/dev/halloween/game/Minigames.java`, 139) — Hands-on jobs played on a panel over the world: joining the wires of a breaker box to switch the power back on, and guiding the tool along a line to fix the car with a repair kit.
 - **Minimap** (`src/main/java/dev/halloween/game/Minimap.java`, 91) — The town as a plan for the minimap, baked once when a match starts: each column of the play area is ground, road, trees or building.
 - **Music** (`src/main/java/dev/halloween/game/Music.java`, 239) — Which music each player hears, worked out on the server where everything is known; the client fades between tracks (ClientMusic).
 - **Nav** (`src/main/java/dev/halloween/game/Nav.java`, 510) — Grid path finding for bots and townsfolk.
@@ -76,6 +78,7 @@
 - **RuntBrain** (`src/main/java/dev/halloween/game/RuntBrain.java`, 572) — A bot playing the Runt.
 - **RuntFear** (`src/main/java/dev/halloween/game/RuntFear.java`, 65) — The Runt's fear from knocking: on the door or a window of a house, for everyone near (survivors and townsfolk) to hear.
 - **SafeBlock** (`src/main/java/dev/halloween/game/SafeBlock.java`, 49) — The gun safe (GunCase): its door faces #FACING and stands ajar once it is #OPEN.
+- **SavedMap** (`src/main/java/dev/halloween/game/SavedMap.java`, 163) — A map read from a file: the same square a MapPlan lays, but with every block, block entity and map point taken from a snapshot made by MapSaveJob (/hw map save).
 - **SearchBlock** (`src/main/java/dev/halloween/game/SearchBlock.java`, 80) — Furniture survivors search (a dresser, a nightstand, a kitchen cabinet, a cardboard box, a crate, a tool chest, a filing cabinet).
 - **Senses** (`src/main/java/dev/halloween/game/Senses.java`, 78) — What bots and townsfolk notice: the Shape in their field of view, harder to make out in the dark.
 - **ShapeBrain** (`src/main/java/dev/halloween/game/ShapeBrain.java`, 3590) — Michael played by the server (/hw shape bot): a strong player, and an honest one.
@@ -88,9 +91,9 @@
 - **SprintRules** (`src/main/java/dev/halloween/game/SprintRules.java`, 33) — Survivors run at 6 m/s rather than vanilla's 5.6: a little extra on top of the sprint modifier, on both sides (the client moves its own player, so it must know too), and no running while out of breath.
 - **Stamina** (`src/main/java/dev/halloween/game/Stamina.java`, 178) — Survivors' (and bots') stamina: running burns it (HwConfig#staminaRunTicks from full to empty), it comes back a second after the run stops, faster standing still or hiding than walking.
 - **StreetWeapons** (`src/main/java/dev/halloween/game/StreetWeapons.java`, 269) — Weapons for hand-to-hand are found out of doors, not in drawers: an axe left stuck in a tree, a cleaver driven into a wall, a bat dropped on a lawn.
-- **Talks** (`src/main/java/dev/halloween/game/Talks.java`, 135) — Talking a townsperson round: the civilian picks what to ask in the radial menu (follow me, hide, call the police), then talks for HwConfig#talkTicks; reaction checks shorten it.
+- **Talks** (`src/main/java/dev/halloween/game/Talks.java`, 140) — Talking a townsperson round: the civilian picks what to ask in the radial menu (follow me, hide, call the police), then talks for HwConfig#talkTicks; reaction checks shorten it.
 - **TickTimer** (`src/main/java/dev/halloween/game/TickTimer.java`, 79) — Where a slow server tick goes.
-- **Townsfolk** (`src/main/java/dev/halloween/game/Townsfolk.java`, 985) — Townsfolk: neighbours at home in the houses.
+- **Townsfolk** (`src/main/java/dev/halloween/game/Townsfolk.java`, 1049) — Townsfolk: neighbours at home in the houses.
 - **TrapBlock** (`src/main/java/dev/halloween/game/TrapBlock.java`, 47) — A trap a survivor set down (see Traps): a bear trap open on the ground, or tin cans on a string across the way.
 - **Traps** (`src/main/java/dev/halloween/game/Traps.java`, 177) — Survivors' traps, found in furniture and set down at their feet (use).
 - **Tutorial** (`src/main/java/dev/halloween/game/Tutorial.java`, 261) — Practice (/hw tutorial): a quiet match on the current map, alone, with no Shape about.
