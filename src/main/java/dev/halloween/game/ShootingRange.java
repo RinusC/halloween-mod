@@ -391,6 +391,10 @@ public final class ShootingRange {
 		if (best == null || score > best) {
 			data.setRangeRecord(name, score);
 			Notices.send(shooter, Component.translatable("halloween.lobby.range_record", score, hits, accuracy).withStyle(ChatFormatting.GOLD));
+			if (best != null) {
+				// Beating your own score pays.
+				Perks.award(level.getServer(), java.util.Map.of(shooter.getUUID(), Lobby.RECORD_POINTS));
+			}
 			level.playSound(null, shooter.blockPosition(), SoundEvents.PLAYER_LEVELUP, SoundSource.PLAYERS, 0.7f, 1.1f);
 		} else {
 			Notices.send(shooter, Component.translatable("halloween.lobby.range_done", score, hits, accuracy, best).withStyle(ChatFormatting.GREEN));

@@ -101,6 +101,8 @@ public final class Lobby extends SavedData {
 
 	private BlockPos origin;
 	private final Map<String, Integer> records = new HashMap<>();
+	/** Points for beating your own parkour time or range score. */
+	static final int RECORD_POINTS = 50;
 	private final Map<String, Integer> rangeRecords = new HashMap<>();
 	private int layout = LAYOUT;
 
@@ -376,6 +378,10 @@ public final class Lobby extends SavedData {
 					data.records.put(name, time);
 					data.setDirty();
 					Notices.send(p, Component.translatable("halloween.lobby.parkour_record", seconds(time)).withStyle(ChatFormatting.GOLD));
+					if (best != null) {
+						// Beating your own time pays.
+						Perks.award(server, Map.of(p.getUUID(), RECORD_POINTS));
+					}
 				} else {
 					Notices.send(p, Component.translatable("halloween.lobby.parkour_done", seconds(time), seconds(best)).withStyle(ChatFormatting.GREEN));
 				}
