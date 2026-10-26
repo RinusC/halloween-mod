@@ -48,6 +48,14 @@ public final class VrWrist {
 	private VrWrist() {
 	}
 
+	/** The arc is switched off in the headset (the buttons go on the controllers instead); tests still draw it. */
+	private static final boolean ENABLED = false;
+
+	/** Whether the arc can be brought up in the headset at all. */
+	public static boolean enabled() {
+		return ENABLED;
+	}
+
 	/** Drawn on the world from now on (in the headset, or for a test). */
 	static void register() {
 		LevelRenderEvents.COLLECT_SUBMITS.register(ctx -> {
@@ -70,7 +78,7 @@ public final class VrWrist {
 	/** Every client tick: the gesture, and a touch. */
 	static void tick(Minecraft mc) {
 		KeyMapping[] keys = VrKeys.keys();
-		if (!ClientVr.active() || mc.player == null || mc.gui.screen() != null || keys.length == 0 || mc.player.isSpectator()) {
+		if (!ENABLED || !ClientVr.active() || mc.player == null || mc.gui.screen() != null || keys.length == 0 || mc.player.isSpectator()) {
 			open = false;
 			held = 0;
 			touching = -1;

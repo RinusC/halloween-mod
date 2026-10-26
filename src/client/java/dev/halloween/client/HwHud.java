@@ -206,7 +206,7 @@ public final class HwHud {
 
 	/** In the headset, until the wrist's buttons have been brought up once: how to. */
 	private static void vrWristHint(GuiGraphicsExtractor g, Minecraft mc, int w, int h) {
-		if (!ClientVr.active() || VrWrist.used() || VrKeys.keys().length == 0 || mc.player.isSpectator()) {
+		if (!VrWrist.enabled() || !ClientVr.active() || VrWrist.used() || VrKeys.keys().length == 0 || mc.player.isSpectator()) {
 			return;
 		}
 		Component line = Component.translatable("halloween.hud.vr.wrist");
