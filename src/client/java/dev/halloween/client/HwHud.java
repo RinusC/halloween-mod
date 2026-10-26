@@ -213,9 +213,8 @@ public final class HwHud {
 					victimQte(g, mc, w, h, partial);
 				}
 			}
-			int gy = goals(g, mc, false);
-			// The ways out, each with its steps.
-			escapeSteps(g, mc, gy);
+			// Top left only what can still get you out, and the favours you took on.
+			escapeSteps(g, mc, 26);
 			feed(g, mc.font, w, h);
 		}
 		matchTimer(g, mc, w);
@@ -1233,13 +1232,12 @@ public final class HwHud {
 			int s = e.state();
 			switch (e.type()) {
 				case 1 -> {
-					boolean gone = (s & 4) != 0;
 					boolean running = (s & 8) != 0;
-					header(g, font, 10, y, Component.translatable(gone ? "halloween.escape.car.gone" : "halloween.escape.car"), false);
-					y += 13;
-					if (gone) {
+					if ((s & 4) != 0) {
 						break;
 					}
+					header(g, font, 10, y, Component.translatable("halloween.escape.car"), false);
+					y += 13;
 					if ((s & 3) != 0 || running || carrying(mc, dev.halloween.game.HwItems.Kind.REPAIR_KIT, dev.halloween.game.HwItems.Kind.GAS_CAN,
 						dev.halloween.game.HwItems.Kind.SEDAN_KEYS)) {
 						y = step(g, font, y, Component.translatable("halloween.escape.car.1"), (s & 2) != 0);
@@ -1252,11 +1250,11 @@ public final class HwHud {
 					}
 				}
 				case 2 -> {
-					header(g, font, 10, y, Component.translatable(s == 3 ? "halloween.escape.police.gone" : "halloween.escape.police"), false);
-					y += 13;
 					if (s == 3 || s == 4) {
 						break;
 					}
+					header(g, font, 10, y, Component.translatable("halloween.escape.police"), false);
+					y += 13;
 					boolean found = s != 5;
 					boolean called = s == 1 || s == 2;
 					y = step(g, font, y, Component.translatable("halloween.escape.police.1"), found);
@@ -1284,18 +1282,6 @@ public final class HwHud {
 				}
 				default -> {
 				}
-			}
-		}
-		if (!m.cutPhones().isEmpty()) {
-			g.text(font, Component.translatable("halloween.hud.phones_cut", m.cutPhones().size()), 22, y, 0xFFE07070, true);
-			y += 11;
-		}
-		// The side jobs (game.SideJobs).
-		if (ClientJobs.count() > 0) {
-			header(g, font, 10, y + 2, Component.translatable("halloween.goal.jobs"), false);
-			y += 15;
-			for (int i = 0; i < ClientJobs.count(); i++) {
-				y = step(g, font, y, ClientJobs.line(i), ClientJobs.done(i));
 			}
 		}
 		// A townsperson's favour taken on (game.Errands).
