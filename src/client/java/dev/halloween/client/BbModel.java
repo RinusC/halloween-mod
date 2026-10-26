@@ -42,6 +42,8 @@ final class BbModel {
 	final int textureHeight;
 	private final Map<String, Animation> animations = new HashMap<>();
 	private final Map<String, ModelPart> parts = new HashMap<>();
+	/** Each bone's parent (null under the root). */
+	private final Map<String, String> parents = new HashMap<>();
 
 	private BbModel(ModelPart root, int w, int h) {
 		this.root = root;
@@ -109,6 +111,7 @@ final class BbModel {
 			parts.put(e.getKey(), parent.getChild(e.getKey()));
 		}
 		model.parts.putAll(parts);
+		model.parents.putAll(parents);
 		JsonObject anims = json.getAsJsonObject("animations");
 		for (String id : anims.keySet()) {
 			JsonObject a = anims.getAsJsonObject(id);
@@ -186,6 +189,27 @@ final class BbModel {
 		if (p != null) {
 			p.resetPose();
 		}
+	}
+
+	/**
+	 * Where a point on a bone is as the model is posed now: {@code x, y, z} in Minecraft's model pixels from the
+	 * bone's pivot, the result in the model's own space (blocks), to be carried on by the matrix it is drawn with.
+	 * Null for a bone it doesn't have.
+	 */
+	org.joml.Vector3f locate(String bone, float x, float y, float z) {
+		if (!this.parts.containsKey(bone)) {
+			return null;
+		}
+		java.util.ArrayDeque<ModelPart> chain = new java.util.ArrayDeque<>();
+		for (String b = bone; b != null; b = this.parents.get(b)) {
+			chain.push(this.parts.get(b));
+		}
+		com.mojang.blaze3d.vertex.PoseStack pose = new com.mojang.blaze3d.vertex.PoseStack();
+		this.root.translateAndRotate(pose);
+		for (ModelPart p : chain) {
+			p.translateAndRotate(pose);
+		}
+		return pose.last().pose().transformPosition(x / 16f, y / 16f, z / 16f, new org.joml.Vector3f());
 	}
 
 	Animation animation(String id) {

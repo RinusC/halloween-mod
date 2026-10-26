@@ -1044,6 +1044,214 @@ anim("jaw", 1.0, "hold_on_last_frame", [[0, {jaw => [0, 0, 0]}], [1.0, {jaw => [
 	anim("recoil", 0.8, "once", \@f);
 }
 
+# ---------------------------------------------------------------- the kills (game.VecnaKill; laid over float, timed to
+# the scene's ticks: a second is 20 of them). Vines out of his back and palm are client.VecnaVines', not bones.
+
+# Held by the throat as throttle has it (at rest, mid-squeeze): where every kill from a grab starts.
+sub throttled {
+	my $p = {};
+	setr($p, "left_shoulder", -6, 0, 4);
+	setr($p, "left_upper_arm", 52, -14, -6);
+	setr($p, "left_forearm", -14);
+	setr($p, "left_hand", 26);
+	fingers($p, 'left', 65, 6, 51);
+	setr($p, "right_shoulder", -4, 0, -6);
+	setr($p, "right_upper_arm", 46, 6, 38);
+	setr($p, "right_forearm", 58);
+	setr($p, "right_hand", -12);
+	fingers($p, 'right', 22, 16, 30);
+	setr($p, "chest", -11, 6, 0);
+	setr($p, "neck", -6);
+	setr($p, "head", -12, 8, 14);
+	setr($p, "jaw", 14);
+	return $p;
+}
+
+# Builds a pose from a list of [bone, x, y, z] over $base (a copy).
+sub posed {
+	my ($base, @set) = @_;
+	my $p = {map { $_ => [@{$base->{$_}}] } keys %$base};
+	for my $s (@set) {
+		my ($b, $x, $y, $z) = @$s;
+		$p->{$b} = [$x // 0, $y // 0, $z // 0];
+	}
+	return $p;
+}
+
+# Fingers of one hand: curled $curl (negative: splayed open), spread $spread, as a list for posed().
+sub hand {
+	my ($side, $curl, $spread, $tip) = @_;
+	my $p = {};
+	fingers($p, $side, $curl, $spread, $tip);
+	return map { [$_, @{$p->{$_}}] } sort keys %$p;
+}
+
+# ascend (5 s): he lifts them overhead by the throat; lets go and they hang in the air, his arms spread as if
+# holding them up; rears back and drives his right hand at them (the vines run them through, from his back and his
+# palm); his fingers close slowly into a fist, a twist of the wrist (the neck breaks), he tears his arm back (the
+# vines out) and lowers his arms, looking down at them.
+{
+	my $a0 = throttled();
+	my $lift = posed($a0,
+		["left_shoulder", -10, 0, 2], ["left_upper_arm", 152, -10, -6], ["left_forearm", -12], ["left_hand", 18], hand('left', 72, 4, 56),
+		["right_upper_arm", 24, 0, 30], ["right_forearm", 30], ["right_hand", 0], hand('right', 18, 10, 20),
+		["chest", 6, 4, 0], ["neck", 8], ["head", 18, 6, 4], ["jaw", 18]);
+	my $spread = posed($a0,
+		["left_shoulder", -6, 0, -4], ["left_upper_arm", 112, -6, -36], ["left_forearm", 8], ["left_hand", -16], hand('left', -22, 20, -12),
+		["right_shoulder", -6, 0, 4], ["right_upper_arm", 112, 6, 36], ["right_forearm", 8], ["right_hand", -16], hand('right', -22, 20, -12),
+		["chest", 6, 0, 0], ["neck", 6], ["head", 14, 0, 0], ["jaw", 22]);
+	my $rear = posed($spread,
+		["left_upper_arm", 84, -6, -58], ["right_upper_arm", 84, 6, 58], ["right_forearm", 26], ["left_forearm", 26],
+		["chest", 12, 0, 0], ["neck", 8], ["head", 22, 0, 0], ["jaw", 34]);
+	my $thrust = posed($spread,
+		["right_shoulder", -8, 0, -2], ["right_upper_arm", 124, 4, 6], ["right_forearm", -6], ["right_hand", 14], hand('right', -20, 22, -14),
+		["left_shoulder", -2, 0, -4], ["left_upper_arm", 58, -8, -56], ["left_forearm", 22], ["left_hand", 0], hand('left', 30, 10, 30),
+		["chest", -12, -10, 0], ["neck", -2], ["head", 10, -4, 0], ["jaw", 30]);
+	my $squeeze = sub {
+		my ($k, $sh) = @_;    # $k: 0 splayed .. 1 a fist; $sh: tremble
+		return posed($thrust, ["right_upper_arm", 124 + $sh, 4, 6 - $sh * 0.5], ["right_forearm", -6 - $sh], ["right_hand", 14 + $sh * 0.5],
+			hand('right', -20 + 95 * $k, 22 * (1 - $k), -14 + 100 * $k), ["chest", -12 + $sh * 0.4, -10, 0], ["jaw", 30 + 10 * $k]);
+	};
+	my $snap = posed($squeeze->(1, 0), ["right_hand", 14, -48, 10], ["right_forearm", -6, -14, 0], ["chest", -14, -22, 0], ["head", 6, -10, 8]);
+	my $rip = posed($snap,
+		["right_shoulder", -2, 0, -8], ["right_upper_arm", 36, 0, 52], ["right_forearm", 76], ["right_hand", -10, 0, 0], hand('right', 70, 6, 80),
+		["chest", 10, 8, 0], ["neck", 6], ["head", 16, 0, 0], ["jaw", 38]);
+	my $rest = posed({},
+		["left_upper_arm", 10, 0, -14], ["left_forearm", 16], hand('left', 26, 6, 30),
+		["right_upper_arm", 10, 0, 14], ["right_forearm", 16], hand('right', 34, 6, 40),
+		["chest", -6], ["neck", -6], ["head", -14, 0, 6], ["jaw", 8]);
+	my @f = ([0, $a0], [0.5, posed($lift, ["left_upper_arm", 100, -12, -6], ["chest", -2, 4, 0], ["head", 4, 6, 8])], [1.0, $lift],
+		[1.1, posed($lift, ["left_upper_arm", 158, -10, -6])], [1.35, posed($spread, ["head", 18, 0, 0])], [1.6, $spread], [1.75, $rear], [1.95, $thrust],
+		[2.0, posed($thrust, ["chest", -16, -10, 0])], [2.2, $squeeze->(0, 0)]);
+	my $i = 0;
+	for (my $t = 2.4; $t < 3.39; $t += 0.2) {
+		push @f, [$t, $squeeze->(($t - 2.2) / 1.2, ($i++ % 2 ? 3 : -3))];
+	}
+	push @f, [3.4, $squeeze->(1, 0)], [3.45, $snap], [3.65, $snap], [3.75, $rip], [4.0, posed($rip, ["chest", 4, 4, 0])], [4.4, $rest], [5.0, $rest];
+	anim("ascend", 5.0, "once", \@f);
+}
+
+# drag (5.6 s): holding them by the throat he raises his right claw and slams it down at the ground (it splits open
+# under them); lets go of their throat and holds them down with both hands spread over them while the vines from
+# the pit drag them in, his arms jerking down with each heave; bends down low over them, takes their head in both
+# hands and wrenches it round; straightens, his right hand sweeping up (the vines heave the body out); rests.
+{
+	my $a0 = throttled();
+	my $raise = posed($a0, ["right_shoulder", -8, 0, -2], ["right_upper_arm", 166, 0, 18], ["right_forearm", 22], ["right_hand", -10], hand('right', -16, 22, -10),
+		["chest", 6, 4, 0], ["head", 6, 6, 6], ["jaw", 24]);
+	my $slam = posed($a0, ["right_shoulder", 4, 0, -2], ["right_upper_arm", 38, 0, 10], ["right_forearm", -4], ["right_hand", -24], hand('right', -24, 24, -14),
+		["chest", -20, 6, 0], ["neck", -8], ["head", -16, 4, 6], ["jaw", 34]);
+	my $press = sub {
+		my ($down, $curl) = @_;    # $down: how hard the arms are thrust down (0..1); $curl: fingers
+		return posed({},
+			["left_shoulder", 2, 0, 2], ["left_upper_arm", 60 - 28 * $down, -6, -22], ["left_forearm", -6], ["left_hand", -20], hand('left', $curl, 18, $curl * 0.8),
+			["right_shoulder", 2, 0, -2], ["right_upper_arm", 60 - 28 * $down, 6, 22], ["right_forearm", -6], ["right_hand", -20], hand('right', $curl, 18, $curl * 0.8),
+			["chest", -16 - 8 * $down, 0, 0], ["neck", -6], ["head", -14 - 4 * $down, 0, 0], ["jaw", 20 + 16 * $down]);
+	};
+	my $bend = posed({}, ["hips_pos", 0, -5, 0], ["hips", -12], ["waist", -18], ["chest", -34], ["neck", -6], ["head", -8, 0, 0], ["jaw", 26],
+		["left_upper_arm", 62, -18, -10], ["left_forearm", -18], ["left_hand", 10], hand('left', 44, 6, 40),
+		["right_upper_arm", 62, 18, 10], ["right_forearm", -18], ["right_hand", 10], hand('right', 44, 6, 40));
+	my $wrench = posed($bend, ["left_hand", 10, 46, 0], ["right_hand", 10, 46, 0], ["left_upper_arm", 62, -4, -28], ["right_upper_arm", 62, 34, 4],
+		["chest", -34, 20, 0], ["head", -4, 10, 0], ["jaw", 36]);
+	my $sweep = posed({}, ["right_upper_arm", 104, 10, 26], ["right_forearm", 14], ["right_hand", -18], hand('right', -18, 20, -10),
+		["left_upper_arm", 14, 0, -16], ["left_forearm", 18], hand('left', 30, 6, 30), ["chest", 2, 10, 0], ["head", -4, 6, 0], ["jaw", 18]);
+	my $rest = posed({}, ["left_upper_arm", 10, 0, -14], ["left_forearm", 16], hand('left', 26, 6, 30),
+		["right_upper_arm", 12, 0, 14], ["right_forearm", 16], hand('right', 34, 6, 40), ["chest", -6], ["neck", -4], ["head", -16, 0, 4], ["jaw", 8]);
+	my @f = ([0, $a0], [0.35, posed($raise, ["right_upper_arm", 120, 0, 24])], [0.52, $raise], [0.6, $slam], [0.75, posed($slam, ["chest", -16, 6, 0])],
+		[1.25, posed($slam, ["left_upper_arm", 52, -14, -6])], [1.4, $press->(0, 10)]);
+	# The heaves: at 1.5, 2.2, 2.8 s the arms jerk down hard and ease back.
+	for my $h (1.5, 2.2, 2.8) {
+		push @f, [$h - 0.08, $press->(0, 30)], [$h + 0.04, $press->(1, 60)], [$h + 0.3, $press->(0.35, 20)];
+	}
+	push @f, [3.2, $press->(0.2, 10)], [3.55, $bend], [3.75, posed($bend, ["left_hand", 10, -8, 0], ["right_hand", 10, -8, 0])], [3.8, $wrench], [3.95, $wrench],
+		[4.15, posed($bend, ["chest", -20], ["waist", -10], ["hips_pos", 0, -2, 0])], [4.3, posed($sweep, ["right_upper_arm", 40, 10, 26])], [4.6, $sweep],
+		[4.9, posed($sweep, ["right_upper_arm", 120, 10, 30])], [5.25, $rest], [5.6, $rest];
+	anim("drag", 5.6, "once", \@f);
+}
+
+# locker_call (2.2 s): at the wardrobe. His right hand raised to it, palm out, fingers splayed, trembling; the
+# fingers slowly close as if on something inside; a fist, and he yanks it back and down (the doors burst, the vines
+# drag them out); then the left hand comes up and holds them there (as locker_hold).
+my $lockerHold;
+{
+	my $h = {};
+	setr($h, "left_shoulder", -4, 0, 6);
+	setr($h, "left_upper_arm", 74, -12, -4);
+	setr($h, "left_forearm", 4);
+	setr($h, "left_hand", 8);
+	fingers($h, 'left', 62, 8, 50);
+	setr($h, "right_upper_arm", -6, 0, 16);
+	setr($h, "right_forearm", 22);
+	fingers($h, 'right', 30, 8, 30);
+	setr($h, "chest", -8, -10, 0);
+	setr($h, "neck", -4);
+	setr($h, "head", -4, 8, 10);
+	setr($h, "jaw", 16);
+	$lockerHold = $h;
+	my $reach = posed({}, ["right_shoulder", -6, 0, -2], ["right_upper_arm", 96, 4, 8], ["right_forearm", 0], ["right_hand", -22], hand('right', -18, 22, -12),
+		["left_upper_arm", 8, 0, -18], ["left_forearm", 14], ["chest", -6, 8, 0], ["head", -2, 4, 12], ["jaw", 12]);
+	my $grasp = sub {
+		my ($k, $sh) = @_;
+		return posed($reach, ["right_upper_arm", 96 + $sh, 4, 8], ["right_hand", -22 + $sh], hand('right', -18 + 70 * $k, 22 * (1 - $k), -12 + 70 * $k),
+			["chest", -6 - 4 * $k, 8, 0], ["jaw", 12 + 14 * $k]);
+	};
+	my $yank = posed($reach, ["right_shoulder", 0, 0, -6], ["right_upper_arm", 28, 0, 30], ["right_forearm", 84], ["right_hand", 0], hand('right', 75, 6, 85),
+		["chest", 12, -6, 0], ["neck", 6], ["head", 10, 0, 4], ["jaw", 34]);
+	my @f = ([0, {}], [0.25, $reach]);
+	my $i = 0;
+	for (my $t = 0.4; $t < 1.0; $t += 0.1) {
+		push @f, [$t, $grasp->(($t - 0.25) / 0.8, ($i++ % 2 ? 2.5 : -2.5))];
+	}
+	push @f, [1.02, posed($grasp->(1, 0), ["right_upper_arm", 120, 4, 8])], [1.12, $yank], [1.35, posed($yank, ["chest", 6, -6, 0])], [1.6, posed($lockerHold, ["left_upper_arm", 90, -12, -4])],
+		[2.2, $lockerHold];
+	anim("locker_call", 2.2, "once", \@f);
+}
+
+# locker_hold (loop): holding them pinned to the wardrobe by the vines, his left fist out at them, trembling with
+# the strain, the head cocked, the jaw working.
+{
+	my @f;
+	my $T = 1.6;
+	for my $i (0 .. 8) {
+		my $t = $T * $i / 8;
+		my $u = $t / $T * 2 * $PI;
+		my $sh = sin($u * 5) * 2 + sin($u * 9) * 1;
+		push @f, [$t, posed($lockerHold, ["left_upper_arm", 74 + $sh, -12, -4 + $sh * 0.5], ["left_hand", 8 + $sh], ["jaw", 16 + 6 * sin($u * 2)],
+			["head", -4 + $sh * 0.3, 8, 10 + 3 * sin($u)])];
+	}
+	anim("locker_hold", $T, "loop", \@f, "linear");
+}
+
+# locker_kill (4.5 s): the right claw closes over their face, the left arm drawn back; three times the vines go
+# through them into the door (he jolts forward with each); he squeezes; flings them back into the wardrobe with a
+# shove of the hand; straightens and waits; the head cocks as the doors creak open again.
+{
+	my $grip = posed({}, ["right_shoulder", -6, 0, 0], ["right_upper_arm", 92, -6, -6], ["right_forearm", 10], ["right_hand", 14], hand('right', 34, 14, 40),
+		["left_shoulder", -4, 0, 6], ["left_upper_arm", 60, -10, -52], ["left_forearm", 34], ["left_hand", -10], hand('left', -14, 20, -10),
+		["chest", -8, 6, 0], ["neck", -4], ["head", -8, 6, 6], ["jaw", 20]);
+	my $jolt = posed($grip, ["chest", -14, 6, 0], ["jaw", 36], ["head", -4, 6, 6]);
+	my $crush = sub {
+		my ($k, $sh) = @_;
+		return posed($grip, ["right_upper_arm", 92 + $sh, -6, -6], ["right_hand", 14 + $sh], hand('right', 34 + 40 * $k, 14 * (1 - $k), 40 + 40 * $k),
+			["chest", -8 - 4 * $k, 6, 0], ["jaw", 20 + 12 * $k]);
+	};
+	my $shove = posed($grip, ["right_upper_arm", 118, 0, 0], ["right_forearm", -18], ["right_hand", -24], hand('right', -24, 24, -14),
+		["chest", -16, 0, 0], ["head", -6, 0, 0], ["jaw", 30]);
+	my $wait = posed({}, ["left_upper_arm", 10, 0, -14], ["left_forearm", 16], hand('left', 26, 6, 30), ["right_upper_arm", 14, 0, 14], ["right_forearm", 20],
+		hand('right', 36, 6, 40), ["chest", -4], ["head", -6, 0, 0], ["jaw", 6]);
+	my @f = ([0, $lockerHold], [0.6, $grip]);
+	for my $hit (1.1, 1.4, 1.7) {
+		push @f, [$hit - 0.06, $grip], [$hit, $jolt], [$hit + 0.12, $grip];
+	}
+	my $i = 0;
+	for (my $t = 1.95; $t < 2.7; $t += 0.15) {
+		push @f, [$t, $crush->(($t - 1.85) / 0.85, ($i++ % 2 ? 3 : -3))];
+	}
+	push @f, [2.72, $crush->(1, 0)], [2.8, $shove], [3.0, posed($shove, ["right_upper_arm", 100, 0, 0])], [3.3, $wait], [3.85, $wait],
+		[4.0, posed($wait, ["head", -4, 10, 18], ["neck", -2, 6, 0])], [4.5, posed($wait, ["head", -10, 4, 14])];
+	anim("locker_kill", 4.5, "once", \@f);
+}
+
 # ---------------------------------------------------------------- the file
 sub png {
 	my ($buf) = @_;

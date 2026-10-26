@@ -139,6 +139,13 @@ public final class HwSounds {
 	public static final SoundEvent VECNA_RIFT_OPEN = register("vecna.rift_open");
 	public static final SoundEvent VECNA_THUNDER = register("vecna.thunder");
 	public static final SoundEvent VECNA_RIFT_DRONE = register("vecna.rift_drone");
+	/** Vecna's kills (game.VecnaKill): vines bursting out, writhing, running someone through; a neck; the ground splitting; a wardrobe shaking. */
+	public static final SoundEvent VECNA_VINE_BURST = register("vecna.vine_burst");
+	public static final SoundEvent VECNA_VINE_SLITHER = register("vecna.vine_slither");
+	public static final SoundEvent VECNA_IMPALE = register("vecna.impale");
+	public static final SoundEvent VECNA_NECK_SNAP = register("vecna.neck_snap");
+	public static final SoundEvent VECNA_GROUND_SPLIT = register("vecna.ground_split");
+	public static final SoundEvent VECNA_LOCKER_RATTLE = register("vecna.locker_rattle");
 	/** Pulled down in a chase and kicked apart (game.Obstacles): Kenney's Impact Sounds (CC0), layered several at once. */
 	public static final SoundEvent OBSTACLE_CREAK = register("obstacle.creak");
 	public static final SoundEvent OBSTACLE_CRASH_WOOD = register("obstacle.crash_wood");

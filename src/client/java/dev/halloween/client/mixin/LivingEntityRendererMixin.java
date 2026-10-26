@@ -77,6 +77,17 @@ public abstract class LivingEntityRendererMixin {
 		}
 	}
 
+	/** In one of Vecna's kills he and they stay turned as the scene has them, whatever the players do with the mouse. */
+	@Inject(method = "extractRenderState(Lnet/minecraft/world/entity/LivingEntity;Lnet/minecraft/client/renderer/entity/state/LivingEntityRenderState;F)V", at = @At("TAIL"))
+	private void halloween$vecnaKill(net.minecraft.world.entity.LivingEntity entity, LivingEntityRenderState state, float partialTicks, CallbackInfo ci) {
+		float yaw = dev.halloween.client.VecnaKillScene.bodyYaw(entity.getId());
+		if (!Float.isNaN(yaw)) {
+			state.bodyRot = yaw;
+			state.yRot = 0f;
+			state.xRot = 0f;
+		}
+	}
+
 	@org.spongepowered.asm.mixin.Unique
 	private static final java.util.Map<Integer, Float> halloween$FIXED = new java.util.HashMap<>();
 

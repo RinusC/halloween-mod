@@ -152,6 +152,9 @@ public final class GrabSession {
 	/** Michael's knife while it is stuck in the wardrobe door: the one from his hand, and the one in the door. */
 	private ItemStack knife = ItemStack.EMPTY;
 	private Display.ItemDisplay stuckKnife;
+	/** Vecna's scene (VecnaKill): at a wardrobe from the start, else from the finish on; and whether it is his kill playing now. */
+	private VecnaKill vecnaKill;
+	private boolean vecnaFinishing;
 
 	/** Is this Michael's grab at a wardrobe (he stays put by it, then smashes their head against it)? */
 	boolean atLocker() {
@@ -167,6 +170,17 @@ public final class GrabSession {
 		ServerLevel level = this.level();
 		this.lockerBase = locker.immutable();
 		this.lockerFacing = level.getBlockState(locker).getValue(LockerBlock.FACING);
+		if (Vecna.active()) {
+			// Vecna doesn't open it: the vines go in and drag them out (VecnaKill).
+			this.vecnaKill = VecnaKill.lockerOpen(this, this.shape, this.victim, this.lockerBase, this.lockerFacing);
+			this.shapeSpot = this.vecnaKill.vecnaSpot();
+			this.victimSpot = this.vecnaKill.held();
+			this.pinYaw = this.lockerFacing.getOpposite().toYRot();
+			this.sceneTick = 0;
+			this.victimState.stalk = Math.max(this.victimState.stalk, 2f);
+			AiStats.add(this.victim, "locker.scene");
+			return;
+		}
 		Vec3 door = Vec3.atBottomCenterOf(locker).add(this.out().scale(0.5));
 		this.victimSpot = door.add(this.out().scale(0.32));
 		Vec3 spot = door.add(this.out().scale(Demogorgon.active() ? 1.25 : 1.1));
@@ -198,6 +212,12 @@ public final class GrabSession {
 	private void tickScene() {
 		ServerLevel level = this.level();
 		int t = this.sceneTick++;
+		if (this.vecnaKill != null) {
+			if (this.vecnaKill.tickOpen()) {
+				this.beginStruggle();
+			}
+			return;
+		}
 		Vec3 c = Vec3.atCenterOf(this.lockerBase);
 		if (!Demogorgon.active()) {
 			this.holdShape();
@@ -352,7 +372,7 @@ public final class GrabSession {
 	}
 
 	/** The screen jolts for them (a blow, a fall). */
-	private void shake(LivingEntity who, int ticks, float strength) {
+	void shake(LivingEntity who, int ticks, float strength) {
 		if (who instanceof ServerPlayer p && !Bots.isBot(p)) {
 			ServerPlayNetworking.send(p, new HwNet.Quake(ticks, strength));
 		}
@@ -445,7 +465,7 @@ public final class GrabSession {
 		return this.sceneTick;
 	}
 
-	private ServerLevel level() {
+	ServerLevel level() {
 		return this.shape.level();
 	}
 
@@ -670,7 +690,8 @@ public final class GrabSession {
 	// ---------------------------------------------------------------- finisher
 
 	private boolean windowAvailable() {
-		return this.victimState.level() >= this.cfg().windowFinisherStalkLevel && this.findWindow() != null;
+		// (Vecna has kills of his own.)
+		return !Vecna.active() && this.victimState.level() >= this.cfg().windowFinisherStalkLevel && this.findWindow() != null;
 	}
 
 	private void startFinisher() {
@@ -678,9 +699,19 @@ public final class GrabSession {
 		Music.killing(this.level().getServer(), this.cfg().finisherTicks + 70);
 		this.finisherTick = 0;
 		this.bloody = this.state.level() >= this.cfg().bloodyExecutionLevel;
-		if (this.atLocker()) {
+		if (Vecna.active() && !(VecnaCurse.cursed(this.victim) && this.victim instanceof ServerPlayer)) {
+			// Vecna's own kills (the cursed one dies his scene instead, see tickFinisher).
+			if (this.atLocker() && this.vecnaKill != null) {
+				this.vecnaKill.lockerFinisher();
+			} else {
+				this.vecnaKill = VecnaKill.finisher(this, this.shape, this.victim);
+			}
+			this.vecnaFinishing = true;
+			Music.killing(this.level().getServer(), 140);
+			anim(this.victim, HwNet.Anim.NONE);
+		} else if (this.atLocker()) {
 			this.startLockerFinisher();
-		} else 		if (this.victimState.level() >= this.cfg().windowFinisherStalkLevel) {
+		} else if (this.victimState.level() >= this.cfg().windowFinisherStalkLevel) {
 			this.windowPos = this.findWindow();
 		}
 		HwNet.Qte off = HwNet.Qte.INACTIVE;
@@ -718,9 +749,20 @@ public final class GrabSession {
 		if (this.finisherTick == 1 && Vecna.active() && VecnaCurse.cursed(this.victim) && this.victim instanceof ServerPlayer cursed) {
 			// Vecna and the cursed one: not his usual kill but the scene (VecnaDeath).
 			this.done = true;
+			if (this.vecnaKill != null) {
+				this.vecnaKill.stop();
+			}
 			anim(this.shape, HwNet.Anim.NONE);
 			anim(this.victim, HwNet.Anim.NONE);
 			VecnaDeath.start(this.shape, cursed);
+			return;
+		}
+		if (this.vecnaFinishing) {
+			if (this.vecnaKill.tick()) {
+				this.done = true;
+				anim(this.shape, HwNet.Anim.NONE);
+				MatchManager.kill(this.shape, this.state, this.victim, MatchManager.KillKind.EXECUTION, this.bloody, false);
+			}
 			return;
 		}
 		if (this.atLocker()) {
@@ -891,7 +933,7 @@ public final class GrabSession {
 			this.tickScene();
 			return;
 		}
-		if (!(this.finishing && this.windowPos != null)) {
+		if (!(this.finishing && (this.windowPos != null || this.vecnaFinishing))) {
 			this.pinVictim();
 		}
 		if (Demogorgon.active() && this.level().getGameTime() % 2 == 0) {
@@ -1000,7 +1042,7 @@ public final class GrabSession {
 		this.victim.setDeltaMovement(Vec3.ZERO);
 	}
 
-	private void placeVictim(double x, double y, double z, float yaw) {
+	void placeVictim(double x, double y, double z, float yaw) {
 		if (this.victim instanceof ServerPlayer player) {
 			dev.halloween.Vr.place(player, this.level(), x, y, z, Set.of(), yaw, 0f);
 		} else {
@@ -1011,7 +1053,11 @@ public final class GrabSession {
 		}
 	}
 
-	/** Releases everything without a kill (escape, abort, reset). */
+	/** The choking cut short (Vecna's kills: the neck broken). */
+	void silence() {
+		this.stopChoking();
+	}
+
 	/** Out of his hands (or dead): the choking breaks off. */
 	private void stopChoking() {
 		if (this.choking < 0) {
@@ -1027,8 +1073,13 @@ public final class GrabSession {
 		}
 	}
 
+	/** Releases everything without a kill (escape, abort, reset). */
 	void end() {
 		this.takeKnife();
+		if (this.vecnaKill != null) {
+			// The vines let go.
+			this.vecnaKill.stop();
+		}
 		if (!this.animated) {
 			anim(this.shape, HwNet.Anim.NONE);
 			anim(this.victim, HwNet.Anim.NONE);

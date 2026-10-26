@@ -198,6 +198,10 @@ public final class ClientAnims {
 			// Vecna taking them: lifted, the bones breaking.
 			return;
 		}
+		if (VecnaKillScene.pose(m, entityId)) {
+			// One of Vecna's kills: lifted and run through, dragged under, bound to a wardrobe.
+			return;
+		}
 		if (HeroScene.pose(m, entityId)) {
 			// In their opening scene, at what they do.
 			return;

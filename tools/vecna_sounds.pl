@@ -681,5 +681,123 @@ $clip{rift_drone} = sub {
 	reverb($s, 0.3, 0.9, 0.5, 2);
 };
 
+# ---------- the kills (game.VecnaKill) ----------
+# Vines bursting out of him (or the ground): a wet tearing rush, gristle snapping, a low swell under it.
+$clip{vine_burst} = sub {
+	my $s = zeros(1.6);
+	my $w = whoosh(0.5, 300, 2600, 1.2);
+	env($w, [0, 0], [0.12, 1], [0.5, 0]);
+	mix($s, $w, 0, 0.7);
+	my $wet = bp(noise(0.7), sub { 600 + 900 * sin($_[0] * 30) ** 2 }, 1.5);
+	env($wet, [0, 0], [0.05, 1], [0.7, 0]);
+	mix($s, $wet, 0.02, 0.6);
+	mix($s, crackle(0.35, 90, 900, 4500), 0.03, 0.7);
+	mix($s, thud(90, 38, 1.2, 0.3), 0, 0.9);
+	reverb(tanhs($s, 1.4), 0.25, 0.7, 0.5, 1);
+};
+# Vines writhing, sliding over skin and each other: slow wet squelches and creaks.
+$clip{vine_slither} = sub {
+	my $dur = 2.2;
+	my $s = zeros($dur);
+	my $body = lp(brown($dur), 500);
+	for my $i (0 .. $#$body) { $body->[$i] *= 0.5 + 0.5 * sin(2 * $PI * (1.3 + 0.4 * sin($i / $SR * 2)) * $i / $SR) ** 2; }
+	mix($s, $body, 0, 2.2);
+	my $t = 0.05;
+	while ($t < $dur - 0.2) {
+		my $sq = bp(noise(0.12), 700 + rand 900, 4);
+		env($sq, [0, 0], [0.03, 1], [0.12, 0]);
+		mix($s, $sq, $t, 0.5 + rand 0.4);
+		$t += 0.12 + rand 0.25;
+	}
+	my $cr = zeros($dur);
+	$t = 0.3;
+	while ($t < $dur - 0.3) {
+		my $c = bp(noise(0.02), 1100 + rand 500, 9);
+		expdecay($c, 0.005);
+		mix($cr, $c, $t, 1);
+		$t += 0.03 + rand 0.06;
+	}
+	env($cr, [0, 0], [0.6, 0.6], [1.6, 0.3], [$dur, 0]);
+	mix($s, $cr, 0, 0.8);
+	fade($s, 0.1, 0.4);
+	reverb($s, 0.2, 0.6, 0.5, 0.8);
+};
+# Run through: a wet punch, crunching ribs, a spatter.
+$clip{impale} = sub {
+	my $s = zeros(1.0);
+	mix($s, thud(150, 55, 0.6, 0.09), 0, 1.2);
+	my $p = bp(noise(0.12), 380, 1.2);
+	expdecay($p, 0.03);
+	mix($s, $p, 0, 1.0);
+	mix($s, crackle(0.12, 260, 1500, 5000), 0.01, 0.8);
+	my $sp = bp(noise(0.5), 2400, 0.8);
+	env($sp, [0, 0], [0.04, 0.6], [0.5, 0]);
+	mix($s, $sp, 0.05, 0.45);
+	reverb($s, 0.18, 0.5, 0.6, 0.6);
+};
+# The neck: one sharp, dry, loud crack and the grind of bone after it.
+$clip{neck_snap} = sub {
+	my $s = zeros(1.4);
+	my $c = hp(noise(0.015), 1200);
+	expdecay($c, 0.0025);
+	mix($s, $c, 0, 1.8);
+	my $c2 = bp(noise(0.03), 2600, 2);
+	expdecay($c2, 0.004);
+	mix($s, $c2, 0.004, 1.2);
+	mix($s, thud(200, 90, 0.3, 0.05), 0, 0.6);
+	my $grind = zeros(0.4);
+	my $t = 0.0;
+	while ($t < 0.35) {
+		my $g = bp(noise(0.015), 1400 + rand 1600, 6);
+		expdecay($g, 0.003);
+		mix($grind, $g, $t, 0.6);
+		$t += 0.012 + rand 0.02;
+	}
+	env($grind, [0, 1], [0.4, 0]);
+	mix($s, $grind, 0.06, 0.6);
+	reverb($s, 0.25, 0.7, 0.4, 1.2);
+};
+# The ground splitting under them: a deep crack, earth grinding open, a breath of the rift from below.
+$clip{ground_split} = sub {
+	my $s = zeros(4.5);
+	my $c = hp(noise(0.05), 600);
+	expdecay($c, 0.01);
+	mix($s, $c, 0, 1.0);
+	mix($s, thud(70, 28, 3, 0.9), 0, 1.6);
+	my $rum = lp(brown(3.5), 160);
+	env($rum, [0, 0], [0.08, 1], [1.5, 0.6], [3.5, 0]);
+	mix($s, $rum, 0, 2.6);
+	my $tear = crackle(1.8, 70, 300, 2400);
+	env($tear, [0, 1], [1.8, 0]);
+	mix($s, $tear, 0.02, 0.8);
+	my $breath = bp(noise(3), sub { 200 + 400 * $_[0] / 3 }, 1.5);
+	env($breath, [0, 0], [0.8, 0.6], [3, 0]);
+	mix($s, $breath, 0.5, 0.5);
+	my $moan = bp(saw(2.4, sub { 58 * (1 - 0.15 * $_[0] / 2.4) }), 420, 2);
+	env($moan, [0, 0], [0.7, 1], [2.4, 0]);
+	mix($s, $moan, 0.9, 0.35);
+	reverb(tanhs($s, 1.2), 0.35, 0.9, 0.4, 2);
+};
+# A wardrobe shaking: its doors rattling hard in their frame, faster and faster, wood creaking.
+$clip{locker_rattle} = sub {
+	my $s = zeros(1.4);
+	my $t = 0.0;
+	my $gap = 0.11;
+	while ($t < 1.15) {
+		my $k = bp(noise(0.05), 380 + rand 260, 3);
+		expdecay($k, 0.012);
+		mix($s, $k, $t, 0.8 + rand 0.4);
+		my $h = bp(noise(0.03), 1800 + rand 900, 5);
+		expdecay($h, 0.004);
+		mix($s, $h, $t + 0.003, 0.35);
+		$t += $gap;
+		$gap = $gap * 0.93 < 0.035 ? 0.035 : $gap * 0.93;
+	}
+	my $cr = bp(noise(1.2), 520, 12);
+	env($cr, [0, 0], [0.6, 0.4], [1.2, 0]);
+	mix($s, $cr, 0.1, 0.5);
+	reverb($s, 0.15, 0.5, 0.5, 0.6);
+};
+
 my @want = @ARGV ? @ARGV : sort keys %clip;
 write_clip($_, $clip{$_}->()) for @want;

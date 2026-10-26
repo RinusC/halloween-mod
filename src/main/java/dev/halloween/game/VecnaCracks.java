@@ -248,6 +248,26 @@ public final class VecnaCracks {
 		}
 	}
 
+	/**
+	 * A few cells torn open at once (a kill of his: the pit someone was dragged into, the burnt scar round it), put
+	 * back after the match with the rest. Cells that hold a block entity are left alone.
+	 */
+	public static void scar(ServerLevel level, java.util.Map<BlockPos, BlockState> cells) {
+		Saved saved = Saved.get(level);
+		List<Saved.Entry> before = new ArrayList<>();
+		for (java.util.Map.Entry<BlockPos, BlockState> c : cells.entrySet()) {
+			BlockState there = level.getBlockState(c.getKey());
+			if (there.hasBlockEntity() || there.is(Blocks.BARRIER)) {
+				continue;
+			}
+			before.add(new Saved.Entry(c.getKey().immutable(), there));
+			level.setBlock(c.getKey(), c.getValue(), Block.UPDATE_CLIENTS);
+		}
+		if (!before.isEmpty()) {
+			saved.add(before);
+		}
+	}
+
 	/** Everything torn open put back as it was. */
 	public static void clear(ServerLevel level) {
 		PENDING.clear();

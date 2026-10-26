@@ -1264,10 +1264,17 @@ public final class MatchManager {
 
 	/** Kills a victim on behalf of the Shape, leaves a corpse and pays out Bloodthirst and score. */
 	static void kill(ServerPlayer shape, ShapeState state, LivingEntity victim, KillKind kind, boolean bloody) {
+		kill(shape, state, victim, kind, bloody, true);
+	}
+
+	/** As above; {@code lastScream} false: they are past screaming (Vecna broke their neck). */
+	static void kill(ServerPlayer shape, ShapeState state, LivingEntity victim, KillKind kind, boolean bloody, boolean lastScream) {
 		HwConfig cfg = HwConfig.get();
 		// The music falls silent for the kill; the victim's last scream.
 		Music.killing(shape.level().getServer(), 70);
-		Voices.play(victim, Voices.Kind.DEATH);
+		if (lastScream) {
+			Voices.play(victim, Voices.Kind.DEATH);
+		}
 		ServerLevel level = (ServerLevel) victim.level();
 		VictimState vs = VICTIMS.get(victim.getUUID());
 		int stalkLevel = vs == null ? 0 : vs.level();

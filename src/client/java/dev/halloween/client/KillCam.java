@@ -15,6 +15,8 @@ import net.minecraft.world.phys.Vec3;
 public final class KillCam {
 	private static Vec3 from;
 	private static Vec3 target;
+	/** How the camera moves round them (see camera); zero: a plain drift in. */
+	private static Vec3 orbit = Vec3.ZERO;
 	private static long start;
 	private static int ticks;
 
@@ -28,6 +30,7 @@ public final class KillCam {
 		}
 		from = payload.a();
 		target = payload.b();
+		orbit = payload.c() == null ? Vec3.ZERO : payload.c();
 		ticks = payload.ticks();
 		start = mc.level.getGameTime();
 	}
@@ -63,6 +66,13 @@ public final class KillCam {
 		// Easing in towards them as it goes on, a slight drift sideways.
 		float k = f * f * (3 - 2 * f);
 		Vec3 pos = from.lerp(target, 0.18 * k).add(0, -0.15 * k, 0);
+		if (!orbit.equals(Vec3.ZERO)) {
+			// Vecna's kills (game.VecnaKill): a slow move round them by orbit.x degrees, drawing in by orbit.z, rising by orbit.y.
+			Vec3 r = from.subtract(target);
+			float a = (float) orbit.x * k * Mth.DEG_TO_RAD;
+			Vec3 turned = new Vec3(r.x * Mth.cos(a) - r.z * Mth.sin(a), r.y, r.x * Mth.sin(a) + r.z * Mth.cos(a));
+			pos = target.add(turned.scale(1 - orbit.z * k)).add(0, orbit.y * k, 0);
+		}
 		Vec3 d = target.subtract(pos);
 		float yaw = (float) Math.toDegrees(Math.atan2(-d.x, d.z));
 		float pitch = (float) -Math.toDegrees(Math.atan2(d.y, Math.sqrt(d.x * d.x + d.z * d.z)));

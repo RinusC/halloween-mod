@@ -225,6 +225,11 @@ public final class MichaelRenderer {
 		} else if (vecna(avatar)) {
 			vecnaModel().source = humanoid;
 			m = vecnaModel();
+			int id = ((HwRenderState) avatar).halloween$entityId();
+			if (VecnaKillScene.wantsAnchors(id)) {
+				// Where his model is in the world, for the vines of his kills to come out of it.
+				VecnaKillScene.drawnWith(id, pose.last().pose());
+			}
 		} else {
 			model().source = humanoid;
 			m = model();

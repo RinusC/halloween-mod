@@ -76,6 +76,15 @@ public final class VecnaModel extends Model<AvatarRenderState> {
 		float now = now();
 		State st = STATES.computeIfAbsent(id, k -> new State());
 		float t = s.ageInTicks;
+		VecnaKillScene.Act act = VecnaKillScene.act(id);
+		if (act != null) {
+			// One of his kills (VecnaKillScene): hanging in the air, the scene's moves laid over; where his back and
+			// hands are noted for the vines.
+			this.bb.apply("float", t / 20f, 1f);
+			this.bb.apply(act.anim(), act.seconds(), 1f);
+			this.anchors(id);
+			return;
+		}
 		float speed = Mth.clamp(s.walkAnimationSpeed * 1.8f, 0f, 1f);
 		this.bb.apply("float", t / 20f, 1f - speed);
 		this.bb.apply("glide", t / 20f, speed);
@@ -141,6 +150,22 @@ public final class VecnaModel extends Model<AvatarRenderState> {
 			this.bb.apply("twitch", phase / 20f, Mth.sin(phase / 28f * Mth.PI));
 		}
 		this.look(s, st.cast);
+	}
+
+	/** Where the vines come out of him as he is posed now: between and on his shoulder blades, his palms (and along his fingers, for the way out). */
+	private void anchors(int id) {
+		if (!VecnaKillScene.wantsAnchors(id)) {
+			return;
+		}
+		org.joml.Vector3f[] p = new org.joml.Vector3f[7];
+		p[VecnaKillScene.BACK_L] = this.bb.locate("chest", 1.6f, -3.8f, 1.9f);
+		p[VecnaKillScene.BACK_C] = this.bb.locate("chest", 0f, -3.0f, 2.1f);
+		p[VecnaKillScene.BACK_R] = this.bb.locate("chest", -1.6f, -3.8f, 1.9f);
+		p[VecnaKillScene.PALM_R] = this.bb.locate("right_hand", 0f, 1.0f, 0.3f);
+		p[VecnaKillScene.FINGERS_R] = this.bb.locate("right_hand", 0f, 4.5f, 0.3f);
+		p[VecnaKillScene.PALM_L] = this.bb.locate("left_hand", 0f, 1.0f, 0.3f);
+		p[VecnaKillScene.FINGERS_L] = this.bb.locate("left_hand", 0f, 4.5f, 0.3f);
+		VecnaKillScene.anchors(id, p);
 	}
 
 	/** How far the lash is out of his palm (0 hidden, 1 its full length). */

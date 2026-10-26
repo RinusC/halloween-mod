@@ -306,6 +306,7 @@ public final class ClientState {
 		curse = HwNet.CurseHud.NONE;
 		ritual = HwNet.VecnaRitual.NONE;
 		VecnaDeathScene.clear();
+		VecnaKillScene.clear();
 		VecnaClient.reset();
 		demoHouses = List.of();
 		NOTICES.clear();

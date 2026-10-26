@@ -196,6 +196,30 @@ public final class HwNet {
 	}
 
 	/**
+	 * One of Vecna's kills (game.VecnaKill) for those near: which scene, at whose hand and whose death, the game tick it
+	 * began and how long it lasts, which way he faces them (yaw), and two points of it (the wardrobe's door and inside
+	 * it; the pit). Kind NONE: it is over for this victim (torn free, broken off).
+	 */
+	public record VecnaKill(int kind, int vecnaId, int victimId, long start, int ticks, float yaw, Vec3 a, Vec3 b) implements CustomPacketPayload {
+		public static final Type<VecnaKill> TYPE = payloadType("vecna_kill");
+		public static final StreamCodec<RegistryFriendlyByteBuf, VecnaKill> CODEC = StreamCodec.of((buf, v) -> {
+			buf.writeVarInt(v.kind);
+			buf.writeVarInt(v.vecnaId);
+			buf.writeVarInt(v.victimId);
+			buf.writeLong(v.start);
+			buf.writeVarInt(v.ticks);
+			buf.writeFloat(v.yaw);
+			writeVec(buf, v.a);
+			writeVec(buf, v.b);
+		}, buf -> new VecnaKill(buf.readVarInt(), buf.readVarInt(), buf.readVarInt(), buf.readLong(), buf.readVarInt(), buf.readFloat(), readVec(buf), readVec(buf)));
+
+		@Override
+		public Type<VecnaKill> type() {
+			return TYPE;
+		}
+	}
+
+	/**
 	 * Vecna's ritual (game.VecnaRitual): how many he has killed towards it and how many it takes before the cursed one
 	 * (only he is told: 0 for the rest), and whether the rift is open (the town gone under), for everyone.
 	 */
@@ -1751,6 +1775,7 @@ public final class HwNet {
 		PayloadTypeRegistry.clientboundPlay().register(CurseHud.TYPE, CurseHud.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(VecnaRitual.TYPE, VecnaRitual.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(VecnaDeath.TYPE, VecnaDeath.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(VecnaKill.TYPE, VecnaKill.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(VecnaEyesEnter.TYPE, VecnaEyesEnter.CODEC);
 		PayloadTypeRegistry.serverboundPlay().register(VecnaAnchorKey.TYPE, VecnaAnchorKey.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(DemoPose.TYPE, DemoPose.CODEC);
