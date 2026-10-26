@@ -49,6 +49,14 @@ public class LevelClientTest implements FabricClientGameTest {
 			ctx.runOnClient(mc -> mc.gui.setScreen(new CharacterSelectScreen()));
 			ctx.waitTicks(15);
 			ctx.takeScreenshot("level_select_plate");
+			ctx.runOnClient(mc -> mc.gui.setScreen(new dev.halloween.client.SettingsScreen(mc.gui.screen())));
+			ctx.waitTicks(15);
+			ctx.takeScreenshot("settings_match");
+			for (int i = 0; i < 5; i++) {
+				ctx.getInput().pressKey(org.lwjgl.glfw.GLFW.GLFW_KEY_DOWN);
+			}
+			ctx.waitTicks(5);
+			ctx.takeScreenshot("settings_items");
 			ctx.runOnClient(mc -> mc.gui.setScreen(null));
 			server.runOnServer(s -> {
 				Perks.give(s, player(s).getUUID(), 200000);

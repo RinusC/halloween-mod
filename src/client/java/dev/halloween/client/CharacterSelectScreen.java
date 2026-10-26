@@ -687,6 +687,22 @@ public final class CharacterSelectScreen extends Screen {
 			ready += r ? 1 : 0;
 		}
 		int rx = this.cardX1;
+		// Settings, in the top right corner: the /hw commands as buttons.
+		{
+			Component word = caps(LABEL, Component.translatable("halloween.settings.title"));
+			int sw = this.font.width(word) + 22;
+			rx -= sw;
+			boolean hover = mouseX >= rx && mouseX < rx + sw && mouseY >= 6 && mouseY < 22;
+			three(g, BTN_FILL, rx, 6, sw, 16, hover ? 0xF0202634 : 0xD00E1118);
+			three(g, BTN_LINE, rx, 6, sw, 16, hover ? acc : this.pal(LINE2));
+			blit(g, DIAMOND_LINE, rx + 7, 10, 8, 8, hover ? this.pal(ACCENT2) : TEXT3);
+			g.text(this.font, word, rx + 17, 10, hover ? TEXT : TEXT2, false);
+			this.hits.add(new Hit(rx, 4, rx + sw, 24, () -> {
+				click();
+				Minecraft.getInstance().gui.setScreen(new SettingsScreen(this));
+			}));
+			rx -= 10;
+		}
 		if (between() && l.countdown() >= 0) {
 			Component time = in(DISPLAY, Component.literal(String.format("0:%02d", l.countdown())));
 			int tw = this.font.width(time);

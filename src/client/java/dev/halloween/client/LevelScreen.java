@@ -89,9 +89,11 @@ public final class LevelScreen extends Screen {
 	@Override
 	public void extractBackground(GuiGraphicsExtractor g, int mouseX, int mouseY, float partial) {
 		this.partial = partial;
-		float now = this.now();
-		int w = this.width;
-		int h = this.height;
+		street(g, this.width, this.height, this.now(), mouseX);
+	}
+
+	/** The select's night street out of focus, fog, embers and the vignette (also behind the settings). */
+	static void street(GuiGraphicsExtractor g, int w, int h, float now, int mouseX) {
 		// The select's night street, far behind and out of focus.
 		g.fill(0, 0, w, h, BG0[0]);
 		float cover = Math.max(w / 1024f, h / 512f) * 1.06f;
