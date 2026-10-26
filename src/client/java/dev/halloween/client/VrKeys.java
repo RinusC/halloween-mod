@@ -23,9 +23,13 @@ import net.minecraft.client.Minecraft;
  * Anchor) work as switches there; the rest are let go again as soon as they are passed on.
  */
 public final class VrKeys {
-	private record Alias(KeyMapping vr, java.util.function.Supplier<KeyMapping> to, boolean held) {
+	private record Alias(KeyMapping vr, java.util.function.Supplier<KeyMapping> to, java.util.function.BooleanSupplier hold) {
 		KeyMapping target() {
 			return this.to.get();
+		}
+
+		boolean held() {
+			return this.hold.getAsBoolean();
 		}
 	}
 
@@ -50,6 +54,10 @@ public final class VrKeys {
 	/** A button of its own for the shot, for a controller whose interact button is also the hotbar's. */
 	private static KeyMapping fire;
 	private static KeyMapping drop;
+	/** The three powers on the free hand's controller (left trigger, X, left grip; see VrBindings), meaning by role. */
+	private static KeyMapping power1;
+	private static KeyMapping power2;
+	private static KeyMapping power3;
 	/** What the radial menu was last set to (a role and form), so it is set only when that changes. */
 	private static String shown = "";
 
@@ -80,6 +88,31 @@ public final class VrKeys {
 		gift2 = key("gift2");
 		fire = key("fire");
 		drop = alias("drop", () -> Minecraft.getInstance().options.keyDrop, false);
+		// Each the button of this role it stands for (held, if that one is).
+		power1 = slot("power1", f -> switch (f) {
+			case "michael" -> sense;
+			case "demo" -> impulse;
+			case "vecna" -> grip;
+			case "RUNT" -> gift1;
+			case "" -> null;
+			default -> skill;
+		});
+		power2 = slot("power2", f -> switch (f) {
+			case "michael" -> shapeJump;
+			case "demo" -> upsideDown;
+			case "vecna" -> eyes;
+			case "RUNT" -> runtSwap;
+			case "" -> null;
+			default -> ping;
+		});
+		power3 = slot("power3", f -> switch (f) {
+			case "michael" -> impulse;
+			case "demo" -> orders;
+			case "vecna" -> anchor;
+			case "RUNT" -> gift2;
+			case "" -> null;
+			default -> reload;
+		});
 	}
 
 	private static KeyMapping key(String name) {
@@ -93,8 +126,32 @@ public final class VrKeys {
 
 	private static KeyMapping alias(String name, java.util.function.Supplier<KeyMapping> target, boolean held) {
 		KeyMapping vr = key(name);
-		ALIASES.add(new Alias(vr, target, held));
+		ALIASES.add(new Alias(vr, target, () -> held));
 		return vr;
+	}
+
+	/** A button that stands for one of the role's VR buttons (by role and form), passing on to what that one does. */
+	private static KeyMapping slot(String name, java.util.function.Function<String, KeyMapping> pick) {
+		KeyMapping vr = key(name);
+		ALIASES.add(new Alias(vr, () -> {
+			KeyMapping k = pick.apply(form());
+			Alias a = k == null ? null : of(k);
+			return a == null ? k : a.target();
+		}, () -> {
+			KeyMapping k = pick.apply(form());
+			Alias a = k == null ? null : of(k);
+			return a != null && a.held();
+		}));
+		return vr;
+	}
+
+	private static Alias of(KeyMapping vr) {
+		for (Alias a : ALIASES) {
+			if (a.vr() == vr) {
+				return a;
+			}
+		}
+		return null;
 	}
 
 	/** Whether a VR button that holds {@code target} down is held now (on the controller, or switched on at the wrist). */
@@ -171,7 +228,12 @@ public final class VrKeys {
 		}
 		for (Alias a : ALIASES) {
 			while (!a.held() && a.vr().consumeClick()) {
-				KeyMappingAccessor target = (KeyMappingAccessor) a.target();
+				KeyMapping to = a.target();
+				if (to == null) {
+					// A power with nothing in this role.
+					continue;
+				}
+				KeyMappingAccessor target = (KeyMappingAccessor) to;
 				target.halloween$setClickCount(target.halloween$getClickCount() + 1);
 				ClientVr.unhold(a.vr());
 			}

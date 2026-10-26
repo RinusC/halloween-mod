@@ -187,6 +187,28 @@ public final class ClientVr {
 
 	private static boolean described;
 
+	/** What the right controller calls itself to SteamVR (its controller type), or null if it cannot be read. */
+	static @Nullable String controllerType() {
+		try {
+			Class<?> sys = Class.forName("org.lwjgl.openvr.VRSystem");
+			int index = (int) sys.getMethod("VRSystem_GetTrackedDeviceIndexForControllerRole", int.class).invoke(null, 2);
+			java.lang.reflect.Method prop = stringProperty(sys);
+			return index < 0 || index > 64 || prop == null ? null : (String) prop.invoke(null, index, 7037, null);
+		} catch (Throwable e) {
+			return null;
+		}
+	}
+
+	private static java.lang.reflect.Method stringProperty(Class<?> sys) {
+		for (java.lang.reflect.Method m : sys.getMethods()) {
+			if (m.getName().equals("VRSystem_GetStringTrackedDeviceProperty") && m.getParameterCount() == 3
+				&& m.getParameterTypes()[2] == java.nio.IntBuffer.class) {
+				return m;
+			}
+		}
+		return null;
+	}
+
 	/**
 	 * Into the log as VR starts: the headset and controllers SteamVR reports (the controller type is what picks
 	 * Vivecraft's bindings: one it has none for leaves buttons unbound), so a report from a headset can be looked into.
@@ -195,13 +217,7 @@ public final class ClientVr {
 		try {
 			Class<?> sys = Class.forName("org.lwjgl.openvr.VRSystem");
 			java.lang.reflect.Method role = sys.getMethod("VRSystem_GetTrackedDeviceIndexForControllerRole", int.class);
-			java.lang.reflect.Method prop = null;
-			for (java.lang.reflect.Method m : sys.getMethods()) {
-				if (m.getName().equals("VRSystem_GetStringTrackedDeviceProperty") && m.getParameterCount() == 3
-					&& m.getParameterTypes()[2] == java.nio.IntBuffer.class) {
-					prop = m;
-				}
-			}
+			java.lang.reflect.Method prop = stringProperty(sys);
 			StringBuilder out = new StringBuilder("VR devices:");
 			int[][] devices = {{0, -1}, {(int) role.invoke(null, 1), 1}, {(int) role.invoke(null, 2), 2}};
 			String[] names = {"headset", "left", "right"};
@@ -280,6 +296,8 @@ public final class ClientVr {
 
 		/** The player's own HUD lock, kept while ours is on. */
 		private static org.vivecraft.client_vr.settings.VRSettings.HUDLock savedLock;
+		/** The player's own free move and auto sprint, kept while ours are on. */
+		private static boolean[] savedMove;
 
 		static void hudHead(boolean on) {
 			var settings = org.vivecraft.client_vr.ClientDataHolderVR.getInstance().vrSettings;
@@ -288,9 +306,21 @@ public final class ClientVr {
 					savedLock = settings.vrHudLockMode;
 				}
 				settings.vrHudLockMode = org.vivecraft.client_vr.settings.VRSettings.HUDLock.HEAD;
+				// Walking with the stick, not teleporting (the left trigger is a power), and running only on the
+				// stick's click: a stick pushed all the way would dash and vault by itself.
+				if (savedMove == null) {
+					savedMove = new boolean[]{settings.forceStandingFreeMove, settings.autoSprint};
+				}
+				settings.forceStandingFreeMove = true;
+				settings.autoSprint = false;
 			} else if (savedLock != null) {
 				settings.vrHudLockMode = savedLock;
 				savedLock = null;
+			}
+			if (!on && savedMove != null) {
+				settings.forceStandingFreeMove = savedMove[0];
+				settings.autoSprint = savedMove[1];
+				savedMove = null;
 			}
 		}
 

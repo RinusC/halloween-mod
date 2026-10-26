@@ -1,0 +1,11 @@
+{
+	"required": false,
+	"package": "dev.halloween.client.mixin",
+	"compatibilityLevel": "JAVA_25",
+	"client": [
+		"VrBindingsMixin"
+	],
+	"injectors": {
+		"defaultRequire": 0
+	}
+}
