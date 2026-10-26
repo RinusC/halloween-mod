@@ -19,6 +19,7 @@ binmode STDOUT, ':encoding(UTF-8)';
 
 # ---------------------------------------------------------------- DESIGN.md by topic
 my @topics = (
+	['VR', qr/VR|Vivecraft/],
 	['Демогоргон', qr/Демогоргон/],
 	['Уродец', qr/Уродец|уродц/],
 	['Майкл', qr/Майкл|Shape Jump|Поступ/],
@@ -49,6 +50,7 @@ for my $i (0 .. $#lines) {
 
 remove_tree("$vault/Дизайн");
 my %byTopic;
+my @vrElsewhere;    # sections of other topics that also touch VR, listed in the VR contents note
 my $n = 0;
 for my $s (@sections) {
 	$n++;
@@ -77,11 +79,16 @@ for my $s (@sections) {
 	print $o "# $title\n\nТема: [[Дизайн/$topic|$topic]]\n\n$body\n";
 	close $o;
 	push @{$byTopic{$topic}}, $file;
+	push @vrElsewhere, "$topic/$file" if $topic ne 'VR' && $body =~ /\bVR\b|Vivecraft/;
 }
 for my $topic (sort keys %byTopic) {
 	open my $o, '>:encoding(UTF-8)', "$vault/Дизайн/$topic.md" or die;
 	print $o "# $topic\n\nРазделы дизайна по порядку (старые сверху; поздние правят ранние).\n\n";
 	print $o "- [[Дизайн/$topic/$_|$_]]\n" for @{$byTopic{$topic}};
+	if ($topic eq 'VR') {
+		print $o "\n## VR в разделах других тем\n";
+		print $o "- [[Дизайн/$_|" . (split m{/}, $_)[1] . "]]\n" for @vrElsewhere;
+	}
 	close $o;
 }
 
@@ -117,6 +124,21 @@ for my $p (sort keys %pkg) {
 		my ($name) = $f->[0] =~ m{([^/]+)\.java$};
 		print $o "- **$name** (`$f->[0]`, $f->[1]) — $f->[2]\n";
 	}
+	close $o;
+}
+
+# the VR topic also gathers its code and the shader notes (hand-written, they plan for the headset too)
+if ($byTopic{VR}) {
+	open my $o, '>>:encoding(UTF-8)', "$vault/Дизайн/VR.md" or die;
+	print $o "\n## Код VR\n";
+	for my $p (sort keys %pkg) {
+		for my $f (sort { $a->[0] cmp $b->[0] } @{$pkg{$p}}) {
+			my ($name) = $f->[0] =~ m{([^/]+)\.java$};
+			print $o "- **$name** ([[Код/$p|$p]]) — $f->[2]\n" if $name =~ /^Vr|Vr(?:[A-Z]|$)/;
+		}
+	}
+	print $o "\n## Заметки\n";
+	print $o "- [[$_]]\n" for grep { -e "$vault/$_.md" } 'shaders-plan', 'shaders-recon';
 	close $o;
 }
 
