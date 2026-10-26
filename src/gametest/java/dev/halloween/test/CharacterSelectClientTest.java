@@ -5,6 +5,7 @@ import dev.halloween.Role;
 import dev.halloween.client.CharacterSelectScreen;
 import dev.halloween.client.ClientState;
 import dev.halloween.game.BotPlayer;
+import dev.halloween.game.HeroInfo;
 import dev.halloween.game.HeroPicks;
 import dev.halloween.game.MatchManager;
 import dev.halloween.game.Perks;
@@ -62,7 +63,7 @@ public class CharacterSelectClientTest implements FabricClientGameTest {
 			ctx.runOnClient(mc -> ClientPlayNetworking.send(new HwNet.HeroPick(HeroPicks.BUY, "annie")));
 			ctx.waitTicks(5);
 			check(server.computeOnServer(s -> Perks.ownsHero(s, player(s).getUUID(), "annie")), "Annie bought");
-			check(server.computeOnServer(s -> Perks.points(s, player(s).getUUID())) == 7000 - HwConfig.get().heroPrice, "the price spent");
+			check(server.computeOnServer(s -> Perks.points(s, player(s).getUUID())) == 7000 - HeroInfo.price("annie"), "the price spent");
 			check(server.computeOnServer(s -> "annie".equals(HeroPicks.survivor(player(s).getUUID()))), "and picked straight away");
 			check(ctx.computeOnClient(mc -> ClientState.heroesOwned.contains("annie")), "the client knows");
 			ctx.runOnClient(mc -> ClientPlayNetworking.send(new HwNet.HeroPick(HeroPicks.SURVIVOR, "rachel")));

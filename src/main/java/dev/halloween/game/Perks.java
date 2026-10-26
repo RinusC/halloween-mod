@@ -298,7 +298,7 @@ public final class Perks extends SavedData {
 		MinecraftServer server = player.level().getServer();
 		Perks data = get(server);
 		Profile p = data.profile(player.getUUID());
-		int price = HwConfig.get().heroPrice;
+		int price = HeroInfo.price(hero);
 		if (!HeroInfo.known(hero) || ownsHero(server, player.getUUID(), hero) || p.points() < price) {
 			sync(player);
 			return false;

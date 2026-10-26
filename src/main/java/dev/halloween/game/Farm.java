@@ -30,7 +30,7 @@ public final class Farm {
 	}
 
 	private static final Crop[] CROPS = {
-		new Crop("wheat", 7, 10), new Crop("potatoes", 7, 20), new Crop("carrots", 7, 35), new Crop("beetroots", 3, 50)};
+		new Crop("wheat", 7, 3), new Crop("potatoes", 7, 7), new Crop("carrots", 7, 12), new Crop("beetroots", 3, 17)};
 
 	private record Plot(Crop crop, int planted, int grow) {
 	}

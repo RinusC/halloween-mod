@@ -334,7 +334,7 @@ public final class CharacterSelectScreen extends Screen {
 			return;
 		}
 		if (!owned(hero)) {
-			if (ClientState.perkPoints < ClientState.heroPrice) {
+			if (ClientState.perkPoints < HeroInfo.price(hero)) {
 				return;
 			}
 			if (this.buyConfirmUntil < this.now()) {
@@ -750,9 +750,9 @@ public final class CharacterSelectScreen extends Screen {
 				g.text(this.font, "✔", tx1 - 10, y + 5, COOL, false);
 				tagW = 12;
 			} else if (!have) {
-				Component price = in(LABEL, Component.literal(String.valueOf(ClientState.heroPrice)));
+				Component price = in(LABEL, Component.literal(String.valueOf(HeroInfo.price(hero))));
 				int pw = this.font.width(price);
-				boolean afford = ClientState.perkPoints >= ClientState.heroPrice;
+				boolean afford = ClientState.perkPoints >= HeroInfo.price(hero);
 				g.text(this.font, price, tx1 - 3 - pw, y + 5, afford ? acc2 : TEXT3, false);
 				blit(g, LOCK, tx1 - 10 - pw, y + 4, 6, 8, afford ? acc2 : TEXT3);
 				tagW = pw + 13;
@@ -1011,7 +1011,7 @@ public final class CharacterSelectScreen extends Screen {
 			return false;
 		}
 		if (!owned(hero)) {
-			return ClientState.perkPoints >= ClientState.heroPrice;
+			return ClientState.perkPoints >= HeroInfo.price(hero);
 		}
 		return this.tab == 1 || hero.equals(myPick()) || takenBy(hero) == null;
 	}
@@ -1022,10 +1022,10 @@ public final class CharacterSelectScreen extends Screen {
 		}
 		if (!owned(hero)) {
 			if (this.buyConfirmUntil >= this.now()) {
-				return Component.translatable("halloween.select.buy_confirm", ClientState.heroPrice);
+				return Component.translatable("halloween.select.buy_confirm", HeroInfo.price(hero));
 			}
-			return Component.translatable(ClientState.perkPoints >= ClientState.heroPrice ? "halloween.select.buy" : "halloween.select.buy_short",
-				ClientState.heroPrice);
+			return Component.translatable(ClientState.perkPoints >= HeroInfo.price(hero) ? "halloween.select.buy" : "halloween.select.buy_short",
+				HeroInfo.price(hero));
 		}
 		if (this.tab == 1) {
 			return Component.translatable(hero.equals(myKiller()) ? "halloween.select.killer_on" : "halloween.select.killer_want");
@@ -1178,7 +1178,7 @@ public final class CharacterSelectScreen extends Screen {
 			g.fill(x, ly, right, ly + 22, fade(ARGB.multiplyAlpha(acc2, 0.14f), a));
 			g.fill(x, ly, x + 2, ly + 22, fade(acc2, a));
 			blit(g, LOCK, x + 7, ly + 7, 7, 9, fade(acc2, a));
-			Component price = in(DISPLAY, Component.translatable("halloween.select.purse", ClientState.heroPrice));
+			Component price = in(DISPLAY, Component.translatable("halloween.select.purse", HeroInfo.price(hero)));
 			g.text(this.font, price, x + 19, ly + 3, fade(acc2, a), false);
 			Component have = caps(LABEL, Component.translatable("halloween.select.have", ClientState.perkPoints));
 			g.text(this.font, have, x + 19, ly + 14, fade(TEXT3, a), false);

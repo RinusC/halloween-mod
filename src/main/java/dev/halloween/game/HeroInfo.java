@@ -20,7 +20,18 @@ public final class HeroInfo {
 	public static final List<String> SURVIVOR_STATS = List.of("stealth", "toughness", "search", "help");
 	public static final List<String> KILLER_STATS = List.of("speed", "stealth", "pressure", "difficulty");
 
+	/** The bought ones by strength, weakest first: 3000 for the first, 8900 for the last. */
+	private static final List<String> BY_POWER = List.of("annie", "lynda", "marcus", "alexis", "jennifer", "richard", "rachel", "thomas",
+		"demogorgon", "vecna");
+	private static final int[] PRICES = {3000, 3700, 4300, 5000, 5600, 6300, 6900, 7600, 8200, 8900};
+
 	private HeroInfo() {
+	}
+
+	/** What a hero costs; zero for the open ones. */
+	public static int price(String id) {
+		int i = BY_POWER.indexOf(id);
+		return i < 0 ? 0 : PRICES[i];
 	}
 
 	public static boolean killer(String id) {
