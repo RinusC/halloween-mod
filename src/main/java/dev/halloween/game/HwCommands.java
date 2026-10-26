@@ -105,7 +105,51 @@ public final class HwCommands {
 				src.sendSuccess(() -> Component.translatable("halloween.cmd.map_start", "Town"), true);
 				MapJob.start(src.getLevel(), BlockPos.containing(src.getPosition()), new Haddonfield(true), src, "Town");
 				return 1;
-			})))
+			})).then(Commands.literal("save").then(Commands.argument("name", StringArgumentType.word()).executes(ctx -> {
+				CommandSourceStack src = ctx.getSource();
+				String name = StringArgumentType.getString(ctx, "name");
+				if (!SavedMap.validName(name)) {
+					src.sendFailure(Component.translatable("halloween.cmd.map_name"));
+					return 0;
+				}
+				if (MapJob.busy() || Match.state() != Match.State.IDLE) {
+					src.sendFailure(Component.translatable("halloween.cmd.map_busy"));
+					return 0;
+				}
+				if (!MapSaveJob.start(src.getLevel(), src, name, Haddonfield.RIM, -4, 40)) {
+					src.sendFailure(Component.translatable("halloween.cmd.map_no_center"));
+					return 0;
+				}
+				src.sendSuccess(() -> Component.translatable("halloween.cmd.map_save_start", name), true);
+				return 1;
+			}))).then(Commands.literal("load").then(Commands.argument("name", StringArgumentType.word())
+				.suggests((c, b) -> SharedSuggestionProvider.suggest(SavedMap.names(), b))
+				.executes(ctx -> {
+					CommandSourceStack src = ctx.getSource();
+					String name = StringArgumentType.getString(ctx, "name");
+					if (!SavedMap.validName(name)) {
+						src.sendFailure(Component.translatable("halloween.cmd.map_name"));
+						return 0;
+					}
+					if (MapJob.busy() || Match.state() != Match.State.IDLE) {
+						src.sendFailure(Component.translatable("halloween.cmd.map_busy"));
+						return 0;
+					}
+					SavedMap map;
+					try {
+						map = SavedMap.load(name);
+					} catch (java.io.IOException e) {
+						src.sendFailure(Component.translatable("halloween.cmd.map_save_failed", name, e.toString()));
+						return 0;
+					}
+					if (map == null) {
+						src.sendFailure(Component.translatable("halloween.cmd.map_missing", name));
+						return 0;
+					}
+					src.sendSuccess(() -> Component.translatable("halloween.cmd.map_start", name), true);
+					MapJob.start(src.getLevel(), BlockPos.containing(src.getPosition()), map, src, name);
+					return 1;
+				}))))
 			.then(Commands.literal("mannequin").executes(HwCommands::mannequin))
 			.then(Commands.literal("exit").then(Commands.literal("open").then(Commands.argument("type", StringArgumentType.word())
 				.suggests((c, b) -> SharedSuggestionProvider.suggest(java.util.List.of("cellar", "car", "police", "gate"), b))

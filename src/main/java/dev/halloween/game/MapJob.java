@@ -45,7 +45,7 @@ public final class MapJob {
 	}
 
 	public static boolean busy() {
-		return current != null;
+		return current != null || MapSaveJob.busy();
 	}
 
 	/** Starts building {@code plan} with its centre at {@code origin} (feet level of the ground). */
@@ -133,6 +133,14 @@ public final class MapJob {
 
 	private void finish() {
 		MinecraftServer server = this.level.getServer();
+		// Block entities saved with the map (chests, signs): the block just placed gets its saved contents.
+		this.plan.blockEntities.forEach((local, data) -> {
+			BlockPos pos = this.origin.offset(local);
+			BlockEntity be = BlockEntity.loadStatic(pos, this.level.getBlockState(pos), data, this.level.registryAccess());
+			if (be != null) {
+				this.level.setBlockEntity(be);
+			}
+		});
 		// Sign texts.
 		this.plan.signs.forEach((local, lines) -> {
 			BlockEntity be = this.level.getBlockEntity(this.origin.offset(local));

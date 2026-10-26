@@ -283,6 +283,7 @@ public final class MatchManager {
 	public static void tick(MinecraftServer server) {
 		HwConfig cfg = HwConfig.get();
 		TickTimer.step("MapJob", () -> MapJob.tick(server));
+		TickTimer.step("MapSaveJob", () -> MapSaveJob.tick(server));
 		TickTimer.step("Match", () -> Match.tick(server));
 		TickTimer.step("Tutorial", () -> Tutorial.tick(server));
 		TickTimer.step("Lobby", () -> Lobby.tick(server));

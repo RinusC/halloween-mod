@@ -30,6 +30,8 @@ public class MapPlan {
 	final List<BlockPos> shapeFix = new ArrayList<>();
 	final List<Object[]> points = new ArrayList<>();
 	final Map<BlockPos, String[]> signs = new LinkedHashMap<>();
+	/** Saved block entities (containers, signs) of a map read from a file; a drawn plan has none. */
+	final Map<BlockPos, net.minecraft.nbt.CompoundTag> blockEntities = new LinkedHashMap<>();
 	/** The square laid out: |x|, |z| up to this. */
 	final int radius;
 	final int yMin;
