@@ -733,7 +733,7 @@ public class HwConfig {
 	public int scoreCallPolice = 200;
 	public int scoreHitShape = 10;
 	public int scoreStunShape = 300;
-	public int scoreRescueNpc = 300;
+	public int scoreRescueNpc = 1000;
 	public int scoreHiddenNpc = 75;
 
 	// --- Bots (fill the civilians' side when people are missing) ---
@@ -1189,7 +1189,7 @@ public class HwConfig {
 				this.scoreStunShape = 300;
 			}
 			if (this.scoreRescueNpc == 200) {
-				this.scoreRescueNpc = 300;
+				this.scoreRescueNpc = 1000;
 			}
 			if (this.scoreHiddenNpc == 100) {
 				this.scoreHiddenNpc = 75;
