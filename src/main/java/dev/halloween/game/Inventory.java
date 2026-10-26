@@ -92,6 +92,40 @@ public final class Inventory {
 	}
 
 	/**
+	 * Picking something up off the ground: the same places as give() (rounds only in their pocket, nothing
+	 * else in it), but nothing is thrown down when there is no room. True when all of it went in.
+	 */
+	public static boolean pickUp(ServerPlayer player, ItemStack stack) {
+		var inv = player.getInventory();
+		HwItems.Kind kind = HwItems.kindOf(stack);
+		boolean ammo = kind != null && kind.ammo();
+		int slots = ammo ? SLOTS : HAND_SLOTS;
+		for (int i = ammo ? AMMO_SLOT : 0; i < slots && !stack.isEmpty(); i++) {
+			ItemStack have = inv.getItem(i);
+			if (!have.isEmpty() && ItemStack.isSameItemSameComponents(have, stack) && have.getCount() < have.getMaxStackSize()) {
+				int move = Math.min(stack.getCount(), have.getMaxStackSize() - have.getCount());
+				have.grow(move);
+				stack.shrink(move);
+			}
+		}
+		if (!stack.isEmpty()) {
+			if (ammo) {
+				if (inv.getItem(AMMO_SLOT).isEmpty()) {
+					inv.setItem(AMMO_SLOT, stack.split(Math.min(stack.getCount(), stack.getMaxStackSize())));
+				}
+			} else {
+				for (int i = 0; i < HAND_SLOTS && !stack.isEmpty(); i++) {
+					if (inv.getItem(i).isEmpty()) {
+						inv.setItem(i, stack.split(stack.getMaxStackSize()));
+					}
+				}
+			}
+		}
+		inv.setChanged();
+		return stack.isEmpty();
+	}
+
+	/**
 	 * A bot with full pockets finds something to get away with (petrol, keys, bolt cutters, a fuse...) that is
 	 * still needed: it throws down one of its other things (whichever, as luck has it) and keeps the find.
 	 */

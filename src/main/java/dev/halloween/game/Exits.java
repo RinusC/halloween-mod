@@ -346,10 +346,7 @@ public final class Exits {
 				hint(player, "halloween.hint.car_fuel");
 				return null;
 			}
-			if (!civilian) {
-				hint(player, VecnaCurse.cursed(player) ? "halloween.hint.curse_no_escape" : "halloween.hint.deputy_no_escape");
-				return null;
-			}
+			// (The deputy and the cursed can start the engine like the others; they just don't get in, see above.)
 			if (!Inventory.has(player, HwItems.Kind.SEDAN_KEYS)) {
 				hint(player, "halloween.hint.car_keys");
 				return null;

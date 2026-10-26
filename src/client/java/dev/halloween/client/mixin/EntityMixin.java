@@ -22,6 +22,15 @@ public class EntityMixin {
 		}
 	}
 
+	/** Michael hidden in Shape Jump leaves no running dust behind him either (the body is gone, the puffs would show where he is). */
+	@Inject(method = "spawnSprintParticle", at = @At("HEAD"), cancellable = true)
+	private void halloween$noDustInShadow(org.spongepowered.asm.mixin.injection.callback.CallbackInfo ci) {
+		Entity self = (Entity) (Object) this;
+		if (ClientState.hideEntity(self) || self == net.minecraft.client.Minecraft.getInstance().player && ClientState.shadowActive()) {
+			ci.cancel();
+		}
+	}
+
 	@Inject(method = "getTeamColor", at = @At("HEAD"), cancellable = true)
 	private void halloween$outlineColor(CallbackInfoReturnable<Integer> cir) {
 		int color = ClientState.outlineColor((Entity) (Object) this);

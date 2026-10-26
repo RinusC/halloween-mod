@@ -762,6 +762,10 @@ public final class Vecna {
 		gripCooldown = HwConfig.get().vecnaGripMissCooldownTicks;
 		gripCooldownMax = gripCooldown;
 		GrabSession.anim(v, HwNet.Anim.NONE);
+		ShapeState st = MatchManager.shapeState(v);
+		if (st != null) {
+			st.addBloodthirst(-HwConfig.get().bloodthirstGripMissLoss);
+		}
 	}
 
 	private static boolean grippable(LivingEntity e) {

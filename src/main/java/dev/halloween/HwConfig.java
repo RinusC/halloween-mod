@@ -106,6 +106,8 @@ public class HwConfig {
 	public int corpseAdmireTicks = 200;
 	public double corpseAdmireRange = 8;
 	public float bloodthirstLightLossPerSecond = 3f;
+	/** Vecna doesn't lose it in light; a Grip that misses costs him this much. */
+	public float bloodthirstGripMissLoss = 15f;
 	public float bloodthirstDamageLoss = 15f;
 	public float bloodthirstFallLoss = 20f;
 	public double bloodthirstFallDistance = 3.5;

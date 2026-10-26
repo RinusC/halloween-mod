@@ -300,6 +300,7 @@ public class HalloweenClient implements ClientModInitializer {
 		ClientObstacles.tick(mc);
 		ClientInteractions.tick(mc);
 		ShapeJumpAudio.tick(mc);
+		VecnaDeathScene.tick(mc);
 		BloodParticles.tick(mc);
 		DashSteps.tick(mc);
 		ShapeBreath.tick(mc);

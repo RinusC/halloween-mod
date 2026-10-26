@@ -55,6 +55,10 @@ public final class HwBlocks {
 		new dev.halloween.game.DebrisBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.OAK_PLANKS).noOcclusion().dynamicShape().strength(-1f, 3600000f)
 			.isSuffocating((s, l, p) -> false).isViewBlocking((s, l, p) -> false).setId(key("debris"))));
 
+	/** Walls in the way of Vecna's death scene: shown pale and see-through on the watching clients only (see client.VecnaDeathScene). */
+	public static final Block GHOST_WALL = Registry.register(BuiltInRegistries.BLOCK, key("ghost_wall"),
+		new Block(BlockBehaviour.Properties.ofFullCopy(Blocks.GLASS).strength(-1f, 3600000f).setId(key("ghost_wall"))));
+
 	private HwBlocks() {
 	}
 

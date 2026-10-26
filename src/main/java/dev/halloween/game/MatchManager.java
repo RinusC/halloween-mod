@@ -446,8 +446,8 @@ public final class MatchManager {
 			tickCorpses(player, state);
 		}
 
-		// Standing in light drains Bloodthirst.
-		if (inLight(player)) {
+		// Standing in light drains Bloodthirst (not Vecna's: his drains on a Grip that misses).
+		if (!Vecna.active() && inLight(player)) {
 			state.addBloodthirst(-cfg.bloodthirstLightLossPerSecond / 20f);
 		}
 
