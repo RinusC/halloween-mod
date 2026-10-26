@@ -136,9 +136,18 @@ public class VecnaKillClientTest implements FabricClientGameTest {
 			ServerPlayer bot = victim(s);
 			bot.teleportTo(s.overworld(), at.getX() + 0.5, at.getY(), at.getZ() + 1.5, java.util.Set.of(), 0f, 0f, false);
 			p.teleportTo(s.overworld(), at.getX() + 0.5, at.getY(), at.getZ() - 0.2, java.util.Set.of(), 0f, 10f, false);
+			// No amulet to break his hold, nothing left over that keeps him busy.
+			while (dev.halloween.game.Inventory.has(bot, dev.halloween.game.HwItems.Kind.AMULET)) {
+				dev.halloween.game.Inventory.consume(bot, dev.halloween.game.HwItems.Kind.AMULET);
+			}
+			var st = MatchManager.shapeState(p);
+			st.attackCooldown = 0;
+			st.recoverTicks = 0;
+			st.blindTicks = 0;
 			// In and caught in the same tick (a bot not told to hide gets out again at once).
 			check(Lockers.enter(bot, base, false), "locker: the bot hides");
 			Lockers.shapeOpen(p, base);
+			LOG.info("locker: busy {} shadow {} distance {}", st.busy(), st.shadowTicks, p.position().distanceTo(net.minecraft.world.phys.Vec3.atBottomCenterOf(base)));
 			check(MatchManager.grabHolding(bot) != null, "locker: he has found them");
 		});
 		int[] shots = {4, 12, 18, 23, 27, 32, 38};
