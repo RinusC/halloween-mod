@@ -88,12 +88,13 @@ public final class Lobby extends SavedData {
 		// The character select, in the gym on the way to "Ready", facing the doors.
 		new Station("heroes", 30, 50, Direction.NORTH));
 
-	private record Saved(Optional<BlockPos> origin, Map<String, Integer> records, Map<String, Integer> rangeRecords, int layout) {
+	private record Saved(Optional<BlockPos> origin, Map<String, Integer> records, Map<String, Integer> rangeRecords, int layout, Map<String, Integer> farm) {
 		static final Codec<Saved> CODEC = RecordCodecBuilder.create(i -> i.group(
 			BlockPos.CODEC.optionalFieldOf("origin").forGetter(Saved::origin),
 			Codec.unboundedMap(Codec.STRING, Codec.INT).optionalFieldOf("records", Map.of()).forGetter(Saved::records),
 			Codec.unboundedMap(Codec.STRING, Codec.INT).optionalFieldOf("range_records", Map.of()).forGetter(Saved::rangeRecords),
-			Codec.INT.optionalFieldOf("layout", 1).forGetter(Saved::layout)).apply(i, Saved::new));
+			Codec.INT.optionalFieldOf("layout", 1).forGetter(Saved::layout),
+			Codec.unboundedMap(Codec.STRING, Codec.INT).optionalFieldOf("farm", Map.of()).forGetter(Saved::farm)).apply(i, Saved::new));
 	}
 
 	public static final SavedDataType<Lobby> TYPE = new SavedDataType<>(Halloween.id("lobby"), Lobby::new,
@@ -102,6 +103,7 @@ public final class Lobby extends SavedData {
 	private BlockPos origin;
 	private final Map<String, Integer> records = new HashMap<>();
 	private final Map<String, Integer> rangeRecords = new HashMap<>();
+	private final Map<String, Integer> farm = new HashMap<>();
 	private int layout = LAYOUT;
 
 	private static final class Run {
@@ -123,12 +125,13 @@ public final class Lobby extends SavedData {
 		l.origin = s.origin().orElse(null);
 		l.records.putAll(s.records());
 		l.rangeRecords.putAll(s.rangeRecords());
+		l.farm.putAll(s.farm());
 		l.layout = s.layout();
 		return l;
 	}
 
 	private Saved toSaved() {
-		return new Saved(Optional.ofNullable(this.origin), Map.copyOf(this.records), Map.copyOf(this.rangeRecords), this.layout);
+		return new Saved(Optional.ofNullable(this.origin), Map.copyOf(this.records), Map.copyOf(this.rangeRecords), this.layout, Map.copyOf(this.farm));
 	}
 
 	private static Lobby get(MinecraftServer server) {
@@ -158,6 +161,10 @@ public final class Lobby extends SavedData {
 			// A school built before the character select: its stand put up on its own (a rebuild would lose the parkour times).
 			stand(server.overworld(), data.origin, STATIONS.getLast());
 			buttons(server.overworld(), data.origin);
+		}
+		if (data.origin != null && !Farm.built(server.overworld(), data.origin)) {
+			// A school from before the farm: dug in on its own, the parkour times kept.
+			Farm.build(server.overworld(), data.origin);
 		}
 	}
 
@@ -240,6 +247,7 @@ public final class Lobby extends SavedData {
 			ShootingRange.stop(server.overworld());
 		} else {
 			ShootingRange.tick(server, o, get(server));
+			Farm.tick(server.overworld(), o, now);
 			if (humans.size() >= 2 && READY.size() >= humans.size()) {
 				if (readyCountdown < 0) {
 					readyCountdown = READY_TICKS;
@@ -409,6 +417,9 @@ public final class Lobby extends SavedData {
 		if (o == null) {
 			return InteractionResult.PASS;
 		}
+		if (onAttack(p, pos)) {
+			return InteractionResult.SUCCESS;
+		}
 		if (pos.equals(readyButton(o))) {
 			toggleReady(p);
 		} else if (pos.equals(heroButton(o))) {
@@ -463,6 +474,19 @@ public final class Lobby extends SavedData {
 	}
 
 	/** For tests: a player's best range score, or null. */
+	/** Farm earnings, kept per player name across restarts; returns the new total. */
+	int addFarmPoints(String name, int points) {
+		int total = this.farm.merge(name, points, Integer::sum);
+		this.setDirty();
+		return total;
+	}
+
+	/** A left click in the lobby: a farm crop is picked. */
+	public static boolean onAttack(ServerPlayer p, BlockPos pos) {
+		MinecraftServer server = p.level().getServer();
+		return origin(server) != null && !Match.running() && !Match.frozen() && Farm.harvest(p, pos, get(server));
+	}
+
 	public static Integer rangeRecord(MinecraftServer server, String name) {
 		return get(server).rangeRecords.get(name);
 	}
@@ -559,6 +583,7 @@ public final class Lobby extends SavedData {
 		hallway(level, o);
 		gym(level, o);
 		ShootingRange.build(level, o);
+		Farm.build(level, o);
 		stations(level, o);
 		course(level, o);
 	}
@@ -912,7 +937,7 @@ public final class Lobby extends SavedData {
 		text(level, at, line1, line2);
 	}
 
-	private static void text(ServerLevel level, BlockPos at, Component line1, Component line2) {
+	static void text(ServerLevel level, BlockPos at, Component line1, Component line2) {
 		if (level.getBlockEntity(at) instanceof SignBlockEntity sign) {
 			SignText text = new SignText().setMessage(1, line1).setMessage(2, line2).setHasGlowingText(true);
 			sign.setText(text, true);

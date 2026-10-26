@@ -126,6 +126,17 @@ public class Halloween implements ModInitializer {
 			&& MatchManager.shapeState(sp) != null && MatchManager.shapeState(sp).shadowTicks > 0
 			? net.minecraft.world.InteractionResult.FAIL : net.minecraft.world.InteractionResult.PASS);
 		UseBlockCallback.EVENT.register(LightSystem::onUseBlock);
+		// The lobby farm is picked by hitting a crop, adventure mode or not: the client lets the hit through, the server sells it.
+		net.fabricmc.fabric.api.event.player.AttackBlockCallback.EVENT.register((player, level, hand, pos, dir) -> {
+			if (!dev.halloween.game.Farm.isCrop(level.getBlockState(pos)) || player.isCreative()) {
+				return net.minecraft.world.InteractionResult.PASS;
+			}
+			if (level.isClientSide()) {
+				return net.minecraft.world.InteractionResult.SUCCESS;
+			}
+			return player instanceof net.minecraft.server.level.ServerPlayer sp && dev.halloween.game.Lobby.onAttack(sp, pos)
+				? net.minecraft.world.InteractionResult.SUCCESS : net.minecraft.world.InteractionResult.PASS;
+		});
 		UseBlockCallback.EVENT.register((player, level, hand, hit) -> !level.isClientSide() && player instanceof net.minecraft.server.level.ServerPlayer sp
 			? dev.halloween.game.Lobby.onUse(sp, hit.getBlockPos()) : net.minecraft.world.InteractionResult.PASS);
 		UseBlockCallback.EVENT.register((player, level, hand, hit) -> {
