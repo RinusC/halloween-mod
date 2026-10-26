@@ -55,6 +55,8 @@ public final class Vecna {
 	private static LivingEntity gripped;
 	private static int gripSince;
 	private static int gripLost;
+	private static final Identifier AFTERSLOW_ID = Halloween.id("vecna_afterslow");
+	private static final java.util.Map<LivingEntity, Integer> afterslow = new java.util.HashMap<>();
 	private static int gripCooldown;
 	/** The rest the Grip took last (a miss rests less than a catch); ticks aimed so far (-1: not aiming); the throw in flight (null: none), its way and the reach left. */
 	private static int gripCooldownMax = 1;
@@ -332,6 +334,7 @@ public final class Vecna {
 		}
 		ServerLevel level = server.overworld();
 		int now = server.getTickCount();
+		tickAfterslow(now);
 		ServerPlayer v = Senses.shape(level);
 		ShapeState st = v == null ? null : MatchManager.shapeState(v);
 		if (st == null) {
@@ -891,6 +894,7 @@ public final class Vecna {
 		t.removeEffect(MobEffects.DARKNESS);
 		gripped = null;
 		root(t, false);
+		afterslow(level, t);
 		if (v != null) {
 			GrabSession.anim(v, HwNet.Anim.NONE);
 		}
@@ -898,6 +902,33 @@ public final class Vecna {
 		if (t instanceof ServerPlayer sp) {
 			sp.sendOverlayMessage(Component.translatable(stunned ? "halloween.msg.vecna.freed_stun" : "halloween.msg.vecna.freed").withStyle(ChatFormatting.GRAY));
 		}
+	}
+
+	/** Out of the beam, however it ended: 25% slower for 2 seconds. */
+	private static void afterslow(ServerLevel level, LivingEntity t) {
+		AttributeInstance speed = t.getAttribute(Attributes.MOVEMENT_SPEED);
+		if (speed == null) {
+			return;
+		}
+		speed.addOrUpdateTransientModifier(new AttributeModifier(AFTERSLOW_ID, -0.25, AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
+		afterslow.put(t, level.getServer().getTickCount() + 40);
+	}
+
+	private static void tickAfterslow(int now) {
+		afterslow.entrySet().removeIf(e -> {
+			if (now < e.getValue() && !e.getKey().isRemoved()) {
+				return false;
+			}
+			AttributeInstance speed = e.getKey().getAttribute(Attributes.MOVEMENT_SPEED);
+			if (speed != null) {
+				speed.removeModifier(AFTERSLOW_ID);
+			}
+			return true;
+		});
+	}
+
+	private static void clearAfterslow() {
+		tickAfterslow(Integer.MAX_VALUE);
 	}
 
 	private static void root(LivingEntity e, boolean on) {
@@ -922,6 +953,11 @@ public final class Vecna {
 	/** Back to school: nothing of the Grip left on them. */
 	public static void reset(ServerPlayer p) {
 		root(p, false);
+		afterslow.remove(p);
+		AttributeInstance slow = p.getAttribute(Attributes.MOVEMENT_SPEED);
+		if (slow != null) {
+			slow.removeModifier(AFTERSLOW_ID);
+		}
 		if (p.isInvisible()) {
 			p.setInvisible(false);
 		}
@@ -935,6 +971,7 @@ public final class Vecna {
 				v.setInvisible(false);
 			}
 		}
+		clearAfterslow();
 		gripAim = -1;
 		bolt = null;
 		bolt2 = null;
