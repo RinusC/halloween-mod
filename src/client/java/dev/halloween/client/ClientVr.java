@@ -102,6 +102,20 @@ public final class ClientVr {
 
 	private static boolean hudHeld;
 
+	/** Vivecraft's crosshair in the world hidden while a gun is in the hand (its sights aim), the player's own setting back after. */
+	private static void noCrosshair(boolean on) {
+		if (Vr.LOADED && on != crosshairHidden) {
+			crosshairHidden = on;
+			try {
+				Api.crosshair(on);
+			} catch (Throwable e) {
+				// Another Vivecraft than the one this was made for: the crosshair stays.
+			}
+		}
+	}
+
+	private static boolean crosshairHidden;
+
 	/** Lets go of a key the radial menu holds down (it holds what it presses until pressed again). */
 	static void unhold(net.minecraft.client.KeyMapping key) {
 		if (active()) {
@@ -160,6 +174,7 @@ public final class ClientVr {
 			describe();
 		}
 		hudOnHead(active() && ClientState.myRole() != dev.halloween.Role.NONE);
+		noCrosshair(active() && ClientGuns.heldGun(mc) != null);
 		if (!active() || mc.level == null) {
 			return;
 		}
@@ -292,6 +307,22 @@ public final class ClientVr {
 				saved = settings.vrRadialItems;
 			}
 			settings.vrRadialItems = items;
+		}
+
+		/** The player's own crosshair mode, kept while it is hidden. */
+		private static org.vivecraft.client_vr.settings.VRSettings.RenderPointerElement savedCrosshair;
+
+		static void crosshair(boolean hide) {
+			var settings = org.vivecraft.client_vr.ClientDataHolderVR.getInstance().vrSettings;
+			if (hide) {
+				if (savedCrosshair == null) {
+					savedCrosshair = settings.renderInGameCrosshairMode;
+				}
+				settings.renderInGameCrosshairMode = org.vivecraft.client_vr.settings.VRSettings.RenderPointerElement.NEVER;
+			} else if (savedCrosshair != null) {
+				settings.renderInGameCrosshairMode = savedCrosshair;
+				savedCrosshair = null;
+			}
 		}
 
 		/** The player's own HUD lock, kept while ours is on. */

@@ -34,6 +34,10 @@ public class ItemInHandRendererMixin {
 	@Inject(method = "renderItem", at = @At("HEAD"))
 	private void halloween$gunDrawn(LivingEntity entity, ItemStack stack, ItemDisplayContext context, PoseStack poseStack, SubmitNodeCollector collector, int light, CallbackInfo ci) {
 		if (context == ItemDisplayContext.FIRST_PERSON_RIGHT_HAND || context == ItemDisplayContext.FIRST_PERSON_LEFT_HAND) {
+			if (dev.halloween.client.ClientGuns.vrHeld(entity, stack)) {
+				// Vivecraft holds an item it does not know upright, like a torch: a gun is laid level, barrel forward.
+				poseStack.mulPose(com.mojang.math.Axis.XN.rotationDegrees(90));
+			}
 			dev.halloween.client.ClientGuns.drawn(entity, stack, poseStack.last().pose());
 		}
 	}

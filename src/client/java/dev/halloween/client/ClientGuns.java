@@ -60,6 +60,12 @@ public final class ClientGuns {
 		}
 	}
 
+	/** The local player's gun drawn in their hand in the headset. */
+	public static boolean vrHeld(net.minecraft.world.entity.LivingEntity entity, ItemStack stack) {
+		Minecraft mc = Minecraft.getInstance();
+		return ClientVr.active() && entity == mc.player && stack == mc.player.getMainHandItem() && heldGun(mc) != null;
+	}
+
 	public static boolean aiming() {
 		return sentAim;
 	}
