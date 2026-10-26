@@ -47,6 +47,8 @@ public final class VrKeys {
 	private static KeyMapping ping;
 	private static KeyMapping gift1;
 	private static KeyMapping gift2;
+	/** A button of its own for the shot, for a controller whose interact button is also the hotbar's. */
+	private static KeyMapping fire;
 	/** What the radial menu was last set to (a role and form), so it is set only when that changes. */
 	private static String shown = "";
 
@@ -75,6 +77,7 @@ public final class VrKeys {
 		ping = alias("ping", HalloweenClient.KEY_PING, false);
 		gift1 = key("gift1");
 		gift2 = key("gift2");
+		fire = key("fire");
 	}
 
 	private static KeyMapping key(String name) {
@@ -185,6 +188,12 @@ public final class VrKeys {
 				}
 				ClientVr.unhold(gift);
 			}
+		}
+		while (fire.consumeClick()) {
+			if (mc.player != null && mc.level != null && mc.gui.screen() == null && !VrWrist.open() && ClientGuns.heldGun(mc) != null) {
+				HalloweenClient.survivorAttack(mc, 1);
+			}
+			ClientVr.unhold(fire);
 		}
 		radial(mc);
 	}
