@@ -45,53 +45,53 @@ import org.lwjgl.glfw.GLFW;
  */
 public final class CharacterSelectScreen extends Screen {
 	// The survivors' colours and the killers' (the screen goes from one to the other with the tab).
-	private static final int[] BG0 = {0xFF07080D, 0xFF070405};
-	private static final int[] PANEL = {0xDC121520, 0xE0140B0E};
-	private static final int[] LINE = {0xFF2A3040, 0xFF3A2228};
-	private static final int[] LINE2 = {0xFF3E475D, 0xFF5A323C};
-	private static final int[] ACCENT = {0xFFE8731A, 0xFFC42A36};
-	private static final int[] ACCENT2 = {0xFFFFB347, 0xFFFF6A6A};
-	private static final int[] STREET = {0xFFFFFFFF, 0xFFC88080};
-	private static final int TEXT = 0xFFECE6D8;
-	private static final int TEXT2 = 0xFFB4AFA2;
-	private static final int TEXT3 = 0xFF8A877E;
-	private static final int DARK_TEXT = 0xFF1A0E05;
-	private static final int COOL = 0xFF79B3A4;
-	private static final int ROW = 17;
+	static final int[] BG0 = {0xFF07080D, 0xFF070405};
+	static final int[] PANEL = {0xDC121520, 0xE0140B0E};
+	static final int[] LINE = {0xFF2A3040, 0xFF3A2228};
+	static final int[] LINE2 = {0xFF3E475D, 0xFF5A323C};
+	static final int[] ACCENT = {0xFFE8731A, 0xFFC42A36};
+	static final int[] ACCENT2 = {0xFFFFB347, 0xFFFF6A6A};
+	static final int[] STREET = {0xFFFFFFFF, 0xFFC88080};
+	static final int TEXT = 0xFFECE6D8;
+	static final int TEXT2 = 0xFFB4AFA2;
+	static final int TEXT3 = 0xFF8A877E;
+	static final int DARK_TEXT = 0xFF1A0E05;
+	static final int COOL = 0xFF79B3A4;
+	static final int ROW = 17;
 	/** The opening scene on the spot: this long (ticks). */
 	private static final float SCENE_TICKS = 140f;
 
-	private static final FontDescription LABEL = font("label");
-	private static final FontDescription DISPLAY = font("display");
-	private static final FontDescription BIG = font("display_big");
+	static final FontDescription LABEL = font("label");
+	static final FontDescription DISPLAY = font("display");
+	static final FontDescription BIG = font("display_big");
 
 	/** A texture of tools/SelectArt.java, w by h texels (four to a GUI pixel). */
-	private record Tex(Identifier id, int w, int h) {
+	record Tex(Identifier id, int w, int h) {
 	}
 
-	private static final int D = 4;
-	private static final Tex PANEL_FILL = tex("panel_fill", 96, 96);
-	private static final Tex PANEL_LINE = tex("panel_line", 96, 96);
-	private static final Tex PANEL_CORNER = tex("panel_corner", 96, 96);
-	private static final Tex BTN_FILL = tex("btn_fill", 96, 56);
-	private static final Tex BTN_LINE = tex("btn_line", 96, 56);
-	private static final Tex SEG = tex("seg", 20, 20);
-	private static final Tex DIAMOND_FILL = tex("diamond_fill", 64, 64);
-	private static final Tex DIAMOND_LINE = tex("diamond_line", 64, 64);
-	private static final Tex DIAMOND_EMPTY = tex("diamond_empty", 64, 64);
-	private static final Tex FRAME = tex("frame", 56, 56);
-	private static final Tex LOCK = tex("lock", 28, 36);
-	private static final Tex CHEV_L = tex("chev_l", 32, 56);
-	private static final Tex CHEV_R = tex("chev_r", 32, 56);
-	private static final Tex GLOW = tex("glow", 128, 128);
-	private static final Tex GLOW_LINE = tex("glow_line", 256, 16);
-	private static final Tex BEAM = tex("beam", 128, 256);
-	private static final Tex PEDESTAL = tex("pedestal", 480, 120);
-	private static final Tex PEDESTAL_RIM = tex("pedestal_rim", 480, 120);
-	private static final Tex BACKDROP = tex("backdrop", 1024, 512);
-	private static final Tex FOG = tex("fog", 512, 128);
-	private static final Tex GRAIN = tex("grain", 128, 128);
-	private static final Tex VIGNETTE = tex("vignette", 256, 144);
+	static final int D = 4;
+	static final Tex PANEL_FILL = tex("panel_fill", 96, 96);
+	static final Tex PANEL_LINE = tex("panel_line", 96, 96);
+	static final Tex PANEL_CORNER = tex("panel_corner", 96, 96);
+	static final Tex BTN_FILL = tex("btn_fill", 96, 56);
+	static final Tex BTN_LINE = tex("btn_line", 96, 56);
+	static final Tex SEG = tex("seg", 20, 20);
+	static final Tex DIAMOND_FILL = tex("diamond_fill", 64, 64);
+	static final Tex DIAMOND_LINE = tex("diamond_line", 64, 64);
+	static final Tex DIAMOND_EMPTY = tex("diamond_empty", 64, 64);
+	static final Tex FRAME = tex("frame", 56, 56);
+	static final Tex LOCK = tex("lock", 28, 36);
+	static final Tex CHEV_L = tex("chev_l", 32, 56);
+	static final Tex CHEV_R = tex("chev_r", 32, 56);
+	static final Tex GLOW = tex("glow", 128, 128);
+	static final Tex GLOW_LINE = tex("glow_line", 256, 16);
+	static final Tex BEAM = tex("beam", 128, 256);
+	static final Tex PEDESTAL = tex("pedestal", 480, 120);
+	static final Tex PEDESTAL_RIM = tex("pedestal_rim", 480, 120);
+	static final Tex BACKDROP = tex("backdrop", 1024, 512);
+	static final Tex FOG = tex("fog", 512, 128);
+	static final Tex GRAIN = tex("grain", 128, 128);
+	static final Tex VIGNETTE = tex("vignette", 256, 144);
 
 	/** Remembered while the game runs: which tab and whom one looked at last. */
 	private static int lastTab;
@@ -276,7 +276,7 @@ public final class CharacterSelectScreen extends Screen {
 		ClientPlayNetworking.send(new HwNet.HeroPick(action, hero));
 	}
 
-	private static void click() {
+	static void click() {
 		Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK.value(), 1f, 0.6f));
 	}
 
@@ -374,11 +374,11 @@ public final class CharacterSelectScreen extends Screen {
 
 	// ---------------------------------------------------------------- the look: colours, type, art
 
-	private static FontDescription font(String name) {
+	static FontDescription font(String name) {
 		return new FontDescription.Resource(Identifier.fromNamespaceAndPath("halloween", name));
 	}
 
-	private static Tex tex(String name, int w, int h) {
+	static Tex tex(String name, int w, int h) {
 		return new Tex(Identifier.fromNamespaceAndPath("halloween", "textures/gui/select/" + name + ".png"), w, h);
 	}
 
@@ -387,33 +387,33 @@ public final class CharacterSelectScreen extends Screen {
 		return ARGB.srgbLerp(this.mix, pair[0], pair[1]);
 	}
 
-	private static Component in(FontDescription f, Component text) {
+	static Component in(FontDescription f, Component text) {
 		return text.copy().withStyle(s -> s.withFont(f));
 	}
 
-	private static Component caps(FontDescription f, Component text) {
+	static Component caps(FontDescription f, Component text) {
 		return Component.literal(text.getString().toUpperCase(Locale.ROOT)).withStyle(s -> s.withFont(f));
 	}
 
-	private static int fade(int color, float a) {
+	static int fade(int color, float a) {
 		// Text nearly gone is not drawn at all (an alpha of almost nothing reads as opaque).
 		return ARGB.multiplyAlpha(color, Math.max(0.05f, a));
 	}
 
-	private static float ease(float k) {
+	static float ease(float k) {
 		k = Mth.clamp(k, 0f, 1f);
 		return 1 - (1 - k) * (1 - k) * (1 - k);
 	}
 
 	/** A texture stretched over the box, tinted. */
-	private static void blit(GuiGraphicsExtractor g, Tex t, int x, int y, int w, int h, int color) {
+	static void blit(GuiGraphicsExtractor g, Tex t, int x, int y, int w, int h, int color) {
 		if (w > 0 && h > 0) {
 			g.blit(RenderPipelines.GUI_TEXTURED, t.id, x, y, 0, 0, w, h, t.w, t.h, t.w, t.h, color);
 		}
 	}
 
 	/** The same at a point between pixels (embers, the sliding model's light). */
-	private static void blitAt(GuiGraphicsExtractor g, Tex t, float x, float y, float w, float h, int color) {
+	static void blitAt(GuiGraphicsExtractor g, Tex t, float x, float y, float w, float h, int color) {
 		g.pose().pushMatrix();
 		g.pose().translate(x, y);
 		g.pose().scale(w / 64f, h / 64f);
@@ -422,7 +422,7 @@ public final class CharacterSelectScreen extends Screen {
 	}
 
 	/** Nine-sliced: the corners kept, b GUI pixels of each side kept, the rest stretched. */
-	private static void nine(GuiGraphicsExtractor g, Tex t, int x, int y, int w, int h, int b, int color) {
+	static void nine(GuiGraphicsExtractor g, Tex t, int x, int y, int w, int h, int b, int color) {
 		int bx = Math.min(b, w / 2);
 		int by = Math.min(b, h / 2);
 		int[] xs = {x, x + bx, x + w - bx, x + w};
@@ -441,7 +441,7 @@ public final class CharacterSelectScreen extends Screen {
 	}
 
 	/** Sliced left and right only, stretched top to bottom: the slanted buttons. */
-	private static void three(GuiGraphicsExtractor g, Tex t, int x, int y, int w, int h, int color) {
+	static void three(GuiGraphicsExtractor g, Tex t, int x, int y, int w, int h, int color) {
 		int b = Math.min(6, w / 2);
 		int[] xs = {x, x + b, x + w - b, x + w};
 		int[] us = {0, b * D, t.w - b * D, t.w};
@@ -480,7 +480,7 @@ public final class CharacterSelectScreen extends Screen {
 	}
 
 	/** A pseudo-random number in 0..1 for an ember's or a mote's i-th property. */
-	private static float rnd(int i, int k) {
+	static float rnd(int i, int k) {
 		int h = i * 374761393 + k * 668265263;
 		h = (h ^ (h >>> 13)) * 1274126177;
 		return ((h ^ (h >>> 16)) & 0xFFFF) / 65535f;
@@ -659,6 +659,27 @@ public final class CharacterSelectScreen extends Screen {
 			x += w + 2;
 		}
 		g.text(this.font, in(LABEL, Component.literal("TAB")), x + 5, 11, TEXT3, false);
+		x += 5 + this.font.width(in(LABEL, Component.literal("TAB"))) + 12;
+		// The player's level: a diamond with the number and the bar under the word; opens the level road.
+		if (LevelScreen.available()) {
+			int level = dev.halloween.game.PlayerLevel.of(ClientState.earned);
+			Component word = caps(LABEL, Component.translatable("halloween.level.short"));
+			int pw = 17 + this.font.width(word) + 8;
+			boolean hover = mouseX >= x && mouseX < x + pw && mouseY >= 4 && mouseY < 24;
+			blitAt(g, GLOW, x - 6, 1, 26, 26, ARGB.multiplyAlpha(acc, hover ? 0.6f : 0.35f));
+			blit(g, DIAMOND_FILL, x, 6, 15, 15, ARGB.srgbLerp(0.25f, acc, 0xFF2A1406));
+			blit(g, DIAMOND_LINE, x, 6, 15, 15, hover ? TEXT : this.pal(ACCENT2));
+			Component num = in(LABEL, Component.literal(Integer.toString(level)));
+			g.text(this.font, num, x + 8 - this.font.width(num) / 2, 10, TEXT, false);
+			g.text(this.font, word, x + 18, 8, hover ? TEXT : TEXT2, false);
+			int bw = pw - 18 - 4;
+			g.fill(x + 18, 17, x + 18 + bw, 19, 0xC0000000);
+			g.fill(x + 18, 17, x + 18 + Math.round(bw * dev.halloween.game.PlayerLevel.progress(ClientState.earned)), 19, acc);
+			this.hits.add(new Hit(x - 2, 4, x + pw, 24, () -> {
+				click();
+				Minecraft.getInstance().gui.setScreen(new LevelScreen(this));
+			}));
+		}
 		// The lobby: a pip each, lit for those ready; how many; the countdown, large.
 		HwNet.HeroLobby l = ClientState.heroLobby;
 		int ready = 0;

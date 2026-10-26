@@ -705,7 +705,7 @@ public final class HwNet {
 	 * game.HeroPicks).
 	 */
 	public record PerkSync(int points, List<String> owned, List<String> equipped, int slots, List<String> heroes, int heroPrice,
-		java.util.Map<String, List<Integer>> records) implements CustomPacketPayload {
+		java.util.Map<String, List<Integer>> records, int earned) implements CustomPacketPayload {
 		public static final Type<PerkSync> TYPE = payloadType("perk_sync");
 		public static final StreamCodec<RegistryFriendlyByteBuf, PerkSync> CODEC = StreamCodec.of((buf, v) -> {
 			buf.writeVarInt(v.points);
@@ -720,6 +720,7 @@ public final class HwNet {
 				buf.writeVarInt(r.size());
 				r.forEach(buf::writeVarInt);
 			});
+			buf.writeVarInt(v.earned);
 		}, buf -> {
 			int points = buf.readVarInt();
 			List<String> owned = readStrings(buf);
@@ -738,7 +739,7 @@ public final class HwNet {
 				}
 				records.put(hero, r);
 			}
-			return new PerkSync(points, owned, equipped, slots, heroes, price, records);
+			return new PerkSync(points, owned, equipped, slots, heroes, price, records, buf.readVarInt());
 		});
 
 		@Override

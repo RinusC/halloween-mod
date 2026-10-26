@@ -51,6 +51,8 @@ public final class ClientState {
 	public static java.util.List<String> perkOwned = java.util.List.of();
 	public static java.util.List<String> perkEquipped = java.util.List.of();
 	public static int perkSlots = 3;
+	/** Every point ever earned: the level (see game.PlayerLevel). */
+	public static int earned;
 	/** The heroes bought, what one costs, each hero's record (played, escapes or wins, best score); the lobby's picks. */
 	public static java.util.List<String> heroesOwned = java.util.List.of();
 	public static int heroPrice = 3000;

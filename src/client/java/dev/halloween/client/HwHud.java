@@ -10,6 +10,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.Component;
+import net.minecraft.util.ARGB;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -84,9 +85,10 @@ public final class HwHud {
 			g.fill(w / 2 - tw / 2 - 6, 6, w / 2 + tw / 2 + 6, 20, 0xA0000000);
 			g.centeredText(mc.font, info.status(), w / 2, 9, 0xFFFFFFFF);
 		}
+		levelBadge(g, mc);
 		int tip = (int) (mc.level.getGameTime() / 240 % 12) + 1;
 		Component tipText = Component.translatable("halloween.lobby.tip." + tip);
-		g.text(mc.font, tipText, 8, 26, 0xFFB8B2A6, true);
+		g.text(mc.font, tipText, 8, 57, 0xFFB8B2A6, true);
 		if (info.panel().isEmpty()) {
 			return;
 		}
@@ -106,6 +108,52 @@ public final class HwHud {
 			g.text(mc.font, line, x0 + 8, y, 0xFFE8E2D4, false);
 			y += 10;
 		}
+	}
+
+	/** The player's level in the lobby's top left corner, as a plate of the character select's glass. */
+	private static void levelBadge(GuiGraphicsExtractor g, Minecraft mc) {
+		int earned = ClientState.earned;
+		int level = dev.halloween.game.PlayerLevel.of(earned);
+		int acc = CharacterSelectScreen.ACCENT[0];
+		int acc2 = CharacterSelectScreen.ACCENT2[0];
+		// Under the lobby's status line, which runs along the top in the middle.
+		int x0 = 6;
+		int y0 = 24;
+		int w = 124;
+		int h = 28;
+		CharacterSelectScreen.nine(g, CharacterSelectScreen.PANEL_FILL, x0, y0, w, h, 6, CharacterSelectScreen.PANEL[0]);
+		CharacterSelectScreen.nine(g, CharacterSelectScreen.PANEL_LINE, x0, y0, w, h, 6, CharacterSelectScreen.LINE2[0]);
+		CharacterSelectScreen.nine(g, CharacterSelectScreen.PANEL_CORNER, x0, y0, w, h, 6, ARGB.multiplyAlpha(acc, 0.9f));
+		// The diamond with the number in it.
+		int ds = 22;
+		int dx = x0 + 4;
+		int dy = y0 + (h - ds) / 2;
+		float pulse = 0.5f + 0.5f * Mth.sin(mc.level.getGameTime() * 0.12f);
+		CharacterSelectScreen.blitAt(g, CharacterSelectScreen.GLOW, dx - 8, dy - 8, ds + 16, ds + 16, ARGB.color(0.3f + 0.15f * pulse, acc));
+		CharacterSelectScreen.blit(g, CharacterSelectScreen.DIAMOND_FILL, dx, dy, ds, ds, ARGB.srgbLerp(0.25f, acc, 0xFF2A1406));
+		CharacterSelectScreen.blit(g, CharacterSelectScreen.DIAMOND_LINE, dx, dy, ds, ds, acc2);
+		Component num = CharacterSelectScreen.in(CharacterSelectScreen.DISPLAY, Component.literal(Integer.toString(level)));
+		g.text(mc.font, num, dx + ds / 2 - mc.font.width(num) / 2 + 1, dy + ds / 2 - 5, CharacterSelectScreen.TEXT, false);
+		// The title, the key, and the bar to the next level.
+		int tx = dx + ds + 5;
+		int right = x0 + w - 6;
+		Component title = CharacterSelectScreen.caps(CharacterSelectScreen.LABEL, Component.translatable("halloween.level.n", level, dev.halloween.game.PlayerLevel.MAX));
+		g.text(mc.font, title, tx, y0 + 6, CharacterSelectScreen.TEXT, false);
+		Component key = CharacterSelectScreen.in(CharacterSelectScreen.LABEL, Component.literal("[").append(HalloweenClient.KEY_LEVEL.getTranslatedKeyMessage()).append("]"));
+		g.text(mc.font, key, right - mc.font.width(key), y0 + 6, CharacterSelectScreen.TEXT3, false);
+		int by = y0 + 16;
+		int bw = right - tx;
+		g.fill(tx, by, right, by + 3, 0xC0000000);
+		int fw = Math.round(bw * dev.halloween.game.PlayerLevel.progress(earned));
+		if (fw > 0) {
+			g.fill(tx, by, tx + fw, by + 3, acc);
+			g.fill(tx, by, tx + fw, by + 1, acc2);
+		}
+		Component sub = level >= dev.halloween.game.PlayerLevel.MAX ? Component.translatable("halloween.level.max")
+			: Component.literal(LevelScreen.number(earned - dev.halloween.game.PlayerLevel.total(level)) + " / "
+				+ LevelScreen.number(dev.halloween.game.PlayerLevel.cost(level + 1)));
+		Component small = CharacterSelectScreen.in(CharacterSelectScreen.LABEL, sub);
+		g.text(mc.font, small, right - mc.font.width(small), by + 4, CharacterSelectScreen.TEXT2, false);
 	}
 
 	private static void renderScaled(GuiGraphicsExtractor g, DeltaTracker delta, Minecraft mc, int w, int h) {

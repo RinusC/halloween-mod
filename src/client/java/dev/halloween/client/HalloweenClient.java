@@ -47,6 +47,8 @@ public class HalloweenClient implements ClientModInitializer {
 		new KeyMapping("key.halloween.perks", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_P, CATEGORY));
 	public static final KeyMapping KEY_HEROES = KeyMappingHelper.registerKeyMapping(
 		new KeyMapping("key.halloween.heroes", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_H, CATEGORY));
+	public static final KeyMapping KEY_LEVEL = KeyMappingHelper.registerKeyMapping(
+		new KeyMapping("key.halloween.level", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_J, CATEGORY));
 
 	private static final Identifier FX_SHAPE_JUMP = Halloween.id("shape_jump");
 	private static final Identifier FX_SENSE = Halloween.id("killer_sense");
@@ -184,6 +186,7 @@ public class HalloweenClient implements ClientModInitializer {
 			ClientState.heroesOwned = payload.heroes();
 			ClientState.heroPrice = payload.heroPrice();
 			ClientState.heroRecords = payload.records();
+			ClientState.earned = payload.earned();
 			Minecraft mc = Minecraft.getInstance();
 			mc.execute(() -> {
 				if (mc.gui.screen() instanceof PerkScreen perks) {
@@ -332,6 +335,12 @@ public class HalloweenClient implements ClientModInitializer {
 			// Between matches only: the character select is the lobby's.
 			if (mc.gui.screen() == null && ClientState.match.state() == 0) {
 				mc.gui.setScreen(new CharacterSelectScreen());
+			}
+		}
+		while (KEY_LEVEL.consumeClick()) {
+			// The level is the lobby's only.
+			if (mc.gui.screen() == null && LevelScreen.available()) {
+				mc.gui.setScreen(new LevelScreen(null));
 			}
 		}
 		Role role = ClientState.myRole();

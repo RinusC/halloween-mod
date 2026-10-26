@@ -18,6 +18,8 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.datafix.DataFixTypes;
 import net.minecraft.world.level.saveddata.SavedData;
 import net.minecraft.world.level.saveddata.SavedDataType;
@@ -100,22 +102,33 @@ public final class Perks extends SavedData {
 
 	/**
 	 * A purse and what was bought with it: perks, and heroes (see HeroPicks); and each hero's record (matches played,
-	 * escapes, best score).
+	 * escapes, best score); and every point ever earned, for the level (see PlayerLevel; -1 in a profile from before it
+	 * was counted, which starts from the purse).
 	 */
-	private record Profile(int points, List<String> owned, List<String> equipped, List<String> heroes, Map<String, List<Integer>> records) {
+	private record Profile(int points, List<String> owned, List<String> equipped, List<String> heroes, Map<String, List<Integer>> records, int xp) {
 		static final Codec<Profile> CODEC = RecordCodecBuilder.create(i -> i.group(
 			Codec.INT.fieldOf("points").forGetter(Profile::points),
 			Codec.STRING.listOf().optionalFieldOf("owned", List.of()).forGetter(Profile::owned),
 			Codec.STRING.listOf().optionalFieldOf("equipped", List.of()).forGetter(Profile::equipped),
 			Codec.STRING.listOf().optionalFieldOf("heroes", List.of()).forGetter(Profile::heroes),
-			Codec.unboundedMap(Codec.STRING, Codec.INT.listOf()).optionalFieldOf("records", Map.of()).forGetter(Profile::records)).apply(i, Profile::new));
+			Codec.unboundedMap(Codec.STRING, Codec.INT.listOf()).optionalFieldOf("records", Map.of()).forGetter(Profile::records),
+			Codec.INT.optionalFieldOf("xp", -1).forGetter(Profile::xp)).apply(i, Profile::new));
 
 		Profile(int points, List<String> owned, List<String> equipped) {
-			this(points, owned, equipped, List.of(), Map.of());
+			this(points, owned, equipped, List.of(), Map.of(), 0);
+		}
+
+		int earned() {
+			return this.xp < 0 ? this.points : this.xp;
 		}
 
 		Profile withPerks(int points, List<String> owned, List<String> equipped) {
-			return new Profile(points, owned, equipped, this.heroes, this.records);
+			return new Profile(points, owned, equipped, this.heroes, this.records, this.xp);
+		}
+
+		/** Points earned: into the purse and onto the level. */
+		Profile earn(int amount) {
+			return new Profile(this.points + amount, this.owned, this.equipped, this.heroes, this.records, this.earned() + amount);
 		}
 	}
 
@@ -274,18 +287,39 @@ public final class Perks extends SavedData {
 				continue;
 			}
 			Profile before = data.profile(e.getKey());
-			int total = before.points() + e.getValue();
-			data.put(e.getKey(), before.withPerks(total, before.owned(), before.equipped()));
-			Notices.send(player, Component.translatable("halloween.perk.points", total, e.getValue()).withStyle(ChatFormatting.GOLD));
+			Profile after = before.earn(e.getValue());
+			data.put(e.getKey(), after);
+			Notices.send(player, Component.translatable("halloween.perk.points", after.points(), e.getValue()).withStyle(ChatFormatting.GOLD));
+			levelUp(player, before, after);
 			sync(player);
 		}
 	}
 
-	/** Puts points into a purse (the lobby farm, tests). */
+	/** Puts earned points into a purse (the lobby farm, tests); they count towards the level too. */
 	public static void give(MinecraftServer server, UUID id, int points) {
 		Perks data = get(server);
-		Profile p = data.profile(id);
-		data.put(id, p.withPerks(p.points() + points, p.owned(), p.equipped()));
+		Profile before = data.profile(id);
+		Profile after = before.earn(points);
+		data.put(id, after);
+		ServerPlayer player = server.getPlayerList().getPlayer(id);
+		if (player != null) {
+			levelUp(player, before, after);
+		}
+	}
+
+	/** Every point ever earned (the level is worked out from it, see PlayerLevel). */
+	public static int earned(MinecraftServer server, UUID id) {
+		return get(server).profile(id).earned();
+	}
+
+	/** A new level reached: a line and a fanfare for them. */
+	private static void levelUp(ServerPlayer player, Profile before, Profile after) {
+		int level = PlayerLevel.of(after.earned());
+		if (level <= PlayerLevel.of(before.earned()) || Bots.isBot(player)) {
+			return;
+		}
+		Notices.send(player, Component.translatable("halloween.level.up", level).withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD));
+		player.level().playSound(null, player.blockPosition(), SoundEvents.PLAYER_LEVELUP, SoundSource.PLAYERS, 0.8f, 1f);
 	}
 
 	/** Is this hero theirs to play (open to everyone, or bought)? */
@@ -305,7 +339,7 @@ public final class Perks extends SavedData {
 		}
 		List<String> heroes = new ArrayList<>(p.heroes());
 		heroes.add(hero);
-		data.put(player.getUUID(), new Profile(p.points() - price, p.owned(), p.equipped(), heroes, p.records()));
+		data.put(player.getUUID(), new Profile(p.points() - price, p.owned(), p.equipped(), heroes, p.records(), p.xp()));
 		Notices.send(player, Component.translatable("halloween.select.bought", Component.translatable("halloween.hero.name." + hero))
 			.withStyle(ChatFormatting.GREEN));
 		sync(player);
@@ -319,7 +353,7 @@ public final class Perks extends SavedData {
 		Map<String, List<Integer>> records = new HashMap<>(p.records());
 		List<Integer> r = records.getOrDefault(hero, List.of(0, 0, 0));
 		records.put(hero, List.of(r.get(0) + 1, r.get(1) + (escaped ? 1 : 0), Math.max(r.get(2), score)));
-		data.put(id, new Profile(p.points(), p.owned(), p.equipped(), p.heroes(), records));
+		data.put(id, new Profile(p.points(), p.owned(), p.equipped(), p.heroes(), records, p.xp()));
 	}
 
 	public static void sync(ServerPlayer player) {
@@ -328,6 +362,6 @@ public final class Perks extends SavedData {
 		}
 		Profile profile = get(player.level().getServer()).profile(player.getUUID());
 		ServerPlayNetworking.send(player, new HwNet.PerkSync(profile.points(), List.copyOf(profile.owned()), List.copyOf(profile.equipped()),
-			HwConfig.get().perkSlots, List.copyOf(profile.heroes()), HwConfig.get().heroPrice, Map.copyOf(profile.records())));
+			HwConfig.get().perkSlots, List.copyOf(profile.heroes()), HwConfig.get().heroPrice, Map.copyOf(profile.records()), profile.earned()));
 	}
 }
