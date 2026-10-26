@@ -57,7 +57,7 @@ public final class HwHud {
 		}
 		if (!ClientState.inMatch() && ClientState.lobby.inLobby()) {
 			lobby(g, mc);
-			if (ClientGuns.heldGun(mc) != null && !ClientGuns.aiming()) {
+			if (ClientGuns.heldGun(mc) != null && !ClientGuns.aiming() && !ClientVr.active()) {
 				// At the range from the hip: a small dot (aimed: the sights).
 				g.fill(g.guiWidth() / 2, g.guiHeight() / 2, g.guiWidth() / 2 + 1, g.guiHeight() / 2 + 1, 0x90E8E2D6);
 			}
@@ -449,7 +449,8 @@ public final class HwHud {
 		}
 		int cx = w / 2;
 		int cy = h / 2;
-		if (!ClientGuns.aiming()) {
+		if (!ClientGuns.aiming() && !ClientVr.active()) {
+			// (Not in the headset: there the gun's own sights are all there is to aim by.)
 			g.fill(cx, cy, cx + 1, cy + 1, 0x90E8E2D6);
 		}
 		var held = mc.player.getMainHandItem();

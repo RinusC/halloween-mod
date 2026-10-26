@@ -86,6 +86,20 @@ public final class ViewArms {
 		}
 	}
 
+	/**
+	 * The line over a gun's sights as drawn under {@code pose} (the matrix the item is handed to the item renderer with):
+	 * the rear sight and the direction to the front one, in that matrix's space. Null for what has no sights.
+	 */
+	public static Vector3f @org.jspecify.annotations.Nullable [] sightLine(HwItems.Kind kind, org.joml.Matrix4fc pose) {
+		Sights s = sights(kind);
+		if (s == null) {
+			return null;
+		}
+		Vector3f rear = pose.transformPosition(s.local(s.rear));
+		Vector3f front = pose.transformPosition(s.local(s.front));
+		return new Vector3f[]{rear, front.sub(rear).normalize()};
+	}
+
 	private static Sights sights(HwItems.Kind kind) {
 		return switch (kind) {
 			case REVOLVER -> new Sights(new Vector3f(8f, 9.82f, 11.73f), new Vector3f(8f, 9.82f, 2.84f), 0.4f, 0f, new Vector3f(1f, 2.5f, -1f), 0.8f);

@@ -26,6 +26,9 @@ public final class ClientGuns {
 	private static float jolt;
 	private static float joltAt = -100;
 	private static long lastFrame;
+	/** In the headset: the way the line over the gun's sights runs as last drawn in the hand, and when (ms). */
+	private static Vec3 sightDir;
+	private static long sightAt;
 
 	private ClientGuns() {
 	}
@@ -38,6 +41,23 @@ public final class ClientGuns {
 		}
 		HwItems.Kind kind = HwItems.kindOf(mc.player.getMainHandItem());
 		return kind != null && kind.gun() ? kind : null;
+	}
+
+	/**
+	 * The gun in the hand drawn with {@code pose} (world-aligned in the headset, Vivecraft: see VRArmHelper): the line
+	 * over its sights is kept, so the shot goes exactly where the player lines the sights up, as with a real gun.
+	 */
+	public static void drawn(net.minecraft.world.entity.LivingEntity entity, ItemStack stack, org.joml.Matrix4fc pose) {
+		Minecraft mc = Minecraft.getInstance();
+		if (!ClientVr.active() || entity != mc.player || stack != mc.player.getMainHandItem()) {
+			return;
+		}
+		HwItems.Kind kind = heldGun(mc);
+		org.joml.Vector3f[] line = kind == null ? null : ViewArms.sightLine(kind, pose);
+		if (line != null && Float.isFinite(line[1].x)) {
+			sightDir = new Vec3(line[1].x, line[1].y, line[1].z);
+			sightAt = System.currentTimeMillis();
+		}
 	}
 
 	public static boolean aiming() {
@@ -62,8 +82,8 @@ public final class ClientGuns {
 		ItemStack gun = mc.player.getMainHandItem();
 		dev.halloween.Vr.Ray hand = ClientVr.hand(true);
 		if (hand != null) {
-			// In the headset the barrel is where the hand points.
-			Vec3 d = hand.dir();
+			// In the headset: along the sights as they are drawn in the hand (else where the hand points).
+			Vec3 d = sightDir != null && System.currentTimeMillis() - sightAt < 300 && sightDir.dot(hand.dir()) > 0.5 ? sightDir : hand.dir();
 			ClientPlayNetworking.send(new HwNet.GunFire((float) Math.toDegrees(Math.atan2(-d.x, d.z)), (float) -Math.toDegrees(Math.asin(Mth.clamp(d.y, -1, 1)))));
 		} else {
 			ClientPlayNetworking.send(new HwNet.GunFire(mc.player.getYRot(), mc.player.getXRot()));
@@ -112,7 +132,8 @@ public final class ClientGuns {
 	public static float fovMultiplier() {
 		Minecraft mc = Minecraft.getInstance();
 		HwItems.Kind kind = heldGun(mc);
-		if (!sentAim || kind == null) {
+		if (!sentAim || kind == null || ClientVr.active()) {
+			// (In the headset nothing zooms: the eye looks over the real sights.)
 			return 1f;
 		}
 		HwConfig cfg = HwConfig.get();
@@ -122,7 +143,7 @@ public final class ClientGuns {
 	/** The cone of fire right now as the server will see it (for the reticle), in degrees. */
 	public static float spread(Minecraft mc) {
 		HwItems.Kind kind = heldGun(mc);
-		return kind == null ? 0f : Guns.spread(mc.player, kind, sentAim);
+		return kind == null ? 0f : Guns.spread(mc.player, kind, sentAim || ClientVr.active());
 	}
 
 	/**
@@ -152,6 +173,7 @@ public final class ClientGuns {
 	}
 
 	public static void reset() {
+		sightDir = null;
 		sentAim = false;
 		bloom = 0;
 		nextShotAt = 0;

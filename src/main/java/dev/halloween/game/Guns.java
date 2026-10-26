@@ -184,11 +184,13 @@ public final class Guns {
 		dev.halloween.Vr.Ray hand = dev.halloween.Vr.hand(player, net.minecraft.world.InteractionHand.MAIN_HAND);
 		Vec3 seen = hand != null ? hand.dir() : player.getViewVector(1f);
 		Vec3 look = Vec3.directionFromRotation(pitch, yaw);
-		if (Math.toDegrees(Math.acos(Mth.clamp(look.dot(seen), -1, 1))) > 25) {
+		// (In a headset the client sends the line over the sights as drawn in the hand, which may lie well off the
+		// controller's pointing.)
+		if (Math.toDegrees(Math.acos(Mth.clamp(look.dot(seen), -1, 1))) > (hand != null ? 60 : 25)) {
 			look = seen;
 		}
 		AiStats.add(player, "shot." + kind.key());
-		shoot(player, kind, hand != null ? hand.pos() : player.getEyePosition(), look, spread(player, kind, aiming(player)), player);
+		shoot(player, kind, hand != null ? hand.pos() : player.getEyePosition(), look, spread(player, kind, aiming(player) || hand != null), player);
 	}
 
 	/** R with a gun in hand: load what the pockets have. */
