@@ -37,6 +37,8 @@ public final class ClientHeroes {
 	private static long cooldownEnd;
 	private static int glowId = -1;
 	private static long glowUntil;
+	/** Annie's gossip: the team through walls, by entity id, until when. */
+	private static final java.util.Map<Integer, Long> ALLIES = new java.util.HashMap<>();
 	private static List<Vec3> finds = List.of();
 	private static long findsUntil;
 	private static final List<Mark> MARKS = new ArrayList<>();
@@ -56,6 +58,8 @@ public final class ClientHeroes {
 			if (payload.kind() == HwNet.HeroReveal.FEEL) {
 				glowId = payload.entityId();
 				glowUntil = now + payload.ticks();
+			} else if (payload.kind() == HwNet.HeroReveal.ALLY) {
+				ALLIES.put(payload.entityId(), now + payload.ticks());
 			} else {
 				finds = payload.spots();
 				findsUntil = now + payload.ticks();
@@ -76,6 +80,7 @@ public final class ClientHeroes {
 	public static void reset() {
 		hero = new HwNet.HeroSync("", 0, 0, 0, false);
 		glowId = -1;
+		ALLIES.clear();
 		finds = List.of();
 		MARKS.clear();
 	}
@@ -83,7 +88,11 @@ public final class ClientHeroes {
 	/** Laurie feels him: his outline through walls for a while. */
 	public static boolean glows(Entity entity) {
 		Minecraft mc = Minecraft.getInstance();
-		return entity.getId() == glowId && mc.level != null && mc.level.getGameTime() < glowUntil;
+		if (mc.level == null) {
+			return false;
+		}
+		Long ally = ALLIES.get(entity.getId());
+		return entity.getId() == glowId && mc.level.getGameTime() < glowUntil || ally != null && mc.level.getGameTime() < ally;
 	}
 
 	/** A survivor's keys: the skill, and marking for the team. */

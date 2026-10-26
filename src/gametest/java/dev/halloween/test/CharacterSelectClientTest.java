@@ -96,7 +96,26 @@ public class CharacterSelectClientTest implements FabricClientGameTest {
 			check(server.computeOnServer(s -> HeroPicks.matchKiller() == null), "the killer back to /hw killer");
 			server.runCommand("hw stop");
 			ctx.waitTicks(5);
+			// The new skills: Thomas lies low (gone while still), Lynda runs free.
+			for (String hero : new String[]{"thomas", "lynda"}) {
+				server.runOnServer(s -> Skins.forced = hero);
+				server.runCommand("hw start");
+				ctx.waitTicks(40);
+				server.runOnServer(s -> dev.halloween.game.Heroes.use(player(s)));
+				ctx.waitTicks(3);
+				if (hero.equals("thomas")) {
+					check(server.computeOnServer(s -> dev.halloween.game.Heroes.lyingLow(player(s)) && !MatchManager.exposed(player(s))), "Thomas lies low");
+					server.runOnServer(s -> player(s).teleportTo(player(s).getX() + 1, player(s).getY(), player(s).getZ()));
+					ctx.waitTicks(3);
+					check(server.computeOnServer(s -> !dev.halloween.game.Heroes.lyingLow(player(s)) && !player(s).isInvisible()), "moving gives him away");
+				} else {
+					check(server.computeOnServer(s -> dev.halloween.game.Heroes.active(player(s), dev.halloween.game.Heroes.Skill.CALM)), "Lynda runs free");
+				}
+				server.runCommand("hw stop");
+				ctx.waitTicks(5);
+			}
 			server.runOnServer(s -> {
+				Skins.forced = null;
 				HeroPicks.clear();
 				HwConfig.get().countdownSeconds = new HwConfig().countdownSeconds;
 				HwConfig.get().botsFillTo = new HwConfig().botsFillTo;

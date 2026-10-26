@@ -1525,6 +1525,8 @@ public final class HwNet {
 	public record HeroReveal(int kind, int ticks, int entityId, List<Vec3> spots) implements CustomPacketPayload {
 		public static final int FEEL = 0;
 		public static final int KEEN = 1;
+		/** Annie's gossip: this survivor shows through walls to the others. */
+		public static final int ALLY = 2;
 		public static final Type<HeroReveal> TYPE = payloadType("hero_reveal");
 		public static final StreamCodec<RegistryFriendlyByteBuf, HeroReveal> CODEC = StreamCodec.of((buf, v) -> {
 			buf.writeVarInt(v.kind);

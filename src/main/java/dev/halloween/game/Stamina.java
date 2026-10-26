@@ -112,7 +112,8 @@ public final class Stamina {
 			double moved = Math.sqrt(dx * dx + dz * dz);
 			s.lastX = p.getX();
 			s.lastZ = p.getZ();
-			if (p.isSprinting() && moved > 0.08) {
+			// Lynda's "totally fine" (Heroes): running free a while.
+			if (p.isSprinting() && moved > 0.08 && !Heroes.active(p, Heroes.Skill.CALM)) {
 				double runTicks = cfg.staminaRunTicks * (Perks.has(p, Perks.Perk.STAMINA) ? cfg.perkStaminaFactor : 1.0);
 				s.value -= (float) (1.0 / Math.max(1, runTicks));
 				s.restAt = now + cfg.staminaRegenDelayTicks;

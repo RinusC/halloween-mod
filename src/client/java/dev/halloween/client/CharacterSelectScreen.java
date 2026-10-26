@@ -753,7 +753,7 @@ public final class CharacterSelectScreen extends Screen {
 				y += 10;
 				y = this.wrap(g, Component.translatable(key + ".skill"), x, y, w, TEXT2);
 				int[] secs = HeroInfo.skillSeconds(hero);
-				g.text(this.font, Component.translatable("halloween.select.card.skill_time", secs[0], secs[1]), x, y, TEXT3, false);
+				g.text(this.font, secs[0] > 0 ? Component.translatable("halloween.select.card.skill_time", secs[0], secs[1]) : Component.translatable("halloween.select.card.skill_rest", secs[1]), x, y, TEXT3, false);
 				y += 14;
 			}
 			if (hasTrait(hero)) {
