@@ -49,6 +49,12 @@ public class CharacterSelectClientTest implements FabricClientGameTest {
 			ctx.runOnClient(mc -> ((CharacterSelectScreen) mc.gui.screen()).showForTest(0, "laurie", false));
 			ctx.waitTicks(10);
 			ctx.takeScreenshot("select_laurie");
+			// And at 1080p (the GUI scale a player there has).
+			ctx.getInput().resizeWindow(1920, 1080);
+			ctx.waitTicks(5);
+			ctx.takeScreenshot("select_laurie_1080");
+			ctx.getInput().resizeWindow(854, 480);
+			ctx.waitTicks(5);
 			// A locked one: bought (the points spent), then picked.
 			ctx.runOnClient(mc -> ((CharacterSelectScreen) mc.gui.screen()).showForTest(0, "annie", false));
 			ctx.waitTicks(5);
@@ -70,6 +76,11 @@ public class CharacterSelectClientTest implements FabricClientGameTest {
 			ctx.runOnClient(mc -> ((CharacterSelectScreen) mc.gui.screen()).showForTest(1, "michael", false));
 			ctx.waitTicks(5);
 			ctx.takeScreenshot("select_michael");
+			ctx.getInput().resizeWindow(1920, 1080);
+			ctx.waitTicks(5);
+			ctx.takeScreenshot("select_michael_1080");
+			ctx.getInput().resizeWindow(854, 480);
+			ctx.waitTicks(5);
 			ctx.runOnClient(mc -> ClientPlayNetworking.send(new HwNet.HeroPick(HeroPicks.BUY, "vecna")));
 			ctx.waitTicks(5);
 			check(server.computeOnServer(s -> "vecna".equals(HeroPicks.killer(player(s).getUUID()))), "Vecna bought and wanted");

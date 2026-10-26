@@ -1,0 +1,7 @@
+{
+  "providers": [
+    {"type": "ttf", "file": "halloween:oswald_latin.ttf", "size": 7, "oversample": 4, "shift": [0, -1]},
+    {"type": "ttf", "file": "halloween:oswald_cyrillic.ttf", "size": 7, "oversample": 4, "shift": [0, -1]},
+    {"type": "reference", "id": "minecraft:default"}
+  ]
+}
