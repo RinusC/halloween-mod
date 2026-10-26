@@ -93,6 +93,9 @@ public final class Vecna {
 	}
 
 	public static boolean chosen() {
+		if (HeroPicks.matchKiller() != null) {
+			return HeroPicks.matchKiller().equals("vecna");
+		}
 		return HwConfig.get().killerVecna;
 	}
 

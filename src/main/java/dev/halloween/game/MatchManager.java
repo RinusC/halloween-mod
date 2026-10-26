@@ -285,6 +285,7 @@ public final class MatchManager {
 		TickTimer.step("Match", () -> Match.tick(server));
 		TickTimer.step("Tutorial", () -> Tutorial.tick(server));
 		TickTimer.step("Lobby", () -> Lobby.tick(server));
+		HeroPicks.tick(server);
 		TickTimer.step("Leftovers", () -> Leftovers.tick(server));
 		TickTimer.step("Noise", () -> Noise.tick(server));
 		TickTimer.step("Traps", () -> Traps.tick(server));

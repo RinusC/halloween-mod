@@ -84,7 +84,9 @@ public final class Lobby extends SavedData {
 		new Station("goal", 6, 24, Direction.SOUTH), new Station("search", 14, 24, Direction.SOUTH), new Station("doors", 22, 24, Direction.SOUTH),
 		new Station("lockers", 30, 24, Direction.SOUTH), new Station("grab", 38, 24, Direction.SOUTH), new Station("stamina", 61, 24, Direction.SOUTH),
 		new Station("shape", 69, 24, Direction.SOUTH), new Station("perks", 77, 24, Direction.SOUTH), new Station("records", 85, 24, Direction.SOUTH),
-		new Station("practice", 93, 24, Direction.SOUTH), new Station("range", 94, 34, Direction.SOUTH));
+		new Station("practice", 93, 24, Direction.SOUTH), new Station("range", 94, 34, Direction.SOUTH),
+		// The character select, in the gym on the way to "Ready", facing the doors.
+		new Station("heroes", 30, 50, Direction.NORTH));
 
 	private record Saved(Optional<BlockPos> origin, Map<String, Integer> records, Map<String, Integer> rangeRecords, int layout) {
 		static final Codec<Saved> CODEC = RecordCodecBuilder.create(i -> i.group(
@@ -152,6 +154,10 @@ public final class Lobby extends SavedData {
 		Lobby data = get(server);
 		if (center != null && (data.origin == null || data.layout < LAYOUT)) {
 			build(server.overworld(), placeFor(center));
+		} else if (data.origin != null && !server.overworld().getBlockState(heroButton(data.origin)).is(net.minecraft.world.level.block.Blocks.STONE_BUTTON)) {
+			// A school built before the character select: its stand put up on its own (a rebuild would lose the parkour times).
+			stand(server.overworld(), data.origin, STATIONS.getLast());
+			buttons(server.overworld(), data.origin);
 		}
 	}
 
@@ -404,14 +410,9 @@ public final class Lobby extends SavedData {
 			return InteractionResult.PASS;
 		}
 		if (pos.equals(readyButton(o))) {
-			if (Match.running() || Match.frozen()) {
-				return InteractionResult.PASS;
-			}
-			boolean now = READY.add(p.getUUID()) || !READY.remove(p.getUUID());
-			Notices.send(p, Component.translatable(now ? "halloween.lobby.you_ready" : "halloween.lobby.you_not_ready")
-				.withStyle(now ? ChatFormatting.GREEN : ChatFormatting.GRAY));
-			announce(p.level().getServer(), Component.translatable(now ? "halloween.lobby.is_ready" : "halloween.lobby.is_not_ready", p.getDisplayName())
-				.withStyle(ChatFormatting.GRAY));
+			toggleReady(p);
+		} else if (pos.equals(heroButton(o))) {
+			ServerPlayNetworking.send(p, new HwNet.HeroOpen(0));
 		} else if (pos.equals(practiceButton(o))) {
 			if (!Match.running() && !Match.frozen()) {
 				Notices.send(p, Tutorial.start(p.level().getServer(), p));
@@ -420,6 +421,23 @@ public final class Lobby extends SavedData {
 			ShootingRange.onUse(p, o, pos);
 		}
 		return InteractionResult.PASS;
+	}
+
+	/** Ready, or not any more (the button on the court, the character select's "Ready"). */
+	public static void toggleReady(ServerPlayer p) {
+		if (Match.running() || Match.frozen()) {
+			return;
+		}
+		boolean now = READY.add(p.getUUID()) || !READY.remove(p.getUUID());
+		Notices.send(p, Component.translatable(now ? "halloween.lobby.you_ready" : "halloween.lobby.you_not_ready")
+			.withStyle(now ? ChatFormatting.GREEN : ChatFormatting.GRAY));
+		announce(p.level().getServer(), Component.translatable(now ? "halloween.lobby.is_ready" : "halloween.lobby.is_not_ready", p.getDisplayName())
+			.withStyle(ChatFormatting.GRAY));
+	}
+
+	/** The start's countdown in seconds, or -1 while not everyone is ready. */
+	public static int countdownSeconds() {
+		return readyCountdown < 0 ? -1 : (readyCountdown + 19) / 20;
 	}
 
 	private static void announce(MinecraftServer server, Component message) {
@@ -471,6 +489,11 @@ public final class Lobby extends SavedData {
 	public static BlockPos practiceButton(BlockPos o) {
 		BlockPos s = station(o, "practice");
 		return s.above();
+	}
+
+	/** The character select's button, on its stand's board. */
+	public static BlockPos heroButton(BlockPos o) {
+		return station(o, "heroes").above();
 	}
 
 	/** For tests: the range's buttons. */
@@ -844,21 +867,31 @@ public final class Lobby extends SavedData {
 	/** The stands: a board, its name on a sign, a mat in front to stand on; the practice button on its board. */
 	private static void stations(ServerLevel level, BlockPos o) {
 		for (Station s : STATIONS) {
-			Direction faces = s.faces();
-			Direction along = faces.getClockWise();
-			BlockPos mat = o.offset(s.x(), 0, s.z());
-			BlockPos board = mat.relative(faces.getOpposite());
-			for (int d = -1; d <= 1; d++) {
-				BlockPos b = board.relative(along, d);
-				for (int y = 0; y <= 2; y++) {
-					level.setBlock(b.above(y), MapPlan.b("dark_oak_planks"), Block.UPDATE_CLIENTS);
-				}
-				level.setBlock(mat.relative(along, d), MapPlan.b("red_carpet"), Block.UPDATE_CLIENTS);
-			}
-			wallSign(level, mat.above(2), faces, Component.translatable("halloween.lobby.st." + s.key()).withStyle(ChatFormatting.BOLD),
-				Component.translatable("halloween.lobby.sign_hint"));
+			stand(level, o, s);
 		}
+		buttons(level, o);
+	}
+
+	private static void stand(ServerLevel level, BlockPos o, Station s) {
+		Direction faces = s.faces();
+		Direction along = faces.getClockWise();
+		BlockPos mat = o.offset(s.x(), 0, s.z());
+		BlockPos board = mat.relative(faces.getOpposite());
+		for (int d = -1; d <= 1; d++) {
+			BlockPos b = board.relative(along, d);
+			for (int y = 0; y <= 2; y++) {
+				level.setBlock(b.above(y), MapPlan.b("dark_oak_planks"), Block.UPDATE_CLIENTS);
+			}
+			level.setBlock(mat.relative(along, d), MapPlan.b("red_carpet"), Block.UPDATE_CLIENTS);
+		}
+		wallSign(level, mat.above(2), faces, Component.translatable("halloween.lobby.st." + s.key()).withStyle(ChatFormatting.BOLD),
+			Component.translatable("halloween.lobby.sign_hint"));
+	}
+
+	private static void buttons(ServerLevel level, BlockPos o) {
 		level.setBlock(practiceButton(o), MapPlan.b("stone_button").setValue(ButtonBlock.FACE, AttachFace.WALL).setValue(ButtonBlock.FACING, Direction.SOUTH),
+			Block.UPDATE_CLIENTS);
+		level.setBlock(heroButton(o), MapPlan.b("stone_button").setValue(ButtonBlock.FACE, AttachFace.WALL).setValue(ButtonBlock.FACING, Direction.NORTH),
 			Block.UPDATE_CLIENTS);
 	}
 

@@ -28,8 +28,25 @@ public final class PerkScreen extends Screen {
 	private int y1;
 	private int scroll;
 
+	/** Where closing goes back to (the character select), or null. */
+	private final Screen parent;
+
 	public PerkScreen() {
+		this(null);
+	}
+
+	public PerkScreen(Screen parent) {
 		super(Component.translatable("halloween.perk.title"));
+		this.parent = parent;
+	}
+
+	@Override
+	public void onClose() {
+		if (this.parent != null) {
+			Minecraft.getInstance().gui.setScreen(this.parent);
+		} else {
+			super.onClose();
+		}
 	}
 
 	@Override

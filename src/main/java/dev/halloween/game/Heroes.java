@@ -71,7 +71,11 @@ public final class Heroes {
 
 	/** The perk this survivor always has by who they are, or null. */
 	public static Perks.Perk innate(ServerPlayer player) {
-		String h = hero(player);
+		return innate(hero(player));
+	}
+
+	/** The perk this survivor always has, by name (see HeroInfo). */
+	public static Perks.Perk innate(String h) {
 		return h == null ? null : switch (h) {
 			case "laurie" -> Perks.Perk.ELUSORY;
 			case "annie" -> Perks.Perk.SMOOTH_TALKER;
@@ -94,7 +98,18 @@ public final class Heroes {
 		};
 	}
 
-	private static int cooldown(Skill skill) {
+	/** How long the skill shows what it shows (ticks; 0 for none). */
+	public static int duration(Skill skill) {
+		return switch (skill) {
+			case FEEL -> FEEL_TICKS;
+			case DECOY -> DECOY_TICKS;
+			case KEEN_EYE -> KEEN_TICKS;
+			case WARN -> WARN_TICKS;
+			default -> 0;
+		};
+	}
+
+	public static int cooldown(Skill skill) {
 		return switch (skill) {
 			case FEEL -> 20 * 75;
 			case DECOY -> 20 * 90;

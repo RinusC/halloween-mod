@@ -203,6 +203,10 @@ public final class Demogorgon {
 	}
 
 	public static boolean chosen() {
+		// Whom the one drawn from the character select picked, over /hw killer.
+		if (HeroPicks.matchKiller() != null) {
+			return HeroPicks.matchKiller().equals("demogorgon");
+		}
 		return HwConfig.get().killerDemogorgon && !HwConfig.get().killerVecna;
 	}
 
