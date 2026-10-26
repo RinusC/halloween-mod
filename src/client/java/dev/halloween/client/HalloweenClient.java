@@ -196,6 +196,7 @@ public class HalloweenClient implements ClientModInitializer {
 			});
 		});
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.HeroLobby.TYPE, (payload, ctx) -> ClientState.heroLobby = payload);
+		ClientPlayNetworking.registerGlobalReceiver(HwNet.CosmeticSync.TYPE, (payload, ctx) -> CosmeticRenderer.apply(payload));
 		ClientPlayNetworking.registerGlobalReceiver(HwNet.HeroOpen.TYPE, (payload, ctx) -> {
 			Minecraft mc = Minecraft.getInstance();
 			mc.execute(() -> {

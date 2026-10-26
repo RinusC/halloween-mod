@@ -320,6 +320,7 @@ public final class Perks extends SavedData {
 		}
 		Notices.send(player, Component.translatable("halloween.level.up", level).withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD));
 		player.level().playSound(null, player.blockPosition(), SoundEvents.PLAYER_LEVELUP, SoundSource.PLAYERS, 0.8f, 1f);
+		Cosmetics.announce(player, level);
 	}
 
 	/** Is this hero theirs to play (open to everyone, or bought)? */

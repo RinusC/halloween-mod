@@ -3,7 +3,7 @@ package dev.halloween.game;
 /**
  * The player's level (like a battle pass): it grows with every point ever earned, from matches and the lobby farm;
  * spending points on perks and heroes never takes it back. Level 2 costs 6000, each one after it 2000 more than the
- * one before (8000, 10000, ...), up to {@link #MAX}. The rewards are placeholders for now.
+ * one before (8000, 10000, ...), up to {@link #MAX}. Each level opens two things to wear (see Cosmetics).
  */
 public final class PlayerLevel {
 	public static final int MAX = 10;

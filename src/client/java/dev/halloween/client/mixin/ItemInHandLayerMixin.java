@@ -35,7 +35,8 @@ public abstract class ItemInHandLayerMixin {
 	@Inject(method = "submitArmWithItem", at = @At("HEAD"), cancellable = true)
 	private void halloween$demoNoItem(ArmedEntityRenderState state, net.minecraft.client.renderer.item.ItemStackRenderState item, net.minecraft.world.item.ItemStack stack,
 		HumanoidArm arm, PoseStack pose, net.minecraft.client.renderer.SubmitNodeCollector collector, int light, CallbackInfo ci) {
-		if ((dev.halloween.client.MichaelRenderer.demogorgon() || dev.halloween.client.MichaelRenderer.vecna()) && dev.halloween.client.MichaelRenderer.isMichael(state)) {
+		if ((dev.halloween.client.MichaelRenderer.demogorgon() || dev.halloween.client.MichaelRenderer.vecna()) && dev.halloween.client.MichaelRenderer.isMichael(state)
+			|| arm == HumanoidArm.RIGHT && dev.halloween.client.CosmeticRenderer.ownBlade(state)) {
 			ci.cancel();
 		}
 	}

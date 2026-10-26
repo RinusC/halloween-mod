@@ -808,6 +808,46 @@ public final class HwNet {
 		}
 	}
 
+	/** Who wears which things (game.Cosmetics): each player's uuid and their item ids, comma separated. */
+	public record CosmeticSync(List<UUID> players, List<String> items) implements CustomPacketPayload {
+		public static final Type<CosmeticSync> TYPE = payloadType("cosmetic_sync");
+		public static final StreamCodec<RegistryFriendlyByteBuf, CosmeticSync> CODEC = StreamCodec.of((buf, v) -> {
+			buf.writeVarInt(v.players.size());
+			for (int i = 0; i < v.players.size(); i++) {
+				buf.writeUUID(v.players.get(i));
+				buf.writeUtf(v.items.get(i));
+			}
+		}, buf -> {
+			int n = buf.readVarInt();
+			List<UUID> players = new ArrayList<>(n);
+			List<String> items = new ArrayList<>(n);
+			for (int i = 0; i < n; i++) {
+				players.add(buf.readUUID());
+				items.add(buf.readUtf());
+			}
+			return new CosmeticSync(players, items);
+		});
+
+		@Override
+		public Type<CosmeticSync> type() {
+			return TYPE;
+		}
+	}
+
+	/** Client, from the character select: put a thing on or take it off. */
+	public record CosmeticPick(String item, boolean on) implements CustomPacketPayload {
+		public static final Type<CosmeticPick> TYPE = payloadType("cosmetic_pick");
+		public static final StreamCodec<RegistryFriendlyByteBuf, CosmeticPick> CODEC = StreamCodec.of((buf, v) -> {
+			buf.writeUtf(v.item);
+			buf.writeBoolean(v.on);
+		}, buf -> new CosmeticPick(buf.readUtf(), buf.readBoolean()));
+
+		@Override
+		public Type<CosmeticPick> type() {
+			return TYPE;
+		}
+	}
+
 	/** Client: buy a perk, put it into the build or take it out (game.Perks.BUY / EQUIP / UNEQUIP). */
 	public record PerkAction(String perk, int action) implements CustomPacketPayload {
 		public static final Type<PerkAction> TYPE = payloadType("perk_action");
@@ -1742,6 +1782,8 @@ public final class HwNet {
 		PayloadTypeRegistry.clientboundPlay().register(HeroLobby.TYPE, HeroLobby.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(HeroOpen.TYPE, HeroOpen.CODEC);
 		PayloadTypeRegistry.serverboundPlay().register(HeroPick.TYPE, HeroPick.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(CosmeticSync.TYPE, CosmeticSync.CODEC);
+		PayloadTypeRegistry.serverboundPlay().register(CosmeticPick.TYPE, CosmeticPick.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(MinimapSync.TYPE, MinimapSync.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(MatchSync.TYPE, MatchSync.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(MatchEnd.TYPE, MatchEnd.CODEC);

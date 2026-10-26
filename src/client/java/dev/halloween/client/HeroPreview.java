@@ -34,6 +34,11 @@ public final class HeroPreview {
 		return id <= BASE && id > BASE - 64;
 	}
 
+	/** Who this preview is ("michael", a survivor), or null. */
+	public static String who(int id) {
+		return is(id) ? WHO.get(id) : null;
+	}
+
 	/** The killer this preview is ("michael", "demogorgon", "vecna"), or null for a survivor or no preview. */
 	public static String killerKind(int id) {
 		String who = is(id) ? WHO.get(id) : null;

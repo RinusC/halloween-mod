@@ -240,4 +240,11 @@ public final class MichaelRenderer {
 		}
 		return true;
 	}
+
+	/** His shadow (a cosmetic, see CosmeticRenderer): his model again, posed as he is, tinted near black and see-through. */
+	public static void submitShadow(SubmitNodeCollector collector, HumanoidModel<?> humanoid, AvatarRenderState s, PoseStack pose, int light, int tint) {
+		model().source = humanoid;
+		collector.submitModel(model(), s, pose, RenderTypes.entityTranslucent(TEXTURE), light, net.minecraft.client.renderer.texture.OverlayTexture.NO_OVERLAY, tint,
+			null, 0, null);
+	}
 }

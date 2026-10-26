@@ -20,8 +20,8 @@ import org.lwjgl.glfw.GLFW;
 
 /**
  * The player's level, like a battle pass (key J in the lobby, or the level plate on the character select): the level
- * large in a lit diamond, the bar to the next one, and the road of all ten levels with what each one gives (only
- * placeholders for now). Dressed as the character select, on the survivors' side: the street behind, fog and embers,
+ * large in a lit diamond, the bar to the next one, and the road of all ten levels with what each one gives (a thing to wear for the
+ * survivors and one for Michael, see game.Cosmetics). Dressed as the character select, on the survivors' side: the street behind, fog and embers,
  * the dark glass panels with cut corners, pumpkin orange.
  */
 public final class LevelScreen extends Screen {
@@ -388,7 +388,7 @@ public final class LevelScreen extends Screen {
 		String head = Component.translatable("halloween.level.card", lv).getString().toUpperCase(Locale.ROOT);
 		float hw = this.trackedWidth(head, LABEL, 0.6f);
 		this.tracked(g, head, LABEL, x0 + (w - hw) / 2f, y0 + 5, fade(got ? DARK_TEXT : next ? ACC2 : TEXT2, a), 0.6f);
-		// The reward: a framed slot with a question mark (nothing is decided yet); locked ones under a lock.
+		// The reward: a frame with the names of the two things it opens; locked ones under a lock.
 		int fs = Math.min(w - 16, h - rh - 25);
 		int fx = x0 + (w - fs) / 2;
 		int fy = y0 + rh + 3 + (h - rh - 24 - fs) / 2;
@@ -396,22 +396,50 @@ public final class LevelScreen extends Screen {
 			if (got) {
 				blitAt(g, GLOW, fx - 6, fy - 6, fs + 12, fs + 12, ARGB.color(0.3f * a, ACC2));
 			}
-			g.fill(fx, fy, fx + fs, fy + fs, fade(got ? 0x70000000 : 0x90000000, a));
-			blit(g, FRAME, fx, fy, fs, fs, fade(got ? ACC2 : next ? ARGB.srgbLerp(0.5f, LN2, ACC2) : LN2, a));
-			Component q = in(BIG, Component.literal("?"));
-			float qs = Math.min(1f, fs / 30f);
-			g.pose().pushMatrix();
-			g.pose().translate(fx + fs / 2f, fy + fs / 2f - 10 * qs);
-			g.pose().scale(qs, qs);
-			g.text(this.font, q, -this.font.width(q) / 2, 0, fade(got ? ACC2 : next ? TEXT2 : 0xFF4A4E58, a), false);
-			g.pose().popMatrix();
+			// The two things it opens, the survivors' and Michael's: their names on a dark plate the width of the card.
+			int px0 = x0 + 4;
+			int px1 = x1 - 4;
+			g.fill(px0, fy, px1, fy + fs, fade(got ? 0x70000000 : 0x90000000, a));
+			g.outline(px0, fy, px1 - px0, fs, fade(got ? ARGB.multiplyAlpha(ACC2, 0.7f) : next ? ARGB.srgbLerp(0.5f, LN2, ACC2) : LN2, a));
+			dev.halloween.game.Cosmetics.Item si = dev.halloween.game.Cosmetics.at(dev.halloween.game.Cosmetics.SURVIVOR, lv);
+			dev.halloween.game.Cosmetics.Item ki = dev.halloween.game.Cosmetics.at(dev.halloween.game.Cosmetics.KILLER, lv);
+			if (lv == PlayerLevel.MAX) {
+				blitAt(g, GLOW, fx - 4, fy - 4, fs + 8, fs + 8, ARGB.color((0.25f + 0.2f * pulse) * a, 0xFFF2C14E));
+			}
+			// Smaller on a narrow card.
+			float ts = w < 100 ? 0.75f : 1f;
+			int lines = 0;
+			for (dev.halloween.game.Cosmetics.Item it : new dev.halloween.game.Cosmetics.Item[] {si, ki}) {
+				if (it != null) {
+					lines += Math.min(2, this.font.split(caps(LABEL, Component.translatable("halloween.cosmetic." + it.id())), Math.round((px1 - px0 - 6) / ts)).size());
+				}
+			}
+			int lh = Math.round(9 * ts);
+			int ny = fy + (fs - lines * lh - 3) / 2;
+			for (dev.halloween.game.Cosmetics.Item it : new dev.halloween.game.Cosmetics.Item[] {si, ki}) {
+				if (it == null) {
+					continue;
+				}
+				List<net.minecraft.util.FormattedCharSequence> rows = this.font.split(caps(LABEL, Component.translatable("halloween.cosmetic." + it.id())),
+					Math.round((px1 - px0 - 6) / ts));
+				int col = it.track() == 0 ? (got ? ACC2 : TEXT2) : (got ? ACCENT2[1] : TEXT3);
+				for (int r = 0; r < Math.min(2, rows.size()); r++) {
+					g.pose().pushMatrix();
+					g.pose().translate((px0 + px1) / 2f, ny);
+					g.pose().scale(ts, ts);
+					g.centeredText(this.font, rows.get(r), 0, 0, fade(col, a));
+					g.pose().popMatrix();
+					ny += lh;
+				}
+				ny += 3;
+			}
 			if (!got) {
-				int ls = Math.max(6, fs / 4);
-				blit(g, LOCK, fx + fs - ls - 2, fy + fs - ls * 9 / 7 - 2, ls, ls * 9 / 7, fade(next ? ACC2 : TEXT3, a));
+				int ls = Math.max(5, Math.min(9, fs / 5));
+				blit(g, LOCK, px1 - ls - 2, fy + 2, ls, ls * 9 / 7, fade(next ? ACC2 : TEXT3, a));
 			}
 		}
-		// Under it: what it is (soon), and its state.
-		Component what = caps(LABEL, Component.translatable("halloween.level.reward_soon"));
+		// Under it: what kind (legendary at the top), and its state.
+		Component what = caps(LABEL, Component.translatable(lv == PlayerLevel.MAX ? "halloween.cosmetic.legendary" : "halloween.level.reward_two"));
 		String cut = this.font.plainSubstrByWidth(what.getString(), w - 6);
 		Component line = in(LABEL, Component.literal(cut));
 		g.text(this.font, line, x0 + (w - this.font.width(line)) / 2, y1 - 19, fade(got ? TEXT : TEXT2, a), false);

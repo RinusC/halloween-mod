@@ -36,6 +36,8 @@ public abstract class LivingEntityRendererMixin {
 		if (!dev.halloween.client.MichaelRenderer.submit(collector, model, state, pose, light, overlay, tint, outline)) {
 			collector.submitModel(model, state, pose, renderType, light, overlay, tint, sprite, outline, crumbling);
 		}
+		// What they wear (see CosmeticRenderer), on the model as it stands.
+		dev.halloween.client.CosmeticRenderer.submit(collector, model, state, pose, light, overlay, tint, outline);
 	}
 
 	/** Michael towers over everyone (to look at: his hitbox is a player's). */
