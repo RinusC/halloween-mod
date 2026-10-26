@@ -1,0 +1,6 @@
+﻿# Obsidian: personal state and plugins (plugin data holds API keys)
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+.obsidian/plugins/
+.trash/
+.DS_Store
