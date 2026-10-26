@@ -13,12 +13,12 @@
 - **EntityRendererMixin** (`src/client/java/dev/halloween/client/mixin/EntityRendererMixin.java`, 19) — Each render state learns its entity's id as it is filled in.
 - **GameRendererAccessor** (`src/client/java/dev/halloween/client/mixin/GameRendererAccessor.java`, 12) — 
 - **ItemDisplayRendererMixin** (`src/client/java/dev/halloween/client/mixin/ItemDisplayRendererMixin.java`, 35) — The Demogorgon's rift rides on an item display: drawn as its own 3D model, not as the item (see RiftRenderer).
-- **ItemInHandLayerMixin** (`src/client/java/dev/halloween/client/mixin/ItemInHandLayerMixin.java`, 53) — Michael's knife, held point down: as his arm goes up the wrist turns so the point still comes down first (the blocky arm can't bend at the elbow).
+- **ItemInHandLayerMixin** (`src/client/java/dev/halloween/client/mixin/ItemInHandLayerMixin.java`, 55) — Michael's knife, held point down: as his arm goes up the wrist turns so the point still comes down first (the blocky arm can't bend at the elbow).
 - **ItemInHandRendererMixin** (`src/client/java/dev/halloween/client/mixin/ItemInHandRendererMixin.java`, 44) — In a match survivors and the Runt get our hands in first person (see ViewArms), not vanilla's.
 - **KeyMappingAccessor** (`src/client/java/dev/halloween/client/mixin/KeyMappingAccessor.java`, 15) — Presses passed on from the VR buttons to the keys they stand for (see VrKeys).
 - **LevelExtractorMixin** (`src/client/java/dev/halloween/client/mixin/LevelExtractorMixin.java`, 33) — Vecna looking through someone's Eyes still sees himself (the game draws its own player only from his own camera).
 - **LightmapExtractorMixin** (`src/client/java/dev/halloween/client/mixin/LightmapExtractorMixin.java`, 18) — A match night's darkness (see ClientDarkness).
-- **LivingEntityRendererMixin** (`src/client/java/dev/halloween/client/mixin/LivingEntityRendererMixin.java`, 110) — Knocked down: the whole body goes over backwards from the feet, and comes up again (see ClientAnims).
+- **LivingEntityRendererMixin** (`src/client/java/dev/halloween/client/mixin/LivingEntityRendererMixin.java`, 114) — Knocked down: the whole body goes over backwards from the feet, and comes up again (see ClientAnims).
 - **LocalPlayerSprintMixin** (`src/client/java/dev/halloween/client/mixin/LocalPlayerSprintMixin.java`, 19) — Out of breath: the local player can't start running, and a run stops (see game.Stamina).
 - **MinecraftMixin** (`src/client/java/dev/halloween/client/mixin/MinecraftMixin.java`, 30) — 
 - **PlayerModelMixin** (`src/client/java/dev/halloween/client/mixin/PlayerModelMixin.java`, 22) — Michael's own walk and knife hand, then the grab animations (ClientAnims), go over the pose of players and townsfolk last.

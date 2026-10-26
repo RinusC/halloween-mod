@@ -29,7 +29,7 @@
 - **Flicker** (`src/main/java/dev/halloween/game/Flicker.java`, 167) — The lights going mad (as in Stranger Things): while the Demogorgon claws his way up out of the Upside Down, every lit bulb in the houses round about flickers, humming and fizzing like an overheating filament.
 - **FocusPoints** (`src/main/java/dev/halloween/game/FocusPoints.java`, 35) — Points on a victim's body that the Shape has to hold his gaze on while stalking.
 - **Gear** (`src/main/java/dev/halloween/game/Gear.java`, 563) — What survivors do with the things they find, on right click: throw them (bricks, rocks, balls, firecrackers, road flares, the hourglass, cleavers, hatchets and pitchforks), patch themselves up (spray, med kit), fire t...
-- **GrabSession** (`src/main/java/dev/halloween/game/GrabSession.java`, 1099) — The Shape holding a victim.
+- **GrabSession** (`src/main/java/dev/halloween/game/GrabSession.java`, 1117) — The Shape holding a victim.
 - **GunCase** (`src/main/java/dev/halloween/game/GunCase.java`, 145) — The gun case: a steel gun safe with a keypad somewhere on the map (one of the gun_case points), with the rifle inside.
 - **Guns** (`src/main/java/dev/halloween/game/Guns.java`, 546) — Firearms: a three-shot revolver (police, deputies) and a single-shot bolt-action rifle (from the locked gun case).
 - **Haddonfield** (`src/main/java/dev/halloween/game/Haddonfield.java`, 3871) — Haddonfield, Illinois, Halloween night 1978, after the film: three streets of suburban houses (Orange Grove Avenue, Lampkin Lane, Main Street) crossed by Elm Street and Hackberry Avenue, about 300 blocks square.
@@ -56,6 +56,7 @@
 - **MapSaveJob** (`src/main/java/dev/halloween/game/MapSaveJob.java`, 142) — Reads the town around the CENTER map point into a file (see SavedMap), a few milliseconds a tick so the server keeps running: every block of the square, the block entities (containers, signs) and the map points.
 - **Match** (`src/main/java/dev/halloween/game/Match.java`, 783) — One match: countdown, 20-minute timer, civilian score, escapes, deputies and the final tally.
 - **MatchManager** (`src/main/java/dev/halloween/game/MatchManager.java`, 1502) — Server-side match state: roles, the Shape's abilities, stalking, Bloodthirst, grabs, kills, corpses and score.
+- **MichaelKill** (`src/main/java/dev/halloween/game/MichaelKill.java`, 549) — Michael's kills once he has won the struggle (in place of three blows of the knife; from GrabSession).
 - **Minigames** (`src/main/java/dev/halloween/game/Minigames.java`, 139) — Hands-on jobs played on a panel over the world: joining the wires of a breaker box to switch the power back on, and guiding the tool along a line to fix the car with a repair kit.
 - **Minimap** (`src/main/java/dev/halloween/game/Minimap.java`, 91) — The town as a plan for the minimap, baked once when a match starts: each column of the play area is ground, road, trees or building.
 - **Music** (`src/main/java/dev/halloween/game/Music.java`, 239) — Which music each player hears, worked out on the server where everything is known; the client fades between tracks (ClientMusic).
@@ -103,7 +104,7 @@
 - **VecnaCracks** (`src/main/java/dev/halloween/game/VecnaCracks.java`, 318) — The rift as the town sees it from above (Stranger Things, the end of season four): burning cracks torn through the ground from the altar out across the whole town, following the streets, splitting as they go, a broken...
 - **VecnaCurse** (`src/main/java/dev/halloween/game/VecnaCurse.java`, 258) — Vecna's curse: on one survivor only, chosen at random when the match starts and kept secret (they know, and he does; nobody else).
 - **VecnaDeath** (`src/main/java/dev/halloween/game/VecnaDeath.java`, 221) — Vecna takes the cursed one (Stranger Things, season four): instead of his usual kill, a scene.
-- **VecnaKill** (`src/main/java/dev/halloween/game/VecnaKill.java`, 841) — Vecna's kills, in place of a knife-killer's (from GrabSession): the vines of the Upside Down out of his back and palm, or out of the ground, do it.
+- **VecnaKill** (`src/main/java/dev/halloween/game/VecnaKill.java`, 850) — Vecna's kills, in place of a knife-killer's (from GrabSession): the vines of the Upside Down out of his back and palm, or out of the ground, do it.
 - **VecnaRitual** (`src/main/java/dev/halloween/game/VecnaRitual.java`, 196) — Vecna's ritual: kills.
 - **VictimState** (`src/main/java/dev/halloween/game/VictimState.java`, 45) — Stalk progress, mark and stagger of one victim (civilian player or test mannequin).
 - **Voices** (`src/main/java/dev/halloween/game/Voices.java`, 61) — People's voices: a scream when they see him or he grabs them, a cry of pain when his knife finds them, a death scream.
