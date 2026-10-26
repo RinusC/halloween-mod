@@ -30,6 +30,8 @@ public final class ClientDarkness {
 			return;
 		}
 		state.skyFactor *= skyScale;
+		// The cursed one's lights failing as he shows (CurseVisions).
+		state.blockFactor *= CurseVisions.lights();
 		float red = ClientEvents.redness();
 		// Samhain night (see ClientEvents): what little light there is turns red.
 		state.ambientColor = red <= 0.001f ? AMBIENT : new Vector3f(AMBIENT).lerp(RED_AMBIENT, red);

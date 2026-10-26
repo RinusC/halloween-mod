@@ -196,9 +196,9 @@ public final class VecnaCurse {
 		if (stage >= 3) {
 			Panic.set(p, 1f);
 		}
-		if (stage >= 4 && now % 40 == 0) {
-			// Broken: the clock ticking on in their head.
-			private_(p, now / 40 % 2 == 0 ? HwSounds.VECNA_CLOCK_TICK : HwSounds.VECNA_CLOCK_TOCK, 0.6f, 1f);
+		if (stage >= 4 && now % 22 == 0) {
+			// Broken: the clock ticking on in their head, at its own pace (a stroke a second or so).
+			private_(p, now / 22 % 2 == 0 ? HwSounds.VECNA_CLOCK_TICK : HwSounds.VECNA_CLOCK_TOCK, 0.6f, 1f);
 		}
 	}
 
