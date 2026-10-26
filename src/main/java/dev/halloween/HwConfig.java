@@ -163,13 +163,13 @@ public class HwConfig {
 
 	// --- Score (XP feed) ---
 	public int scorePassiveStalk = 10;
-	public int scoreStalkLevel = 25;
-	public int scoreGrab = 50;
-	public int scoreKill = 100;
-	public int scoreKillPerStalkLevel = 50;
-	public int scoreWindow = 75;
-	public int scoreBloody = 75;
-	public int scoreCorpse = 25;
+	public int scoreStalkLevel = 15;
+	public int scoreGrab = 75;
+	public int scoreKill = 250;
+	public int scoreKillPerStalkLevel = 75;
+	public int scoreWindow = 150;
+	public int scoreBloody = 100;
+	public int scoreCorpse = 15;
 
 	// --- Doors: civilians lock, the Shape breaks them down ---
 	public int lockTicks = 30;
@@ -316,7 +316,7 @@ public class HwConfig {
 	public double bodySightRange = 16;
 	public double bodyDarkSightRange = 7;
 	public float bodyFovDeg = 100f;
-	public int scoreFindBody = 25;
+	public int scoreFindBody = 20;
 	public int deputyRespawnSeconds = 30;
 	/** How long a deputy who has just arrived sees the survivors through walls. */
 	public int deputySightSeconds = 20;
@@ -391,8 +391,8 @@ public class HwConfig {
 	public int runtHitStunTicks = 80;
 	public int runtShotStunTicks = 140;
 	public int runtTrappedTicks = 80;
-	public int scoreHitRunt = 50;
-	public int scoreShakeRunt = 75;
+	public int scoreHitRunt = 30;
+	public int scoreShakeRunt = 100;
 	// --- Match events (see game.Events) ---
 	public boolean eventsEnabled = true;
 	/** The first comes this far in (seconds), the next this long after the one before began; at most this many. */
@@ -408,7 +408,7 @@ public class HwConfig {
 	public float eventCatchUpFactor = 2f;
 	public java.util.Map<String, Integer> eventWeights = defaultEventWeights();
 	/** Points for answering Loomis, emptying the bag, mending the transformer, the find in the fire (half for waving the patrol down). */
-	public int scoreEvent = 75;
+	public int scoreEvent = 100;
 	/** Loomis's call: how long the phone rings, how far from Michael it is, how long answering takes, then how long he shows and the find is marked. */
 	public int loomisSeconds = 60;
 	public double loomisMinDistance = 40;
@@ -653,8 +653,8 @@ public class HwConfig {
 	public float staminaActionCost = 0.2f;
 	/** Bear trap: how long it holds Michael; points for catching him, for the cans giving him away. */
 	public int bearTrapTicks = 60;
-	public int scoreTrap = 150;
-	public int scoreCans = 50;
+	public int scoreTrap = 250;
+	public int scoreCans = 25;
 	public float staminaPantVolume = 0.8f;
 	/** Footsteps Michael hears (a burst on his screen): running, running on a loud surface (gravel, leaf piles, broken glass), walking on one. */
 	public double noiseRunRange = 10;
@@ -727,14 +727,14 @@ public class HwConfig {
 	public int flashlightFlickerTicks = 60;
 
 	// --- Civilian score ---
-	public int scoreEscape = 500;
-	public int scoreItemFound = 25;
-	public int scoreExitProgress = 100;
-	public int scoreCallPolice = 150;
-	public int scoreHitShape = 20;
-	public int scoreStunShape = 150;
-	public int scoreRescueNpc = 200;
-	public int scoreHiddenNpc = 100;
+	public int scoreEscape = 1000;
+	public int scoreItemFound = 10;
+	public int scoreExitProgress = 250;
+	public int scoreCallPolice = 200;
+	public int scoreHitShape = 10;
+	public int scoreStunShape = 300;
+	public int scoreRescueNpc = 300;
+	public int scoreHiddenNpc = 75;
 
 	// --- Bots (fill the civilians' side when people are missing) ---
 	/** Bots are added until there are this many civilians (with or without a Shape). 0 = no bots. */
@@ -933,7 +933,7 @@ public class HwConfig {
 
 	/** The file's version: older files get the defaults that changed since moved on (see {@link #migrate}). */
 	public int configVersion;
-	private static final int VERSION = 19;
+	private static final int VERSION = 20;
 
 	public static void load() {
 		Path path = path();
@@ -1127,6 +1127,72 @@ public class HwConfig {
 			}
 			if (this.vecnaAnchorCooldownTicks == 1800) {
 				this.vecnaAnchorCooldownTicks = 1500;
+			}
+		}
+		if (this.configVersion < 20) {
+			// Points follow the effort: easy things pay less, hard ones more.
+			if (this.scoreStalkLevel == 25) {
+				this.scoreStalkLevel = 15;
+			}
+			if (this.scoreGrab == 50) {
+				this.scoreGrab = 75;
+			}
+			if (this.scoreKill == 100) {
+				this.scoreKill = 250;
+			}
+			if (this.scoreKillPerStalkLevel == 50) {
+				this.scoreKillPerStalkLevel = 75;
+			}
+			if (this.scoreWindow == 75) {
+				this.scoreWindow = 150;
+			}
+			if (this.scoreBloody == 75) {
+				this.scoreBloody = 100;
+			}
+			if (this.scoreCorpse == 25) {
+				this.scoreCorpse = 15;
+			}
+			if (this.scoreFindBody == 25) {
+				this.scoreFindBody = 20;
+			}
+			if (this.scoreHitRunt == 50) {
+				this.scoreHitRunt = 30;
+			}
+			if (this.scoreShakeRunt == 75) {
+				this.scoreShakeRunt = 100;
+			}
+			if (this.scoreEvent == 75) {
+				this.scoreEvent = 100;
+			}
+			if (this.scoreTrap == 150) {
+				this.scoreTrap = 250;
+			}
+			if (this.scoreCans == 50) {
+				this.scoreCans = 25;
+			}
+			if (this.scoreEscape == 500) {
+				this.scoreEscape = 1000;
+			}
+			if (this.scoreItemFound == 25) {
+				this.scoreItemFound = 10;
+			}
+			if (this.scoreExitProgress == 100) {
+				this.scoreExitProgress = 250;
+			}
+			if (this.scoreCallPolice == 150) {
+				this.scoreCallPolice = 200;
+			}
+			if (this.scoreHitShape == 20) {
+				this.scoreHitShape = 10;
+			}
+			if (this.scoreStunShape == 150) {
+				this.scoreStunShape = 300;
+			}
+			if (this.scoreRescueNpc == 200) {
+				this.scoreRescueNpc = 300;
+			}
+			if (this.scoreHiddenNpc == 100) {
+				this.scoreHiddenNpc = 75;
 			}
 		}
 		if (this.configVersion < VERSION) {
