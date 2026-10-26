@@ -19,8 +19,7 @@ import net.minecraft.world.phys.Vec3;
  * <li>The Shape: Stalking while he only watches (one composition per Bloodthirst level), Michael Myers
  * Proximity while he chases someone who has seen him or holds someone (one per stun level: the last while
  * he is down).</li>
- * <li>Survivors: Ambience when all is quiet, Being Stalked when he is close but not after them, Proximity
- * when he comes for them and they have seen him.</li>
+ * <li>Survivors: Ambience until his chase starts (nothing warns of him), then Proximity.</li>
  * <li>Vecna: his own calm music; survivors hear their calm file, and near him the chase file by its marks (vecnaMood).</li>
  * <li>A kill silences everything for a moment.</li>
  * <li>Seen by him in a chase (Chase), it is Proximity even without having looked back; getting away from him
@@ -110,11 +109,13 @@ public final class Music {
 				LAST_DISTANCE.put(player.getUUID(), dist);
 				boolean coming = before - dist >= 0.25 || dist <= 4;
 				boolean held = MatchManager.isGrabbed(player);
-				if (held || state.shadowTicks == 0 && (noticed && coming || Chase.hunted(player)) && dist <= cfg.musicChaseRange) {
+				// Michael: no music until the chase itself starts, so his appearance stays a scare.
+				boolean starts = Vecna.active() ? noticed && coming || Chase.hunted(player) : Chase.hunted(player);
+				if (held || state.shadowTicks == 0 && starts && dist <= cfg.musicChaseRange) {
 					CHASED_UNTIL.put(player.getUUID(), now + cfg.musicChaseLingerTicks);
 				}
 				chased = state.shadowTicks == 0 && now < CHASED_UNTIL.getOrDefault(player.getUUID(), 0) && dist <= cfg.musicChaseRange + 8 || held;
-				near = state.shadowTicks == 0 && dist <= cfg.musicStalkedRange;
+				near = Vecna.active() && state.shadowTicks == 0 && dist <= cfg.musicStalkedRange;
 				shapeChasing |= chased;
 				exposedNow |= chased && (MatchManager.isGrabbed(player) || VecnaCurse.cursed(player));
 			}
@@ -139,7 +140,8 @@ public final class Music {
 				continue;
 			}
 			int mood = MatchManager.role(player) == Role.NONE ? OFF * 10 : moods.getOrDefault(player.getUUID(), AMBIENCE * 10);
-			if (mood >= 0 && now < silentUntil) {
+			// Michael's kills silence only him; the survivors' music plays on.
+			if (mood >= 0 && now < silentUntil && (Vecna.active() || player == shape)) {
 				mood = SILENT * 10;
 			}
 			Integer sent = SENT.get(player.getUUID());

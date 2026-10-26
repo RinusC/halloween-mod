@@ -371,6 +371,12 @@ public final class Match {
 		state = State.IDLE;
 		Events.clear(server);
 		Exits.clear(server.overworld());
+		// The boards lose this match's exits, which are gone now.
+		MapPoints points = MapPoints.get(server.overworld());
+		BlockPos center = points.first(MapPoints.Type.CENTER);
+		if (center != null) {
+			MapBoards.setup(server.overworld(), area(points), center);
+		}
 		// The windows broken this match (the earthquake's too) are glass again.
 		Windows.clear(server);
 		Minimap.clear(server.overworld());
