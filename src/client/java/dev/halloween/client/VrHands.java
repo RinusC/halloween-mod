@@ -274,53 +274,9 @@ public final class VrHands {
 	/** Only loaded when Vivecraft is there. */
 	private static final class Modules {
 		static void register() {
-			VRClientAPI.instance().addClientRegistrationHandler(event -> event.registerInteractModules(new Grab(), new Touch(), new Gun(), new Reload()));
+			VRClientAPI.instance().addClientRegistrationHandler(event -> event.registerInteractModules(new Grab(), new Touch(), new Reload()));
 		}
 	}
-
-	/**
-	 * A gun in the hand: its trigger fires it. Vivecraft gives a hand's trigger to "interact" whenever a module wants
-	 * that hand, and only otherwise to the game's attack, which some controllers (with no bindings of Vivecraft's own)
-	 * have nowhere: so the gun takes the hand itself, the last of all (a door or a window under the hand comes first),
-	 * and fires on interact, whatever the controller. Not while the wrist's buttons are up.
-	 */
-	private static final class Gun implements InteractModule {
-		@Override
-		public int getPriority() {
-			return -100;
-		}
-
-		@Override
-		public Identifier getId() {
-			return Halloween.id("gun");
-		}
-
-		@Override
-		public boolean isActive(LocalPlayer player, InteractionHand hand, Vec3 pos) {
-			Minecraft mc = Minecraft.getInstance();
-			return hand == InteractionHand.MAIN_HAND && mc.gui.screen() == null && !VrWrist.open() && ClientGuns.heldGun(mc) != null;
-		}
-
-		@Override
-		public boolean onPress(LocalPlayer player, InteractionHand hand) {
-			Minecraft mc = Minecraft.getInstance();
-			if (!HalloweenClient.survivorAttack(mc, 1)) {
-				return false;
-			}
-			if (!logged) {
-				logged = true;
-				Halloween.LOGGER.info("VR: the gun fired from Vivecraft's interact (the trigger works)");
-			}
-			return true;
-		}
-
-		@Override
-		public boolean swingsArm() {
-			return false;
-		}
-	}
-
-	private static boolean logged;
 
 	/** The free hand on the gun and a press (trigger or grip): it is loaded. */
 	private static final class Reload implements InteractModule {

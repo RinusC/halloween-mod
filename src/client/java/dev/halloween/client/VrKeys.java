@@ -49,6 +49,7 @@ public final class VrKeys {
 	private static KeyMapping gift2;
 	/** A button of its own for the shot, for a controller whose interact button is also the hotbar's. */
 	private static KeyMapping fire;
+	private static KeyMapping drop;
 	/** What the radial menu was last set to (a role and form), so it is set only when that changes. */
 	private static String shown = "";
 
@@ -78,6 +79,7 @@ public final class VrKeys {
 		gift1 = key("gift1");
 		gift2 = key("gift2");
 		fire = key("fire");
+		drop = alias("drop", () -> Minecraft.getInstance().options.keyDrop, false);
 	}
 
 	private static KeyMapping key(String name) {
@@ -114,12 +116,12 @@ public final class VrKeys {
 			return new KeyMapping[0];
 		}
 		return switch (form()) {
-			case "michael" -> new KeyMapping[]{sense, shapeJump, impulse, dash, orders, perks};
-			case "demo" -> new KeyMapping[]{upsideDown, impulse, dash, orders, perks};
-			case "vecna" -> new KeyMapping[]{grip, eyes, anchor, dash, perks};
-			case "RUNT" -> new KeyMapping[]{runtSwap, gift1, gift2, perks};
+			case "michael" -> new KeyMapping[]{sense, shapeJump, impulse, dash, orders, perks, drop};
+			case "demo" -> new KeyMapping[]{upsideDown, impulse, dash, orders, perks, drop};
+			case "vecna" -> new KeyMapping[]{grip, eyes, anchor, dash, perks, drop};
+			case "RUNT" -> new KeyMapping[]{runtSwap, gift1, gift2, perks, drop};
 			case "" -> new KeyMapping[0];
-			default -> new KeyMapping[]{ping, skill, reload, perks};
+			default -> new KeyMapping[]{ping, skill, reload, perks, drop};
 		};
 	}
 
