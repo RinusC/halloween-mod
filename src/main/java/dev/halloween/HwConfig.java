@@ -727,13 +727,13 @@ public class HwConfig {
 	public int flashlightFlickerTicks = 60;
 
 	// --- Civilian score ---
-	public int scoreEscape = 1000;
+	public int scoreEscape = 500;
 	public int scoreItemFound = 10;
 	public int scoreExitProgress = 250;
 	public int scoreCallPolice = 200;
 	public int scoreHitShape = 10;
 	public int scoreStunShape = 300;
-	public int scoreRescueNpc = 1000;
+	public int scoreRescueNpc = 500;
 	public int scoreHiddenNpc = 75;
 
 	// --- Bots (fill the civilians' side when people are missing) ---
@@ -1170,9 +1170,6 @@ public class HwConfig {
 			if (this.scoreCans == 50) {
 				this.scoreCans = 25;
 			}
-			if (this.scoreEscape == 500) {
-				this.scoreEscape = 1000;
-			}
 			if (this.scoreItemFound == 25) {
 				this.scoreItemFound = 10;
 			}
@@ -1189,7 +1186,7 @@ public class HwConfig {
 				this.scoreStunShape = 300;
 			}
 			if (this.scoreRescueNpc == 200) {
-				this.scoreRescueNpc = 1000;
+				this.scoreRescueNpc = 500;
 			}
 			if (this.scoreHiddenNpc == 100) {
 				this.scoreHiddenNpc = 75;
