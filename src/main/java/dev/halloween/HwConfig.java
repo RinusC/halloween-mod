@@ -904,7 +904,7 @@ public class HwConfig {
 	/** Stalking (towards a capture level) for every second a survivor is held by the Grip. */
 	public float vecnaGripStalkPerSecond = 0.35f;
 	/** The curse (on one survivor): seconds each stage lasts before the next; at the last, the reaction checks' zones times this. */
-	public int vecnaCurseStageSeconds = 240;
+	public int vecnaCurseStageSeconds = 210;
 	public float vecnaCurseCheckFactor = 0.55f;
 	/** Stage 1 and on: the clock strikes this often. Stalking per second for every stage. */
 	public int vecnaChimeTicks = 600;
@@ -944,7 +944,7 @@ public class HwConfig {
 
 	/** The file's version: older files get the defaults that changed since moved on (see {@link #migrate}). */
 	public int configVersion;
-	private static final int VERSION = 20;
+	private static final int VERSION = 21;
 
 	public static void load() {
 		Path path = path();
@@ -1202,6 +1202,10 @@ public class HwConfig {
 			if (this.scoreHiddenNpc == 100) {
 				this.scoreHiddenNpc = 75;
 			}
+		}
+		if (this.configVersion < 21 && this.vecnaCurseStageSeconds == 240) {
+			// The curse deepens half a minute faster per stage.
+			this.vecnaCurseStageSeconds = 210;
 		}
 		if (this.configVersion < VERSION) {
 			Halloween.LOGGER.info("Config moved on to version {}", VERSION);
