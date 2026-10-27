@@ -47,7 +47,7 @@ public class MichaelKillClientTest implements FabricClientGameTest {
 				cfg.botQteSuccessChance = 0f;
 			});
 			server.runCommand("hw killer michael");
-			for (String scene : new String[]{"pin", "lift", "pinskin"}) {
+			for (String scene : new String[]{"pin", "pinskin"}) {
 				if (only != null && !only.equals(scene)) {
 					continue;
 				}
@@ -57,7 +57,7 @@ public class MichaelKillClientTest implements FabricClientGameTest {
 				server.runCommand("weather clear");
 				ctx.runOnClient(mc -> dev.halloween.client.CosmeticRenderer.forced = scene.equals("pinskin") ? java.util.List.of("cleaver") : null);
 				ctx.runOnClient(mc -> ClientDarkness.enabled = false);
-				BlockPos at = server.computeOnServer(s -> platform(s, !scene.equals("lift")));
+				BlockPos at = server.computeOnServer(s -> platform(s));
 				ctx.runOnClient(mc -> mc.options.setCameraType(CameraType.FIRST_PERSON));
 				server.runOnServer(s -> {
 					ServerPlayer p = player(s);
@@ -67,12 +67,11 @@ public class MichaelKillClientTest implements FabricClientGameTest {
 					while (dev.halloween.game.Inventory.has(bot, dev.halloween.game.HwItems.Kind.AMULET)) {
 						dev.halloween.game.Inventory.consume(bot, dev.halloween.game.HwItems.Kind.AMULET);
 					}
-					MichaelKill.forceKind = !scene.equals("lift") ? MichaelKill.PIN : MichaelKill.LIFT;
 					check(MatchManager.grabOut(p, bot), scene + ": he has them by the throat");
 				});
 				ctx.waitTicks(15);
 				server.runOnServer(s -> MatchManager.grabHolding(victim(s)).testWin());
-				int[] shots = !scene.equals("lift") ? new int[]{8, 16, 24, 28, 34, 42, 54, 64, 80, 86, 94} : new int[]{6, 12, 20, 30, 40, 48, 56, 62, 66, 72, 80};
+				int[] shots = new int[]{8, 16, 24, 28, 34, 42, 54, 64, 80, 86, 94};
 				int waited = 0;
 				for (int t : shots) {
 					ctx.waitTicks(t - waited);
@@ -80,7 +79,7 @@ public class MichaelKillClientTest implements FabricClientGameTest {
 					if (t == shots[2]) {
 						check(ctx.computeOnClient(mc -> KillCam.active()), scene + ": he sees it through the kill's camera");
 					}
-					if (!scene.equals("lift") && t == 54) {
+					if (t == 54) {
 						check(server.computeOnServer(s -> player(s).getMainHandItem().isEmpty()), "pin: the knife is left in them");
 					}
 					ctx.takeScreenshot("michaelkill_" + scene + "_" + t);
@@ -94,7 +93,6 @@ public class MichaelKillClientTest implements FabricClientGameTest {
 				server.runOnServer(s -> player(s).teleportTo(s.overworld(), at.getX() + 1.9, at.getY(), at.getZ() + 0.4, java.util.Set.of(), 15f, 35f, false));
 				ctx.waitTicks(5);
 				ctx.takeScreenshot("michaelkill_" + scene + "_body");
-				server.runOnServer(s -> MichaelKill.forceKind = 0);
 				ctx.runOnClient(mc -> dev.halloween.client.CosmeticRenderer.forced = null);
 				server.runCommand("hw stop");
 				ctx.waitTicks(20);
@@ -104,14 +102,14 @@ public class MichaelKillClientTest implements FabricClientGameTest {
 	}
 
 	/** A floor up in the air with room above; for the wall, a wall of bricks three blocks behind where they will stand. */
-	private static BlockPos platform(MinecraftServer s, boolean wall) {
+	private static BlockPos platform(MinecraftServer s) {
 		ServerPlayer p = player(s);
 		BlockPos at = p.blockPosition().offset(0, 40, 0);
 		for (int x = -7; x <= 7; x++) {
 			for (int z = -7; z <= 7; z++) {
 				s.overworld().setBlock(at.offset(x, -1, z), Blocks.OAK_PLANKS.defaultBlockState(), 2);
 				for (int y = 0; y <= 6; y++) {
-					boolean brick = wall && z == 3 && y <= 3;
+					boolean brick = z == 3 && y <= 3;
 					s.overworld().setBlock(at.offset(x, y, z), brick ? Blocks.STONE_BRICKS.defaultBlockState() : Blocks.AIR.defaultBlockState(), 2);
 				}
 			}

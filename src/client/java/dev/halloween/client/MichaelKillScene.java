@@ -28,7 +28,7 @@ import net.minecraft.world.item.Items;
  * Michael's kills after a struggle (game.MichaelKill) as every client near sees them: his moves and the body of the one
  * he kills, on the player models (his own model takes his pose from it, see MichaelRenderer), how his knife sits in his
  * hand (along the arm, point first, when it goes in), the knife left in them (his own blade, if he carries one of his
- * cosmetics in place of it), the body turning over in the air when flung, and the one left sitting against the wall.
+ * cosmetics in place of it), and the one left sitting against the wall.
  * The server moves them both.
  */
 public final class MichaelKillScene {
@@ -39,9 +39,6 @@ public final class MichaelKillScene {
 		long start;
 		int ticks;
 		float yaw;
-		/** Lifted: how high his arm goes (radians from hanging), and which way the body faces when it lands. */
-		float raise;
-		float flyYaw;
 		/** The knife in his hand when it began (left in them in the wall). */
 		ItemStack knife = ItemStack.EMPTY;
 	}
@@ -79,8 +76,6 @@ public final class MichaelKillScene {
 		s.start = p.start();
 		s.ticks = p.ticks();
 		s.yaw = p.yaw();
-		s.raise = (float) p.a().x;
-		s.flyYaw = (float) p.a().y;
 		Minecraft mc = Minecraft.getInstance();
 		if (mc.level != null && mc.level.getEntity(s.michael) instanceof LivingEntity him) {
 			s.knife = him.getMainHandItem().copy();
@@ -133,7 +128,7 @@ public final class MichaelKillScene {
 	public static float bodyYaw(int id) {
 		Scene s = live(SCENES.get(id));
 		if (s != null) {
-			return s.kind == MichaelKill.LIFT ? MichaelKill.flightYaw(now() - s.start, s.yaw + 180f, s.flyYaw) : s.yaw + 180f;
+			return s.yaw + 180f;
 		}
 		Scene m = ofMichael(id);
 		if (m != null) {
@@ -153,14 +148,13 @@ public final class MichaelKillScene {
 			return false;
 		}
 		float t = now() - s.start;
-		return s.kind == MichaelKill.PIN ? t > MichaelKill.P_SLAM + 6 && t < MichaelKill.P_LEAVE + 2 || t > MichaelKill.P_RETURN + 4 && t < MichaelKill.P_PULL + 4
-			: t > 2 && t < MichaelKill.L_FLING + 8;
+		return t > MichaelKill.P_SLAM + 6 && t < MichaelKill.P_LEAVE + 2 || t > MichaelKill.P_RETURN + 4 && t < MichaelKill.P_PULL + 4;
 	}
 
 	/** Is his knife in the one he pinned to the wall (not in his hand)? */
 	public static boolean inWall(int id) {
 		Scene s = ofMichael(id);
-		if (s == null || s.kind != MichaelKill.PIN) {
+		if (s == null) {
 			return false;
 		}
 		float t = now() - s.start;
@@ -195,22 +189,12 @@ public final class MichaelKillScene {
 			return false;
 		}
 		float t = now() - s.start;
-		if (!him && s.kind == MichaelKill.LIFT && t >= MichaelKill.L_LAND) {
-			// Down on the floor: lying as anyone killed (ClientAnims, DEAD).
-			return false;
-		}
 		float now = now();
 		reset(m);
-		if (s.kind == MichaelKill.PIN) {
-			if (him) {
-				pinHim(m, t, now);
-			} else {
-				pinThem(m, t, now);
-			}
-		} else if (him) {
-			liftHim(m, t, s.raise);
+		if (him) {
+			pinHim(m, t, now);
 		} else {
-			liftThem(m, t, now);
+			pinThem(m, t, now);
 		}
 		return true;
 	}
@@ -232,8 +216,7 @@ public final class MichaelKillScene {
 
 	/**
 	 * The whole body in one of his kills, laid over where it stands (from mixin.LivingEntityRendererMixin's
-	 * setupRotations): flung off the knife, turning over in the air to come down face first along the way it flies; down
-	 * the wall, sitting (and the body left so). False: as anyone.
+	 * setupRotations): down the wall, sitting (and the body left so). False: as anyone.
 	 */
 	public static boolean rotations(int id, PoseStack pose) {
 		Scene s = live(SCENES.get(id));
@@ -245,26 +228,11 @@ public final class MichaelKillScene {
 			return false;
 		}
 		float t = now() - s.start;
-		if (s.kind == MichaelKill.PIN) {
-			float fold = fold(t);
-			if (fold <= 0f) {
-				return false;
-			}
-			pose.translate(0f, -MichaelKill.SIT * fold, 0f);
-			return true;
-		}
-		if (t < MichaelKill.L_FLING || t >= MichaelKill.L_LAND) {
+		float fold = fold(t);
+		if (fold <= 0f) {
 			return false;
 		}
-		// Over about the middle of the body at first, about the feet by the time it lands: then just as ClientAnims lays
-		// anyone down (flat on the face, lifted a little), so nothing jumps when it takes over.
-		float k = (t - MichaelKill.L_FLING) / (MichaelKill.L_LAND - MichaelKill.L_FLING);
-		float angle = 90f * k * (0.6f + 0.4f * k);
-		float pivot = 1.0f * (1f - k);
-		pose.translate(0f, pivot + 0.18f * (float) Math.sin(Math.toRadians(angle)), 0f);
-		pose.mulPose(Axis.XP.rotationDegrees(-angle));
-		pose.mulPose(Axis.ZP.rotationDegrees(28f * (float) Math.sin(k * Math.PI)));
-		pose.translate(0f, -pivot, 0f);
+		pose.translate(0f, -MichaelKill.SIT * fold, 0f);
 		return true;
 	}
 
@@ -403,87 +371,6 @@ public final class MichaelKillScene {
 		m.head.yRot = 0.12f * k;
 	}
 
-	private static void liftHim(HumanoidModel<?> m, float t, float raise) {
-		// The knife arm: drawn back low, driven up into them, raised overhead with them on it, flung out to his side.
-		m.rightArm.xRot = -MichaelKill.liftArm(t, raise);
-		float fling = t < MichaelKill.L_FLING ? 0f : (float) Math.sin(Mth.clamp((t - MichaelKill.L_FLING) / 14f, 0f, 1f) * Math.PI);
-		m.rightArm.zRot = 0.55f * fling;
-		// The flick: blood off the blade.
-		float flick = jolt(t, 77) * (t > 77 ? 1f : 0f);
-		m.rightArm.xRot -= 0.45f * flick;
-		// The other hand at their throat until they are on the knife.
-		float free = smooth((t - MichaelKill.L_RAISE) / 8f);
-		m.leftArm.xRot = Mth.lerp(free, -1.6f, -0.15f);
-		m.leftArm.yRot = Mth.lerp(free, 0.3f, 0f);
-		// A lunge into it.
-		float lunge = smooth((t - MichaelKill.L_COCK) / 3f) * (1f - smooth((t - MichaelKill.L_RAISE) / 10f));
-		m.rightLeg.xRot = -0.35f * lunge;
-		m.leftLeg.xRot = 0.2f * lunge;
-		// Looking at them, up at them held high, the head tilting; then after the body.
-		float up = smooth((t - MichaelKill.L_RAISE) / 20f) * (1f - smooth((t - MichaelKill.L_FLING) / 6f));
-		m.head.xRot = 0.1f - 0.55f * up + 0.4f * smooth((t - MichaelKill.L_FLING - 2) / 8f);
-		m.head.zRot = 0.42f * smooth((t - MichaelKill.L_HIGH - 2) / 14f) * (1f - smooth((t - MichaelKill.L_FLING) / 8f)) + 0.15f * smooth((t - MichaelKill.L_LAND) / 10f);
-		m.head.yRot = -0.5f * smooth((t - MichaelKill.L_FLING) / 8f);
-	}
-
-	private static void liftThem(HumanoidModel<?> m, float t, float now) {
-		float a = Mth.sin(now * 1.3f);
-		float l = Mth.sin(now * 1.6f);
-		if (t < MichaelKill.L_STAB) {
-			m.rightArm.xRot = -2.1f + a * 0.3f;
-			m.leftArm.xRot = -2.1f - a * 0.3f;
-			m.rightArm.yRot = -0.45f;
-			m.leftArm.yRot = 0.45f;
-			m.rightArm.zRot = 0.3f;
-			m.leftArm.zRot = -0.3f;
-			m.rightLeg.xRot = l * 0.6f;
-			m.leftLeg.xRot = -l * 0.6f;
-			m.head.xRot = -0.6f + Mth.cos(now * 1.1f) * 0.06f;
-			return;
-		}
-		float j = jolt(t, MichaelKill.L_STAB) + 0.6f * jolt(t, 18);
-		if (t < MichaelKill.L_RAISE) {
-			// Doubled over it, hands to the belly.
-			m.rightArm.xRot = -0.65f + a * 0.06f - 0.3f * j;
-			m.leftArm.xRot = -0.65f - a * 0.06f - 0.3f * j;
-			m.rightArm.yRot = -0.6f;
-			m.leftArm.yRot = 0.6f;
-			m.rightLeg.xRot = -0.4f * j + l * 0.15f;
-			m.leftLeg.xRot = -0.3f * j - l * 0.15f;
-			m.head.xRot = 0.45f + 0.3f * j;
-			return;
-		}
-		if (t < MichaelKill.L_FLING) {
-			// Up on the knife: clawing at his arm, kicking; weaker; then hanging over the blade, the head back.
-			float weak = smooth((t - MichaelKill.L_HIGH + 4) / 16f);
-			float life = 1f - weak;
-			m.rightArm.xRot = Mth.lerp(weak, -1.05f + a * 0.2f, 0.1f);
-			m.leftArm.xRot = Mth.lerp(weak, -1.05f - a * 0.2f, 0.15f);
-			m.rightArm.yRot = Mth.lerp(weak, -0.4f, 0f);
-			m.leftArm.yRot = Mth.lerp(weak, 0.4f, 0f);
-			m.rightArm.zRot = Mth.lerp(weak, 0f, 0.35f);
-			m.leftArm.zRot = Mth.lerp(weak, 0f, -0.35f);
-			m.rightLeg.xRot = l * 0.6f * life + 0.1f * weak;
-			m.leftLeg.xRot = -l * 0.55f * life + 0.05f * weak;
-			m.head.xRot = Mth.lerp(weak, -0.45f + Mth.sin(now * 0.9f) * 0.1f, -0.65f);
-			m.head.zRot = 0.2f * weak;
-			return;
-		}
-		// Flung off, turning over in the air: slack, the arms and legs trailing, going out as they come down (to lie as
-		// ClientAnims lays anyone down: arms out, legs a little apart).
-		float k = smooth((t - MichaelKill.L_FLING) / (MichaelKill.L_LAND - MichaelKill.L_FLING));
-		m.rightArm.xRot = Mth.lerp(k, -0.6f, 0f);
-		m.leftArm.xRot = Mth.lerp(k, -0.35f, 0f);
-		m.rightArm.zRot = Mth.lerp(k, 0.5f, 1.1f);
-		m.leftArm.zRot = Mth.lerp(k, -0.7f, -1.1f);
-		m.rightLeg.xRot = Mth.lerp(k, 0.35f, 0f);
-		m.leftLeg.xRot = Mth.lerp(k, -0.2f, 0f);
-		m.rightLeg.zRot = 0.15f * k;
-		m.leftLeg.zRot = -0.15f * k;
-		m.head.xRot = Mth.lerp(k, 0.5f, -0.3f);
-		m.head.zRot = 0.3f * (1f - k);
-	}
-
 	/**
 	 * His knife left in the one he pinned to the wall (from mixin.LivingEntityRendererMixin, after their model): in their
 	 * chest, where his fist drove it, the handle out towards him; his own blade if he carries one (CosmeticRenderer).
@@ -494,7 +381,7 @@ public final class MichaelKillScene {
 			return;
 		}
 		Scene sc = live(SCENES.get(((HwRenderState) s).halloween$entityId()));
-		if (sc == null || sc.kind != MichaelKill.PIN) {
+		if (sc == null) {
 			return;
 		}
 		float t = now() - sc.start;

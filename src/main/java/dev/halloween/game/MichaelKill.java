@@ -22,7 +22,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * Michael's kills once he has won the struggle (in place of three blows of the knife; from {@link GrabSession}). Seen
+ * Michael's kill once he has won the struggle by a wall (in place of three blows of the knife; from {@link GrabSession}). Seen
  * from a slow camera off to the side by him and by them, the rest see it where it happens. The server moves the
  * bodies, leaves his knife in the wall, makes the sounds and the blood; his moves and theirs are client.MichaelKillScene's,
  * from the {@link HwNet.MichaelKill} everyone near gets.
@@ -32,15 +32,11 @@ import net.minecraft.world.phys.Vec3;
  * He steps back and looks at them, his head slowly tilting. Then he pulls the knife out and they slide down the wall
  * and are left sitting against it, slumped (the body stays so: a mannequin in {@link Pose#FALL_FLYING}, which
  * client.MichaelKillScene draws sitting). Only where there is a wall at hand.
- * <li>{@link #LIFT}: the knife up into the belly, and he lifts them off their feet on it at arm's length, up over his
- * head; holds them there, the head tilting as he looks up at them; then flings the body off the blade: it turns over in
- * the air and comes down along the way it flew, face down.
  * </ul>
  */
 public final class MichaelKill {
 	public static final int NONE = 0;
 	public static final int PIN = 1;
-	public static final int LIFT = 2;
 
 	/**
 	 * Pin: walked back into the wall until P_SLAM, lifted, the knife in at P_STAB; let go at P_LEAVE, he steps back and
@@ -60,23 +56,6 @@ public final class MichaelKill {
 	/** Sitting against the wall: how far the body sinks below where its feet were (the legs out along the floor). */
 	public static final float SIT = 0.6f;
 
-	/** Lift: the knife in at L_STAB, lifted from L_RAISE to L_HIGH, held, flung off at L_FLING, down at L_LAND. */
-	public static final int LIFT_TICKS = 92;
-	public static final int L_COCK = 8;
-	public static final int L_STAB = 11;
-	public static final int L_RAISE = 22;
-	public static final int L_HIGH = 42;
-	public static final int L_FLING = 60;
-	public static final int L_LAND = 68;
-	private static final int L_KILL = 88;
-	/** His shoulder above his feet and the knife's point from it (blocks, as his model is drawn). */
-	public static final double SHOULDER = 1.5;
-	public static final double REACH = 1.05;
-	/** His knife shoulder off to the side of his middle (blocks). */
-	public static final double SHOULDER_SIDE = 0.33;
-	/** Where in them the knife goes in: this high above their feet. */
-	public static final double BELLY = 0.95;
-
 	private final GrabSession grab;
 	private final ServerPlayer michael;
 	private final LivingEntity victim;
@@ -92,19 +71,8 @@ public final class MichaelKill {
 	private Vec3 pinned;
 	private Vec3 close;
 	private Vec3 back;
-	/**
-	 * Lift: how high his arm goes (radians from hanging; a ceiling can keep it lower); where the body lands, and which
-	 * way it faces then (along the way it flew).
-	 */
-	private float raise = 2.3f;
-	private Vec3 landed;
-	private float flyYaw;
-	private Vec3 flungFrom;
 	/** His knife while it is in the wall (drawn there by the clients). */
 	private ItemStack knife = ItemStack.EMPTY;
-
-	/** For tests: the next kill is this one (0: at random). */
-	public static int forceKind;
 
 	private MichaelKill(GrabSession grab, ServerPlayer michael, LivingEntity victim, int kind) {
 		this.grab = grab;
@@ -123,17 +91,11 @@ public final class MichaelKill {
 		return (float) Math.toDegrees(Math.atan2(-d.x, d.z));
 	}
 
-	/** His kill after the struggle: pinned to a wall (where there is one) or lifted on the knife, at random. */
+	/** His kill after the struggle, pinned to a wall; null where there is no wall at hand (then the knife, as ever). */
 	static MichaelKill start(GrabSession grab, ServerPlayer michael, LivingEntity victim) {
-		MichaelKill pin = new MichaelKill(grab, michael, victim, PIN);
-		boolean wall = pin.findWall();
-		boolean wantPin = forceKind == PIN || forceKind != LIFT && michael.getRandom().nextBoolean();
-		MichaelKill k = wall && wantPin ? pin : new MichaelKill(grab, michael, victim, LIFT);
-		if (k.kind == LIFT) {
-			k.headroom();
-			k.landed = k.landing();
-			Vec3 fly = k.landed.subtract(k.victimOnKnife(k.raise)).multiply(1, 0, 1);
-			k.flyYaw = fly.lengthSqr() < 1e-4 ? k.yaw + 180f : yawOf(fly);
+		MichaelKill k = new MichaelKill(grab, michael, victim, PIN);
+		if (!k.findWall()) {
+			return null;
 		}
 		k.begin();
 		return k;
@@ -209,57 +171,6 @@ public final class MichaelKill {
 		return level.getBlockState(p).getCollisionShape(level, p).isEmpty();
 	}
 
-	/** Lift: how high there is room to raise them (a ceiling over them keeps his arm lower). */
-	private void headroom() {
-		ServerLevel level = this.level();
-		for (float a = 2.3f; a >= 1.3f; a -= 0.1f) {
-			Vec3 at = this.victimOnKnife(a);
-			AABB body = new AABB(at.x - 0.28, at.y, at.z - 0.28, at.x + 0.28, at.y + 1.85, at.z + 0.28);
-			if (level.noCollision(body)) {
-				this.raise = a;
-				return;
-			}
-		}
-		this.raise = 1.3f;
-	}
-
-	/** Where they are when his knife arm is {@code a} radians up from hanging: on the point of it, by the belly. */
-	private Vec3 victimOnKnife(double a) {
-		// Before his knife shoulder, not his middle: the blade goes into the middle of them.
-		Vec3 shoulder = this.spot.add(this.ahead.cross(new Vec3(0, 1, 0)).scale(-SHOULDER_SIDE));
-		Vec3 tip = shoulder.add(this.ahead.scale(REACH * Math.sin(a))).add(0, SHOULDER - REACH * Math.cos(a), 0);
-		return new Vec3(tip.x + this.ahead.x * 0.12, Math.max(this.floor, tip.y - BELLY), tip.z + this.ahead.z * 0.12);
-	}
-
-	/** How far up from hanging his knife arm is at tick {@code t} of the lift (the same on the clients). */
-	public static float liftArm(float t, float raise) {
-		if (t < L_COCK) {
-			return Mth.lerp(smooth(t / L_COCK), 0.1f, -0.55f);
-		}
-		if (t < L_STAB) {
-			return Mth.lerp(smooth((t - L_COCK) / (L_STAB - L_COCK)), -0.55f, 1.2f);
-		}
-		if (t < L_RAISE) {
-			// A second shove, deeper.
-			return 1.2f + 0.1f * (float) Math.sin(Mth.clamp((t - 16) / 5f, 0f, 1f) * Math.PI);
-		}
-		if (t < L_HIGH) {
-			return Mth.lerp(smooth((t - L_RAISE) / (L_HIGH - L_RAISE)), 1.2f, raise);
-		}
-		if (t < L_FLING) {
-			return raise + 0.03f * (float) Math.sin(t * 1.3f);
-		}
-		if (t < L_FLING + 6) {
-			return Mth.lerp(smooth((t - L_FLING) / 6f), raise, 0.9f);
-		}
-		return Mth.lerp(smooth((t - L_FLING - 6) / 12f), 0.9f, 0.15f);
-	}
-
-	/** Lift: the body's yaw at tick {@code t}, turning in the air from facing him ({@code from}) to along its flight ({@code to}). */
-	public static float flightYaw(float t, float from, float to) {
-		return from + Mth.wrapDegrees(to - from) * smooth((t - L_FLING) / (L_LAND - L_FLING));
-	}
-
 	private static float smooth(float x) {
 		x = Mth.clamp(x, 0f, 1f);
 		return x * x * (3 - 2 * x);
@@ -269,18 +180,13 @@ public final class MichaelKill {
 
 	private void begin() {
 		ServerLevel level = this.level();
-		int ticks = this.kind == PIN ? PIN_TICKS : LIFT_TICKS;
-		Vec3 a = this.kind == PIN ? this.pinned : new Vec3(this.raise, this.flyYaw, 0);
+		int ticks = PIN_TICKS;
+		Vec3 a = this.pinned;
 		send(new HwNet.MichaelKill(this.kind, this.michael.getId(), this.victim.getId(), level.getGameTime(), ticks, this.yaw, a, this.spot), this.victim);
 		GrabSession.anim(this.michael, HwNet.Anim.NONE);
 		GrabSession.anim(this.victim, HwNet.Anim.NONE);
-		if (this.kind == PIN) {
-			Vec3 look = this.pinned.lerp(this.close, 0.5).add(0, 1.35, 0);
-			VecnaKill.sideCamera(this.michael, this.victim, this.ahead, ticks, look, 6.0, 0.5, 20f);
-		} else {
-			Vec3 look = this.spot.add(this.ahead.scale(0.5)).add(0, 1.4 + (this.raise - 1.2) * 0.45, 0);
-			VecnaKill.sideCamera(this.michael, this.victim, this.ahead, ticks, look, 6.6, -0.35, 30f);
-		}
+		Vec3 look = this.pinned.lerp(this.close, 0.5).add(0, 1.35, 0);
+		VecnaKill.sideCamera(this.michael, this.victim, this.ahead, ticks, look, 6.0, 0.5, 20f);
 		level.playSound(null, this.michael.getX(), this.michael.getEyeY(), this.michael.getZ(), HwSounds.SHAPE_BREATH, SoundSource.HOSTILE, 1.6f, 0.8f);
 	}
 
@@ -298,7 +204,7 @@ public final class MichaelKill {
 	/** Every tick of the kill; true once they are dead. */
 	boolean tick() {
 		int t = ++this.t;
-		this.over = this.kind == PIN ? this.tickPin(t) : this.tickLift(t);
+		this.over = this.tickPin(t);
 		return this.over;
 	}
 
@@ -307,9 +213,6 @@ public final class MichaelKill {
 
 	/** After the kill, on the body left in their place (a mannequin): pinned, it stays sitting against the wall. */
 	void killed() {
-		if (this.kind != PIN) {
-			return;
-		}
 		Vec3 at = this.pinned.add(this.ahead.scale(0.08));
 		for (Mannequin body : this.level().getEntitiesOfClass(Mannequin.class, new AABB(at, at).inflate(0.6),
 			m -> m.entityTags().contains(MatchManager.CORPSE_TAG))) {
@@ -448,105 +351,6 @@ public final class MichaelKill {
 			}
 			this.knife = ItemStack.EMPTY;
 		}
-	}
-
-	// ---------------------------------------------------------------- lifted on the knife
-
-	private boolean tickLift(int t) {
-		ServerLevel level = this.level();
-		this.place(this.spot);
-		float arm = liftArm(t, this.raise);
-		Vec3 at;
-		if (t < L_STAB) {
-			at = this.from;
-		} else if (t < L_FLING) {
-			at = this.from.lerp(this.victimOnKnife(arm), Math.min(1f, (t - L_STAB + 1) / 3f));
-		} else if (t <= L_LAND) {
-			// Flung off the blade to his knife side, down onto the floor.
-			if (this.flungFrom == null) {
-				this.flungFrom = this.victim.position();
-			}
-			float k = (t - L_FLING) / (float) (L_LAND - L_FLING);
-			Vec3 across = this.flungFrom.lerp(this.landed, k);
-			at = new Vec3(across.x, Math.max(this.floor, Mth.lerp(k * k, this.flungFrom.y, this.floor) + Math.sin(k * Math.PI) * 0.35), across.z);
-		} else {
-			at = this.landed;
-		}
-		// Turning over in the air to come down along the way they fly.
-		this.grab.placeVictim(at.x, at.y, at.z, flightYaw(t, this.yaw + 180f, this.flyYaw));
-		this.victim.setDeltaMovement(Vec3.ZERO);
-		Vec3 belly = at.add(0, BELLY, 0);
-		if (t == 1) {
-			Voices.play(this.victim, Voices.Kind.SCREAM);
-		}
-		if (t == L_STAB) {
-			level.playSound(null, belly.x, belly.y, belly.z, HwSounds.STAB, SoundSource.HOSTILE, 1.8f, 0.8f);
-			level.playSound(null, belly.x, belly.y, belly.z, HwSounds.VECNA_IMPALE, SoundSource.HOSTILE, 1.4f, 1.15f);
-			this.grab.silence();
-			Voices.play(this.victim, Voices.Kind.HURT);
-			this.spray(belly, this.ahead, 18);
-			this.shake(this.victim, 12, 0.9f);
-			this.shake(this.michael, 6, 0.4f);
-		}
-		if (t == 18) {
-			level.playSound(null, belly.x, belly.y, belly.z, HwSounds.STAB, SoundSource.HOSTILE, 1.3f, 0.65f);
-			this.spray(belly, this.ahead, 10);
-		}
-		if (t == L_RAISE + 2) {
-			level.playSound(null, belly.x, belly.y, belly.z, HwSounds.SHAPE_BREATH, SoundSource.HOSTILE, 1.4f, 0.7f);
-			Voices.play(this.victim, Voices.Kind.SCREAM);
-		}
-		if (t > L_STAB && t < L_FLING && t % 2 == 0) {
-			// Down the blade, off their feet.
-			level.sendParticles(HwParticles.BLOOD_DRIP, belly.x - this.ahead.x * 0.15, belly.y - 0.1, belly.z - this.ahead.z * 0.15, 1, 0.06, 0.02, 0.06, 0);
-			if (t % 6 == 0) {
-				level.sendParticles(HwParticles.BLOOD_DRIP, at.x, at.y + 0.05, at.z, 1, 0.1, 0, 0.1, 0);
-			}
-		}
-		if (t == L_HIGH + 4) {
-			level.playSound(null, this.michael.getX(), this.michael.getEyeY(), this.michael.getZ(), HwSounds.STINGER, SoundSource.HOSTILE, 1.3f, 1f);
-		}
-		if (t == 50) {
-			Blood.pool(level, this.spot.add(this.ahead.scale(0.8)));
-		}
-		if (t == L_FLING) {
-			level.playSound(null, belly.x, belly.y, belly.z, HwSounds.SWING, SoundSource.HOSTILE, 1.4f, 0.7f);
-			level.playSound(null, belly.x, belly.y, belly.z, HwSounds.STAB, SoundSource.HOSTILE, 1.0f, 1.5f);
-			this.spray(belly, this.ahead.cross(new Vec3(0, 1, 0)).scale(-1), 14);
-		}
-		if (t == L_LAND) {
-			// Down on the floor (only now: in the air they were turning over, see client.MichaelKillScene).
-			GrabSession.anim(this.victim, HwNet.Anim.DEAD);
-			level.playSound(null, at.x, at.y, at.z, HwSounds.VECNA_BODY_DROP, SoundSource.HOSTILE, 1.5f, 0.95f);
-			level.playSound(null, at.x, at.y, at.z, SoundEvents.PLAYER_BIG_FALL, SoundSource.PLAYERS, 1.3f, 0.75f);
-			this.shake(this.michael, 4, 0.3f);
-		}
-		if (t == 78) {
-			// The blood flicked off the blade.
-			Vec3 side = this.ahead.cross(new Vec3(0, 1, 0)).scale(-1);
-			Vec3 blade = this.spot.add(side.scale(0.4)).add(this.ahead.scale(0.3)).add(0, 0.9, 0);
-			for (int i = 0; i < 8; i++) {
-				Vec3 v = side.scale(0.15).add(0, -0.05, 0).add((level.getRandom().nextDouble() - 0.5) * 0.1, 0, (level.getRandom().nextDouble() - 0.5) * 0.1);
-				level.sendParticles(HwParticles.BLOOD, blade.x, blade.y, blade.z, 0, v.x, v.y, v.z, 1);
-			}
-			level.playSound(null, blade.x, blade.y, blade.z, HwSounds.SWING, SoundSource.HOSTILE, 0.8f, 1.4f);
-		}
-		return t >= L_KILL;
-	}
-
-	/** Where the body comes down: off to his knife side, or wherever a body fits. */
-	private Vec3 landing() {
-		ServerLevel level = this.level();
-		Vec3 right = this.ahead.cross(new Vec3(0, 1, 0)).scale(-1);
-		for (Vec3 d : new Vec3[]{right.scale(1.5).add(this.ahead.scale(0.7)), right.scale(-1.5).add(this.ahead.scale(0.7)), this.ahead.scale(1.7), right.scale(1.2)}) {
-			Vec3 at = new Vec3(this.spot.x + d.x, this.floor, this.spot.z + d.z);
-			AABB box = new AABB(at.x - 0.3, at.y + 0.05, at.z - 0.3, at.x + 0.3, at.y + 1.0, at.z + 0.3);
-			BlockPos under = BlockPos.containing(at).below();
-			if (level.noCollision(box) && !level.getBlockState(under).getCollisionShape(level, under).isEmpty()) {
-				return at;
-			}
-		}
-		return this.from;
 	}
 
 	// ---------------------------------------------------------------- shared

@@ -717,9 +717,11 @@ public final class GrabSession {
 			this.windowPos = this.findWindow();
 		}
 		if (!Demogorgon.active() && !this.vecnaFinishing && !this.atLocker() && this.windowPos == null) {
-			// Michael's own kills (in place of three blows of the knife).
+			// Michael's own kill by a wall (in place of three blows of the knife; none away from walls).
 			this.michaelKill = MichaelKill.start(this, this.shape, this.victim);
-			Music.killing(this.level().getServer(), 140);
+			if (this.michaelKill != null) {
+				Music.killing(this.level().getServer(), 140);
+			}
 		}
 		HwNet.Qte off = HwNet.Qte.INACTIVE;
 		if (this.victim instanceof ServerPlayer player) {
