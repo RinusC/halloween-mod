@@ -19,6 +19,15 @@ public abstract class LivingEntityRendererMixin {
 		at = @At("HEAD"), cancellable = true)
 	private void halloween$runt(LivingEntityRenderState state, PoseStack poseStack, net.minecraft.client.renderer.SubmitNodeCollector collector,
 		net.minecraft.client.renderer.state.level.CameraRenderState camera, CallbackInfo ci) {
+		if (dev.halloween.client.MichaelKillScene.sitting(((HwRenderState) state).halloween$entityId())) {
+			// The body Michael left sitting against a wall: its pose only marks it (MichaelKillScene draws it sitting), so
+			// nothing of flying or swimming is laid on it (the player renderer works those out after the state above).
+			state.pose = net.minecraft.world.entity.Pose.STANDING;
+			if (state instanceof net.minecraft.client.renderer.entity.state.HumanoidRenderState h) {
+				h.isFallFlying = false;
+				h.swimAmount = 0f;
+			}
+		}
 		if (dev.halloween.client.RuntRenderer.submit(state, poseStack, collector) || dev.halloween.client.DogRenderer.submit(state, poseStack, collector)) {
 			ci.cancel();
 		}
@@ -38,6 +47,8 @@ public abstract class LivingEntityRendererMixin {
 		}
 		// What they wear (see CosmeticRenderer), on the model as it stands.
 		dev.halloween.client.CosmeticRenderer.submit(collector, model, state, pose, light, overlay, tint, outline);
+		// Michael's knife left in the one he pinned to a wall (see MichaelKillScene).
+		dev.halloween.client.MichaelKillScene.submitStuck(collector, model, state, pose, light, overlay, tint, outline);
 	}
 
 	/** Michael towers over everyone (to look at: his hitbox is a player's). */
@@ -85,6 +96,13 @@ public abstract class LivingEntityRendererMixin {
 			// Michael's too (MichaelKillScene).
 			yaw = dev.halloween.client.MichaelKillScene.bodyYaw(entity.getId());
 		}
+		if (dev.halloween.client.MichaelKillScene.sitting(entity.getId())) {
+			// The body he left sitting against a wall: its pose only marks it (MichaelKillScene draws it sitting).
+			state.pose = net.minecraft.world.entity.Pose.STANDING;
+			if (state instanceof net.minecraft.client.renderer.entity.state.HumanoidRenderState h) {
+				h.isFallFlying = false;
+			}
+		}
 		if (!Float.isNaN(yaw)) {
 			state.bodyRot = yaw;
 			state.yRot = 0f;
@@ -102,6 +120,10 @@ public abstract class LivingEntityRendererMixin {
 
 	@Inject(method = "setupRotations", at = @At("TAIL"))
 	private void halloween$knockedDown(LivingEntityRenderState state, PoseStack poseStack, float bodyRot, float entityScale, CallbackInfo ci) {
+		if (dev.halloween.client.MichaelKillScene.rotations(((HwRenderState) state).halloween$entityId(), poseStack)) {
+			// Flung off his knife, tumbling through the air; slid down a wall, sitting against it.
+			return;
+		}
 		float angle = ClientAnims.fallAngle(((HwRenderState) state).halloween$entityId());
 		if (angle > 0f) {
 			// Lifted a little as it goes over, so the back lies on the ground rather than in it.

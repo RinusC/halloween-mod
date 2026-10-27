@@ -48,8 +48,8 @@ public abstract class ItemInHandLayerMixin {
 		if (arm == HumanoidArm.RIGHT && ((RenderLayer<?, ?>) (Object) this).getParentModel() instanceof HumanoidModel<?> m
 			&& dev.halloween.client.MichaelRenderer.isMichael(state)) {
 			// In one of his kills the knife goes in point first, along the arm (MichaelKillScene).
-			float wrist = state instanceof dev.halloween.client.HwRenderState hw ? dev.halloween.client.MichaelKillScene.wrist(hw.halloween$entityId()) : Float.NaN;
-			pose.mulPose(Axis.XP.rotation((Float.isNaN(wrist) ? dev.halloween.client.MichaelRenderer.WRIST : wrist) * m.rightArm.xRot));
+			boolean along = state instanceof dev.halloween.client.HwRenderState hw && dev.halloween.client.MichaelKillScene.along(hw.halloween$entityId());
+			pose.mulPose(Axis.XP.rotation(along ? dev.halloween.client.MichaelKillScene.ITEM_ALONG : dev.halloween.client.MichaelRenderer.WRIST * m.rightArm.xRot));
 		}
 	}
 }

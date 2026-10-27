@@ -262,6 +262,10 @@ public final class CosmeticRenderer {
 			if (info == null || d == null || info.track() != w.track) {
 				continue;
 			}
+			if (info.slot() == Cosmetics.Slot.HAND && MichaelKillScene.inWall(id)) {
+				// His blade is in the one he pinned to the wall (MichaelKillScene draws it there).
+				continue;
+			}
 			if (item.equals("shadow")) {
 				shadow(collector, h, s, pose, light, m, d);
 				continue;
@@ -270,24 +274,49 @@ public final class CosmeticRenderer {
 		}
 	}
 
-	private static void anchor(PoseStack pose, HumanoidModel<?> h, CosmeticModels.Anchor a) {
+	private static void anchor(PoseStack pose, HumanoidModel<?> h, CosmeticModels.Anchor a, int id) {
 		h.root().translateAndRotate(pose);
 		switch (a) {
 			case HEAD -> h.head.translateAndRotate(pose);
 			case BODY -> h.body.translateAndRotate(pose);
 			case HAND -> {
 				h.rightArm.translateAndRotate(pose);
-				// The grip in the fist; turned at the wrist so the point stays down as the arm comes up (as his knife).
+				// The grip in the fist; turned at the wrist so the point stays down as the arm comes up (as his knife),
+				// or along the arm, point first, as it goes in in one of his kills.
 				pose.translate(-1f / 16f, 10.5f / 16f, -0.2f / 16f);
-				pose.mulPose(Axis.XP.rotation(-MichaelRenderer.WRIST * h.rightArm.xRot));
+				if (!MichaelKillScene.along(id)) {
+					pose.mulPose(Axis.XP.rotation(-MichaelRenderer.WRIST * h.rightArm.xRot));
+				}
 			}
 		}
+	}
+
+	/** The blade Michael carries in place of the knife (one of his own that he wears), or null: the knife. */
+	public static CosmeticModels.Def blade(Entity michael) {
+		if (michael == null) {
+			return null;
+		}
+		for (String item : forced != null ? forced : worn(michael.getUUID())) {
+			Cosmetics.Item i = Cosmetics.byId(item);
+			if (i != null && i.track() == Cosmetics.KILLER && i.slot() == Cosmetics.Slot.HAND) {
+				return defs().get(item);
+			}
+		}
+		return null;
+	}
+
+	/** That blade in a fist at {@code pose} (a right arm's frame, as the hand anchor's), along the arm. */
+	public static void drawBlade(SubmitNodeCollector collector, CosmeticModels.Def d, AvatarRenderState s, PoseStack pose, int light, int overlay, int outline) {
+		pose.pushPose();
+		pose.translate(-1f / 16f, 10.5f / 16f, -0.2f / 16f);
+		collector.submitModel(d.model(), s, pose, RenderTypes.entityCutoutCull(d.texture()), light, overlay, -1, null, outline, null);
+		pose.popPose();
 	}
 
 	private static void draw(SubmitNodeCollector collector, HumanoidModel<?> h, AvatarRenderState s, PoseStack pose, int light, int overlay, int outline,
 		Motion m, CosmeticModels.Def d) {
 		pose.pushPose();
-		anchor(pose, h, d.anchor());
+		anchor(pose, h, d.anchor(), ((HwRenderState) s).halloween$entityId());
 		d.model().motion = m;
 		float alpha = d.alpha() == null ? 1f : d.alpha().apply(m);
 		if (d.translucent()) {
@@ -322,7 +351,7 @@ public final class CosmeticRenderer {
 		MichaelRenderer.submitShadow(collector, h, s, pose, light, ARGB.color(a, 0x0C0610));
 		// The eyes, on its head as it stands.
 		pose.pushPose();
-		anchor(pose, h, CosmeticModels.Anchor.HEAD);
+		anchor(pose, h, CosmeticModels.Anchor.HEAD, 0);
 		eyes.model().motion = m;
 		collector.submitModel(eyes.model(), s, pose, RenderTypes.entityTranslucentEmissive(eyes.glow()), 0xF000F0, OverlayTexture.NO_OVERLAY,
 			ARGB.color(Mth.clamp(a * 1.5f, 0f, 1f), 0xFFFFFF), null, 0, null);

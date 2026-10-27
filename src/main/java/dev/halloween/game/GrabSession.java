@@ -769,6 +769,7 @@ public final class GrabSession {
 				this.done = true;
 				anim(this.shape, HwNet.Anim.NONE);
 				MatchManager.kill(this.shape, this.state, this.victim, MatchManager.KillKind.EXECUTION, this.bloody, false);
+				this.michaelKill.killed();
 			}
 			return;
 		}
