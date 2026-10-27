@@ -315,6 +315,7 @@ public class HalloweenClient implements ClientModInitializer {
 			return;
 		}
 		HeroScene.tick(mc);
+		Cutscene.tick(mc);
 		ClientVr.tick(mc);
 		VrKeys.tick(mc);
 		VrHands.tick(mc);

@@ -21,6 +21,8 @@ public final class Cutscenes {
 	public static final int SHAPE = 1;
 	/** Not an opening scene: a kill seen from the side for a few seconds (a = the camera, b = what it looks at; see GrabSession). */
 	public static final int KILLCAM = 2;
+	/** Vecna's opening scene: he wakes in the Upside Down on the ground of his lair (a = his feet, b = the way he faces). */
+	public static final int VECNA = 3;
 	/** How far from Michael a window may be (its chunks have to be loaded around him). */
 	private static final int WINDOW_REACH = 90;
 
@@ -359,7 +361,9 @@ public final class Cutscenes {
 			if (Bots.isBot(p)) {
 				continue;
 			}
-			if (p == shape) {
+			if (p == shape && Vecna.active()) {
+				ServerPlayNetworking.send(p, new HwNet.Cutscene(VECNA, ticks, p.position(), p.getLookAngle(), Vec3.ZERO));
+			} else if (p == shape) {
 				// One of them at what they do, through his mask (else the lit window).
 				HwNet.Cutscene scene = shapeHeroScene(level, players, p, ticks);
 				if (scene == null) {

@@ -53,6 +53,41 @@ public final class HeroScene {
 		subject = mc.player.getId();
 		start = mc.level.getGameTime();
 		propped = false;
+		lastF = 0f;
+	}
+
+	/** Share of the scene at the last tick (for the sounds that are cued to it). */
+	private static float lastF;
+	/** The lights go out round the moment he shows (share of the scene, from, to). */
+	private static final float[][] DARK = {{0.40f, 0.415f}, {0.455f, 0.465f}, {0.51f, 0.535f}, {0.54f, 0.545f}};
+	private static final float STING = 0.86f;
+
+	private static void cue(float f, float at, net.minecraft.sounds.SoundEvent sound, float volume, float pitch) {
+		Minecraft mc = Minecraft.getInstance();
+		if (lastF < at && f >= at && mc.player != null) {
+			Vec3 e = mc.player.getEyePosition();
+			mc.level.playLocalSound(e.x, e.y, e.z, sound, net.minecraft.sounds.SoundSource.HOSTILE, volume, pitch, false);
+		}
+	}
+
+	/** Dread in their own scene: a thing heard as the lights die, him there when they come back, a hit as the camera drops into their eyes. */
+	private static void dread(float f) {
+		boolean vecna = MichaelRenderer.vecna();
+		boolean demo = MichaelRenderer.demogorgon();
+		cue(f, 0.40f, vecna ? dev.halloween.HwSounds.VECNA_CLOCK_TICK : dev.halloween.HwSounds.SENSE_BREATH, 0.8f, 0.8f);
+		cue(f, 0.455f, vecna ? dev.halloween.HwSounds.VECNA_CLOCK_TOCK : dev.halloween.HwSounds.SENSE_BREATH, 0.9f, 0.7f);
+		cue(f, 0.51f, vecna ? dev.halloween.HwSounds.VECNA_WHISPER : dev.halloween.HwSounds.SHAPE_BREATH, 1.0f, demo ? 0.6f : 0.9f);
+		cue(f, STING, vecna ? dev.halloween.HwSounds.VECNA_CLOCK_CHIME : dev.halloween.HwSounds.STINGER, 1.0f, demo ? 0.7f : 1f);
+		lastF = f;
+	}
+
+	private static boolean dark(float f) {
+		for (float[] d : DARK) {
+			if (f >= d[0] && f < d[1]) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/** Michael watching one of them: the one standing nearest to {@code eyes}. */
@@ -88,6 +123,9 @@ public final class HeroScene {
 		}
 		Entity e = mc.level.getEntity(subject);
 		boolean on = Cutscene.active();
+		if (on && own) {
+			dread(Cutscene.progress(0f));
+		}
 		if (on && e instanceof LivingEntity living && !propped) {
 			before = living.getItemBySlot(EquipmentSlot.MAINHAND).copy();
 			living.setItemSlot(EquipmentSlot.MAINHAND, prop(hero));
@@ -311,7 +349,7 @@ public final class HeroScene {
 			return VrShots.Shot.own(VrShots.fadeIn(f, 0.86f, 0.05f));
 		}
 		Vec3 eye = Minecraft.getInstance().player.getEyePosition(partial);
-		return new VrShots.Shot(1, eye.add(0, -0.15, 0), 3.0, 0.15, VrShots.cut(f, 0f, 0.86f, 0.05f), true);
+		return new VrShots.Shot(1, eye.add(0, -0.15, 0), 3.0, 0.15, Math.max(VrShots.cut(f, 0f, 0.86f, 0.05f), dark(f) ? 1f : 0f), true);
 	}
 
 	private static float[] lookAt(Vec3 from, Vec3 to) {
@@ -344,6 +382,25 @@ public final class HeroScene {
 		}
 		if (f < 0.05f && !vr) {
 			g.fill(0, 0, w, h, Cutscene.alpha(1 - f / 0.05f, 0x000000));
+		}
+		if (!vr) {
+			// The night closing in: cold dark edges, creeping in towards the middle as it goes on.
+			float creep = Mth.clamp((f - 0.2f) / 0.65f, 0f, 1f);
+			int steps = 10;
+			int bx = Math.round(w / 4f * (0.4f + 0.6f * creep) / steps);
+			for (int i = 0; i < steps; i++) {
+				int a = (int) (190 * creep * (1f - i / (float) steps));
+				g.fill(i * bx, bar, (i + 1) * bx, h - bar, a << 24 | 0x020810);
+				g.fill(w - (i + 1) * bx, bar, w - i * bx, h - bar, a << 24 | 0x020810);
+			}
+			if (dark(f)) {
+				g.fill(0, 0, w, h, 0xFA000000);
+			}
+			// The hit: a white flash, gone at once.
+			float hit = 1f - (f - STING) / 0.025f;
+			if (f >= STING && hit > 0) {
+				g.fill(0, 0, w, h, Cutscene.alpha(hit * 0.85f, 0xE8E8F0));
+			}
 		}
 	}
 }

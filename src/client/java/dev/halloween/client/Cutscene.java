@@ -49,6 +49,10 @@ public final class Cutscene {
 		}
 		scene = payload;
 		start = mc.level.getGameTime();
+		if (payload.kind() == Cutscenes.VECNA) {
+			VecnaIntro.begin();
+			return;
+		}
 		if (payload.kind() >= Cutscenes.HERO) {
 			// Their own scene, by who they are.
 			HeroScene.begin(payload);
@@ -62,12 +66,22 @@ public final class Cutscene {
 		}
 	}
 
+	/** Every client tick: what a scene plays by itself (Vecna's sounds and ash). */
+	public static void tick(Minecraft mc) {
+		if (scene != null && scene.kind() == Cutscenes.VECNA) {
+			float f = progress(0f);
+			if (f >= 0) {
+				VecnaIntro.tick(mc, f);
+			}
+		}
+	}
+
 	public static void clear() {
 		scene = null;
 	}
 
 	/** Share of the scene played (0..1), or -1 when none plays. */
-	private static float progress(float partial) {
+	static float progress(float partial) {
 		Minecraft mc = Minecraft.getInstance();
 		if (scene == null || mc.level == null || ClientState.match.state() == 2 || ClientState.match.state() == 0 && mc.level.getGameTime() - start > 5) {
 			return -1;
@@ -100,6 +114,9 @@ public final class Cutscene {
 		float f = progress(partial);
 		if (f < 0) {
 			return null;
+		}
+		if (scene.kind() == Cutscenes.VECNA) {
+			return VecnaIntro.camera(f, partial);
 		}
 		if (scene.kind() >= Cutscenes.HERO) {
 			return HeroScene.camera(f, partial);
@@ -142,6 +159,9 @@ public final class Cutscene {
 		float f = progress(partial);
 		if (f < 0) {
 			return null;
+		}
+		if (scene.kind() == Cutscenes.VECNA) {
+			return VecnaIntro.vrShot(f);
 		}
 		if (scene.kind() >= Cutscenes.HERO) {
 			return HeroScene.vrShot(f, partial);
@@ -227,6 +247,10 @@ public final class Cutscene {
 			return false;
 		}
 		Minecraft mc = Minecraft.getInstance();
+		if (scene.kind() == Cutscenes.VECNA) {
+			VecnaIntro.overlay(g, mc, f);
+			return true;
+		}
 		if (scene.kind() >= Cutscenes.HERO) {
 			HeroScene.overlay(g, mc, f);
 			return true;
