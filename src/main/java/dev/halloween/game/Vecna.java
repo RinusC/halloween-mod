@@ -1,5 +1,6 @@
 package dev.halloween.game;
 
+import dev.halloween.Edition;
 import dev.halloween.Halloween;
 import dev.halloween.HwConfig;
 import dev.halloween.HwParticles;
@@ -95,6 +96,9 @@ public final class Vecna {
 	}
 
 	public static boolean chosen() {
+		if (Edition.MICHAEL_ONLY) {
+			return false;
+		}
 		if (HeroPicks.matchKiller() != null) {
 			return HeroPicks.matchKiller().equals("vecna");
 		}

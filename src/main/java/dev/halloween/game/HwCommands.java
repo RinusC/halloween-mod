@@ -6,6 +6,7 @@ import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import dev.halloween.Edition;
 import dev.halloween.HwConfig;
 import dev.halloween.Role;
 import java.util.Collection;
@@ -56,12 +57,12 @@ public final class HwCommands {
 					ctx.getSource().sendSuccess(() -> Component.translatable("halloween.cmd.killer_michael"), true);
 					return 1;
 				}))
-				.then(Commands.literal("demogorgon").executes(ctx -> {
+				.then(Commands.literal("demogorgon").requires(s -> !Edition.MICHAEL_ONLY).executes(ctx -> {
 					Demogorgon.choose(true);
 					ctx.getSource().sendSuccess(() -> Component.translatable("halloween.cmd.killer_demogorgon"), true);
 					return 1;
 				}))
-				.then(Commands.literal("vecna").executes(ctx -> {
+				.then(Commands.literal("vecna").requires(s -> !Edition.MICHAEL_ONLY).executes(ctx -> {
 					Vecna.choose();
 					ctx.getSource().sendSuccess(() -> Component.translatable("halloween.cmd.killer_vecna"), true);
 					return 1;

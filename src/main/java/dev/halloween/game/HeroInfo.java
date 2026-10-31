@@ -1,5 +1,6 @@
 package dev.halloween.game;
 
+import dev.halloween.Edition;
 import dev.halloween.HwConfig;
 import java.util.ArrayList;
 import java.util.List;
@@ -13,7 +14,7 @@ import java.util.List;
  */
 public final class HeroInfo {
 	/** The killers, in the order of their tab. */
-	public static final List<String> KILLERS = List.of("michael", "demogorgon", "vecna");
+	public static final List<String> KILLERS = Edition.MICHAEL_ONLY ? List.of("michael") : List.of("michael", "demogorgon", "vecna");
 	/** Open without buying. */
 	public static final List<String> FREE = List.of("laurie", "bob", "eric", "tanya", "michael");
 	/** The bars on the card: survivors' and killers'. */

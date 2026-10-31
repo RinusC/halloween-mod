@@ -1,9 +1,9 @@
 {
 	"schemaVersion": 1,
-	"id": "halloween",
+	"id": "${modId}",
 	"version": "${version}",
-	"name": "Halloween",
-	"description": "Halloween: The Game (IllFonic) gameplay recreated in Minecraft. Private build.",
+	"name": "${modName}",
+	"description": "${modDescription}",
 	"authors": ["RinusC"],
 	"license": "All-Rights-Reserved",
 	"icon": "assets/halloween/icon.png",
@@ -27,6 +27,7 @@
 		"vivecraft": ">=1.3.0"
 	},
 	"breaks": {
+		"${otherId}": "*",
 		"vivecraft": "<1.3.0"
 	}
 }

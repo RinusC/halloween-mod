@@ -1,5 +1,6 @@
 package dev.halloween.game;
 
+import dev.halloween.Edition;
 import dev.halloween.Halloween;
 import dev.halloween.HwConfig;
 import dev.halloween.net.HwNet;
@@ -203,6 +204,9 @@ public final class Demogorgon {
 	}
 
 	public static boolean chosen() {
+		if (Edition.MICHAEL_ONLY) {
+			return false;
+		}
 		// Whom the one drawn from the character select picked, over /hw killer.
 		if (HeroPicks.matchKiller() != null) {
 			return HeroPicks.matchKiller().equals("demogorgon");

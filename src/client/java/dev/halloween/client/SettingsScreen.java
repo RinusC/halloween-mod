@@ -2,6 +2,7 @@ package dev.halloween.client;
 
 import static dev.halloween.client.CharacterSelectScreen.*;
 
+import dev.halloween.Edition;
 import dev.halloween.Role;
 import dev.halloween.game.Events;
 import dev.halloween.game.HwItems;
@@ -90,8 +91,10 @@ public final class SettingsScreen extends Screen {
 
 		List<Button> killer = new ArrayList<>();
 		killer.add(b("halloween.settings.michael", "hw killer michael"));
-		killer.add(b("halloween.settings.demogorgon", "hw killer demogorgon"));
-		killer.add(b("halloween.settings.vecna", "hw killer vecna"));
+		if (!Edition.MICHAEL_ONLY) {
+			killer.add(b("halloween.settings.demogorgon", "hw killer demogorgon"));
+			killer.add(b("halloween.settings.vecna", "hw killer vecna"));
+		}
 		killer.add(b("halloween.settings.shape_bot", "hw shape bot"));
 		killer.add(b("halloween.settings.shape_off", "hw shape off"));
 		killer.add(b("halloween.settings.runt_bot", "hw runt bot"));

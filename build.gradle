@@ -35,12 +35,40 @@ dependencies {
 	clientCompileOnly files(project.vivecraft_jar)
 }
 
+// Two builds from one tree: -Pedition=all (default, the full game with Michael, the Demogorgon and Vecna) or
+// -Pedition=michael (a separate mod, id halloween_michael, with Michael as the only killer and none of the others' art
+// and sound). Both keep the "halloween" resource namespace, so they can't be installed together (fabric.mod.json breaks).
+def edition = project.findProperty("edition") ?: "all"
+if (!(edition in ["all", "michael"])) {
+	throw new GradleException("edition must be 'all' or 'michael', not '${edition}'")
+}
+def michaelOnly = edition == "michael"
+base.archivesName = michaelOnly ? "halloween-michael" : "halloween"
+
 processResources {
 	def version = project.version
 	inputs.property "version", version
+	inputs.property "edition", edition
 
+	def modId = michaelOnly ? "halloween_michael" : "halloween"
+	def modName = michaelOnly ? "Halloween: Michael" : "Halloween"
+	def modDescription = michaelOnly ? "Halloween: The Game (IllFonic) gameplay recreated in Minecraft, Michael Myers only. Private build."
+		: "Halloween: The Game (IllFonic) gameplay recreated in Minecraft. Private build."
+	def otherId = michaelOnly ? "halloween" : "halloween_michael"
 	filesMatching("fabric.mod.json") {
-		expand "version": version
+		expand "version": version, "modId": modId, "modName": modName, "modDescription": modDescription, "otherId": otherId
+	}
+
+	if (michaelOnly) {
+		// The Demogorgon's and Vecna's art and sound stay out of the Michael build.
+		exclude "assets/halloween/sounds/vecna/**"
+		exclude "assets/halloween/models/entity/vecna.json", "assets/halloween/models/entity/demogorgon.json", "assets/halloween/models/entity/rift.json"
+		exclude "assets/halloween/textures/entity/vecna*", "assets/halloween/textures/entity/demogorgon.png", "assets/halloween/textures/entity/rift*"
+		exclude "assets/halloween/textures/particle/vecna_*", "assets/halloween/particles/vecna_*"
+		exclude "assets/halloween/items/vecna_*", "assets/halloween/items/rift*.json", "assets/halloween/models/item/rift.json", "assets/halloween/textures/item/rift.png"
+		filesMatching("assets/halloween/sounds.json") {
+			filter { line -> line.contains("halloween:vecna/") ? null : line }
+		}
 	}
 }
 
