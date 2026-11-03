@@ -13,8 +13,8 @@ import net.minecraft.world.phys.Vec3;
 
 /**
  * Drives a body along a {@link Nav} path the way a player would: turns towards the next point, walks
- * (sets the movement input; physics do the rest), jumps up steps, opens doors in the way and shuts
- * them behind. Window climbs are handed back to the owner.
+ * (sets the movement input; physics do the rest), jumps up steps, climbs ladders, opens doors in the way
+ * and shuts them behind. Window climbs are handed back to the owner.
  */
 public final class Walker {
 	public enum Status {
@@ -107,6 +107,9 @@ public final class Walker {
 			this.face(Vec3.atCenterOf(node.glass()));
 			return Status.WINDOW;
 		}
+		if (node.step() == Nav.Step.LADDER_UP || node.step() == Nav.Step.LADDER_DOWN) {
+			return this.climb(node);
+		}
 		Vec3 pos = this.body.position();
 		Vec3 target = Vec3.atBottomCenterOf(node.pos());
 		double dx = target.x - pos.x;
@@ -157,6 +160,54 @@ public final class Walker {
 		boolean up = target.y > pos.y + 0.5;
 		this.body.setJumping((up && flat < 1.6) || (this.body.horizontalCollision && this.stuckTicks > 4));
 
+		if (pos.distanceToSqr(this.lastPos) < 0.0009) {
+			this.stuckTicks++;
+		} else {
+			this.stuckTicks = Math.max(0, this.stuckTicks - 1);
+		}
+		this.lastPos = pos;
+		if (this.stuckTicks > 50) {
+			this.halt();
+			return Status.STUCK;
+		}
+		return Status.MOVING;
+	}
+
+	/**
+	 * A ladder step, the way a player climbs: up, keep in the ladder's column holding jump (on a ladder that
+	 * climbs) and only step off towards the floor once the feet are near its height, or the body would leave
+	 * the ladder half way up; down, walk over the column, let go and slide down it, then off at the foot.
+	 */
+	private Status climb(Nav.Node node) {
+		Vec3 pos = this.body.position();
+		Vec3 column = Vec3.atBottomCenterOf(node.glass());
+		Vec3 exit = Vec3.atBottomCenterOf(node.pos());
+		boolean up = node.step() == Nav.Step.LADDER_UP;
+		boolean offNow = up ? pos.y > exit.y - 0.6 : pos.y < exit.y + 0.05 && (this.body.onGround() || !this.body.onClimbable());
+		Vec3 aim = offNow ? exit : column;
+		double dx = aim.x - pos.x;
+		double dz = aim.z - pos.z;
+		double flat = Math.sqrt(dx * dx + dz * dz);
+		double toExit = Math.sqrt((exit.x - pos.x) * (exit.x - pos.x) + (exit.z - pos.z) * (exit.z - pos.z));
+		if (offNow && toExit < (this.index == this.path.size() - 1 ? 0.35 : 0.55) && Math.abs(exit.y - pos.y) < 0.3) {
+			this.index++;
+			this.stuckTicks = 0;
+			return this.index >= this.path.size() ? Status.ARRIVED : Status.MOVING;
+		}
+		if (!(this.body instanceof Player)) {
+			this.body.setSpeed((float) this.body.getAttributeValue(Attributes.MOVEMENT_SPEED));
+		}
+		if (flat > 0.05) {
+			float yaw = (float) (Mth.atan2(dz, dx) * Mth.RAD_TO_DEG) - 90f;
+			this.body.setYRot(yaw);
+			this.body.setYHeadRot(yaw);
+			this.body.setYBodyRot(yaw);
+		}
+		this.body.setXRot(0);
+		// In the column, still: pressing against the wall on the way down would climb back up.
+		this.body.zza = offNow ? (float) Math.min(1.0, 0.35 + flat) * this.speed : flat < 0.15 ? 0 : (float) Math.min(0.6, flat * 1.5);
+		this.body.xxa = 0;
+		this.body.setJumping(up && (this.body.onClimbable() || offNow));
 		if (pos.distanceToSqr(this.lastPos) < 0.0009) {
 			this.stuckTicks++;
 		} else {

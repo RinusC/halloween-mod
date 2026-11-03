@@ -261,7 +261,8 @@ public class TownClientTest implements FabricClientGameTest {
 
 	/**
 	 * Walks the town from the middle of the street (a step up onto stairs, slabs and beds, no jumping: a
-	 * staircase must be climbable as it is; a drop of up to three) and lists what can't be reached.
+	 * staircase must be climbable as it is; a drop of up to three; up and down ladders, as bots climb them) and
+	 * lists what can't be reached.
 	 */
 	private static List<String> unreachable(ServerLevel level, BlockPos c) {
 		return unreachable(level, c, walk(level, c));
@@ -310,9 +311,43 @@ public class TownClientTest implements FabricClientGameTest {
 					queue.add(q);
 					break;
 				}
+				// A ladder beside us (its rung at our feet or just under them): off it at its top or its foot.
+				BlockPos rung = ladder(level, side) ? side : ladder(level, side.below()) ? side.below() : null;
+				if (rung != null) {
+					for (BlockPos q : ladderEnds(level, rung)) {
+						if (Math.abs(q.getX() - c.getX()) <= 152 && Math.abs(q.getZ() - c.getZ()) <= 152 && seen.add(q.asLong())) {
+							queue.add(q);
+						}
+					}
+				}
 			}
 		}
 		return seen;
+	}
+
+	private static boolean ladder(ServerLevel level, BlockPos p) {
+		return level.getBlockState(p).getBlock() instanceof net.minecraft.world.level.block.LadderBlock;
+	}
+
+	/** Where one gets off the ladder that {@code rung} is part of: beside its top (level with it or a block up) and beside its foot. */
+	private static List<BlockPos> ladderEnds(ServerLevel level, BlockPos rung) {
+		BlockPos top = rung;
+		while (ladder(level, top.above())) {
+			top = top.above();
+		}
+		BlockPos foot = rung;
+		while (ladder(level, foot.below())) {
+			foot = foot.below();
+		}
+		List<BlockPos> out = new ArrayList<>();
+		for (Direction d : Direction.Plane.HORIZONTAL) {
+			for (BlockPos q : new BlockPos[]{top.relative(d), top.above().relative(d), foot.relative(d)}) {
+				if (!ladder(level, q) && standable(level, q)) {
+					out.add(q.immutable());
+				}
+			}
+		}
+		return out;
 	}
 
 	private static List<String> unreachable(ServerLevel level, BlockPos c, java.util.Set<Long> seen) {
