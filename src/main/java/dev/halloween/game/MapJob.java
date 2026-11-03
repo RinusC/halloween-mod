@@ -8,11 +8,20 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.ProblemReporter;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityProcessor;
+import net.minecraft.world.entity.EntitySpawnReason;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.SignBlockEntity;
 import net.minecraft.world.level.block.entity.SignText;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.storage.TagValueInput;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 
 /**
  * Lays a {@link MapPlan} into the world around an origin, a few milliseconds a tick so the server keeps
@@ -131,6 +140,35 @@ public final class MapJob {
 		}
 	}
 
+	/**
+	 * The saved map's paintings, item frames, armour stands and animals. Those of the kind already in the
+	 * square go first, so laying the same map again does not double them.
+	 */
+	private void placeEntities(SavedMap map) {
+		int r = this.plan.radius;
+		AABB box = new AABB(this.origin.getX() - r, this.origin.getY() + this.plan.yMin, this.origin.getZ() - r,
+			this.origin.getX() + r + 1, this.origin.getY() + this.plan.yMax + 1, this.origin.getZ() + r + 1);
+		for (Entity old : this.level.getEntities((Entity) null, box, SavedMap::keeps)) {
+			old.discard();
+		}
+		for (SavedMap.Placed p : map.entities) {
+			ValueInput in = TagValueInput.create(ProblemReporter.DISCARDING, this.level.registryAccess(), p.data());
+			Entity entity = EntityType.loadEntityRecursive(in, this.level, EntitySpawnReason.LOAD, EntityProcessor.NOP);
+			if (entity == null) {
+				continue;
+			}
+			if (p.block() != null) {
+				// Hanging things go by the block they hang on.
+				BlockPos block = this.origin.offset(p.block());
+				entity.setPos(block.getX(), block.getY(), block.getZ());
+			} else {
+				Vec3 pos = p.pos().add(Vec3.atLowerCornerOf(this.origin));
+				entity.snapTo(pos, entity.getYRot(), entity.getXRot());
+			}
+			this.level.addFreshEntity(entity);
+		}
+	}
+
 	private void finish() {
 		MinecraftServer server = this.level.getServer();
 		// Block entities saved with the map (chests, signs): the block just placed gets its saved contents.
@@ -141,6 +179,9 @@ public final class MapJob {
 				this.level.setBlockEntity(be);
 			}
 		});
+		if (this.plan instanceof SavedMap saved) {
+			this.placeEntities(saved);
+		}
 		// Sign texts.
 		this.plan.signs.forEach((local, lines) -> {
 			BlockEntity be = this.level.getBlockEntity(this.origin.offset(local));
