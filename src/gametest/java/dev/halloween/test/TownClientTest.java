@@ -17,19 +17,41 @@ import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** The second town (/hw map town): it builds, has all the points a match needs, wardrobes open onto rooms, people stand in free space. */
+/**
+ * The second town (/hw map town): it builds, has all the points a match needs, wardrobes open onto rooms, people
+ * stand in free space. {@link TownV2ClientTest} runs the same on a town loaded from a file.
+ */
 public class TownClientTest implements FabricClientGameTest {
 	private static final Logger LOG = LoggerFactory.getLogger("halloween-town");
 
+	/** HW_ONLY name, the command that lays the town, the start of the screenshots' names. */
+	private final String filter;
+	private final String command;
+	private final String label;
+
+	public TownClientTest() {
+		this("town", "hw map town", "town");
+	}
+
+	protected TownClientTest(String filter, String command, String label) {
+		this.filter = filter;
+		this.command = command;
+		this.label = label;
+	}
+
+	/** More checks of the built town, before a match is played on it. */
+	protected void more(TestServerContext server) {
+	}
+
 	@Override
 	public void runTest(ClientGameTestContext ctx) {
-		if (System.getenv("HW_SIM") != null || TestFilter.skip("town")) {
+		if (System.getenv("HW_SIM") != null || TestFilter.skip(this.filter)) {
 			return;
 		}
 		try (TestSingleplayerContext sp = ctx.worldBuilder().create()) {
 			TestServerContext server = sp.getServer();
 			ctx.waitTicks(40);
-			server.runCommand("execute as @p at @p run hw map town");
+			server.runCommand("execute as @p at @p run " + this.command);
 			ctx.waitTicks(2);
 			boolean busy = true;
 			for (int i = 0; i < 3000 && busy; i++) {
@@ -99,6 +121,7 @@ public class TownClientTest implements FabricClientGameTest {
 				return out;
 			});
 			check(cars.isEmpty(), "the car fits at every spot " + cars);
+			this.more(server);
 			// Everything can be walked to from the street: townsfolk, wardrobes, phones, things to search, upstairs too.
 			List<String> cut = server.computeOnServer(s -> unreachable(s.overworld(), MapPoints.get(s.overworld()).first(MapPoints.Type.CENTER)));
 			cut.forEach(b -> LOG.info("UNREACHABLE {}", b));
@@ -166,7 +189,7 @@ public class TownClientTest implements FabricClientGameTest {
 				server.runCommand("time set noon");
 				server.runCommand(String.format(java.util.Locale.ROOT, "tp @p %.2f %.2f %.2f %.1f %.1f", feet.x, feet.y, feet.z, yaw, pitch));
 				ctx.waitTicks(30);
-				ctx.takeScreenshot("weapon_" + w.how().name().toLowerCase(java.util.Locale.ROOT) + "_" + looked);
+				ctx.takeScreenshot(this.label + "_weapon_" + w.how().name().toLowerCase(java.util.Locale.ROOT) + "_" + looked);
 				looked++;
 			}
 			server.runCommand("hw stop");
@@ -181,23 +204,23 @@ public class TownClientTest implements FabricClientGameTest {
 			server.runCommand("weather clear");
 			server.runCommand("gamemode spectator @p");
 			BlockPos c = server.computeOnServer(s -> MapPoints.get(s.overworld()).first(MapPoints.Type.CENTER));
-			shot(ctx, server, c, 0, 70, 130, 180, 40, "town_overview");
-			shot(ctx, server, c, -40, 12, 90, 180, 25, "town_main_street");
-			shot(ctx, server, c, 30, 14, 30, 200, 30, "town_services");
-			shot(ctx, server, c, 110, 30, -20, 180, 35, "town_industrial");
-			shot(ctx, server, c, -110, 25, -25, 160, 40, "town_houses_north");
-			shot(ctx, server, c, -130, 25, 30, 200, 40, "town_houses_west");
-			shot(ctx, server, c, 40, 25, -100, 0, 40, "town_orange_grove");
-			shot(ctx, server, c, -100, 5, 50, 0, 10, "town_shops_street");
-			shot(ctx, server, c, 30, 4, 63, 0, 5, "town_services_street");
-			shot(ctx, server, c, 43, 2, -2, 180, 0, "town_front_mansion");
-			shot(ctx, server, c, -15, 2, -2, 180, 0, "town_front_townhouses");
-			shot(ctx, server, c, 108, 2, -2, 180, 0, "town_front_bungalow");
-			shot(ctx, server, c, 14, 2, 2, 0, 0, "town_front_fire");
-			shot(ctx, server, c, 82, 2, 2, 0, 0, "town_front_clinic");
-			shot(ctx, server, c, -121, 2, 61, 180, 0, "town_front_shops");
-			shot(ctx, server, c, 95, 2, 61, 180, 0, "town_front_cinema");
-			shot(ctx, server, c, -44, 2, 62, 0, 0, "town_front_police");
+			shot(ctx, server, c, 0, 70, 130, 180, 40, this.label + "_overview");
+			shot(ctx, server, c, -40, 12, 90, 180, 25, this.label + "_main_street");
+			shot(ctx, server, c, 30, 14, 30, 200, 30, this.label + "_services");
+			shot(ctx, server, c, 110, 30, -20, 180, 35, this.label + "_industrial");
+			shot(ctx, server, c, -110, 25, -25, 160, 40, this.label + "_houses_north");
+			shot(ctx, server, c, -130, 25, 30, 200, 40, this.label + "_houses_west");
+			shot(ctx, server, c, 40, 25, -100, 0, 40, this.label + "_orange_grove");
+			shot(ctx, server, c, -100, 5, 50, 0, 10, this.label + "_shops_street");
+			shot(ctx, server, c, 30, 4, 63, 0, 5, this.label + "_services_street");
+			shot(ctx, server, c, 43, 2, -2, 180, 0, this.label + "_front_mansion");
+			shot(ctx, server, c, -15, 2, -2, 180, 0, this.label + "_front_townhouses");
+			shot(ctx, server, c, 108, 2, -2, 180, 0, this.label + "_front_bungalow");
+			shot(ctx, server, c, 14, 2, 2, 0, 0, this.label + "_front_fire");
+			shot(ctx, server, c, 82, 2, 2, 0, 0, this.label + "_front_clinic");
+			shot(ctx, server, c, -121, 2, 61, 180, 0, this.label + "_front_shops");
+			shot(ctx, server, c, 95, 2, 61, 180, 0, this.label + "_front_cinema");
+			shot(ctx, server, c, -44, 2, 62, 0, 0, this.label + "_front_police");
 			if (System.getenv("HW_PLANS") != null) {
 				// Floor plans: the roofs and the upstairs walls taken off, then the upstairs too, seen from above.
 				int[][] spots = {{-134, -19}, {-44, -19}, {-15, -19}, {43, -19}, {108, -19}, {134, -19}, {-134, 19}, {14, 19}, {43, 19}, {82, 19}, {-134, 50}, {-108, 50}, {82, 50}, {108, 50}, {-44, 73}, {43, 73}, {82, 73}, {108, 83}, {-44, -45}, {43, -45}, {82, -45}, {108, -45}};
@@ -211,7 +234,7 @@ public class TownClientTest implements FabricClientGameTest {
 				}
 			}
 		}
-		LOG.info("Town client test finished OK");
+		LOG.info("{} client test finished OK", this.label);
 	}
 
 	private static void shot(ClientGameTestContext ctx, TestServerContext server, BlockPos c, int dx, int dy, int dz, float yaw, float pitch, String name) {
@@ -238,7 +261,8 @@ public class TownClientTest implements FabricClientGameTest {
 
 	/**
 	 * Walks the town from the middle of the street (a step up onto stairs, slabs and beds, no jumping: a
-	 * staircase must be climbable as it is; a drop of up to three) and lists what can't be reached.
+	 * staircase must be climbable as it is; a drop of up to three; up and down ladders, as bots climb them) and
+	 * lists what can't be reached.
 	 */
 	private static List<String> unreachable(ServerLevel level, BlockPos c) {
 		return unreachable(level, c, walk(level, c));
@@ -287,9 +311,43 @@ public class TownClientTest implements FabricClientGameTest {
 					queue.add(q);
 					break;
 				}
+				// A ladder beside us (its rung at our feet or just under them): off it at its top or its foot.
+				BlockPos rung = ladder(level, side) ? side : ladder(level, side.below()) ? side.below() : null;
+				if (rung != null) {
+					for (BlockPos q : ladderEnds(level, rung)) {
+						if (Math.abs(q.getX() - c.getX()) <= 152 && Math.abs(q.getZ() - c.getZ()) <= 152 && seen.add(q.asLong())) {
+							queue.add(q);
+						}
+					}
+				}
 			}
 		}
 		return seen;
+	}
+
+	private static boolean ladder(ServerLevel level, BlockPos p) {
+		return level.getBlockState(p).getBlock() instanceof net.minecraft.world.level.block.LadderBlock;
+	}
+
+	/** Where one gets off the ladder that {@code rung} is part of: beside its top (level with it or a block up) and beside its foot. */
+	private static List<BlockPos> ladderEnds(ServerLevel level, BlockPos rung) {
+		BlockPos top = rung;
+		while (ladder(level, top.above())) {
+			top = top.above();
+		}
+		BlockPos foot = rung;
+		while (ladder(level, foot.below())) {
+			foot = foot.below();
+		}
+		List<BlockPos> out = new ArrayList<>();
+		for (Direction d : Direction.Plane.HORIZONTAL) {
+			for (BlockPos q : new BlockPos[]{top.relative(d), top.above().relative(d), foot.relative(d)}) {
+				if (!ladder(level, q) && standable(level, q)) {
+					out.add(q.immutable());
+				}
+			}
+		}
+		return out;
 	}
 
 	private static List<String> unreachable(ServerLevel level, BlockPos c, java.util.Set<Long> seen) {
@@ -365,7 +423,7 @@ public class TownClientTest implements FabricClientGameTest {
 			|| !level.getBlockState(pos.above()).getCollisionShape(level, pos.above()).isEmpty();
 	}
 
-	private static void check(boolean condition, String what) {
+	static void check(boolean condition, String what) {
 		if (!condition) {
 			throw new AssertionError("FAILED: " + what);
 		}

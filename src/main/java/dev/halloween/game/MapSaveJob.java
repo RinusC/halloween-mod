@@ -14,13 +14,19 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.ProblemReporter;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.decoration.BlockAttachedEntity;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.storage.TagValueOutput;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
  * Reads the town around the CENTER map point into a file (see {@link SavedMap}), a few milliseconds a tick
- * so the server keeps running: every block of the square, the block entities (containers, signs) and the
- * map points. What is built by hand in the world is what ends up in the file.
+ * so the server keeps running: every block of the square, the block entities (containers, signs), the
+ * entities (paintings, item frames, armour stands, animals) and the map points. What is built by hand in the world is what ends up in the file.
  */
 public final class MapSaveJob {
 	private static final long BUDGET_NANOS = 35_000_000L;
@@ -128,9 +134,23 @@ public final class MapSaveJob {
 				}
 			}
 		});
+		// Entities in the square (paintings, item frames, armour stands, animals), positions from the centre.
+		List<SavedMap.Placed> placed = new ArrayList<>();
+		AABB box = new AABB(this.origin.getX() - this.radius, this.origin.getY() + this.yMin, this.origin.getZ() - this.radius,
+			this.origin.getX() + this.radius + 1, this.origin.getY() + this.yMax + 1, this.origin.getZ() + this.radius + 1);
+		for (Entity entity : this.level.getEntities((Entity) null, box, SavedMap::keeps)) {
+			TagValueOutput out = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, this.level.registryAccess());
+			if (!entity.save(out)) {
+				continue;
+			}
+			CompoundTag data = out.buildResult();
+			data.remove("UUID");
+			BlockPos block = entity instanceof BlockAttachedEntity attached ? attached.getPos().subtract(this.origin) : null;
+			placed.add(new SavedMap.Placed(data, entity.position().subtract(Vec3.atLowerCornerOf(this.origin)), block));
+		}
 		Path file = SavedMap.file(this.name);
 		try {
-			SavedMap.write(file, this.radius, this.yMin, this.yMax, this.palette, this.indices, this.blockEntities, points);
+			SavedMap.write(file, this.radius, this.yMin, this.yMax, this.palette, this.indices, this.blockEntities, placed, points);
 		} catch (IOException e) {
 			this.source.sendFailure(Component.translatable("halloween.cmd.map_save_failed", this.name, e.toString()));
 			return;

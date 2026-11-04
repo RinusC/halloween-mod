@@ -14,6 +14,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.DoorBlock;
 import net.minecraft.world.level.block.FenceBlock;
 import net.minecraft.world.level.block.FenceGateBlock;
+import net.minecraft.world.level.block.LadderBlock;
 import net.minecraft.world.level.block.WallBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
@@ -22,14 +23,19 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 /**
  * Grid path finding for bots and townsfolk. Nodes are the blocks a body stands in (feet). Walking steps
  * go to the eight neighbours, up one block (a jump) or down up to three. Doors are passed unless
- * locked; windows (glass with a wall below) are crossed as a single climb when allowed.
+ * locked; windows (glass with a wall below) are crossed as a single climb when allowed. Ladders are
+ * climbed as one step each way: from the foot (or anywhere on it) to the floor beside the top, and from
+ * the floor by the top down to the foot.
  */
 public final class Nav {
 	public enum Step {
-		WALK, DOOR, WINDOW
+		WALK, DOOR, WINDOW, LADDER_UP, LADDER_DOWN
 	}
 
-	/** A point of the path and how it is reached from the previous one. For WINDOW, {@code glass} is the pane to climb. */
+	/**
+	 * A point of the path and how it is reached from the previous one. For WINDOW, {@code glass} is the pane to
+	 * climb; for LADDER_UP and LADDER_DOWN, the top rung of the ladder (where the column stands).
+	 */
 	public record Node(BlockPos pos, Step step, BlockPos glass) {
 	}
 
@@ -115,12 +121,21 @@ public final class Nav {
 		if (!state.getFluidState().isEmpty()) {
 			return 0;
 		}
+		if (state.getBlock() instanceof LadderBlock) {
+			// A thin board on the wall: a body is in the ladder's own block while it climbs.
+			return 1;
+		}
 		return state.getCollisionShape(level, pos).isEmpty() ? 1 : 0;
+	}
+
+	static boolean isLadder(Level level, BlockPos pos) {
+		return level.getBlockState(pos).getBlock() instanceof LadderBlock;
 	}
 
 	static boolean floor(Level level, BlockPos pos) {
 		BlockState state = level.getBlockState(pos);
-		if (Obstacles.lies(state)) {
+		if (Obstacles.lies(state) || state.getBlock() instanceof LadderBlock) {
+			// Nobody stands on top of a ladder: over it they are on it, and slide down unless climbing.
 			return false;
 		}
 		if (isDoor(state) || state.getBlock() instanceof FenceBlock || state.getBlock() instanceof WallBlock
@@ -296,6 +311,69 @@ public final class Nav {
 			BlockPos n = cur.relative(dirs[a]).relative(dirs[b]);
 			if (standable(level, n) && passable(level, n) == 1 && passable(level, n.above()) == 1) {
 				sink.accept(n, Step.WALK, null, 1.414);
+			}
+		}
+		ladders(level, cur, sink);
+	}
+
+	/** Climbing costs more than walking the same distance. */
+	private static final double CLIMB_COST = 1.5;
+
+	/**
+	 * Up and down ladders. On one (at its foot or half way up): up to the top and off onto the floor beside it,
+	 * or down to the foot. Next to the top of one (the top rung at the feet or just under them): down it.
+	 */
+	private static void ladders(Level level, BlockPos cur, Sink sink) {
+		if (isLadder(level, cur)) {
+			BlockPos top = cur;
+			while (isLadder(level, top.above()) && passable(level, top.above(2)) != 0) {
+				top = top.above();
+			}
+			// Off the top: onto a floor at the top rung's height, or a block higher (feet over the rung).
+			boolean overTop = passable(level, top.above()) != 0 && passable(level, top.above(2)) != 0;
+			for (Direction d : Direction.Plane.HORIZONTAL) {
+				for (BlockPos exit : new BlockPos[]{top.relative(d), overTop ? top.above().relative(d) : null}) {
+					if (exit != null && exit.getY() > cur.getY() && !isLadder(level, exit) && standable(level, exit)) {
+						sink.accept(exit, Step.LADDER_UP, top.immutable(), 1 + CLIMB_COST * (exit.getY() - cur.getY()));
+					}
+				}
+			}
+			ladderDown(level, cur, top, cur, sink);
+		}
+		for (Direction d : Direction.Plane.HORIZONTAL) {
+			BlockPos c = cur.relative(d);
+			BlockPos top;
+			if (isLadder(level, c)) {
+				if (standable(level, c)) {
+					// Its foot, level with us: an ordinary step.
+					continue;
+				}
+				top = c;
+			} else if (isLadder(level, c.below()) && passable(level, c) != 0 && passable(level, c.above()) != 0) {
+				top = c.below();
+			} else {
+				continue;
+			}
+			ladderDown(level, top, top, cur, sink);
+		}
+	}
+
+	/** From the rung {@code from} down to the foot of the ladder, and off it there. */
+	private static void ladderDown(Level level, BlockPos from, BlockPos top, BlockPos cur, Sink sink) {
+		BlockPos foot = from;
+		while (isLadder(level, foot.below())) {
+			foot = foot.below();
+		}
+		if (foot.getY() >= cur.getY()) {
+			return;
+		}
+		if (standable(level, foot)) {
+			sink.accept(foot, Step.LADDER_DOWN, top.immutable(), 1 + CLIMB_COST * (cur.getY() - foot.getY()));
+		}
+		for (Direction d : Direction.Plane.HORIZONTAL) {
+			BlockPos exit = foot.relative(d);
+			if (!isLadder(level, exit) && standable(level, exit)) {
+				sink.accept(exit, Step.LADDER_DOWN, top.immutable(), 2 + CLIMB_COST * (cur.getY() - foot.getY()));
 			}
 		}
 	}

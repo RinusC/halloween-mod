@@ -11,6 +11,14 @@ import java.util.Map;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.ExperienceOrb;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.projectile.Projectile;
+import net.minecraft.world.phys.Vec3;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.NbtAccounter;
@@ -19,13 +27,26 @@ import net.minecraft.nbt.NbtUtils;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
- * A map read from a file: the same square a {@link MapPlan} lays, but with every block, block entity and
- * map point taken from a snapshot made by {@link MapSaveJob} (/hw map save). Looked for first in
- * {@code <game dir>/halloween_maps/<name>.nbt}, then in the mod itself ({@code data/halloween/maps/<name>.nbt}).
+ * A map read from a file: the same square a {@link MapPlan} lays, but with every block, block entity,
+ * entity (paintings, item frames, armour stands, animals) and map point taken from a snapshot made by
+ * {@link MapSaveJob} (/hw map save). Looked for first in {@code <game dir>/halloween_maps/<name>.nbt}, then in
+ * the mod itself ({@code data/halloween/maps/<name>.nbt}).
  */
 public final class SavedMap extends MapPlan {
-	static final int VERSION = 1;
+	/** 2: entities as well (version 1 files have none and still load). */
+	static final int VERSION = 2;
 	private static final String RESOURCE = "/data/" + Halloween.MOD_ID + "/maps/";
+	/** Maps that come with the mod (resources cannot be listed, so they are named here). */
+	private static final List<String> BUNDLED = List.of("town_v2");
+
+	/**
+	 * An entity of the map: its saved data, where it stood from the centre and, for paintings and item
+	 * frames, the block it hangs on (they are placed by that block, not by their position).
+	 */
+	record Placed(CompoundTag data, Vec3 pos, BlockPos block) {
+	}
+
+	final List<Placed> entities = new ArrayList<>();
 
 	private final BlockState[] palette;
 	private final int[] indices;
@@ -50,6 +71,17 @@ public final class SavedMap extends MapPlan {
 
 	public static boolean validName(String name) {
 		return name.matches("[a-z0-9_]{1,40}");
+	}
+
+	/**
+	 * Whether an entity belongs to the map (saved with it, and cleared before a saved map is laid again):
+	 * not players, dropped items, projectiles, the corpses (mannequins) or anything of the mod's own.
+	 */
+	static boolean keeps(Entity entity) {
+		Identifier type = EntityType.getKey(entity.getType());
+		return !(entity instanceof Player) && !(entity instanceof ItemEntity) && !(entity instanceof ExperienceOrb)
+			&& !(entity instanceof Projectile) && !type.getNamespace().equals(Halloween.MOD_ID)
+			&& !type.equals(Identifier.withDefaultNamespace("mannequin"));
 	}
 
 	/** Index of a block in the flat array: x and z from the square's corner, y from the bottom. */
@@ -99,6 +131,14 @@ public final class SavedMap extends MapPlan {
 			CompoundTag e = entities.getCompoundOrEmpty(i);
 			map.blockEntities.put(new BlockPos(e.getIntOr("x", 0), e.getIntOr("y", 0), e.getIntOr("z", 0)), e.getCompoundOrEmpty("data"));
 		}
+		ListTag placed = root.getListOrEmpty("world_entities");
+		for (int i = 0; i < placed.size(); i++) {
+			CompoundTag e = placed.getCompoundOrEmpty(i);
+			int[] block = e.getIntArray("block").orElse(new int[0]);
+			map.entities.add(new Placed(e.getCompoundOrEmpty("data"),
+				new Vec3(e.getDoubleOr("x", 0), e.getDoubleOr("y", 0), e.getDoubleOr("z", 0)),
+				block.length == 3 ? new BlockPos(block[0], block[1], block[2]) : null));
+		}
 		CompoundTag points = root.getCompoundOrEmpty("points");
 		for (String key : points.keySet()) {
 			MapPoints.Type type = MapPoints.Type.byKey(key);
@@ -112,7 +152,7 @@ public final class SavedMap extends MapPlan {
 
 	/** Writes a snapshot. Called by {@link MapSaveJob} once every column has been read. */
 	static void write(Path file, int radius, int yMin, int yMax, List<BlockState> palette, int[] indices,
-		Map<BlockPos, CompoundTag> blockEntities, Map<MapPoints.Type, List<BlockPos>> points) throws IOException {
+		Map<BlockPos, CompoundTag> blockEntities, List<Placed> placed, Map<MapPoints.Type, List<BlockPos>> points) throws IOException {
 		CompoundTag root = new CompoundTag();
 		root.putInt("version", VERSION);
 		root.putInt("radius", radius);
@@ -134,6 +174,19 @@ public final class SavedMap extends MapPlan {
 			entities.add(e);
 		});
 		root.put("entities", entities);
+		ListTag placedTags = new ListTag();
+		for (Placed p : placed) {
+			CompoundTag e = new CompoundTag();
+			e.putDouble("x", p.pos().x);
+			e.putDouble("y", p.pos().y);
+			e.putDouble("z", p.pos().z);
+			if (p.block() != null) {
+				e.putIntArray("block", new int[]{p.block().getX(), p.block().getY(), p.block().getZ()});
+			}
+			e.put("data", p.data());
+			placedTags.add(e);
+		}
+		root.put("world_entities", placedTags);
 		CompoundTag pointTags = new CompoundTag();
 		points.forEach((type, list) -> {
 			int[] xyz = new int[list.size() * 3];
@@ -149,7 +202,7 @@ public final class SavedMap extends MapPlan {
 		NbtIo.writeCompressed(root, file);
 	}
 
-	/** Names of the snapshots that can be loaded (files next to the game, then those in the mod are not listed). */
+	/** Names of the snapshots that can be loaded: files next to the game, then the maps that come with the mod. */
 	public static List<String> names() {
 		List<String> names = new ArrayList<>();
 		try (var stream = Files.list(folder())) {
@@ -157,6 +210,11 @@ public final class SavedMap extends MapPlan {
 				.forEach(n -> names.add(n.substring(0, n.length() - 4)));
 		} catch (IOException ignored) {
 			// No folder yet: nothing saved.
+		}
+		for (String name : BUNDLED) {
+			if (!names.contains(name)) {
+				names.add(name);
+			}
 		}
 		return names;
 	}
